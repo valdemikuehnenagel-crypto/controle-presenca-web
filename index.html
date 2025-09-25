@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Acesso ao Sistema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body class="min-h-screen font-sans antialiased">
+
+  <main class="flex w-screen h-screen overflow-hidden border border-zinc-800 bg-zinc-950">
+    <section class="flex flex-col basis-full p-8 md:p-10 lg:basis-5/12 justify-center">
+
+      <h2 class="text-4xl font-bold text-white text-center mb-10">
+        Olá, Seja bem vindo ao<br>KN Conecta!
+      </h2>
+
+      <div id="loginView">
+        <h1 class="my-8 text-3xl font-bold text-white">
+          Faça o seu login
+          <span class="inline-block h-3 w-3 rounded-full bg-gradient-to-tr from-[#003369] to-[#003369]"></span>
+        </h1>
+        <form id="loginForm" class="flex flex-col gap-6 text-gray-400">
+          <label class="group relative text-white">
+            PIN de 6 dígitos
+            <div class="pointer-events-none absolute -inset-1 top-6 h-10 w-full rounded-lg bg-gradient-to-tr from-[#003369] to-[#003369] opacity-0 blur-md transition-opacity ease-in group-focus-within:opacity-100"></div>
+            <div class="relative mt-2 rounded-lg bg-none p-[1px] focus-within:bg-gradient-to-tr from-[#003369] to-[#003369]">
+              <input id="pinLogin" type="password" maxlength="6" inputmode="numeric" required class="h-10 w-full appearance-none rounded-lg bg-zinc-800 p-2 text-white text-center outline-none" style="letter-spacing: 0.5em;" />
+            </div>
+          </label>
+          <button id="loginBtn" type="submit" class="h-10 rounded-lg bg-gradient-to-tr from-[#003369] to-[#003369] font-bold text-white">
+            Entrar
+          </button>
+          <p id="loginMsg" class="text-center text-sm text-red-400 h-4"></p>
+        </form>
+        <button type="button" id="showRegisterBtn" class="mt-4 w-full text-center text-sm text-gray-400 underline transition hover:text-white">
+          Ainda não tenho uma conta
+        </button>
+      </div>
+
+      <div id="registerView" class="hidden">
+        <h1 class="my-8 text-3xl font-bold text-white">
+          Crie sua Conta
+          <span class="inline-block h-3 w-3 rounded-full bg-gradient-to-tr from-[#003369] to-[#003369]"></span>
+        </h1>
+        <form id="registerForm" class="flex flex-col gap-4 text-gray-400">
+          <label class="group relative text-white">
+            Email
+            <div class="pointer-events-none absolute -inset-1 top-6 h-10 w-full rounded-lg bg-gradient-to-tr from-[#003369] to-[#003369] opacity-0 blur-md transition-opacity ease-in group-focus-within:opacity-100"></div>
+            <div class="relative mt-2 rounded-lg bg-none p-[1px] focus-within:bg-gradient-to-tr from-[#003369] to-[#003369]">
+              <input id="registerEmail" type="email" required class="h-10 w-full appearance-none rounded-lg bg-zinc-800 p-2 text-white outline-none" />
+            </div>
+          </label>
+          <label class="group relative text-white">
+            Matriz
+            <div class="pointer-events-none absolute -inset-1 top-6 h-10 w-full rounded-lg bg-gradient-to-tr from-[#003369] to-[#003369] opacity-0 blur-md transition-opacity ease-in group-focus-within:opacity-100"></div>
+            <div class="relative mt-2 rounded-lg bg-none p-[1px] focus-within:bg-gradient-to-tr from-[#003369] to-[#003369]">
+              <select id="registerMatriz" required class="h-10 w-full appearance-none rounded-lg bg-zinc-800 p-2 text-center text-white outline-none">
+                <option value="" disabled selected class="bg-zinc-800">Carregando...</option>
+              </select>
+            </div>
+          </label>
+          <label class="group relative text-white">
+            Crie um PIN de 6 dígitos
+            <div class="pointer-events-none absolute -inset-1 top-6 h-10 w-full rounded-lg bg-gradient-to-tr from-[#003369] to-[#003369] opacity-0 blur-md transition-opacity ease-in group-focus-within:opacity-100"></div>
+            <div class="relative mt-2 rounded-lg bg-none p-[1px] focus-within:bg-gradient-to-tr from-[#003369] to-[#003369]">
+              <input id="registerPin" type="password" maxlength="6" inputmode="numeric" required class="h-10 w-full appearance-none rounded-lg bg-zinc-800 p-2 text-white text-center outline-none" style="letter-spacing: 0.5em;" />
+            </div>
+          </label>
+          <button id="registerBtn" type="submit" class="mt-2 h-10 rounded-lg bg-gradient-to-tr from-[#003369] to-[#003369] font-bold text-white">
+            Criar e Enviar para Aprovação
+          </button>
+          <p id="registerMsg" class="text-center text-sm text-green-400 h-4"></p>
+        </form>
+        <button type="button" id="showLoginBtn" class="mt-4 w-full text-center text-sm text-gray-400 underline transition hover:text-white">
+          Já tenho uma conta
+        </button>
+      </div>
+    </section>
+
+    <section class="hidden bg-cover bg-center lg:block lg:basis-7/12 rounded-r-3xl shadow-[inset_270px_0px_150px_-100px_#09090b]"
+             style="background-image: url('/imagens/login.png');"></section>
+  </main>
+
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

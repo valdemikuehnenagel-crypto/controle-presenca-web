@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Regra essencial para o layout de tela cheia */
+html, body {
+  height: 100%;
+  width: 100%;
+}
+
+.pin-input {
+  letter-spacing: 0.5em;
+}
