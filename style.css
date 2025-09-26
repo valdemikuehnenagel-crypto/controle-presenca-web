@@ -9,6 +9,7 @@ html, body {
     height: 100%;
     overflow: hidden;
 }
+
 body {
     font-family: 'Poppins', sans-serif;
     color: #242c4c;
@@ -19,6 +20,7 @@ body {
     background-position: center;
     padding: 16px;
 }
+
 .container {
     width: 100%;
     height: 100%;
@@ -39,6 +41,7 @@ body {
     margin-bottom: 10px;
     flex-shrink: 0;
 }
+
 .tab-btn {
     padding: 8px 14px;
     border: none;
@@ -51,12 +54,17 @@ body {
     box-shadow: 0 4px 10px rgba(0, 0, 0, .06);
     transition: all .2s ease;
 }
-.tab-btn:hover { transform: translateY(-1px); }
+
+.tab-btn:hover {
+    transform: translateY(-1px);
+}
+
 .tab-btn.active {
     background: #003369;
     color: #fff;
     box-shadow: 0 8px 18px rgba(0, 0, 0, .12);
 }
+
 .tab-panel.active {
     display: flex;
     flex-direction: column;
@@ -72,6 +80,7 @@ body {
     margin-bottom: 10px;
     align-items: center;
 }
+
 .controls input[type="search"] {
     grid-column: 1 / -1;
     padding: 10px 14px;
@@ -81,6 +90,7 @@ body {
     outline: none;
     background: #fff;
 }
+
 .controls .filters {
     grid-column: 1 / 2;
     display: flex;
@@ -88,6 +98,7 @@ body {
     gap: 8px;
     align-items: center;
 }
+
 .controls select {
     padding: 8px 10px;
     border: 1px solid #ddd;
@@ -98,11 +109,13 @@ body {
     font-size: 12px;
     cursor: pointer;
 }
+
 .button-group {
     grid-column: 3 / 4;
     display: flex;
     gap: 8px;
 }
+
 #limpar-filtros-btn, .btn-add, #export-colaboradores-btn {
     padding: 8px 14px;
     min-width: 130px;
@@ -111,13 +124,22 @@ body {
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 6px 14px rgba(0,0,0,.10);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
     color: #fff;
     transition: all .2s ease;
 }
-.btn-add { background: #22B14C; }
-#export-colaboradores-btn { background: #003369; }
-#limpar-filtros-btn { background: #6c757d; }
+
+.btn-add {
+    background: #22B14C;
+}
+
+#export-colaboradores-btn {
+    background: #003369;
+}
+
+#limpar-filtros-btn {
+    background: #6c757d;
+}
 
 /* --- TABELA --- */
 .table-wrapper {
@@ -128,7 +150,12 @@ body {
     box-shadow: 0 6px 16px rgba(0, 0, 0, .1);
     background: #fff;
 }
-table { width: 100%; border-collapse: collapse; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
 thead th {
     position: sticky;
     top: 0;
@@ -141,6 +168,7 @@ thead th {
     /* CORREÇÃO DE ALINHAMENTO */
     text-align: center;
 }
+
 tbody td {
     padding: 6px 8px;
     border-bottom: 1px solid #f1f1f1;
@@ -150,13 +178,20 @@ tbody td {
     /* CORREÇÃO DE ALINHAMENTO */
     text-align: center;
 }
+
 /* Mantém a primeira coluna (Nome) alinhada à esquerda para melhor leitura */
 th.nome-col, td.nome-col {
     min-width: 240px;
     text-align: left;
 }
-tbody tr:nth-child(even) td { background: #f9f9f9; }
-tbody tr:hover td { background: #e8f7ff; }
+
+tbody tr:nth-child(even) td {
+    background: #f9f9f9;
+}
+
+tbody tr:hover td {
+    background: #e8f7ff;
+}
 
 /* --- PAGINAÇÃO --- */
 .pagination-controls {
@@ -164,6 +199,7 @@ tbody tr:hover td { background: #e8f7ff; }
     text-align: center;
     flex-shrink: 0;
 }
+
 .pagination-controls button {
     background: #003369;
     color: #fff;
@@ -176,11 +212,16 @@ tbody tr:hover td { background: #e8f7ff; }
     font-weight: 700;
     transition: all .2s ease;
 }
+
 .pagination-controls button:hover {
     background: #02B1EE;
     transform: translateY(-2px);
 }
-.pagination-controls .hidden { display: none; }
+
+.pagination-controls .hidden {
+    display: none;
+}
+
 #contador-visiveis {
     font-weight: 700;
     color: #003369;
@@ -267,6 +308,7 @@ h3 {
     background-color: #02B1EE;
     color: #fff;
 }
+
 .btn-salvar:hover {
     background-color: #003369;
     transform: translateY(-2px);
@@ -276,12 +318,495 @@ h3 {
     background-color: #e4e6eb;
     color: #4b4f56;
 }
+
 .btn-cancelar:hover {
     background-color: #d8dadf;
     transform: translateY(-2px);
 }
 
 #editMatriz[readonly] {
-  background: #f6f9ff;
-  color: #2b3355;
+    background: #f6f9ff;
+    color: #2b3355;
+}
+
+/* =======================================================
+   CONTROLE DIÁRIO — ESTILOS COMPLETOS E REORGANIZADOS
+========================================================== */
+
+/* --- Componentes de UI (Overlays e Toasts) --- */
+#cd-loading {
+    z-index: 9998;
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .35);
+}
+
+#cd-loading .spinner {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    border: 5px solid rgba(255, 255, 255, .5);
+    border-top-color: #02B1EE;
+    animation: cdspin 0.9s linear infinite;
+}
+
+@keyframes cdspin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+#toast-root {
+    z-index: 9999;
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.toast {
+    min-width: 260px;
+    max-width: 420px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .18);
+    opacity: 0;
+    transform: translateY(-6px);
+    animation: toast-in .18s ease forwards;
+}
+
+.toast.info {
+    background: #003369;
+}
+
+.toast.success {
+    background: #22B14C;
+}
+
+.toast.error {
+    background: #D81D1D;
+}
+
+@keyframes toast-in {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Estrutura do Cabeçalho em Linha Única --- */
+.cd-header.single-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+    flex-wrap: nowrap; /* Força a linha única */
+    overflow-x: auto; /* Adiciona scroll horizontal se necessário */
+    padding-bottom: 5px; /* Espaço para a barra de rolagem não cortar os elementos */
+}
+
+.cd-secondary-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 16px;
+}
+
+.date-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.date-selector label {
+    font-weight: 700;
+    color: #003369;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.date-selector input[type="date"] {
+    border-radius: 20px;
+    border: 1px solid #ddd;
+    padding: 6px 10px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.cd-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cd-filters input[type="search"] {
+    max-width: 220px; /* ENCURTADO */
+    padding: 8px 14px;
+    border: 1px solid #ddd;
+    border-radius: 22px;
+    font-size: 12px;
+    outline: none;
+    background: #fff;
+}
+
+.cd-filters select {
+    max-width: 140px; /* ENCURTADO */
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: #fff;
+    font-weight: 600;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.summary-display {
+    font-weight: 700;
+    color: #003369;
+    font-size: 12px;
+    white-space: nowrap;
+    text-align: right;
+    flex-grow: 1;
+}
+
+.subtabs-root {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.subtab-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 18px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #eef3fb;
+    color: #003369;
+    cursor: pointer;
+    transition: all .2s ease;
+}
+
+.subtab-btn:hover {
+    transform: translateY(-1px);
+}
+
+.subtab-btn.active {
+    background: #02B1EE;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(2, 177, 238, .25);
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* --- Botões de Ação Principais --- */
+#cd-mark-all-present, #cd-clear-all, #cd-export, #cd-period-btn {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 24px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .08);
+    color: #fff;
+    transition: all .2s ease;
+    white-space: nowrap;
+}
+
+#cd-mark-all-present {
+    background: #22B14C;
+}
+
+#cd-clear-all {
+    background: #6c757d;
+}
+
+#cd-export, #cd-period-btn {
+    background: #003369;
+}
+
+#cd-mark-all-present:hover, #cd-clear-all:hover, #cd-export:hover, #cd-period-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* --- Tabela Principal e Ações de Linha --- */
+.table-wrapper thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.status-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    justify-content: center;
+}
+
+.cd-btn {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    background: #f1f4fb;
+    color: #2b3355;
+    transition: all .2s ease;
+}
+
+.cd-btn:hover {
+    transform: translateY(-1px);
+}
+
+.cd-btn.active {
+    outline: 2px solid #02B1EE;
+}
+
+.status-actions .cd-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+    min-width: 32px;
+}
+
+/* Paleta de cores dos botões de status */
+.status-p {
+    background-color: #22B14C;
+    color: #fff;
+}
+
+.status-f {
+    background-color: #e55353;
+    color: #fff;
+}
+
+.status-a {
+    background-color: #f0ad4e;
+    color: #fff;
+}
+
+.status-fe {
+    background-color: #2ea3ff;
+    color: #fff;
+}
+
+.status-s {
+    background-color: #242c4c;
+    color: #fff;
+}
+
+.status-fd {
+    background-color: #c0c0c0;
+    color: #333;
+}
+
+.status-x {
+    background-color: #666;
+    color: #fff;
+}
+
+/* Destaque visual da linha e badges */
+#tab-controle-diario table tbody tr {
+    transition: all .18s ease;
+    animation: rowFadeIn .14s ease-out both;
+}
+
+#tab-controle-diario table tbody tr.row-presenca {
+    background: #f3fff7;
+    box-shadow: inset 4px 0 0 #22B14C;
+}
+
+#tab-controle-diario table tbody tr.row-falta {
+    background: #fff5f5;
+    box-shadow: inset 4px 0 0 #e55353;
+}
+
+#tab-controle-diario table tbody tr.row-atestado {
+    background: #fffaf0;
+    box-shadow: inset 4px 0 0 #f0ad4e;
+}
+
+#tab-controle-diario table tbody tr.row-f_especial {
+    background: #f4f9ff;
+    box-shadow: inset 4px 0 0 #2ea3ff;
+}
+
+#tab-controle-diario table tbody tr.row-feriado {
+    background: #f6f6ff;
+    box-shadow: inset 4px 0 0 #7a7aff;
+}
+
+#tab-controle-diario table tbody tr.row-suspensao {
+    background: #fff2f2;
+    box-shadow: inset 4px 0 0 #bb1c1c;
+}
+
+.cd-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    vertical-align: middle;
+    animation: popIn .16s ease-out both;
+}
+
+.badge-presenca {
+    background: #22B14C;
+    color: #fff;
+}
+
+.badge-falta {
+    background: #e55353;
+    color: #fff;
+}
+
+.badge-atestado {
+    background: #f0ad4e;
+    color: #fff;
+}
+
+.badge-f_especial {
+    background: #2ea3ff;
+    color: #fff;
+}
+
+.badge-feriado {
+    background: #7a7aff;
+    color: #fff;
+}
+
+.badge-suspensao {
+    background: #bb1c1c;
+    color: #fff;
+}
+
+/* --- Animações --- */
+@keyframes rowFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes popIn {
+    0% {
+        opacity: 0;
+        transform: scale(.96);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* --- Modal de Período --- */
+#cd-period-overlay {
+    z-index: 9999;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+}
+
+#cd-period-overlay > div {
+    width: min(520px, 92vw);
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .22);
+    animation: fadeIn .18s ease-out both;
+    border: 1px solid #e9eef7;
+}
+
+#cd-period-overlay h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #003369;
+    font-weight: 800;
+}
+
+#cd-period-overlay label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #2b3355;
+}
+
+#cd-period-overlay input[type="date"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 12px;
+    background: #fff;
+    transition: all .25s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .05);
+}
+
+#cd-period-overlay input[type="date"]:focus {
+    border-color: #02B1EE;
+    box-shadow: 0 0 0 4px rgba(2, 177, 238, .2);
+}
+
+#cd-period-overlay .dates-grid {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 16px;
+    grid-template-columns: 1fr 1fr;
+}
+
+#cd-period-overlay .btn-add, #cd-period-apply {
+    background: #003369;
+    color: #fff;
+}
+
+#cd-period-overlay .btn-add:hover, #cd-period-apply:hover {
+    background: #02B1EE;
+}
+
+#cd-period-overlay .btn, #cd-period-cancel {
+    background: #6c757d;
+    color: #fff;
+}
+
+#cd-period-overlay .btn:hover, #cd-period-cancel:hover {
+    background: #5a6268;
+}
+
+#cd-period-apply:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.main-table .nome-col {
+    min-width: 260px;
 }

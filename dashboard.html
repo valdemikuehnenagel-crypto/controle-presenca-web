@@ -70,8 +70,16 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="addSVC">SVC</label>
+                    <select id="addSVC" required>
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="addGestor">Gestor</label>
-                    <input type="text" id="addGestor" required/>
+                    <select id="addGestor" required disabled>
+                        <option value="" disabled selected>Selecione um SVC primeiro...</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="addDSR">DSR</label>
@@ -98,12 +106,6 @@
                 <div class="form-group">
                     <label for="addDataAdmissao">Data de Admissão</label>
                     <input type="date" id="addDataAdmissao" required/>
-                </div>
-                <div class="form-group">
-                    <label for="addSVC">SVC</label>
-                    <select id="addSVC" required>
-                        <option value="" disabled selected>Carregando...</option>
-                    </select>
                 </div>
                 <div class="form-group">
                     <label for="addMatriz">MATRIZ</label>
@@ -218,7 +220,7 @@
 
                 <div class="form-group">
                     <label for="editGestor">Gestor</label>
-                    <input id="editGestor" type="text"/>
+                    <select id="editGestor"></select>
                 </div>
 
                 <div class="form-group">
@@ -260,7 +262,6 @@
         </form>
     </div>
 </div>
-
 
 <div id="desligarModal"
      class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">

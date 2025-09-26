@@ -121,6 +121,49 @@ function attachUpperHandlersTo(form) {
     });
 }
 
+// Arquivo: public/pages/colaboradores.js
+
+function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+    const gestorSelect = document.getElementById('editGestor');
+    if (!gestorSelect) return;
+
+    gestorSelect.innerHTML = '';
+
+    if (!selectedSvc) {
+        gestorSelect.disabled = true;
+        gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC...</option>';
+        return;
+    }
+
+    const gestoresFiltrados = state.gestoresData
+        .filter(gestor => {
+            if (!gestor.SVC) return false;
+            const managerSVCs = gestor.SVC.split(',').map(s => s.trim());
+            return managerSVCs.includes(selectedSvc);
+        })
+        .sort((a, b) => a.NOME.localeCompare(b.NOME));
+
+    if (gestoresFiltrados.length === 0) {
+        gestorSelect.disabled = true;
+        gestorSelect.innerHTML = '<option value="" disabled selected>Nenhum gestor para este SVC</option>';
+        return;
+    }
+
+    gestorSelect.disabled = false;
+    gestorSelect.innerHTML = '<option value="">Selecione um gestor...</option>';
+    gestoresFiltrados.forEach(gestor => {
+        const option = document.createElement('option');
+        option.value = gestor.NOME;
+        option.textContent = gestor.NOME;
+        gestorSelect.appendChild(option);
+    });
+
+    // Se um gestor atual foi informado, pré-seleciona ele na lista
+    if (gestorAtual) {
+        gestorSelect.value = gestorAtual;
+    }
+}
+
 function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
@@ -262,6 +305,62 @@ async function loadSVCsParaFormulario() {
     });
 }
 
+async function loadGestoresParaFormulario() {
+    // Busca os dados apenas uma vez para otimizar
+    if (state.gestoresData && state.gestoresData.length > 0) return;
+
+    const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
+    if (error) {
+        console.error('Erro ao buscar gestores:', error);
+        state.gestoresData = [];
+        return;
+    }
+    state.gestoresData = data || [];
+}
+
+function populateGestorSelect(selectedSvc) {
+    const gestorSelect = document.getElementById('addGestor');
+    if (!gestorSelect) return;
+
+    gestorSelect.innerHTML = ''; // Limpa opções antigas
+
+    if (!selectedSvc) {
+        gestorSelect.disabled = true;
+        gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC primeiro...</option>';
+        return;
+    }
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // A lógica de filtro agora entende a lista de SVCs separados por vírgula.
+    const gestoresFiltrados = state.gestoresData
+        .filter(gestor => {
+            if (!gestor.SVC) return false; // Ignora gestores sem SVC definido
+
+            // 1. Transforma a string "SBA3, SBA7, SSE1" em um array ["SBA3", "SBA7", "SSE1"]
+            const managerSVCs = gestor.SVC.split(',').map(s => s.trim());
+
+            // 2. Verifica se o SVC selecionado no formulário está contido nesse array
+            return managerSVCs.includes(selectedSvc);
+        })
+        .sort((a, b) => a.NOME.localeCompare(b.NOME));
+    // --- FIM DA CORREÇÃO ---
+
+    if (gestoresFiltrados.length === 0) {
+        gestorSelect.disabled = true;
+        gestorSelect.innerHTML = '<option value="" disabled selected>Nenhum gestor para este SVC</option>';
+        return;
+    }
+
+    gestorSelect.disabled = false;
+    gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um gestor...</option>';
+    gestoresFiltrados.forEach(gestor => {
+        const option = document.createElement('option');
+        option.value = gestor.NOME;
+        option.textContent = gestor.NOME;
+        gestorSelect.appendChild(option);
+    });
+}
+
 async function handleAddSubmit(event) {
     event.preventDefault();
     attachUppercaseHandlers();
@@ -379,10 +478,11 @@ function hideEditModal() {
 }
 
 async function fillEditForm(colab) {
-    // guarda referência do registro original
     editOriginal = {Nome: colab.Nome, CPF: colab.CPF ?? null};
 
-    // helper pra setar valor só se o input existir
+    // Garante que a lista de gestores esteja carregada
+    await loadGestoresParaFormulario();
+
     const setVal = (el, v) => {
         if (el) el.value = v ?? '';
     };
@@ -393,22 +493,17 @@ async function fillEditForm(colab) {
     setVal(editInputs.CPF, colab.CPF || '');
     setVal(editInputs.Contrato, colab.Contrato || '');
     setVal(editInputs.Cargo, colab.Cargo || '');
-    setVal(editInputs.Gestor, colab.Gestor || '');
+    // O campo Gestor agora será preenchido pela função populateGestorSelectForEdit
     setVal(editInputs.DSR, colab.DSR || '');
     setVal(editInputs.Escala, colab.Escala || '');
     setVal(editInputs['FOLGA ESPECIAL'], colab['FOLGA ESPECIAL'] || '');
     setVal(editInputs.LDAP, colab.LDAP ?? '');
     setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');
+    setVal(editInputs['Data de nascimento'], colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : '');
 
-    const dn = colab['Data de nascimento']
-        ? new Date(colab['Data de nascimento']).toISOString().split('T')[0]
-        : '';
-    setVal(editInputs['Data de nascimento'], dn);
-
-    // SVC (mantém a matriz automática, sem campo visual)
+    // Popula o select de SVC
     if (editSVC) {
         const svc = colab.SVC ? String(colab.SVC).toUpperCase() : '';
-        // garante que o option exista mesmo que não tenha vindo no carregamento
         if (svc && !Array.from(editSVC.options).some(o => o.value === svc)) {
             const opt = document.createElement('option');
             opt.value = svc;
@@ -416,6 +511,9 @@ async function fillEditForm(colab) {
             editSVC.appendChild(opt);
         }
         editSVC.value = svc || '';
+
+        // **NOVO**: Popula o select de Gestor com base no SVC e pré-seleciona o gestor atual
+        populateGestorSelectForEdit(svc, colab.Gestor);
     }
 }
 
@@ -1016,6 +1114,8 @@ async function openHistorico(nome) {
 }
 
 
+// Arquivo: public/pages/colaboradores.js
+
 function wireEdit() {
     editModal = document.getElementById('editModal');
     editForm = document.getElementById('editForm');
@@ -1033,7 +1133,7 @@ function wireEdit() {
         CPF: document.getElementById('editCPF'),
         Contrato: document.getElementById('editContrato'),
         Cargo: document.getElementById('editCargo'),
-        Gestor: document.getElementById('editGestor'),
+        Gestor: document.getElementById('editGestor'), // Agora aponta para o <select>
         DSR: document.getElementById('editDSR'),
         Escala: document.getElementById('editEscala'),
         'FOLGA ESPECIAL': document.getElementById('editFolgaEspecial'),
@@ -1042,13 +1142,17 @@ function wireEdit() {
         'Data de nascimento': document.getElementById('editDataNascimento')
     };
 
-    // Esconde visualmente o campo de MATRIZ (se existir) e garante o de Gestor visível
-    const matrizInput = document.getElementById('editMatriz');
-    if (matrizInput) (matrizInput.closest('.form-row') || matrizInput.parentElement)?.classList.add('hidden');
-    const gestorInput = document.getElementById('editGestor');
-    if (gestorInput) (gestorInput.closest('.form-row') || gestorInput.parentElement)?.classList.remove('hidden');
-
     attachUpperHandlersTo(editForm);
+
+    // --- AJUSTE AQUI ---
+    // Adiciona o listener para o select de SVC no modal de EDIÇÃO
+    if (editSVC) {
+        editSVC.addEventListener('change', () => {
+            // Ao mudar o SVC, repopula a lista de gestores
+            populateGestorSelectForEdit(editSVC.value);
+        });
+    }
+    // --- FIM DO AJUSTE ---
 
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
@@ -1071,20 +1175,14 @@ function wireEdit() {
     editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
-        if (!colab) {
-            alert('Colaborador não encontrado.');
-            return;
-        }
+        if (!colab) { alert('Colaborador não encontrado.'); return; }
         openDesligarModalFromColab(colab);
     });
 
     editFeriasBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
-        if (!colab) {
-            alert('Colaborador não encontrado.');
-            return;
-        }
+        if (!colab) { alert('Colaborador não encontrado.'); return; }
         openFeriasModalFromColab(colab);
     });
 
@@ -1097,7 +1195,7 @@ function wireEdit() {
         const nome = evt.detail?.nome;
         if (!nome) return;
         try {
-            await loadServiceMatrizForEdit(); // mantém o map SVC→MATRIZ atualizado
+            await loadServiceMatrizForEdit();
             const colab = await fetchColabByNome(nome);
             if (!colab) {
                 alert('Colaborador não encontrado.');
@@ -1214,6 +1312,8 @@ export async function getFeriasRange(inicioISO, fimISO) {
     }
 }
 
+// Arquivo: public/pages/colaboradores.js
+
 export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     searchInput = document.getElementById('search-input');
@@ -1259,9 +1359,17 @@ export function init() {
             updateDisplay();
         });
     }
+
+    // --- AJUSTE AQUI ---
     if (addColaboradorBtn) {
-        addColaboradorBtn.addEventListener('click', () => {
+        addColaboradorBtn.addEventListener('click', async () => { // Adicionado async
+            // Carrega os dados necessários para os selects do formulário
+            await loadGestoresParaFormulario();
             loadSVCsParaFormulario();
+
+            // Reseta o select de gestor para o estado inicial
+            populateGestorSelect(null);
+
             attachUppercaseHandlers();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
         });
@@ -1273,10 +1381,16 @@ export function init() {
         const matrizInput = document.getElementById('addMatriz');
         if (svcSelect && matrizInput) {
             svcSelect.addEventListener('change', () => {
+                // Comportamento antigo: atualiza a matriz
                 matrizInput.value = state.serviceMatrizMap.get(String(svcSelect.value)) || '';
+
+                // NOVO COMPORTAMENTO: popula o select de gestor
+                populateGestorSelect(svcSelect.value);
             });
         }
     }
+    // --- FIM DO AJUSTE ---
+
     if (colaboradoresTbody) {
         colaboradoresTbody.addEventListener('dblclick', (event) => {
             const nome = event.target.closest('tr')?.dataset.nome;
