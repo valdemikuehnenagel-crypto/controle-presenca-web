@@ -1,5 +1,4 @@
-// src/pages/controle-diario.js
-import {supabase} from '/src/supabaseClient.js';
+import {supabase} from '../supabaseClient.js';
 
 let state;
 let ui;
