@@ -3,10 +3,8 @@ export default {
   content: [
     "./index.html",
     "./dashboard.html",
-    "./main.js",
-    "./dashboard.js",
-    "./src/pages/**/*.js",     // scripts das abas
-    "./public/pages/**/*.html" // HTML das abas (agora em public)
+    "./public/**/*.html", // /public/pages/*.html
+    "./src/**/*.js"       // /src/pages/*.js e demais JS
   ],
   theme: { extend: {} },
   plugins: [],

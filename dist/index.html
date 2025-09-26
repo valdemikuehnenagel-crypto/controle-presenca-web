@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Acesso ao Sistema | KN Conecta</title>
+    <link rel="icon" href="/imagens/kn.ico" type="image/x-icon">
+  <script type="module" crossorigin src="/assets/index-oxvjemFu.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/preload-helper-BxaVoaJg.js">
+  <link rel="modulepreload" crossorigin href="/assets/index-DnGFXnjs.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-L3cds1i5.css">
+</head>
+
+<body>
+
+<div class="container" id="container">
+
+    <div class="form-container sign-up">
+        <form id="registerForm">
+            <h1>Crie sua Conta</h1>
+            <span>Use seu email e crie um PIN para se registrar</span>
+
+            <input id="registerEmail" type="email" placeholder="Email" required/>
+
+            <select id="registerMatriz" required>
+                <option value="" disabled selected>Carregando matrizes...</option>
+            </select>
+
+            <input id="registerPin" type="password" placeholder="Crie um PIN de 6 dígitos" maxlength="6"
+                   inputmode="numeric" required/>
+
+            <button id="registerBtn" type="submit">Criar e Enviar</button>
+            <p id="registerMsg" class="message"></p>
+        </form>
+    </div>
+
+    <div class="form-container sign-in">
+        <form id="loginForm">
+            <h1>Faça o seu login</h1>
+            <span>Use o seu PIN de 6 dígitos para entrar</span>
+
+            <input id="pinLogin" type="password" placeholder="Digite aqui" maxlength="6" inputmode="numeric" required
+                   class="pin-input"/>
+
+            <button id="loginBtn" type="submit">Entrar</button>
+
+            <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci meu pin</button>
+
+            <p id="loginMsg" class="message"></p>
+        </form>
+    </div>
+
+    <div class="toggle-container">
+        <div class="toggle">
+            <div class="toggle-panel toggle-left">
+                <img src="/imagens/kn.ico" alt="Logo KN Conecta" style="height: 60px; margin-bottom: 15px;">
+                <h1>Bem-vindo de volta!</h1>
+                <p>Já possui uma conta? Faça o login para acessar o sistema.</p>
+                <button class="hidden" id="showLoginBtn">Entrar</button>
+            </div>
+            <div class="toggle-panel toggle-right">
+                <img src="/imagens/kn.ico" alt="Logo KN Conecta" style="height: 60px; margin-bottom: 15px;">
+                <h1>Olá, seja bem vindo ao KNConecta!</h1>
+                <p>Ainda não tem uma conta? Registre-se para solicitar seu acesso.</p>
+                <button class="hidden" id="showRegisterBtn">Criar Conta</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

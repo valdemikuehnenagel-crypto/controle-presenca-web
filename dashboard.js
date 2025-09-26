@@ -9,28 +9,50 @@ const addModal = document.getElementById('addModal');
 const cancelBtn = document.getElementById('cancelBtn');
 
 // --- ESTADO GLOBAL ---
-let currentModule = null; // Guarda o módulo da aba ativa
+let currentModule = null;   // módulo da aba ativa
+let isLoadingPage = false;  // trava para evitar clique duplo
+let loadToken = 0;          // token para evitar race condition entre trocas rápidas
 
 // --- MAPEAMENTO DE MÓDULOS DAS ABAS (build-friendly) ---
-// Vite resolve esses imports em build e gera os chunks com hash corretamente.
-const pageModules = import.meta.glob('/src/pages/*.js'); // ex: { '/src/pages/colaboradores.js': () => import('...'), ... }
+// Vite resolve isso no build e gera os chunks corretos.
+const pageModules = import.meta.glob('/src/pages/*.js'); // { '/src/pages/colaboradores.js': () => import('...'), ... }
 
 // --- FUNÇÕES ---
 
-// Função de segurança que verifica a sessão do usuário
+// Verifica sessão do usuário
 function checkSession() {
   const userDataString = localStorage.getItem('userSession');
   if (!userDataString) {
-    window.location.href = '/index.html'; // Redireciona se não estiver logado
+    window.location.href = '/index.html';
     return;
   }
-  const user = JSON.parse(userDataString);
-  if (userInfoEl) userInfoEl.textContent = user.Usuario ?? 'Usuário';
+  try {
+    const user = JSON.parse(userDataString);
+    if (userInfoEl) userInfoEl.textContent = user?.Usuario ?? 'Usuário';
+  } catch {
+    localStorage.removeItem('userSession');
+    window.location.href = '/index.html';
+  }
 }
 
-// Função principal que carrega o conteúdo e a lógica de uma aba
+// Mostra indicador simples de carregamento
+function setLoading(on) {
+  isLoadingPage = !!on;
+  if (!contentArea) return;
+  if (on) {
+    contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
+  }
+}
+
+// Carrega a aba (HTML em /public/pages e JS em /src/pages)
 async function loadPage(pageName) {
-  // Se a aba anterior tiver um "destroy" opcional, chama antes de trocar
+  if (!pageName) return;
+  if (isLoadingPage) return;
+
+  setLoading(true);
+  const myToken = ++loadToken;
+
+  // tenta destruir a aba anterior (se o módulo expor destroy)
   try {
     if (currentModule && typeof currentModule.destroy === 'function') {
       await currentModule.destroy();
@@ -39,34 +61,48 @@ async function loadPage(pageName) {
     console.warn('Falha ao destruir módulo anterior:', e);
   }
 
-  // 1) Busca o HTML da página (em produção fica servindo de /public/pages)
+  // 1) HTML da página (servido de /public/pages)
   try {
-    const response = await fetch(`/pages/${pageName}.html`);
-    if (!response.ok) throw new Error(`HTML da página ${pageName} não encontrado.`);
-    contentArea.innerHTML = await response.text();
+    const response = await fetch(`/pages/${pageName}.html`, { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`HTML da página ${pageName} não encontrado (HTTP ${response.status}).`);
+    const html = await response.text();
+
+    // se outra aba foi carregada no meio do caminho, aborta atualização
+    if (myToken !== loadToken) return;
+
+    if (contentArea) contentArea.innerHTML = html;
   } catch (error) {
-    console.error(`Falha ao carregar HTML da aba: ${error}`);
+    console.error('Falha ao carregar HTML da aba:', error);
     if (contentArea) {
       contentArea.innerHTML = `<p class="p-4 text-red-500">Erro ao carregar a interface da aba "${pageName}".</p>`;
     }
+    setLoading(false);
     return;
   }
 
-  // 2) Carrega o módulo JS correspondente via import.meta.glob
+  // 2) Script da aba via import.meta.glob
   try {
-    const loader = pageModules[`/src/pages/${pageName}.js`];
-    if (!loader) throw new Error(`Script da página ${pageName} não encontrado no build.`);
+    const key = `/src/pages/${pageName}.js`;
+    const loader = pageModules[key];
+    if (!loader) throw new Error(`Script da página não encontrado no build: ${key}`);
 
     const module = await loader(); // carrega o chunk gerado pelo Vite
+
+    // se outra aba foi carregada no meio do caminho, aborta inicialização
+    if (myToken !== loadToken) return;
+
     currentModule = module;
 
-    // 3) Se o módulo tiver uma função 'init', executa (pode receber helpers se você quiser)
+    // 3) Inicializa a aba (se o módulo expor init)
     if (currentModule && typeof currentModule.init === 'function') {
       await currentModule.init();
     }
   } catch (error) {
-    console.error(`Falha ao carregar ou inicializar o script da aba: ${error}`);
-    // Não mostra erro na tela porque o HTML já está visível
+    console.error('Falha ao carregar ou inicializar o script da aba:', error);
+    // HTML já está visível; não quebramos a UI.
+  } finally {
+    // apenas o último load deve encerrar "loading"
+    if (myToken === loadToken) setLoading(false);
   }
 }
 
@@ -77,14 +113,15 @@ function showAddModal() {
 
 function hideAddModal() {
   if (addModal) addModal.classList.add('hidden');
-  // Limpeza específica do formulário fica a cargo do módulo da aba (ex.: colaboradores.js)
+  // limpeza específica de inputs fica a cargo do módulo da aba (ex.: colaboradores.js)
 }
 
 // --- EVENT LISTENERS GLOBAIS ---
 
-// Adiciona o listener para cada botão de aba
+// Troca de abas
 tabButtons.forEach((button) => {
   button.addEventListener('click', () => {
+    if (isLoadingPage) return;
     tabButtons.forEach((btn) => btn.classList.remove('active'));
     button.classList.add('active');
     const page = button.dataset.page;
@@ -92,7 +129,7 @@ tabButtons.forEach((button) => {
   });
 });
 
-// Listener de Logout
+// Logout
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('userSession');
@@ -100,28 +137,25 @@ if (logoutBtn) {
   });
 }
 
-// "Ouvinte" para o evento que o colaboradores.js dispara para abrir o modal
+// Eventos disparados pelos módulos
 document.addEventListener('open-add-modal', showAddModal);
 
-// Listener para o botão de cancelar do modal
 if (cancelBtn) {
   cancelBtn.addEventListener('click', hideAddModal);
 }
 
-// "Ouvinte" para quando um colaborador for adicionado com sucesso
 document.addEventListener('colaborador-added', () => {
   hideAddModal();
-  // Recarrega a aba atual se for "colaboradores"
   const isColaboradoresAtivo = document.querySelector('[data-page="colaboradores"].active');
   if (isColaboradoresAtivo && currentModule && typeof currentModule.init === 'function') {
     currentModule.init();
   }
 });
 
-// --- INICIALIZAÇÃO DA PÁGINA ---
+// --- INICIALIZAÇÃO ---
 checkSession();
 
-// marca a aba default como ativa (se existir) e carrega
+// marca a aba default como ativa e carrega
 const defaultTabBtn = document.querySelector('[data-page="colaboradores"]');
 if (defaultTabBtn) defaultTabBtn.classList.add('active');
-loadPage('colaboradores'); // Carrega a aba de colaboradores por padrão
+loadPage('colaboradores');
