@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Dashboard - KN Conecta</title>
+    <link rel="icon" href="/imagens/kn.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/style.css"/>
+</head>
+<body>
+<div class="container">
+    <header class="flex justify-between items-center p-2">
+        <div class="flex items-center gap-3">
+            <img src="/imagens/kn.ico" alt="Logo KN Conecta" class="h-8">
+            <h1 class="text-xl font-bold text-[#003369]">KNConecta</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <span id="userInfo" class="text-sm text-gray-600 font-semibold">Carregando...</span>
+            <button id="logoutBtn"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 text-xs rounded-full">Sair
+            </button>
+        </div>
+    </header>
+
+    <div class="tabs-root">
+        <button data-page="colaboradores" class="tab-btn active">Colaboradores</button>
+        <button data-page="controle-diario" class="tab-btn">Controle Diário</button>
+        <button data-page="hc-consolidado" class="tab-btn">HC Consolidado</button>
+        <button data-page="diarista" class="tab-btn">Diarista</button>
+    </div>
+
+    <main id="content-area" class="flex-grow min-h-0 flex flex-col"></main>
+</div>
+
+<div id="addModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-4xl">
+        <h3>Adicionar Novo Colaborador</h3>
+        <form id="addForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="addNome">Nome Completo</label>
+                    <input type="text" id="addNome" required/>
+                </div>
+                <div class="form-group">
+                    <label for="addCPF">CPF (opcional)</label>
+                    <input type="text" id="addCPF" maxlength="11"/>
+                </div>
+                <div class="form-group">
+                    <label for="addDataNascimento">Data de Nascimento (opcional)</label>
+                    <input type="date" id="addDataNascimento"/>
+                </div>
+                <div class="form-group">
+                    <label for="addGenero">Gênero</label>
+                    <select id="addGenero" required>
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="Masculino">Masculino</option>
+                        <option value="Feminino">Feminino</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="addContrato">Contrato</label>
+                    <input type="text" id="addContrato" required/>
+                </div>
+                <div class="form-group">
+                    <label for="addCargo">Cargo</label>
+                    <select id="addCargo" required>
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="AUXILIAR">AUXILIAR</option>
+                        <option value="CONFERENTE">CONFERENTE</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="addGestor">Gestor</label>
+                    <input type="text" id="addGestor" required/>
+                </div>
+                <div class="form-group">
+                    <label for="addDSR">DSR</label>
+                    <select id="addDSR" required>
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="DOMINGO">DOMINGO</option>
+                        <option value="SEGUNDA">SEGUNDA</option>
+                        <option value="TERÇA">TERÇA</option>
+                        <option value="QUARTA">QUARTA</option>
+                        <option value="QUINTA">QUINTA</option>
+                        <option value="SEXTA">SEXTA</option>
+                        <option value="SABADO">SÁBADO</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="addEscala">Escala</label>
+                    <select id="addEscala" required>
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="T1">T1</option>
+                        <option value="T2">T2</option>
+                        <option value="T3">T3</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="addDataAdmissao">Data de Admissão</label>
+                    <input type="date" id="addDataAdmissao" required/>
+                </div>
+                <div class="form-group">
+                    <label for="addSVC">SVC</label>
+                    <select id="addSVC" required>
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="addMatriz">MATRIZ</label>
+                    <input type="text" id="addMatriz" required readonly/>
+                </div>
+            </div>
+
+            <div class="form-actions" style="justify-content:flex-end;">
+                <div class="actions-right">
+                    <button type="submit" class="btn-salvar">Salvar Colaborador</button>
+                    <button type="button" id="cancelBtn" class="btn-cancelar">Cancelar</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="editModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-4xl">
+        <h3 id="editTitulo">Editar Colaborador</h3>
+
+        <form id="editForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="editNome">Nome</label>
+                    <input id="editNome" type="text"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editCPF">CPF</label>
+                    <input id="editCPF" type="text" maxlength="11"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editContrato">Contrato</label>
+                    <input id="editContrato" type="text"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editCargo">Cargo</label>
+                    <select id="editCargo">
+                        <option value="AUXILIAR">AUXILIAR</option>
+                        <option value="CONFERENTE">CONFERENTE</option>
+                        <option value="ANALISTA">ANALISTA</option>
+                        <option value="COORDENADOR">COORDENADOR</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editDSR">DSR</label>
+                    <select id="editDSR">
+                        <option value="DOMINGO">DOMINGO</option>
+                        <option value="SEGUNDA">SEGUNDA</option>
+                        <option value="TERÇA">TERÇA</option>
+                        <option value="QUARTA">QUARTA</option>
+                        <option value="QUINTA">QUINTA</option>
+                        <option value="SEXTA">SEXTA</option>
+                        <option value="SABADO">SÁBADO</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editFolgaEspecial">Folga Especial</label>
+                    <select id="editFolgaEspecial">
+                        <option value="">—</option>
+                        <option value="1º DOMINGO">1º DOMINGO</option>
+                        <option value="2º DOMINGO">2º DOMINGO</option>
+                        <option value="3º DOMINGO">3º DOMINGO</option>
+                        <option value="4º DOMINGO">4º DOMINGO</option>
+                        <option value="1ª SEGUNDA">1ª SEGUNDA</option>
+                        <option value="2ª SEGUNDA">2ª SEGUNDA</option>
+                        <option value="3ª SEGUNDA">3ª SEGUNDA</option>
+                        <option value="4ª SEGUNDA">4ª SEGUNDA</option>
+                        <option value="1ª TERÇA">1ª TERÇA</option>
+                        <option value="2ª TERÇA">2ª TERÇA</option>
+                        <option value="3ª TERÇA">3ª TERÇA</option>
+                        <option value="4ª TERÇA">4ª TERÇA</option>
+                        <option value="1ª QUARTA">1ª QUARTA</option>
+                        <option value="2ª QUARTA">2ª QUARTA</option>
+                        <option value="3ª QUARTA">3ª QUARTA</option>
+                        <option value="4ª QUARTA">4ª QUARTA</option>
+                        <option value="1ª QUINTA">1ª QUINTA</option>
+                        <option value="2ª QUINTA">2ª QUINTA</option>
+                        <option value="3ª QUINTA">3ª QUINTA</option>
+                        <option value="4ª QUINTA">4ª QUINTA</option>
+                        <option value="1ª SEXTA">1ª SEXTA</option>
+                        <option value="2ª SEXTA">2ª SEXTA</option>
+                        <option value="3ª SEXTA">3ª SEXTA</option>
+                        <option value="4ª SEXTA">4ª SEXTA</option>
+                        <option value="1º SÁBADO">1º SÁBADO</option>
+                        <option value="2º SÁBADO">2º SÁBADO</option>
+                        <option value="3º SÁBADO">3º SÁBADO</option>
+                        <option value="4º SÁBADO">4º SÁBADO</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editEscala">Escala</label>
+                    <select id="editEscala">
+                        <option value="T1">T1</option>
+                        <option value="T2">T2</option>
+                        <option value="T3">T3</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editSVC">SVC</label>
+                    <select id="editSVC">
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editGestor">Gestor</label>
+                    <input id="editGestor" type="text"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editDataNascimento">Data de Nascimento</label>
+                    <input id="editDataNascimento" type="date"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editLDAP">LDAP</label>
+                    <input id="editLDAP" type="text"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editIdGroot">ID GROOT</label>
+                    <input id="editIdGroot" type="text"/>
+                </div>
+            </div>
+
+            <div class="form-actions" style="justify-content:space-between;">
+                <div class="actions-left" style="display:flex;gap:8px;">
+                    <button type="button" id="editHistoricoBtn" class="btn-cancelar"
+                            style="background:#2563eb;color:#fff;">Histórico
+                    </button>
+                    <button type="button" id="editFeriasBtn" class="btn-cancelar"
+                            style="background:#00a884;color:#fff;">Férias
+                    </button>
+                    <button type="button" id="editDesligarBtn" class="btn-cancelar"
+                            style="background:#f0ad4e;color:#fff;">Desligar
+                    </button>
+                    <button type="button" id="editExcluirBtn" class="btn-cancelar"
+                            style="background:#D81D1D;color:#fff;">Excluir
+                    </button>
+                </div>
+                <div class="actions-right" style="display:flex;gap:8px;">
+                    <button type="button" id="editCancelarBtn" class="btn-cancelar">Cancelar</button>
+                    <button type="submit" id="editSalvarBtn" class="btn-salvar">Salvar Alterações</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<div id="desligarModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-2xl">
+        <h3>Desligar Colaborador</h3>
+        <form id="desligarForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Colaborador</label>
+                    <input id="desligarNome" type="text" readonly/>
+                </div>
+                <div class="form-group">
+                    <label for="desligarData">Data de Desligamento</label>
+                    <input id="desligarData" type="date" required/>
+                </div>
+                <div class="form-group">
+                    <label for="desligarMotivo">Motivo</label>
+                    <select id="desligarMotivo" required>
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="Abandono de emprego">Abandono de emprego</option>
+                        <option value="Ato de indisciplina ou insubordinação">Ato de indisciplina ou insubordinação
+                        </option>
+                        <option value="Ausência não justificada">Ausência não justificada</option>
+                        <option value="Corte de gastos">Corte de gastos</option>
+                        <option value="Inadequação à cultura da empresa">Inadequação à cultura da empresa</option>
+                        <option value="Mau desempenho">Mau desempenho</option>
+                        <option value="Problemas de relacionamento">Problemas de relacionamento</option>
+                        <option value="Reestruturação da empresa">Reestruturação da empresa</option>
+                        <option value="Solicitação do colaborador">Solicitação do colaborador</option>
+                        <option value="Substituição de colaborador">Substituição de colaborador</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" id="desligarCancelarBtn" class="btn-cancelar">Cancelar</button>
+                <button type="submit" class="btn-salvar">Confirmar Desligamento</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="feriasModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-2xl">
+        <h3>Agendar Férias</h3>
+        <form id="feriasForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Colaborador</label>
+                    <input id="feriasNome" type="text" readonly/>
+                </div>
+                <div class="form-group">
+                    <label for="feriasDataInicio">Data de Início</label>
+                    <input id="feriasDataInicio" type="date" required/>
+                </div>
+                <div class="form-group">
+                    <label for="feriasDataFinal">Data Final</label>
+                    <input id="feriasDataFinal" type="date" required/>
+                </div>
+            </div>
+
+            <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" id="feriasCancelarBtn" class="btn-cancelar">Cancelar</button>
+                <button type="submit" class="btn-salvar">Confirmar Férias</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="historicoModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+    <div class="container !h-auto !w-auto max-w-5xl">
+        <h3>Histórico de Presenças</h3>
+
+        <style>
+            #historicoModal .hist-wrap {
+                gap: 10px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            #historicoModal .hist-header {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            #historicoModal .hist-title {
+                font-weight: 700;
+                color: #003369;
+                font-size: 16px;
+            }
+
+            #historicoModal .hist-year {
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            #historicoModal .hist-year select {
+                padding: 8px 10px;
+                border: 1px solid #ddd;
+                border-radius: 20px;
+                background: #fff;
+                font-weight: 600;
+                color: #333;
+                font-size: 12px;
+                cursor: pointer;
+                transition: transform .08s ease;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, .05);
+            }
+
+            #historicoModal .hist-year select:hover {
+                transform: translateY(-1px);
+            }
+
+            #historicoModal .legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px 12px;
+                font-size: 12px;
+                align-items: center;
+            }
+
+            #historicoModal .legend .dot {
+                width: 12px;
+                height: 12px;
+                border-radius: 3px;
+                display: inline-block;
+                vertical-align: -2px;
+                border: 1px solid rgba(0, 0, 0, .1);
+            }
+
+            #historicoModal .lg-presenca {
+                background: #22B14C;
+                border-color: #22B14C;
+            }
+
+            #historicoModal .lg-falta {
+                background: #e55353;
+                border-color: #e55353;
+            }
+
+            #historicoModal .lg-atestado {
+                background: #f0ad4e;
+                border-color: #f0ad4e;
+            }
+
+            #historicoModal .lg-fe {
+                background: #2ea3ff;
+                border-color: #2ea3ff;
+            }
+
+            #historicoModal .lg-feriado {
+                background: #c0c0c0;
+                border-color: #c0c0c0;
+            }
+
+            #historicoModal .lg-susp {
+                background: #242c4c;
+                border-color: #242c4c;
+            }
+
+            #historicoModal .lg-dsr {
+                background: #fff;
+            }
+
+            #historicoModal .year-grid {
+                flex: 1;
+                overflow: auto;
+                border-radius: 14px;
+                background: #fff;
+                box-shadow: 0 6px 16px rgba(0, 0, 0, .1);
+                padding: 12px;
+            }
+
+            #historicoModal .months {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 12px;
+                min-width: 880px;
+            }
+
+            @media (max-width: 1100px) {
+                #historicoModal .months {
+                    grid-template-columns: repeat(3, 1fr);
+                    min-width: 660px;
+                }
+            }
+
+            @media (max-width: 820px) {
+                #historicoModal .months {
+                    grid-template-columns: repeat(2, 1fr);
+                    min-width: 440px;
+                }
+            }
+
+            #historicoModal .month-card {
+                border: 1px solid #eee;
+                border-radius: 12px;
+                padding: 10px;
+                background: #fafbff;
+            }
+
+            #historicoModal .month-title {
+                font-weight: 700;
+                font-size: 12px;
+                color: #003369;
+                letter-spacing: .5px;
+                text-transform: uppercase;
+                margin-bottom: 8px;
+            }
+
+            #historicoModal .dow {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                gap: 4px;
+                font-size: 10px;
+                color: #6b7280;
+                margin-bottom: 4px;
+                text-align: center;
+            }
+
+            #historicoModal .days {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                gap: 4px;
+            }
+
+            #historicoModal .day {
+                height: 22px;
+                border-radius: 6px;
+                font-size: 10px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #fff;
+                color: #333;
+                border: 1px solid #eee;
+                user-select: none;
+                transition: transform .08s ease, box-shadow .12s ease, background .12s ease;
+            }
+
+            #historicoModal .day:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 1px 6px rgba(0, 0, 0, .08);
+            }
+
+            #historicoModal .day.blank {
+                background: transparent;
+                border: none;
+            }
+
+            #historicoModal .st-presenca {
+                background: #22B14C !important;
+                border-color: #22B14C !important;
+                color: #fff;
+            }
+
+            #historicoModal .st-falta {
+                background: #e55353 !important;
+                border-color: #e55353 !important;
+                color: #fff;
+            }
+
+            #historicoModal .st-atestado {
+                background: #f0ad4e !important;
+                border-color: #f0ad4e !important;
+                color: #fff;
+            }
+
+            #historicoModal .st-fe {
+                background: #2ea3ff !important;
+                border-color: #2ea3ff !important;
+                color: #fff;
+            }
+
+            #historicoModal .st-feriado {
+                background: #c0c0c0 !important;
+                border-color: #c0c0c0 !important;
+                color: #333;
+            }
+
+            #historicoModal .st-susp {
+                background: #242c4c !important;
+                border-color: #242c4c !important;
+                color: #fff;
+            }
+
+            #historicoModal .st-dsr {
+                background: #fff !important;
+                border-color: #e5e7eb !important;
+                color: #9ca3af;
+            }
+        </style>
+
+        <div class="hist-wrap">
+            <div class="hist-header">
+                <div class="hist-title" id="hist-title">Histórico</div>
+
+                <div class="legend">
+                    <span><span class="dot lg-presenca"></span> Presença</span>
+                    <span><span class="dot lg-falta"></span> Faltou</span>
+                    <span><span class="dot lg-atestado"></span> Atestado</span>
+                    <span><span class="dot lg-fe"></span> F. Especial</span>
+                    <span><span class="dot lg-feriado"></span> Feriado</span>
+                    <span><span class="dot lg-susp"></span> Suspenso</span>
+                    <span><span class="dot lg-dsr" style="border:1px solid #e5e7eb"></span> DSR</span>
+                </div>
+
+                <div class="hist-year">
+                    <label for="hist-year">Ano:</label>
+                    <select id="hist-year"></select>
+                </div>
+            </div>
+
+            <div class="year-grid">
+                <div id="months" class="months" aria-live="polite"></div>
+            </div>
+
+            <div class="form-actions" style="justify-content:flex-end;margin-top:8px;">
+                <button type="button" id="historicoFecharBtn" class="btn-cancelar">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="/dashboard.js"></script>
+</body>
+</html>

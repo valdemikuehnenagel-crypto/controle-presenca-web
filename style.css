@@ -1,13 +1,287 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Regra essencial para o layout de tela cheia */
+/* --- ESTILOS GLOBAIS --- */
 html, body {
-  height: 100%;
-  width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+body {
+    font-family: 'Poppins', sans-serif;
+    color: #242c4c;
+    background-image: url('/imagens/fundo.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-position: center;
+    padding: 16px;
+}
+.container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .8);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, .35);
 }
 
-.pin-input {
-  letter-spacing: 0.5em;
+/* --- ABAS --- */
+.tabs-root {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+.tab-btn {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    background: #e9eef7;
+    color: #003369;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .06);
+    transition: all .2s ease;
+}
+.tab-btn:hover { transform: translateY(-1px); }
+.tab-btn.active {
+    background: #003369;
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, .12);
+}
+.tab-panel.active {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+/* --- CONTROLES E FILTROS --- */
+.controls {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+.controls input[type="search"] {
+    grid-column: 1 / -1;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 22px;
+    font-size: 12px;
+    outline: none;
+    background: #fff;
+}
+.controls .filters {
+    grid-column: 1 / 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.controls select {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: #fff;
+    font-weight: 600;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+}
+.button-group {
+    grid-column: 3 / 4;
+    display: flex;
+    gap: 8px;
+}
+#limpar-filtros-btn, .btn-add, #export-colaboradores-btn {
+    padding: 8px 14px;
+    min-width: 130px;
+    border: none;
+    border-radius: 24px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(0,0,0,.10);
+    color: #fff;
+    transition: all .2s ease;
+}
+.btn-add { background: #22B14C; }
+#export-colaboradores-btn { background: #003369; }
+#limpar-filtros-btn { background: #6c757d; }
+
+/* --- TABELA --- */
+.table-wrapper {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0;
+    border-radius: 14px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .1);
+    background: #fff;
+}
+table { width: 100%; border-collapse: collapse; }
+thead th {
+    position: sticky;
+    top: 0;
+    background: #003369;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px;
+    text-transform: uppercase;
+    /* CORREÇÃO DE ALINHAMENTO */
+    text-align: center;
+}
+tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f1f1f1;
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+    /* CORREÇÃO DE ALINHAMENTO */
+    text-align: center;
+}
+/* Mantém a primeira coluna (Nome) alinhada à esquerda para melhor leitura */
+th.nome-col, td.nome-col {
+    min-width: 240px;
+    text-align: left;
+}
+tbody tr:nth-child(even) td { background: #f9f9f9; }
+tbody tr:hover td { background: #e8f7ff; }
+
+/* --- PAGINAÇÃO --- */
+.pagination-controls {
+    padding-top: 12px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.pagination-controls button {
+    background: #003369;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 24px;
+    margin: 0 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    transition: all .2s ease;
+}
+.pagination-controls button:hover {
+    background: #02B1EE;
+    transform: translateY(-2px);
+}
+.pagination-controls .hidden { display: none; }
+#contador-visiveis {
+    font-weight: 700;
+    color: #003369;
+    font-size: 12px;
+}
+
+/* ============================================= */
+/* ===== ESTILOS PARA MODAIS (ADD/EDITAR) ===== */
+/* ============================================= */
+
+h3 {
+    color: #003369;
+    font-weight: 700;
+    border-bottom: 1px solid #e7ebf4;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-size: 12px;
+    color: #56607f;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.form-group input,
+.form-group select {
+    padding: 8px 9px;
+    border: 2px solid #e8ecf3;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #242c4c;
+    background: #fff;
+    outline: none;
+    transition: all .2s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #02B1EE;
+    box-shadow: 0 0 0 3px rgba(2, 177, 238, .15);
+}
+
+#addMatriz[readonly] {
+    background: #f6f9ff;
+    color: #2b3355;
+}
+
+.form-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end; /* Alinha botões à direita */
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-salvar, .btn-cancelar {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 26px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s ease;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+
+.btn-salvar {
+    background-color: #02B1EE;
+    color: #fff;
+}
+.btn-salvar:hover {
+    background-color: #003369;
+    transform: translateY(-2px);
+}
+
+.btn-cancelar {
+    background-color: #e4e6eb;
+    color: #4b4f56;
+}
+.btn-cancelar:hover {
+    background-color: #d8dadf;
+    transform: translateY(-2px);
+}
+
+#editMatriz[readonly] {
+  background: #f6f9ff;
+  color: #2b3355;
 }

@@ -1,0 +1,22 @@
+{
+  "hash": "5825cfe7",
+  "configHash": "b8dd6807",
+  "lockfileHash": "d03a2597",
+  "browserHash": "260dbb3a",
+  "optimized": {
+    "@supabase/supabase-js": {
+      "src": "../../node_modules/@supabase/supabase-js/dist/module/index.js",
+      "file": "@supabase_supabase-js.js",
+      "fileHash": "e1f45a38",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "browser-X6HFZ6FU": {
+      "file": "browser-X6HFZ6FU.js"
+    },
+    "chunk-ZQRU7SLX": {
+      "file": "chunk-ZQRU7SLX.js"
+    }
+  }
+}

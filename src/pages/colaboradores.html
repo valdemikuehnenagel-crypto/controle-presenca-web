@@ -1,0 +1,47 @@
+<section id="tab-colaboradores" class="tab-panel active flex flex-col flex-grow min-h-0">
+    <div class="controls">
+        <input type="search" id="search-input" placeholder="Pesquisar por Nome, CPF, ID GROOT, LDAP..."/>
+        <div class="filters">
+            <select id="filter-contrato" data-filter-key="Contrato"><option value="">Contrato: Todos</option></select>
+            <select id="filter-cargo" data-filter-key="Cargo"><option value="">Cargo: Todos</option></select>
+            <select id="filter-escala" data-filter-key="Escala"><option value="">Escala: Todas</option></select>
+            <select id="filter-dsr" data-filter-key="DSR"><option value="">DSR: Todos</option></select>
+            <select id="filter-matriz" data-filter-key="MATRIZ"><option value="">Matriz: Todas</option></select>
+            <select id="filter-svc" data-filter-key="SVC"><option value="">SVC: Todos</option></select>
+            <select id="filter-folga-especial" data-filter-key="FOLGA ESPECIAL"><option value="">Folga Especial: Todas</option></select>
+        </div>
+        <button id="limpar-filtros-btn">Limpar</button>
+        <div class="button-group">
+            <button id="add-colaborador-btn" class="btn-add">Adicionar Colaborador</button>
+            <button id="export-colaboradores-btn">Exportar Dados</button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+            <tr>
+                <th class="nome-col">Nome</th>
+                <th>Contrato</th>
+                <th>Cargo</th>
+                <th>Admissão</th>
+                <th>Escala</th>
+                <th>DSR</th>
+                <th>SVC</th>
+                <th>LDAP</th>
+                <th>ID GROOT</th>
+                <th>F. Especial</th>
+            </tr>
+            </thead>
+            <tbody id="colaboradores-tbody"></tbody>
+        </table>
+    </div>
+
+    <div class="pagination-controls">
+        <button id="mostrar-menos-btn" class="hidden">Mostrar menos</button>
+        <span id="contador-visiveis"></span>
+        <button id="mostrar-mais-btn" class="hidden">Mostrar mais</button>
+    </div>
+</section>
+
+

@@ -1,66 +1,101 @@
 import { createClient } from '@supabase/supabase-js';
 
-// A mágica acontece aqui: esperamos o HTML carregar completamente antes de rodar o código.
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. Inicializa o Supabase
     const supabase = createClient(
         import.meta.env.VITE_SUPABASE_URL,
         import.meta.env.VITE_SUPABASE_KEY
     );
 
-    // --- LÓGICA PARA ALTERNAR TELAS ---
-    const loginView = document.getElementById('loginView');
-    const registerView = document.getElementById('registerView');
+    // --- Elementos da Interface ---
+    const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
     const showLoginBtn = document.getElementById('showLoginBtn');
+    const loginForm = document.getElementById('loginForm');
+    const pinLogin = document.getElementById('pinLogin');
+    const loginMsg = document.getElementById('loginMsg');
+    const forgotPinBtn = document.getElementById('forgotPinBtn');
 
+    // --- Lógica de Navegação entre Telas ---
     if (showRegisterBtn) {
         showRegisterBtn.addEventListener('click', () => {
-            loginView.classList.add('hidden');
-            registerView.classList.remove('hidden');
-            loadMatrizes(); // Carrega as matrizes quando o usuário vai se registrar
+            container.classList.add('active');
+            loadMatrizes();
         });
     }
 
     if (showLoginBtn) {
         showLoginBtn.addEventListener('click', () => {
-            registerView.classList.add('hidden');
-            loginView.classList.remove('hidden');
+            container.classList.remove('active');
         });
     }
 
-    // --- LÓGICA DE LOGIN (Existente) ---
-    const loginForm = document.getElementById('loginForm');
-    const pinLogin = document.getElementById('pinLogin');
-    const loginMsg = document.getElementById('loginMsg');
+    // --- LÓGICA DE LOGIN (REESTRUTURADA) ---
 
+    // 1. Função reutilizável para verificar o PIN
+    async function verifyPin(pin) {
+        // Limpa mensagens anteriores
+        loginMsg.classList.remove('info');
+        loginMsg.textContent = 'Verificando...';
+
+        const { data, error } = await supabase
+            .from('Logins')
+            .select('*')
+            .eq('PIN', pin)
+            .single();
+
+        if (error || !data) {
+            loginMsg.textContent = 'PIN inválido ou erro na conexão.';
+            return;
+        }
+        if (data.Aprovacao !== 'SIM') {
+            loginMsg.textContent = 'Acesso pendente de aprovação.';
+            return;
+        }
+
+        localStorage.setItem('userSession', JSON.stringify(data));
+        window.location.href = '/dashboard.html';
+    }
+
+    // 2. Evento de clique no botão "Entrar" (continua funcionando)
     if (loginForm) {
         loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
-            const pin = pinLogin.value;
-            loginMsg.textContent = 'Verificando...';
-
-            const { data, error } = await supabase
-                .from('Logins')
-                .select('*')
-                .eq('PIN', pin)
-                .single();
-
-            if (error || !data) {
-                loginMsg.textContent = 'PIN inválido ou erro na conexão.';
-                return;
+            if (pinLogin.value.length === 6) {
+                verifyPin(pinLogin.value);
+            } else {
+                loginMsg.textContent = 'O PIN deve ter 6 dígitos.';
             }
-            if (data.Aprovacao !== 'SIM') {
-                loginMsg.textContent = 'Acesso pendente de aprovação.';
-                return;
-            }
-            alert('Login realizado com sucesso!');
-            // window.location.href = '/dashboard.html';
         });
     }
 
-    // --- LÓGICA DE REGISTRO (Nova) ---
+    // 3. NOVO: Evento de input para login automático
+    if (pinLogin) {
+        pinLogin.addEventListener('input', () => {
+            // Limpa mensagens de erro/info se o usuário estiver corrigindo o PIN
+            if (pinLogin.value.length < 6) {
+                loginMsg.textContent = '';
+                loginMsg.classList.remove('info');
+            }
+
+            // Se o PIN atingir 6 dígitos, dispara a verificação
+            if (pinLogin.value.length === 6) {
+                verifyPin(pinLogin.value);
+            }
+        });
+    }
+
+
+    // --- Lógica do Botão "Esqueci meu pin" ---
+    if (forgotPinBtn) {
+        forgotPinBtn.addEventListener('click', () => {
+            loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com';
+            loginMsg.classList.add('info');
+            loginMsg.classList.remove('error');
+        });
+    }
+
+    // --- Lógica do Formulário de Registro (sem alterações) ---
     const registerForm = document.getElementById('registerForm');
     const registerEmail = document.getElementById('registerEmail');
     const registerMatriz = document.getElementById('registerMatriz');
@@ -95,8 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         registerForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             registerMsg.textContent = 'Enviando...';
-            registerMsg.classList.remove('text-red-400', 'text-green-400');
-
+            registerMsg.classList.remove('error');
 
             const userData = {
                 email: registerEmail.value,
@@ -105,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (!userData.email || !userData.matriz || !/^\d{6}$/.test(userData.pin)) {
-                registerMsg.classList.add('text-red-400');
+                registerMsg.classList.add('error');
                 registerMsg.textContent = 'Todos os campos são obrigatórios.';
                 return;
             }
@@ -121,13 +155,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
             if (error) {
-                registerMsg.classList.add('text-red-400');
+                registerMsg.classList.add('error');
                 registerMsg.textContent = 'Erro: Este PIN ou Email já pode estar em uso.';
                 console.error('Erro no registro:', error);
             } else {
-                registerMsg.classList.add('text-green-400');
-                registerMsg.textContent = 'Solicitação enviada com sucesso! Aguarde a aprovação.';
+                registerMsg.textContent = 'Solicitação enviada! Aguarde a aprovação.';
                 registerForm.reset();
+
+                setTimeout(() => {
+                    container.classList.remove('active');
+                }, 3000);
             }
         });
     }
