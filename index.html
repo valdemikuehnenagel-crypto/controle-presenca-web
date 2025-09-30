@@ -8,14 +8,21 @@
     <link rel="stylesheet" href="/login.css"/>
 </head>
 
-<body>
+<body class="login-page">
 
 <div class="container" id="container">
 
     <div class="form-container sign-up">
         <form id="registerForm">
-            <h1>Crie sua Conta</h1>
-            <span>Use seu email e crie um PIN para se registrar</span>
+            <label for="registerAvatar" class="avatar-upload-label">
+                <img id="avatarPreview" src="/imagens/avatar.png" alt="Prévia do Avatar">
+                <span>Selecionar Foto (Opcional)</span>
+            </label>
+            <input type="file" id="registerAvatar" accept="image/*" style="display: none;">
+
+            <span class="form-subtitle"><strong>Use seu nome, email e crie um PIN para se registrar</strong></span>
+
+            <input id="registerName" type="text" placeholder="Nome Completo" required/>
 
             <input id="registerEmail" type="email" placeholder="Email" required/>
 
@@ -33,17 +40,24 @@
 
     <div class="form-container sign-in">
         <form id="loginForm">
-            <h1>Faça o seu login</h1>
-            <span>Use o seu PIN de 6 dígitos para entrar</span>
+            <div id="login-form-content" class="login-content">
+                <h1>Faça o seu login</h1>
+                <span>Use o seu PIN de 6 dígitos para entrar</span>
 
-            <input id="pinLogin" type="password" placeholder="Digite aqui" maxlength="6" inputmode="numeric" required
-                   class="pin-input"/>
+                <input id="pinLogin" type="password" placeholder="Digite aqui" maxlength="6" inputmode="numeric" required
+                       class="pin-input"/>
 
-            <button id="loginBtn" type="submit">Entrar</button>
+                <button id="loginBtn" type="submit">Entrar</button>
 
-            <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci meu pin</button>
+                <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci meu pin</button>
 
-            <p id="loginMsg" class="message"></p>
+                <p id="loginMsg" class="message"></p>
+            </div>
+
+            <div id="welcome-back-container" class="welcome-back hidden">
+                <img id="welcome-avatar" src="/imagens/avatar.png" alt="Avatar">
+                <p id="welcome-message"></p>
+            </div>
         </form>
     </div>
 

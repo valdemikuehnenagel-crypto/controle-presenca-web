@@ -1,16 +1,57 @@
 <section id="tab-colaboradores" class="tab-panel active flex flex-col flex-grow min-h-0">
+
+    <style>
+        #tab-colaboradores .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 1rem;
+            flex-wrap: wrap;
+        }
+
+        #tab-colaboradores #search-input {
+            flex-grow: 1;
+            flex-shrink: 1;
+            min-width: 150px;
+        }
+
+        #tab-colaboradores .filters,
+        #tab-colaboradores .button-group,
+        #tab-colaboradores #limpar-filtros-btn {
+            flex-shrink: 0;
+        }
+
+        #tab-colaboradores .controls select,
+        #tab-colaboradores .controls input,
+        #tab-colaboradores .controls button {
+            height: 38px;
+            box-sizing: border-box;
+            margin: 0;
+        }
+
+        #tab-colaboradores .filters,
+        #tab-colaboradores .button-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+
     <div class="controls">
         <input type="search" id="search-input" placeholder="Pesquisar por Nome, CPF, ID GROOT, LDAP..."/>
+
         <div class="filters">
-            <select id="filter-contrato" data-filter-key="Contrato"><option value="">Contrato: Todos</option></select>
-            <select id="filter-cargo" data-filter-key="Cargo"><option value="">Cargo: Todos</option></select>
-            <select id="filter-escala" data-filter-key="Escala"><option value="">Escala: Todas</option></select>
-            <select id="filter-dsr" data-filter-key="DSR"><option value="">DSR: Todos</option></select>
-            <select id="filter-matriz" data-filter-key="MATRIZ"><option value="">Matriz: Todas</option></select>
-            <select id="filter-svc" data-filter-key="SVC"><option value="">SVC: Todos</option></select>
-            <select id="filter-folga-especial" data-filter-key="FOLGA ESPECIAL"><option value="">Folga Especial: Todas</option></select>
+            <select id="filter-contrato" data-filter-key="Contrato"><option value="">Contrato</option></select>
+            <select id="filter-cargo" data-filter-key="Cargo"><option value="">Cargo</option></select>
+            <select id="filter-escala" data-filter-key="Escala"><option value="">Escala</option></select>
+            <select id="filter-dsr" data-filter-key="DSR"><option value="">DSR</option></select>
+            <select id="filter-matriz" data-filter-key="MATRIZ"><option value="">Matriz</option></select>
+            <select id="filter-svc" data-filter-key="SVC"><option value="">SVC</option></select>
+            <select id="filter-folga-especial" data-filter-key="FOLGA ESPECIAL"><option value="">Folga Especial</option></select>
         </div>
+
         <button id="limpar-filtros-btn">Limpar</button>
+
         <div class="button-group">
             <button id="add-colaborador-btn" class="btn-add">Adicionar Colaborador</button>
             <button id="export-colaboradores-btn">Exportar Dados</button>
@@ -43,5 +84,3 @@
         <button id="mostrar-mais-btn" class="hidden">Mostrar mais</button>
     </div>
 </section>
-
-

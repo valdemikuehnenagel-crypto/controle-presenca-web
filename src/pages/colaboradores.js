@@ -1,4 +1,5 @@
 import {supabase} from '../supabaseClient.js';
+import {getMatrizesPermitidas} from '../session.js';
 
 let state = {
     colaboradoresData: [],
@@ -59,9 +60,24 @@ function numberOrNull(v) {
 }
 
 function toStartOfDay(dateish) {
-    const d = new Date(dateish);
+    if (!dateish) return NaN;
+
+    if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
+        const [y, m, d] = dateish.split('-').map(Number);
+
+        return new Date(y, m - 1, d).getTime();
+    }
+
+
+    if (typeof dateish === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateish)) {
+        const [d, m, y] = dateish.split('/').map(Number);
+        return new Date(y, m - 1, d).getTime();
+    }
+
+    const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
+
 
 function formatDateLocal(iso) {
     if (!iso) return '';
@@ -121,7 +137,6 @@ function attachUpperHandlersTo(form) {
     });
 }
 
-// Arquivo: public/pages/colaboradores.js
 
 function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
@@ -158,7 +173,6 @@ function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
         gestorSelect.appendChild(option);
     });
 
-    // Se um gestor atual foi informado, pré-seleciona ele na lista
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
@@ -197,22 +211,41 @@ function renderTable(dataToRender) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">Nenhum colaborador encontrado.</td></tr>';
         return;
     }
+
+    const getNomeComEmoji = (colaborador) => {
+        const diasRest = state?.feriasAtivasMap?.get?.(colaborador.Nome);
+        if (diasRest == null || isNaN(diasRest)) return colaborador.Nome || '';
+
+        if (diasRest === 0) {
+            return `${colaborador.Nome} 🏖️ (Termina hoje)`;
+        }
+
+        const sufixo = diasRest === 1 ? 'dia' : 'dias';
+        return `${colaborador.Nome} 🏖️ (Faltam ${diasRest} ${sufixo})`;
+    };
+
     dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colaborador.Nome || '');
-        tr.innerHTML = `<td class="nome-col">${colaborador.Nome || ''}</td>
-      <td>${colaborador.Contrato || ''}</td>
-      <td>${colaborador.Cargo || ''}</td>
-      <td>${colaborador['Data de admissão'] ? new Date(colaborador['Data de admissão']).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}</td>
-      <td>${colaborador.Escala || ''}</td>
-      <td>${colaborador.DSR || ''}</td>
-      <td>${colaborador.SVC || ''}</td>
-      <td>${colaborador.LDAP || ''}</td>
-      <td>${colaborador['ID GROOT'] || ''}</td>
-      <td>${colaborador['FOLGA ESPECIAL'] || ''}</td>`;
+
+        const nomeCelula = getNomeComEmoji(colaborador);
+
+        tr.innerHTML = `
+            <td class="nome-col">${nomeCelula}</td>
+            <td>${colaborador.Contrato || ''}</td>
+            <td>${colaborador.Cargo || ''}</td>
+            <td>${colaborador['Data de admissão'] ? new Date(colaborador['Data de admissão']).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}</td>
+            <td>${colaborador.Escala || ''}</td>
+            <td>${colaborador.DSR || ''}</td>
+            <td>${colaborador.SVC || ''}</td>
+            <td>${colaborador.LDAP || ''}</td>
+            <td>${colaborador['ID GROOT'] || ''}</td>
+            <td>${colaborador['FOLGA ESPECIAL'] || ''}</td>
+        `;
         colaboradoresTbody.appendChild(tr);
     });
 }
+
 
 function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
@@ -273,29 +306,91 @@ function applyFiltersAndSearch() {
 }
 
 async function fetchColaboradores() {
-    if (colaboradoresTbody) colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">Carregando...</td></tr>';
-    const {data, error} = await supabase.from('Colaboradores').select('*').order('Nome');
+    if (colaboradoresTbody) {
+        colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">Carregando...</td></tr>';
+    }
+
+    const matrizesPermitidas = getMatrizesPermitidas();
+
+    let query = supabase
+        .from('Colaboradores')
+        .select('*')
+        .order('Nome');
+
+    if (matrizesPermitidas !== null) {
+        query = query.in('MATRIZ', matrizesPermitidas);
+    }
+
+    const {data, error} = await query;
+
     if (error) {
         console.error('Erro ao carregar colaboradores:', error);
-        if (colaboradoresTbody) colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4 text-red-500">Erro ao carregar dados.</td></tr>';
+        if (colaboradoresTbody) {
+            colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4 text-red-500">Erro ao carregar dados.</td></tr>';
+        }
         return;
     }
+
     state.colaboradoresData = data || [];
+
+    try {
+        const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
+        state.feriasAtivasMap = new Map();
+
+        if (nomes.length > 0) {
+            const {data: feriasAtivas, error: ferErr} = await supabase
+                .from('Ferias')
+                .select('Nome, Status, "Dias para finalizar"')
+                .in('Nome', nomes)
+                .eq('Status', 'Em andamento');
+
+            if (ferErr) {
+                console.warn('Falha ao buscar férias ativas:', ferErr);
+            } else {
+                (feriasAtivas || []).forEach(f => {
+                    const dias = Number(f['Dias para finalizar']);
+                    state.feriasAtivasMap.set(f.Nome, Number.isFinite(dias) ? dias : null);
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('Erro ao montar feriasAtivasMap:', e);
+        state.feriasAtivasMap = new Map();
+    }
+
+
     populateFilters();
     applyFiltersAndSearch();
 }
 
+
 async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
-    if (state.serviceMatrizMap.size > 0 && svcSelect.options.length > 1) return;
-    const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ');
+
+    if (state.serviceMatrizMap.size > 0 && svcSelect.options.length > 1) {
+        const matrizesPermitidasCheck = getMatrizesPermitidas();
+        if (matrizesPermitidasCheck === null) return;
+    }
+
+    const matrizesPermitidas = getMatrizesPermitidas();
+
+    let query = supabase.from('Matrizes').select('SERVICE, MATRIZ');
+
+    if (matrizesPermitidas !== null) {
+        query = query.in('MATRIZ', matrizesPermitidas);
+    }
+
+    const {data, error} = await query;
+
     if (error) {
         console.error('Erro ao buscar mapa de serviço-matriz:', error);
         svcSelect.innerHTML = '<option value="" disabled selected>Erro ao carregar</option>';
         return;
     }
+
     state.serviceMatrizMap = new Map((data || []).map((item) => [String(item.SERVICE || '').toUpperCase(), item.MATRIZ || '']));
+
     svcSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC...</option>';
     (data || []).sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE))).forEach((item) => {
         const opt = document.createElement('option');
@@ -306,7 +401,7 @@ async function loadSVCsParaFormulario() {
 }
 
 async function loadGestoresParaFormulario() {
-    // Busca os dados apenas uma vez para otimizar
+
     if (state.gestoresData && state.gestoresData.length > 0) return;
 
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
@@ -322,7 +417,7 @@ function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
 
-    gestorSelect.innerHTML = ''; // Limpa opções antigas
+    gestorSelect.innerHTML = '';
 
     if (!selectedSvc) {
         gestorSelect.disabled = true;
@@ -330,20 +425,17 @@ function populateGestorSelect(selectedSvc) {
         return;
     }
 
-    // --- INÍCIO DA CORREÇÃO ---
-    // A lógica de filtro agora entende a lista de SVCs separados por vírgula.
+
     const gestoresFiltrados = state.gestoresData
         .filter(gestor => {
-            if (!gestor.SVC) return false; // Ignora gestores sem SVC definido
+            if (!gestor.SVC) return false;
 
-            // 1. Transforma a string "SBA3, SBA7, SSE1" em um array ["SBA3", "SBA7", "SSE1"]
             const managerSVCs = gestor.SVC.split(',').map(s => s.trim());
 
-            // 2. Verifica se o SVC selecionado no formulário está contido nesse array
             return managerSVCs.includes(selectedSvc);
         })
         .sort((a, b) => a.NOME.localeCompare(b.NOME));
-    // --- FIM DA CORREÇÃO ---
+
 
     if (gestoresFiltrados.length === 0) {
         gestorSelect.disabled = true;
@@ -437,20 +529,50 @@ async function handleAddSubmit(event) {
         alert(`Erro ao adicionar colaborador: ${error.message}`);
         return;
     }
+
     alert('Colaborador adicionado com sucesso!');
+
+    if (addForm) {
+        addForm.reset();
+    }
+
+    const gestorSelect = document.getElementById('addGestor');
+    if (gestorSelect) {
+        gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC primeiro...</option>';
+        gestorSelect.disabled = true;
+    }
+
+
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     await fetchColaboradores();
 }
 
+
 async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
-    if (state.serviceMatrizMap.size > 0 && editSVC.options.length > 1) return;
-    const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ');
+
+    if (state.serviceMatrizMap.size > 0 && editSVC.options.length > 1) {
+        const matrizesPermitidasCheck = getMatrizesPermitidas();
+        if (matrizesPermitidasCheck === null) return;
+    }
+
+    const matrizesPermitidas = getMatrizesPermitidas();
+
+    let query = supabase.from('Matrizes').select('SERVICE, MATRIZ');
+
+    if (matrizesPermitidas !== null) {
+        query = query.in('MATRIZ', matrizesPermitidas);
+    }
+
+    const {data, error} = await query;
+
     if (error) {
         console.error(error);
         return;
     }
+
     state.serviceMatrizMap = new Map((data || []).map(i => [String(i.SERVICE || '').toUpperCase(), i.MATRIZ || '']));
+
     editSVC.innerHTML = '<option value="" disabled selected>Selecione...</option>';
     (data || []).sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE))).forEach(i => {
         const opt = document.createElement('option');
@@ -480,7 +602,6 @@ function hideEditModal() {
 async function fillEditForm(colab) {
     editOriginal = {Nome: colab.Nome, CPF: colab.CPF ?? null};
 
-    // Garante que a lista de gestores esteja carregada
     await loadGestoresParaFormulario();
 
     const setVal = (el, v) => {
@@ -493,7 +614,7 @@ async function fillEditForm(colab) {
     setVal(editInputs.CPF, colab.CPF || '');
     setVal(editInputs.Contrato, colab.Contrato || '');
     setVal(editInputs.Cargo, colab.Cargo || '');
-    // O campo Gestor agora será preenchido pela função populateGestorSelectForEdit
+
     setVal(editInputs.DSR, colab.DSR || '');
     setVal(editInputs.Escala, colab.Escala || '');
     setVal(editInputs['FOLGA ESPECIAL'], colab['FOLGA ESPECIAL'] || '');
@@ -501,7 +622,6 @@ async function fillEditForm(colab) {
     setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');
     setVal(editInputs['Data de nascimento'], colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : '');
 
-    // Popula o select de SVC
     if (editSVC) {
         const svc = colab.SVC ? String(colab.SVC).toUpperCase() : '';
         if (svc && !Array.from(editSVC.options).some(o => o.value === svc)) {
@@ -512,7 +632,6 @@ async function fillEditForm(colab) {
         }
         editSVC.value = svc || '';
 
-        // **NOVO**: Popula o select de Gestor com base no SVC e pré-seleciona o gestor atual
         populateGestorSelectForEdit(svc, colab.Gestor);
     }
 }
@@ -691,33 +810,63 @@ async function getActiveFerias(nome) {
 
 async function agendarFerias(info) {
     const {colaborador, dataInicio, dataFinal} = info;
+
+
     const {data: ativa} = await getActiveFerias(colaborador.Nome);
-    if (ativa) return {error: new Error('Este colaborador já está com férias "Em andamento". Finalize antes de iniciar novas férias.')};
-    const {
-        data: lastFerias,
-        error: numError
-    } = await supabase.from('Ferias').select('Numero').order('Numero', {ascending: false}).limit(1);
+    if (ativa) {
+        return {error: new Error('Este colaborador já está com férias "Em andamento". Finalize antes de iniciar novas férias.')};
+    }
+
+
+    const {data: lastFerias, error: numError} = await supabase
+        .from('Ferias')
+        .select('Numero')
+        .order('Numero', {ascending: false})
+        .limit(1);
     if (numError) return {error: numError};
     const newNumero = (lastFerias && lastFerias.length > 0) ? (lastFerias[0].Numero + 1) : 1;
+
+
     const hoje = toStartOfDay(new Date());
     const inicio = toStartOfDay(dataInicio);
     const fim = toStartOfDay(dataFinal);
+
+
     const statusInicial = (hoje < inicio) ? 'A iniciar' : (hoje <= fim ? 'Em andamento' : 'Finalizado');
+    const diasParaFinalizar = Math.max(0, Math.ceil((fim - hoje) / (1000 * 60 * 60 * 24)));
+
+    const svcUp = (colaborador.SVC || '').toString().toUpperCase();
+    let matriz = colaborador.MATRIZ || (state?.serviceMatrizMap?.get?.(svcUp) ?? null);
+    if (!matriz && svcUp) {
+
+        const {data: m, error: mErr} = await supabase
+            .from('Matrizes')
+            .select('MATRIZ')
+            .eq('SERVICE', svcUp)
+            .maybeSingle();
+        if (!mErr && m) matriz = m.MATRIZ || null;
+    }
+
     const feriasData = {
         Numero: newNumero,
         Nome: colaborador.Nome,
         Escala: colaborador.Escala,
         SVC: colaborador.SVC,
+        MATRIZ: matriz || null,
         'Data Inicio': dataInicio,
         'Data Final': dataFinal,
         Status: statusInicial,
-        'Dias para finalizar': Math.max(0, Math.ceil((fim - hoje) / (1000 * 60 * 60 * 24)))
+        'Dias para finalizar': diasParaFinalizar
     };
+
     const {error} = await supabase.from('Ferias').insert([feriasData]);
     if (error) return {error};
+
     await updateAllVacationStatuses();
+
     return {success: true};
 }
+
 
 async function finalizarFerias(nome) {
     const {data: ativa, error: e1} = await getActiveFerias(nome);
@@ -821,9 +970,7 @@ async function onFeriasSubmit(e) {
     }
 }
 
-// ==========================
-// Histórico (modal no dashboard)
-// ==========================
+
 const HIST = {
     nome: null,
     ano: new Date().getFullYear(),
@@ -862,8 +1009,8 @@ const HIST_STATUS_LABEL = {
 const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
 const daysInMonth = (year, month0) => new Date(year, month0 + 1, 0).getDate();
 const firstWeekdayIndex = (year, month0) => {
-    // índice começando em segunda (0=Seg ... 6=Dom)
-    const d = new Date(year, month0, 1).getDay(); // 0..6 (Dom=0)
+
+    const d = new Date(year, month0, 1).getDay();
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
@@ -882,7 +1029,6 @@ function ensureHistoricoDomRefs() {
         return;
     }
 
-    // popular seletor de ano (2023..2030)
     const start = 2023, end = 2030;
     HIST.els.yearSel.innerHTML = '';
     for (let y = start; y <= end; y++) {
@@ -904,7 +1050,6 @@ function ensureHistoricoDomRefs() {
         HIST.els.modal.classList.add('hidden');
     });
 
-    // fechar com ESC
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !HIST.els.modal.classList.contains('hidden')) {
             HIST.els.modal.classList.add('hidden');
@@ -936,7 +1081,7 @@ function renderHistoricoCalendar() {
 
         const dow = document.createElement('div');
         dow.className = 'dow';
-        // Seg,Ter,Qua,Qui,Sex,Sáb,Dom (compacto)
+
         ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].forEach((ch) => {
             const el = document.createElement('div');
             el.textContent = ch;
@@ -963,7 +1108,6 @@ function renderHistoricoCalendar() {
             const iso = isoOf(HIST.ano, m, d);
             let mark = HIST.marks.get(iso);
 
-            // se não houver marca explícita, aplicar DSR (se for data DSR)
             if (!mark && HIST.dsrDates && HIST.dsrDates.has(iso)) {
                 mark = 'DSR';
             }
@@ -985,7 +1129,7 @@ function renderHistoricoCalendar() {
 
 async function computeDsrDatesForYear(nome, ano) {
     try {
-        // pega DSR do colaborador
+
         const {data: colab, error} = await supabase
             .from('Colaboradores')
             .select('DSR')
@@ -996,7 +1140,6 @@ async function computeDsrDatesForYear(nome, ano) {
         const dsr = String(colab?.DSR || '').toUpperCase();
         if (!dsr) return new Set();
 
-        // mapear DSR -> weekday idx (0=Seg ... 6=Dom)
         const mapIdx = {
             'SEGUNDA': 0,
             'TERÇA': 1, 'TERCA': 1,
@@ -1013,10 +1156,9 @@ async function computeDsrDatesForYear(nome, ano) {
         const start = new Date(ano, 0, 1);
         const end = new Date(ano, 11, 31);
 
-        // iterar dias do ano
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            // weekday com segunda=0 ... domingo=6
-            const jsDay = d.getDay();          // 0..6 (Dom=0)
+
+            const jsDay = d.getDay();
             const wk = (jsDay === 0) ? 6 : jsDay - 1;
             if (wk === target) {
                 out.add(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`);
@@ -1041,7 +1183,6 @@ async function loadHistoricoIntoModal() {
         const start = `${y}-01-01`;
         const end = `${y}-12-31`;
 
-        // 1) carregar registros do ControleDiario (sem DSR)
         const {data, error} = await supabase
             .from('ControleDiario')
             .select('Data, "Presença", Falta, Atestado, "Folga Especial", Feriado, Suspensao')
@@ -1065,7 +1206,6 @@ async function loadHistoricoIntoModal() {
             const iso = r.Data;
             let status = null;
 
-            // sem r.DSR — DSR será aplicado depois via HIST.dsrDates
             if (isTrue(r['Presença'])) status = 'PRESENCA';
             else if (isTrue(r['Falta'])) status = 'FALTA';
             else if (isTrue(r['Atestado'])) status = 'ATESTADO';
@@ -1076,7 +1216,6 @@ async function loadHistoricoIntoModal() {
             if (status) HIST.marks.set(iso, status);
         });
 
-        // 2) calcular DSRs do ano (a partir do cadastro do colaborador)
         HIST.dsrDates = await computeDsrDatesForYear(HIST.nome, y);
 
         renderHistoricoCalendar();
@@ -1089,8 +1228,6 @@ async function loadHistoricoIntoModal() {
     }
 }
 
-
-// >>> Substitui a função antiga por esta <<<
 async function openHistorico(nome) {
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
@@ -1099,7 +1236,6 @@ async function openHistorico(nome) {
     }
     HIST.nome = nome || null;
 
-    // ano padrão: atual (respeitando opções preenchidas)
     if (HIST.els.yearSel) {
         const now = new Date().getFullYear();
         if (!HIST.els.yearSel.value) HIST.els.yearSel.value = String(now);
@@ -1109,12 +1245,9 @@ async function openHistorico(nome) {
     putHistoricoTitle();
     await loadHistoricoIntoModal();
 
-    // abre modal
     HIST.els.modal.classList.remove('hidden');
 }
 
-
-// Arquivo: public/pages/colaboradores.js
 
 function wireEdit() {
     editModal = document.getElementById('editModal');
@@ -1133,7 +1266,7 @@ function wireEdit() {
         CPF: document.getElementById('editCPF'),
         Contrato: document.getElementById('editContrato'),
         Cargo: document.getElementById('editCargo'),
-        Gestor: document.getElementById('editGestor'), // Agora aponta para o <select>
+        Gestor: document.getElementById('editGestor'),
         DSR: document.getElementById('editDSR'),
         Escala: document.getElementById('editEscala'),
         'FOLGA ESPECIAL': document.getElementById('editFolgaEspecial'),
@@ -1144,15 +1277,14 @@ function wireEdit() {
 
     attachUpperHandlersTo(editForm);
 
-    // --- AJUSTE AQUI ---
-    // Adiciona o listener para o select de SVC no modal de EDIÇÃO
+
     if (editSVC) {
         editSVC.addEventListener('change', () => {
-            // Ao mudar o SVC, repopula a lista de gestores
+
             populateGestorSelectForEdit(editSVC.value);
         });
     }
-    // --- FIM DO AJUSTE ---
+
 
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
@@ -1175,14 +1307,20 @@ function wireEdit() {
     editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
-        if (!colab) { alert('Colaborador não encontrado.'); return; }
+        if (!colab) {
+            alert('Colaborador não encontrado.');
+            return;
+        }
         openDesligarModalFromColab(colab);
     });
 
     editFeriasBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
-        if (!colab) { alert('Colaborador não encontrado.'); return; }
+        if (!colab) {
+            alert('Colaborador não encontrado.');
+            return;
+        }
         openFeriasModalFromColab(colab);
     });
 
@@ -1312,8 +1450,6 @@ export async function getFeriasRange(inicioISO, fimISO) {
     }
 }
 
-// Arquivo: public/pages/colaboradores.js
-
 export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     searchInput = document.getElementById('search-input');
@@ -1359,17 +1495,11 @@ export function init() {
             updateDisplay();
         });
     }
-
-    // --- AJUSTE AQUI ---
     if (addColaboradorBtn) {
-        addColaboradorBtn.addEventListener('click', async () => { // Adicionado async
-            // Carrega os dados necessários para os selects do formulário
+        addColaboradorBtn.addEventListener('click', async () => {
             await loadGestoresParaFormulario();
             loadSVCsParaFormulario();
-
-            // Reseta o select de gestor para o estado inicial
             populateGestorSelect(null);
-
             attachUppercaseHandlers();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
         });
@@ -1381,16 +1511,11 @@ export function init() {
         const matrizInput = document.getElementById('addMatriz');
         if (svcSelect && matrizInput) {
             svcSelect.addEventListener('change', () => {
-                // Comportamento antigo: atualiza a matriz
                 matrizInput.value = state.serviceMatrizMap.get(String(svcSelect.value)) || '';
-
-                // NOVO COMPORTAMENTO: popula o select de gestor
                 populateGestorSelect(svcSelect.value);
             });
         }
     }
-    // --- FIM DO AJUSTE ---
-
     if (colaboradoresTbody) {
         colaboradoresTbody.addEventListener('dblclick', (event) => {
             const nome = event.target.closest('tr')?.dataset.nome;

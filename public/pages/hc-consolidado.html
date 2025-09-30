@@ -1,6 +1,358 @@
-<section id="tab-hc-consolidado" class="tab-panel active">
-    <div style="padding: 20px; text-align: center;">
-        <h2 style="font-size: 24px; color: #003369; font-weight: bold;">HC Consolidado</h2>
-        <p style="margin-top: 10px; color: #555;">Esta página está em construção.</p>
+<div class="p-2 h-full">
+    <style>
+        .hc-root {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0
+        }
+
+        .hc-subtabs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0 10px;
+            flex-wrap: wrap;
+            row-gap: 8px
+        }
+
+        .hc-subtab-btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            background: #e9eef7;
+            color: #003369;
+            transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, .06)
+        }
+
+        .hc-subtab-btn:hover {
+            transform: translateY(-1px)
+        }
+
+        .hc-subtab-btn.active {
+            background: #003369;
+            color: #fff;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, .12)
+        }
+
+        .hc-subtab-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed
+        }
+
+        .hc-actions {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        /* selects/inputs das ações e das toolbars (desligamentos + férias) */
+        .hc-actions select,
+        .hcdesl-toolbar select,
+        .hcdesl-toolbar input[type="search"],
+        .hcf-toolbar select,
+        .hcf-toolbar input[type="search"] {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background: #fff;
+            font-weight: 600;
+            color: #333;
+            font-size: 12px;
+            cursor: pointer;
+            transition: transform .08s ease, box-shadow .25s, border-color .25s;
+            min-width: 160px
+        }
+
+        .hcdesl-toolbar input[type="search"], .hcf-toolbar input[type="search"] {
+            min-width: 260px;
+            cursor: text
+        }
+
+        .hc-actions select:hover,
+        .hcdesl-toolbar select:hover,
+        .hcdesl-toolbar input[type="search"]:hover,
+        .hcf-toolbar select:hover,
+        .hcf-toolbar input[type="search"]:hover {
+            transform: translateY(-1px)
+        }
+
+        .hc-actions select:focus,
+        .hcdesl-toolbar select:focus,
+        .hcdesl-toolbar input[type="search"]:focus,
+        .hcf-toolbar select:focus,
+        .hcf-toolbar input[type="search"]:focus {
+            outline: none;
+            border-color: #02B1EE;
+            box-shadow: 0 0 0 4px rgba(2, 177, 238, .2)
+        }
+
+        /* botões (refresh, export, etc) */
+        #hc-refresh, .hc-actions .btn-add, #hcdesl-export, #hcf-export {
+            align-self: center;
+            padding: 8px 14px;
+            min-width: 130px;
+            border: none;
+            border-radius: 24px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .2s ease;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
+            background: #003369;
+            color: #fff
+        }
+
+        #hc-refresh:hover, .hc-actions .btn-add:hover, #hcdesl-export:hover, #hcf-export:hover {
+            background: #02B1EE;
+            transform: translateY(-2px)
+        }
+
+        /* ===== ANIMAÇÃO / LAYOUT DAS SUB-ABAS ===== */
+        .hc-view {
+            display: none;
+            flex: 1;
+            min-height: 0;
+            transition: opacity .2s ease-in-out
+        }
+
+        .hc-view.active {
+            display: flex;
+            flex-direction: column
+        }
+
+        .hc-grid {
+            display: grid;
+            grid-template-columns:repeat(3, minmax(260px, 1fr));
+            gap: 12px;
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            padding: 2px
+        }
+
+        .hc-card {
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, .1);
+            border: 1px solid #f1f1f1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: fadeIn .2s ease-out both
+        }
+
+        .hc-card > h3 {
+            display: none !important
+        }
+
+        .hc-card--full {
+            grid-column: 1/-1
+        }
+
+        .hc-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            background: #fff
+        }
+
+        .hc-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #003369;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+            font-weight: 600;
+            font-size: 11px;
+            padding: 8px 8px;
+            text-align: center
+        }
+
+        .hc-table th, .hc-table td {
+            text-align: center;
+            padding: 6px 8px;
+            border-bottom: 1px solid #f1f1f1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 12px;
+            color: #333;
+            font-weight: 600
+        }
+
+        .hc-table th:first-child, .hc-table td:first-child {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            text-align: left;
+            min-width: 160px;
+            line-height: 1.25
+        }
+
+        .hc-table tbody tr:nth-child(even) td {
+            background: #f9f9f9
+        }
+
+        .hc-table tbody tr:hover td {
+            background: #e8f7ff
+        }
+
+        .hc-table .hc-total-row td {
+            background: #f3f7ff !important;
+            color: #003369;
+            font-weight: 800
+        }
+
+        .muted {
+            color: #777;
+            font-weight: 600;
+            text-align: center
+        }
+
+        /* toolbars de tabelas (desligamentos + férias) */
+        .hcdesl-toolbar, .hcf-toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin: 4px 0 10px;
+            flex-wrap: wrap
+        }
+
+        .hcdesl-left, .hcf-left {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        .hcdesl-right, .hcf-right {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        /* wrappers de tabela */
+        .hcdesl-table-wrap, .hcf-table-wrap {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            background: #fff;
+            border-radius: 14px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+            border: 1px solid #f1f1f1
+        }
+
+        @media (max-width: 1200px) {
+            .hc-grid {
+                grid-template-columns:repeat(3, minmax(240px, 1fr))
+            }
+        }
+
+        @media (max-width: 820px) {
+            .hc-grid {
+                grid-template-columns:repeat(2, minmax(240px, 1fr))
+            }
+
+            .hc-card--full {
+                grid-column: 1/-1
+            }
+        }
+
+        @media (max-width: 560px) {
+            .hc-grid {
+                grid-template-columns:1fr
+            }
+
+            .hc-card--full {
+                grid-column: 1/-1
+            }
+
+            .hcdesl-toolbar input[type="search"], .hcf-toolbar input[type="search"] {
+                min-width: 180px
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0
+            }
+            to {
+                opacity: 1
+            }
+        }
+    </style>
+
+    <div class="hc-root">
+        <div class="hc-subtabs">
+            <button class="hc-subtab-btn active" data-view="semanal">HC Semanal</button>
+            <button class="hc-subtab-btn" data-view="diario">HC Diário</button>
+            <button class="hc-subtab-btn" data-view="relatorio-abs">Relatório ABS</button>
+            <button class="hc-subtab-btn" data-view="analise-abs">Análise ABS</button>
+            <button class="hc-subtab-btn" data-view="indice">Índice</button>
+            <button class="hc-subtab-btn" data-view="desligamentos">Desligamentos</button>
+            <!-- NOVO: botão da sub-aba Férias -->
+            <button class="hc-subtab-btn" data-view="ferias">Férias</button>
+
+            <div class="hc-actions">
+                <select id="hc-filter-matriz">
+                    <option value="">Matriz: Todos</option>
+                </select>
+                <select id="hc-filter-svc">
+                    <option value="">SVC: Todos</option>
+                </select>
+                <button id="hc-refresh" class="btn-add">Atualizar</button>
+            </div>
+        </div>
+
+        <div id="hc-semanal" class="hc-view active">
+            <div class="hc-grid">
+                <div class="hc-card"><h3>TURNO 1</h3>
+                    <table class="hc-table" id="hc-t1"></table>
+                </div>
+                <div class="hc-card"><h3>TURNO 2</h3>
+                    <table class="hc-table" id="hc-t2"></table>
+                </div>
+                <div class="hc-card"><h3>TURNO 3</h3>
+                    <table class="hc-table" id="hc-t3"></table>
+                </div>
+                <div class="hc-card hc-card--full"><h3>QUADRO GERAL</h3>
+                    <table class="hc-table" id="hc-geral"></table>
+                </div>
+            </div>
+        </div>
+
+        <div id="hc-diario" class="hc-view">
+            <div class="hc-placeholder muted">Carregando...</div>
+        </div>
+
+        <div id="hc-relatorio-abs" class="hc-view">
+            <div class="hc-placeholder muted">Carregando...</div>
+        </div>
+
+        <div id="hc-analise-abs" class="hc-view">
+            <div class="hc-placeholder muted">Carregando...</div>
+        </div>
+
+        <div id="hc-indice" class="hc-view">
+            <div class="hc-placeholder muted">Carregando...</div>
+        </div>
+
+        <div id="hc-desligamentos" class="hc-view">
+            <div class="hc-placeholder muted">Carregando...</div>
+        </div>
+
+        <!-- NOVO: container da sub-aba Férias -->
+        <div id="hc-ferias" class="hc-view">
+            <div class="hc-placeholder muted">Carregando...</div>
+        </div>
     </div>
-</section>
+</div>

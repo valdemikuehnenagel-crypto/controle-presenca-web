@@ -40,8 +40,7 @@ registerForm.addEventListener('submit', (e) => {
 
 const forgotPinLink = document.getElementById('forgotPinLink');
 forgotPinLink.addEventListener('click', (e) => {
-  // mantém mailto, mas evita navegação se precisar tratar internamente
-  // e.preventDefault();
+
   document.dispatchEvent(new CustomEvent('forgot-pin'));
 });
 
