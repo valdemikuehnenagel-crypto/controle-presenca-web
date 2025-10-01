@@ -1,0 +1,46 @@
+<section id="tab-painel-gerencial" class="tab-panel active">
+    <div class="controls">
+        <h2 class="page-title">Painel Gerencial</h2>
+        <div class="spacer"></div>
+        <div class="button-group">
+            <button id="btnAbrirModalMatriz" class="btn-add">Registrar Matriz/Service</button>
+            <button id="btnAbrirModalGestor" class="btn-add">Registrar Gestor</button>
+        </div>
+    </div>
+
+    <div class="gerencial-filters"
+         style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center;">
+        <select id="filter-aprovacao">
+            <option value="">Aprovação: Todos</option>
+        </select>
+        <select id="filter-tipo">
+            <option value="">Tipo: Todos</option>
+        </select>
+        <select id="filter-matriz">
+            <option value="">Matriz: Todas</option>
+        </select>
+        <select id="filter-svc">
+            <option value="">SVC: Todos</option>
+        </select>
+        <button id="limpar-filtros-gerencial" class="btn-cancelar" style="margin-left: auto;">Limpar Filtros</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="gerencial-table">
+            <thead>
+            <tr>
+                <th>Usuário (Nome)</th>
+                <th>Aprovação</th>
+                <th>Tipo</th>
+                <th>Matriz</th>
+                <th>SVC</th>
+            </tr>
+            </thead>
+            <tbody id="relatorio-logins-tbody">
+            <tr>
+                <td colspan="5" style="text-align: center;">Carregando relatório...</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</section>

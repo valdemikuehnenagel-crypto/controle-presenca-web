@@ -7,6 +7,15 @@ let ui;
 const collator = new Intl.Collator('pt-BR', {sensitivity: 'base'});
 const NORM = (s) => (s || '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
+const pick = (o, ...keys) => {
+    for (const k of keys) {
+        const v = o && o[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+    }
+    return '';
+};
+const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();
+
 function showLoading(on = true) {
     const el = document.getElementById('cd-loading');
     if (!el) return;
@@ -55,11 +64,18 @@ async function pageAll(buildQuery, pageSize = 1000) {
     return {data: out};
 }
 
+// === getColaboradoresElegiveis (substitua a sua por esta) ===
 async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
     const variantes = [dia, NORM(dia)];
 
-    const matrizesPermitidas = getMatrizesPermitidas();
+    let matrizesPermitidas = await Promise.resolve(getMatrizesPermitidas());
+    if (Array.isArray(matrizesPermitidas)) {
+        matrizesPermitidas = matrizesPermitidas.map(s => String(s || '').trim()).filter(Boolean);
+        if (matrizesPermitidas.length === 0) matrizesPermitidas = null;
+    } else {
+        matrizesPermitidas = null;
+    }
 
     const {data: cols, error} = await pageAll(() => {
         let q = supabase
@@ -73,7 +89,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             q = q.eq('Escala', turno);
         }
 
-        if (matrizesPermitidas !== null) {
+        if (matrizesPermitidas && matrizesPermitidas.length) {
             q = q.in('MATRIZ', matrizesPermitidas);
         }
 
@@ -101,6 +117,8 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
     return {elegiveis, dsrList};
 }
+
+
 
 async function getMarksFor(dateISO, nomes) {
     if (!nomes.length) return new Map();
@@ -329,32 +347,39 @@ function passFilters(x) {
     if (f.cargo && (x.Cargo || '') !== f.cargo) return false;
     if (f.contrato && (x.Contrato || '') !== f.contrato) return false;
     if (f.svc && (x.SVC || '') !== f.svc) return false;
-    if (f.matriz && (x.Matriz || '') !== f.matriz) return false;
+    if (f.matriz && getMatriz(x) !== f.matriz) return false; // << aqui o fix
     return true;
 }
+
 
 function applyFilters(list) {
     return list.filter(passFilters).sort((a, b) => collator.compare(a.Nome, b.Nome));
 }
 
+// === buildFilterOptions + fill (substitua as suas por estas) ===
 function buildFilterOptions(list) {
-    const gestores = uniqSorted(list.map(x => x.Gestor));
-    const cargos = uniqSorted(list.map(x => x.Cargo));
-    const contratos = uniqSorted(list.map(x => x.Contrato));
-    const svcs = uniqSorted(list.map(x => x.SVC));
-    const matrizes = uniqSorted(list.map(x => x.Matriz));
-    fill(ui.selGestor, gestores, 'Gestor');
-    fill(ui.selCargo, cargos, 'Cargo');
+    const gestores  = uniqSorted(list.map(x => (x.Gestor   || '').trim()).filter(Boolean));
+    const cargos    = uniqSorted(list.map(x => (x.Cargo    || '').trim()).filter(Boolean));
+    const contratos = uniqSorted(list.map(x => (x.Contrato || '').trim()).filter(Boolean));
+    const svcs      = uniqSorted(list.map(x => (x.SVC      || '').trim()).filter(Boolean));
+    const matrizes  = uniqSorted(list.map(x => getMatriz(x)).filter(Boolean));
+
+    fill(ui.selGestor,   gestores,  'Gestor');
+    fill(ui.selCargo,    cargos,    'Cargo');
     fill(ui.selContrato, contratos, 'Contrato');
-    fill(ui.selSVC, svcs, 'SVC');
-    fill(ui.selMatriz, matrizes, 'Matriz');
+    fill(ui.selSVC,      svcs,      'SVC');
+    fill(ui.selMatriz,   matrizes,  'Matriz');
 }
 
 function fill(sel, values, placeholder) {
+    if (!sel) return;
     const prev = sel.value;
-    sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
+    sel.innerHTML = `<option value="">${placeholder}</option>` +
+        values.map(v => `<option value="${v}">${v}</option>`).join('');
     sel.value = values.includes(prev) ? prev : '';
 }
+
+
 
 async function renderRows(list) {
     ensureExtendedHeader();
@@ -517,8 +542,11 @@ async function carregar(full = false) {
 
         state.baseList = elegiveis.map(c => ({
             ...c,
+
+            Matriz: getMatriz(c),
             Marcacao: markMap.get(c.Nome) || null
         }));
+
 
         state.meta = {dsrList};
 

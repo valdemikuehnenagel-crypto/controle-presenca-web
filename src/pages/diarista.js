@@ -1,12 +1,11 @@
-import {getMatrizesPermitidas} from '../session.js';
+// /src/pages/diarista.js
 import {supabase} from '../supabaseClient.js';
+import {getMatrizesPermitidas} from '../session.js';
 
-/* ========= Sessão (mesmo conceito do Electron) ========= */
+/* ========= Sessão / Matrizes ========= */
 function readCurrentSession() {
     try {
-        if (window.currentSession && typeof window.currentSession === 'object') {
-            return window.currentSession;
-        }
+        if (window.currentSession && typeof window.currentSession === 'object') return window.currentSession;
     } catch {
     }
     try {
@@ -23,8 +22,7 @@ function getSessionMatriz() {
     return m ? m.toUpperCase() : 'TODOS';
 }
 
-
-/* ======== Datas iguais ao back (copiadas/adaptadas) ======== */
+/* ======== Datas ======== */
 function diaristaToISO(s) {
     const str = String(s || '').trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
@@ -56,7 +54,7 @@ function diaristaFmtBR(val) {
     return s;
 }
 
-/* ======== Helpers util ======== */
+/* ======== Helpers ======== */
 const pad2 = n => String(n).padStart(2, '0');
 const todayISO = () => {
     const d = new Date();
@@ -66,17 +64,26 @@ const safeTime = (dateLike) => {
     const t = (dateLike instanceof Date) ? dateLike.getTime() : new Date(dateLike).getTime();
     return Number.isFinite(t) ? t : NaN;
 };
+const formatNomeComId = (nome, id) => {
+    const n = String(nome || '').trim();
+    const g = String(id || '').trim();
+    return g ? `${n} (${g})` : n;
+};
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
+    {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]
+));
 
 /* ======== Estado ======== */
 const state = {
     mounted: false,
-    svcToMatriz: new Map(),
+    svcToMatriz: new Map(),   // SERVICE -> MATRIZ (apenas permitidas)
     records: [],
     filters: {start: '', end: '', svc: '', matriz: '', turno: ''},
     _listeners: [],
+    _popover: null
 };
 
-/* ======== Util DOM ======== */
+/* ======== DOM utils ======== */
 function on(el, ev, cb) {
     if (!el) return;
     el.addEventListener(ev, cb);
@@ -137,14 +144,25 @@ function wireUI() {
     on(document.getElementById('btn-add-diarista'), 'click', openModal);
     on(document.getElementById('btn-cancel-modal'), 'click', closeModal);
 
-    on(document.getElementById('f-quantidade'), 'input', updateNameInputs);
-    on(document.getElementById('f-quantidade'), 'change', updateNameInputs);
+    on(document.getElementById('f-quantidade'), 'input', () => updateNameInputs(true));
+    on(document.getElementById('f-quantidade'), 'change', () => updateNameInputs(true));
+
     on(document.getElementById('f-svc'), 'change', (e) => {
         const svc = e.target.value;
         const mtzEl = document.getElementById('f-matriz');
         if (mtzEl) mtzEl.value = state.svcToMatriz.get(svc) || '';
     });
+
     on(document.getElementById('diarista-form'), 'submit', onSubmitForm);
+
+    // fecha popover (nomes)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeNamesPopover();
+    });
+    document.addEventListener('click', (e) => {
+        if (state._popover && !state._popover.contains(e.target) && !e.target.closest('.btn-nomes')) closeNamesPopover();
+    });
+    window.addEventListener('scroll', closeNamesPopover, {passive: true});
 }
 
 export async function init() {
@@ -152,9 +170,10 @@ export async function init() {
     state.mounted = true;
 
     wireUI();
-    await loadSvcMatrizMap();
-    await loadDiaristas();
+    await loadSvcMatrizMap();   // agora respeita getMatrizesPermitidas()
+    await loadDiaristas();      // idem
 
+    // Data em BR
     state.records = (state.records || []).map(r => ({...r, Data: diaristaFmtBR(r.Data)}));
     fillFilterCombos();
     renderKPIs();
@@ -170,103 +189,201 @@ export async function destroy() {
     state.mounted = false;
 }
 
+/* ======== Popover Nomes (ícone 🗒️) ======== */
+function ensurePopoverStyles() {
+    if (document.getElementById('diaristas-names-popover-style')) return;
+    const css = `
+    #diaristas-names-popover {
+      position: fixed;
+      z-index: 2000;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      border: 1px solid #e7ebf4;
+      border-radius: 12px;
+      box-shadow: 0 12px 28px rgba(0,0,0,.18);
+      padding: 16px 18px 18px;
+      width: min(520px, 96vw);
+      max-width: 96vw;
+      animation: diaristas-popin .12s ease-out;
+    }
+    @keyframes diaristas-popin {
+      from { transform: translate(-50%, -50%) scale(.98); opacity:.0 }
+      to   { transform: translate(-50%, -50%) scale(1);   opacity:1 }
+    }
+    #diaristas-names-popover .pop-title {
+      font-size: 14px; font-weight: 800; color: #003369;
+      margin: 0 0 10px; text-align: center;
+    }
+    #diaristas-names-popover .pop-close {
+      position: absolute; top: 8px; right: 10px; border: none;
+      background: transparent; font-size: 18px; cursor: pointer; color: #56607f; line-height: 1;
+    }
+    #diaristas-names-popover .pop-scroll {
+      max-height: 360px; overflow: auto; border: 1px solid #f1f3f8; border-radius: 10px;
+    }
+    #diaristas-names-popover table { width: 100%; border-collapse: collapse; }
+    #diaristas-names-popover thead th {
+      text-align:center; font-size:12px; color:#56607f; border-bottom:1px solid #e7ebf4;
+      padding:8px 10px; font-weight:700; background:#f9fbff;
+    }
+    #diaristas-names-popover tbody td {
+      font-size:13px; color:#242c4c; padding:8px 10px; border-bottom:1px solid #f1f3f8;
+      vertical-align: top; text-align:center; word-break: break-word; background:#fff;
+    }
+    #diaristas-names-popover tbody tr:last-child td { border-bottom:none; }
+  `.trim();
+    const style = document.createElement('style');
+    style.id = 'diaristas-names-popover-style';
+    style.textContent = css;
+    document.head.appendChild(style);
+}
 
-async function loadSvcMatrizMap() {
+function buildNamesTable(entries) {
+    const rows = entries.map(e => `
+    <tr><td>${escapeHtml(e.nome || '')}</td><td>${escapeHtml(e.id || '')}</td></tr>
+  `).join('');
+    return `
+    <div class="pop-title">Diaristas lançados</div>
+    <div class="pop-scroll">
+      <table>
+        <thead><tr><th>DIARISTAS</th><th>ID GROOT</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="2">Sem nomes.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
 
-    state.svcToMatriz.clear();
-    const svcSel = document.getElementById('f-svc');
-    const fltSvc = document.getElementById('flt-svc');
-    const fltMtz = document.getElementById('flt-matriz');
-
-    const matrizesPermitidas = getMatrizesPermitidas();
-    try {
-        let query = supabase
-            .from('Diarista')
-            .select('SVC, MATRIZ')
-            .not('SVC', 'is', null)
-            .not('MATRIZ', 'is', null);
-
-        if (matrizesPermitidas !== null) {
-            query = query.in('MATRIZ', matrizesPermitidas);
+function closeNamesPopover() {
+    if (state._popover) {
+        try {
+            state._popover.remove();
+        } catch {
         }
-
-        const {data, error} = await query.limit(5000);
-        if (error) throw error;
-
-        const svcsUnicos = new Set();
-        const matrizesUnicas = new Set();
-
-        (data || []).forEach(r => {
-            const svc = String(r.SVC || '').trim();
-            const mtz = String(r.MATRIZ || '').trim();
-
-            if (svc) {
-                svcsUnicos.add(svc);
-
-                if (!state.svcToMatriz.has(svc)) {
-                    state.svcToMatriz.set(svc, mtz);
-                }
-            }
-            if (mtz) {
-                matrizesUnicas.add(mtz);
-            }
-        });
-
-        const svcsOrdenados = [...svcsUnicos].sort((a, b) => a.localeCompare(b));
-        const matrizesOrdenadas = [...matrizesUnicas].sort((a, b) => a.localeCompare(b));
-
-        if (svcSel) {
-            svcSel.innerHTML = '<option value="">Selecione...</option>';
-            svcsOrdenados.forEach(s => {
-                const option = document.createElement('option');
-                option.value = s;
-                option.textContent = s;
-                svcSel.appendChild(option);
-            });
-        }
-
-        if (fltSvc) {
-            fltSvc.innerHTML = '<option value="">Todos os SVCs</option>';
-            svcsOrdenados.forEach(s => {
-                const option = document.createElement('option');
-                option.value = s;
-                option.textContent = s;
-                fltSvc.appendChild(option);
-            });
-        }
-        if (fltMtz) {
-            fltMtz.innerHTML = '<option value="">Todas as Matrizes</option>';
-            matrizesOrdenadas.forEach(m => {
-                const option = document.createElement('option');
-                option.value = m;
-                option.textContent = m;
-                fltMtz.appendChild(option);
-            });
-        }
-
-    } catch (e) {
-        console.error('Erro ao carregar SVC/Matriz', e);
+        state._popover = null;
     }
 }
 
+function openNamesPopover(entries) {
+    ensurePopoverStyles();
+    closeNamesPopover();
+    const pop = document.createElement('div');
+    pop.id = 'diaristas-names-popover';
+    pop.innerHTML = `<button class="pop-close" title="Fechar" aria-label="Fechar">&times;</button>${buildNamesTable(entries)}`;
+    document.body.appendChild(pop);
+    state._popover = pop;
+    pop.querySelector('.pop-close')?.addEventListener('click', closeNamesPopover);
+}
 
+/* ======== SVC/MATRIZ (respeitando matrizes permitidas) ======== */
+async function loadSvcMatrizMap() {
+    state.svcToMatriz.clear();
+
+    const matrizesPermitidas = getMatrizesPermitidas(); // null => todas
+    try {
+        let q = supabase.from('Matrizes')
+            .select('SERVICE, MATRIZ')
+            .not('SERVICE', 'is', null)
+            .not('MATRIZ', 'is', null)
+            .order('SERVICE', {ascending: true})
+            .limit(10000);
+
+        if (matrizesPermitidas !== null && Array.isArray(matrizesPermitidas) && matrizesPermitidas.length > 0) {
+            q = q.in('MATRIZ', matrizesPermitidas);
+        }
+
+        const {data, error} = await q;
+        if (error) throw error;
+
+        const all = (data || [])
+            .map(r => ({SERVICE: String(r.SERVICE || '').trim(), MATRIZ: String(r.MATRIZ || '').trim()}))
+            .filter(r => r.SERVICE && r.MATRIZ);
+
+        for (const r of all) if (!state.svcToMatriz.has(r.SERVICE)) state.svcToMatriz.set(r.SERVICE, r.MATRIZ);
+
+        const uniqueSvcs = [...new Set(all.map(r => r.SERVICE))].sort((a, b) => a.localeCompare(b));
+        const uniqueMtzs = [...new Set(all.map(r => r.MATRIZ))].sort((a, b) => a.localeCompare(b));
+
+        // FORM: f-svc (popular), f-matriz é INPUT readonly (preenchido ao escolher SVC)
+        const formSvc = document.getElementById('f-svc');
+        if (formSvc) {
+            formSvc.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+            uniqueSvcs.forEach(s => {
+                const o = document.createElement('option');
+                o.value = s;
+                o.textContent = s;
+                formSvc.appendChild(o);
+            });
+        }
+
+        // FILTROS (top): flt-svc e flt-matriz
+        const fltSvc = document.getElementById('flt-svc');
+        const fltMtz = document.getElementById('flt-matriz');
+
+        if (fltSvc) {
+            fltSvc.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+            uniqueSvcs.forEach(s => {
+                const o = document.createElement('option');
+                o.value = s;
+                o.textContent = s;
+                fltSvc.appendChild(o);
+            });
+        }
+
+        if (fltMtz) {
+            fltMtz.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+            const sessMtz = getSessionMatriz();
+
+            // Se o usuário tem restrição por sessão (e também por getMatrizesPermitidas), respeita
+            if (sessMtz && sessMtz !== 'TODOS') {
+                const has = [...fltMtz.options].some(o => o.value === sessMtz);
+                if (!has) {
+                    const opt = document.createElement('option');
+                    opt.value = sessMtz;
+                    opt.textContent = sessMtz;
+                    fltMtz.appendChild(opt);
+                }
+                fltMtz.value = sessMtz;
+                fltMtz.disabled = true;
+                state.filters.matriz = sessMtz;
+            } else {
+                uniqueMtzs.forEach(m => {
+                    const o = document.createElement('option');
+                    o.value = m;
+                    o.textContent = m;
+                    fltMtz.appendChild(o);
+                });
+                fltMtz.disabled = false;
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao carregar SERVICES/MATRIZES (com permissão)', e);
+    }
+}
+
+/* ======== Dados Diarista (com filtro de permissão) ======== */
 async function loadDiaristas() {
-
-    const matrizesPermitidas = getMatrizesPermitidas();
     const CHUNK = 1000;
-    let from = 0;
-    let all = [];
+    let from = 0, all = [];
+    const sessMtz = getSessionMatriz();
+    const matrizesPermitidas = getMatrizesPermitidas(); // null => todas
 
     try {
         while (true) {
-            let q = supabase
-                .from('Diarista')
+            let q = supabase.from('Diarista')
                 .select('Numero, Quantidade, Empresa, Data, "Solicitado Por", "Autorizado Por", Turno, "Nome Diarista", SVC, MATRIZ')
                 .order('Numero', {ascending: true})
                 .range(from, from + CHUNK - 1);
 
-            if (matrizesPermitidas !== null) {
+            // Restringe pelo que o usuário pode ver
+            if (matrizesPermitidas !== null && Array.isArray(matrizesPermitidas) && matrizesPermitidas.length > 0) {
                 q = q.in('MATRIZ', matrizesPermitidas);
+            }
+
+            // Se a sessão já fixa uma MATRIZ específica, aplica também
+            if (sessMtz && sessMtz !== 'TODOS') {
+                q = q.eq('MATRIZ', sessMtz);
             }
 
             const {data, error} = await q;
@@ -274,7 +391,6 @@ async function loadDiaristas() {
 
             const rows = data || [];
             all = all.concat(rows);
-
             if (rows.length < CHUNK) break;
             from += CHUNK;
         }
@@ -292,20 +408,18 @@ async function loadDiaristas() {
             MATRIZ: r.MATRIZ ?? ''
         }));
 
-        console.log('[Diarista] carregados (total):', state.records.length, 'registros');
+        console.log('[Diarista] carregados (total):', state.records.length, 'registros (com permissão)');
     } catch (e) {
         console.warn('Falha ao obter registros Diarista', e);
         state.records = [];
     }
 }
 
-
 /* ======== Filtro / Render ======== */
 function filteredRows() {
     const s = state.filters;
     const tStart = safeTime(new Date(s.start));
     const tEnd = safeTime(new Date(s.end));
-
     return (state.records || [])
         .filter(r => {
             const iso = diaristaToISO(r.Data);
@@ -320,7 +434,6 @@ function filteredRows() {
             return true;
         })
         .sort((a, b) => {
-
             const ta = safeTime(new Date(diaristaToISO(a.Data)));
             const tb = safeTime(new Date(diaristaToISO(b.Data)));
             if (Number.isFinite(tb) && Number.isFinite(ta) && tb !== ta) return tb - ta;
@@ -364,12 +477,23 @@ function renderKPIs() {
     setText('kpiTOP-all-total', knT1 + knT2 + knT3 + mlT1 + mlT2 + mlT3);
 }
 
+function parseNomeDiaristaField(str) {
+    const s = String(str || '').trim();
+    if (!s) return [];
+    // formato "NOME (ID), NOME2 (ID2), ..."
+    return s.split(/\s*,\s*/).map(pair => {
+        const m = /(.*?)(?:\s*\(([^()]*)\))?$/.exec(pair);
+        return {nome: (m?.[1] || '').trim(), id: (m?.[2] || '').trim()};
+    }).filter(p => p.nome);
+}
+
 function renderTable() {
     const tbody = document.getElementById('diaristas-tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
     const rows = filteredRows();
     for (const r of rows) {
+        const entries = parseNomeDiaristaField(r['Nome Diarista']);
         const tr = document.createElement('tr');
         tr.innerHTML = `
       <td>${r.Quantidade ?? ''}</td>
@@ -380,7 +504,10 @@ function renderTable() {
       <td>${r.Turno ?? ''}</td>
       <td>${r.SVC ?? ''}</td>
       <td>${r.MATRIZ ?? ''}</td>
+      <td><button type="button" class="btn-nomes" title="Ver nomes">🗒️</button></td>
     `;
+        const btn = tr.querySelector('.btn-nomes');
+        btn?.addEventListener('click', () => openNamesPopover(entries));
         tbody.appendChild(tr);
     }
 }
@@ -392,10 +519,15 @@ function openModal() {
     document.getElementById('f-solicitado').value = '';
     document.getElementById('f-autorizado').value = '';
     document.getElementById('f-turno').value = '';
-    document.getElementById('f-svc').value = '';
-    document.getElementById('f-matriz').value = '';
+
+    const fSvc = document.getElementById('f-svc');
+    const fMtz = document.getElementById('f-matriz');
+    if (fSvc) fSvc.value = '';
+    const sessMtz = getSessionMatriz();
+    if (fMtz) fMtz.value = (sessMtz && sessMtz !== 'TODOS') ? sessMtz : '';
+
     document.getElementById('f-data').value = todayISO();
-    updateNameInputs();
+    updateNameInputs(false);
     document.getElementById('diarista-modal').classList.remove('hidden');
 }
 
@@ -403,22 +535,37 @@ function closeModal() {
     document.getElementById('diarista-modal').classList.add('hidden');
 }
 
-function updateNameInputs() {
+function updateNameInputs(preserve = true) {
     const raw = document.getElementById('f-quantidade').value;
     const qty = Math.max(1, parseInt(raw, 10) || 1);
     const box = document.getElementById('names-list');
-    const prevValues = Array.from(box.querySelectorAll('.f-nome')).map(inp => String(inp.value || ''));
 
+    let prevNomes = [], prevIds = [];
+    if (preserve) {
+        prevNomes = Array.from(box.querySelectorAll('.f-nome')).map(inp => String(inp.value || ''));
+        prevIds = Array.from(box.querySelectorAll('.f-groot')).map(inp => String(inp.value || ''));
+    }
     box.innerHTML = '';
     for (let i = 1; i <= qty; i++) {
-        const wrap = document.createElement('div');
-        wrap.className = 'name-item';
-        const prev = prevValues[i - 1] || '';
-        wrap.innerHTML = `
-      <label>Nome ${i}
-        <input type="text" class="f-nome" placeholder="Nome do diarista ${i}" required value="${prev.replace(/"/g, '&quot;')}">
-      </label>`;
-        box.appendChild(wrap);
+        const nomeVal = preserve ? (prevNomes[i - 1] || '') : '';
+        const idVal = preserve ? (prevIds[i - 1] || '') : '';
+        const wrapNome = document.createElement('div');
+        wrapNome.className = 'form-group';
+        wrapNome.style.gridColumn = 'span 2';
+        wrapNome.innerHTML = `
+      <label for="f-nome-${i}">Nome ${i}</label>
+      <input id="f-nome-${i}" type="text" class="f-nome" placeholder="Nome do diarista ${i}" required
+             value="${nomeVal.replace(/"/g, '&quot;')}">
+    `;
+        const wrapId = document.createElement('div');
+        wrapId.className = 'form-group';
+        wrapId.innerHTML = `
+      <label for="f-groot-${i}">ID GROOT ${i}</label>
+      <input id="f-groot-${i}" type="text" class="f-groot" placeholder="Ex.: 12345"
+             value="${idVal.replace(/"/g, '&quot;')}">
+    `;
+        box.appendChild(wrapNome);
+        box.appendChild(wrapId);
     }
 }
 
@@ -433,24 +580,23 @@ async function onSubmitForm(ev) {
     const matriz = String(document.getElementById('f-matriz').value || '').trim();
     const dataISO = document.getElementById('f-data').value;
 
-    const nomes = Array.from(document.querySelectorAll('.f-nome'))
-        .map(i => String(i.value || '').trim()).filter(Boolean);
-    if (nomes.length !== qtd) {
-        alert('Quantidade e quantidade de nomes não conferem.');
+    // Nome + ID
+    const nomesInputs = Array.from(document.querySelectorAll('.f-nome'));
+    const idsInputs = Array.from(document.querySelectorAll('.f-groot'));
+    const nomes = nomesInputs.map(i => String(i.value || '').trim()).filter(Boolean);
+    const ids = idsInputs.map(i => String(i.value || '').trim());
+    if (nomes.length !== qtd || nomesInputs.length !== idsInputs.length) {
+        alert('Quantidade e quantidade de pares (Nome/ID) não conferem.');
         return;
     }
 
+    // Numero: max + 1
     let numero = 1;
     try {
         const {data: maxData, error: maxErr} = await supabase
-            .from('Diarista')
-            .select('Numero')
-            .order('Numero', {ascending: false})
-            .limit(1);
+            .from('Diarista').select('Numero').order('Numero', {ascending: false}).limit(1);
         if (maxErr) throw maxErr;
-        numero = (maxData && maxData[0] && Number(maxData[0].Numero))
-            ? (Number(maxData[0].Numero) + 1)
-            : 1;
+        numero = (maxData && maxData[0] && Number(maxData[0].Numero)) ? (Number(maxData[0].Numero) + 1) : 1;
     } catch {
         const curMax = Math.max(0, ...state.records.map(r => Number(r.Numero || 0)));
         numero = curMax + 1;
@@ -462,6 +608,7 @@ async function onSubmitForm(ev) {
         return;
     }
 
+    const nomeDiarista = nomes.map((n, idx) => formatNomeComId(n, ids[idx])).join(', ');
     const payload = {
         Numero: numero,
         Quantidade: Number(qtd),
@@ -470,7 +617,7 @@ async function onSubmitForm(ev) {
         'Solicitado Por': solicitado,
         'Autorizado Por': autorizado,
         Turno: turno,
-        'Nome Diarista': nomes.join(', '),
+        'Nome Diarista': nomeDiarista,
         SVC: svc,
         MATRIZ: matriz
     };
@@ -479,10 +626,7 @@ async function onSubmitForm(ev) {
         const {error} = await supabase.from('Diarista').insert(payload);
         if (error) throw error;
 
-        state.records.push({
-            ...payload,
-            Data: diaristaFmtBR(payload.Data)
-        });
+        state.records.push({...payload, Data: diaristaFmtBR(payload.Data)});
 
         closeModal();
         renderKPIs();

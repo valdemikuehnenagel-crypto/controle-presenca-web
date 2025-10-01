@@ -115,8 +115,16 @@ async function fetchColabs() {
         .from('Colaboradores')
         .select('Nome, Cargo, MATRIZ, SVC, Escala, DSR, Ativo, "Data de admissão"');
 
+
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
+    }
+
+    if (_filters.matriz) {
+        query = query.eq('MATRIZ', _filters.matriz);
+    }
+    if (_filters.svc) {
+        query = query.eq('SVC', _filters.svc);
     }
 
     const {data, error} = await query;
@@ -334,10 +342,16 @@ export async function buildHCDiario() {
 
     try {
 
-        if (!host.querySelector('#hcd-period-btn') || host.querySelector('#hcd-start')?.style.display !== 'none') {
+        if (
+            !host.querySelector('#hcd-period-btn') ||
+            host.querySelector('#hcd-start')?.style.display !== 'none'
+        ) {
             setDefaultMonthRange(host);
         }
 
+
+        const prevGlobalM = _filters.matriz;
+        const prevGlobalS = _filters.svc;
         if (window.__HC_GLOBAL_FILTERS) {
             _filters.matriz = window.__HC_GLOBAL_FILTERS.matriz || '';
             _filters.svc = window.__HC_GLOBAL_FILTERS.svc || '';
@@ -349,16 +363,21 @@ export async function buildHCDiario() {
         let inicioISO = startEl?.value || _filters.inicioISO;
         let fimISO = endEl?.value || _filters.fimISO;
 
+
         [inicioISO, fimISO] = clampEndToToday(inicioISO, fimISO);
 
         if (startEl && startEl.value !== inicioISO) startEl.value = inicioISO;
         if (endEl && endEl.value !== fimISO) endEl.value = fimISO;
 
-
         const selM = document.querySelector('#hc-filter-matriz');
         const selS = document.querySelector('#hc-filter-svc');
-        if (selM) _filters.matriz = selM.value;
-        if (selS) _filters.svc = selS.value;
+
+        const prevM = _filters.matriz;
+        const prevS = _filters.svc;
+
+        if (selM) _filters.matriz = selM.value || '';
+        if (selS) _filters.svc = selS.value || '';
+
 
         if (!inicioISO || !fimISO) {
             _building = false;
@@ -378,14 +397,21 @@ export async function buildHCDiario() {
         if (t3El) emptyTable(t3El, 'TURNO 3');
         if (gEl) emptyTable(gEl, 'QUADRO GERAL');
 
-        if (!_colabs.length) {
+        const filtrosMudaram =
+            prevM !== _filters.matriz ||
+            prevS !== _filters.svc ||
+            prevGlobalM !== _filters.matriz ||
+            prevGlobalS !== _filters.svc;
+
+        if (!_colabs.length || filtrosMudaram) {
             try {
                 await fetchColabs();
             } catch {
                 _colabs = [];
             }
-        }
 
+            if (myToken !== _buildToken) return;
+        }
 
         const [cdRows, feriasRows, desligRows] = await Promise.all([
             fetchControleDiario(inicioISO, fimISO).catch(() => []),
@@ -394,6 +420,7 @@ export async function buildHCDiario() {
         ]);
 
         if (myToken !== _buildToken) return;
+
 
         const marksByDate = new Map();
         for (const d of dates) marksByDate.set(d, []);
@@ -426,7 +453,7 @@ export async function buildHCDiario() {
         ]);
         const g = sumRowsByDate(sumRowsByDate(r1, r2, dates), r3, dates);
 
-        // render
+
         if (t1El) t1El.innerHTML = tableFromRows('TURNO 1', dates, r1);
         if (t2El) t2El.innerHTML = tableFromRows('TURNO 2', dates, r2);
         if (t3El) t3El.innerHTML = tableFromRows('TURNO 3', dates, r3);
@@ -442,6 +469,7 @@ export async function buildHCDiario() {
         }
     }
 }
+
 
 function setDefaultMonthRange(host) {
     if (!host) return;
@@ -619,12 +647,30 @@ async function ensureHCDiarioMountedOnce() {
     await buildHCDiario();
 }
 
-window.addEventListener('hc-filters-changed', ev => {
+window.addEventListener('hc-filters-changed', async (ev) => {
     const f = ev?.detail || {};
     _filters.matriz = f.matriz || '';
     _filters.svc = f.svc || '';
-    if (_mounted) buildHCDiario();
+
+    if (_building) {
+        _needsRebuild = true;
+        return;
+    }
+
+    if (!_mounted) {
+
+        await ensureHCDiarioMountedOnce();
+    } else {
+
+        try {
+            await fetchColabs();
+        } catch {
+            _colabs = [];
+        }
+        buildHCDiario();
+    }
 });
+
 
 ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'colaborador-added', 'hc-refresh']
     .forEach(evt => window.addEventListener(evt, () => {

@@ -22,7 +22,7 @@ let colaboradoresTbody,
     addForm;
 
 let editModal, editForm, editTitulo, editSVC, editMatriz, editExcluirBtn, editCancelarBtn, editSalvarBtn,
-    editDesligarBtn, editFeriasBtn, editHistoricoBtn;
+    editDesligarBtn, editFeriasBtn, editHistoricoBtn, editAfastarBtn; // <<-- Variável adicionada
 let editInputs = {};
 let editOriginal = null;
 
@@ -212,23 +212,35 @@ function renderTable(dataToRender) {
         return;
     }
 
-    const getNomeComEmoji = (colaborador) => {
-        const diasRest = state?.feriasAtivasMap?.get?.(colaborador.Nome);
-        if (diasRest == null || isNaN(diasRest)) return colaborador.Nome || '';
+    // <<-- FUNÇÃO INTERNA MODIFICADA PARA ADICIONAR O TEXTO "(Afastado)" -->>
+    const formatarNomeColaborador = (colaborador) => {
+        const nomeBase = colaborador.Nome || '';
 
-        if (diasRest === 0) {
-            return `${colaborador.Nome} 🏖️ (Termina hoje)`;
+        // 1. Prioridade: Verifica se o colaborador está afastado
+        if (colaborador.Ativo === 'AFAS') {
+            return `${nomeBase} (Afastado)`;
         }
 
-        const sufixo = diasRest === 1 ? 'dia' : 'dias';
-        return `${colaborador.Nome} 🏖️ (Faltam ${diasRest} ${sufixo})`;
+        // 2. Se não estiver afastado, verifica se está de férias
+        const diasRest = state?.feriasAtivasMap?.get?.(nomeBase);
+        if (diasRest != null && !isNaN(diasRest)) {
+            if (diasRest === 0) {
+                return `${nomeBase} 🏖️ (Termina hoje)`;
+            }
+            const sufixo = diasRest === 1 ? 'dia' : 'dias';
+            return `${nomeBase} 🏖️ (Faltam ${diasRest} ${sufixo})`;
+        }
+
+        // 3. Se não for nenhum dos casos, retorna apenas o nome
+        return nomeBase;
     };
 
     dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colaborador.Nome || '');
 
-        const nomeCelula = getNomeComEmoji(colaborador);
+        // <<-- CHAMADA DA FUNÇÃO ATUALIZADA -->>
+        const nomeCelula = formatarNomeColaborador(colaborador);
 
         tr.innerHTML = `
             <td class="nome-col">${nomeCelula}</td>
@@ -634,6 +646,21 @@ async function fillEditForm(colab) {
 
         populateGestorSelectForEdit(svc, colab.Gestor);
     }
+
+    // <<-- INÍCIO DA LÓGICA DO BOTÃO DE AFASTAMENTO -->>
+    if (editAfastarBtn) {
+        if (colab.Ativo === 'SIM') {
+            editAfastarBtn.textContent = 'Afastar Colaborador';
+            editAfastarBtn.style.display = 'inline-block';
+        } else if (colab.Ativo === 'AFAS') {
+            editAfastarBtn.textContent = 'Remover Afastamento';
+            editAfastarBtn.style.display = 'inline-block';
+        } else {
+            // Esconde o botão para outros status (ex: 'NAO' para desligado)
+            editAfastarBtn.style.display = 'none';
+        }
+    }
+    // <<-- FIM DA LÓGICA DO BOTÃO DE AFASTAMENTO -->>
 }
 
 
@@ -709,6 +736,62 @@ async function onEditSubmit(e) {
     hideEditModal();
 }
 
+// <<-- INÍCIO DA NOVA FUNÇÃO PARA AFASTAMENTO (VERSÃO CORRIGIDA) -->>
+async function onAfastarClick() {
+    if (!editOriginal || !editOriginal.Nome) {
+        alert('Erro: Colaborador não identificado.');
+        return;
+    }
+
+    let colab;
+    try {
+        // A forma correta de chamar a função que pode lançar um erro
+        colab = await fetchColabByNome(editOriginal.Nome);
+    } catch (fetchError) {
+        console.error("Erro ao buscar colaborador para afastamento:", fetchError);
+        alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
+        return;
+    }
+
+    // Checagem adicional se o colaborador não for encontrado
+    if (!colab) {
+        alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
+        return;
+    }
+
+    const currentStatus = colab.Ativo;
+    let newStatus;
+    let confirmationMessage;
+
+    if (currentStatus === 'SIM') {
+        newStatus = 'AFAS';
+        confirmationMessage = 'Tem certeza que deseja afastar este colaborador? O status será alterado para "AFAS".';
+    } else if (currentStatus === 'AFAS') {
+        newStatus = 'SIM';
+        confirmationMessage = 'Tem certeza que deseja remover o afastamento deste colaborador? O status voltará para "SIM".';
+    } else {
+        alert(`Ação não permitida para o status atual "${currentStatus}".`);
+        return;
+    }
+
+    const ok = confirm(confirmationMessage);
+    if (!ok) return;
+
+    const { error } = await supabase
+        .from('Colaboradores')
+        .update({ Ativo: newStatus })
+        .eq('Nome', colab.Nome);
+
+    if (error) {
+        alert(`Erro ao atualizar o status: ${error.message}`);
+        return;
+    }
+
+    alert('Status do colaborador atualizado com sucesso!');
+    hideEditModal();
+    await fetchColaboradores();
+}
+//
 
 function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
@@ -1248,7 +1331,6 @@ async function openHistorico(nome) {
     HIST.els.modal.classList.remove('hidden');
 }
 
-
 function wireEdit() {
     editModal = document.getElementById('editModal');
     editForm = document.getElementById('editForm');
@@ -1260,6 +1342,7 @@ function wireEdit() {
     editDesligarBtn = document.getElementById('editDesligarBtn');
     editFeriasBtn = document.getElementById('editFeriasBtn');
     editHistoricoBtn = document.getElementById('editHistoricoBtn');
+    editAfastarBtn = document.getElementById('editAfastarBtn'); // <<-- Botão adicionado
 
     editInputs = {
         Nome: document.getElementById('editNome'),
@@ -1288,6 +1371,7 @@ function wireEdit() {
 
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
+    editAfastarBtn?.addEventListener('click', onAfastarClick); // <<-- Evento adicionado
 
     editExcluirBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;

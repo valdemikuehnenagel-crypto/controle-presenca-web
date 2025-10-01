@@ -4,6 +4,7 @@ const contentArea  = document.getElementById('content-area');
 const tabButtons   = document.querySelectorAll('.tab-btn');
 
 
+
 const addModal     = document.getElementById('addModal');
 const cancelBtn    = document.getElementById('cancelBtn');
 

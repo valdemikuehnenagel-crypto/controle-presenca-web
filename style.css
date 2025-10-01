@@ -18,6 +18,11 @@ body {
     background-attachment: fixed;
     background-position: center;
     padding: 16px;
+
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .container {
@@ -148,6 +153,7 @@ body {
     border-radius: 14px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, .1);
     background: #fff;
+    margin-top: 16px;
 }
 
 table {
@@ -412,6 +418,7 @@ h3 {
 }
 
 .cd-secondary-bar {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -469,12 +476,19 @@ h3 {
 }
 
 .summary-display {
+
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+
+
     font-weight: 700;
     color: #003369;
     font-size: 12px;
     white-space: nowrap;
-    text-align: right;
-    flex-grow: 1;
+
+    margin-top: 30px;
 }
 
 .subtabs-root {
@@ -692,7 +706,6 @@ h3 {
     color: #fff;
 }
 
-/* --- Animações --- */
 @keyframes rowFadeIn {
     from {
         opacity: 0;
@@ -1277,7 +1290,6 @@ h3 {
     --hcana-muted: #6b7280;
     --hcana-chip-bg: #eef3ff;
     --hcana-chip-text: #12325e;
-    /* cores usadas pelos gráficos via CSS vars */
     --hcana-line-stroke: var(--hcana-accent);
     --hcana-bar-fill: var(--hcana-accent);
     --hcana-dlabel: var(--hcana-primary-600);
@@ -1419,7 +1431,6 @@ h3 {
     font-size: 14px;
 }
 
-/* Responsivo */
 @media (max-width: 1100px) {
     .hcana-grid {
         grid-template-columns:repeat(2, minmax(240px, 1fr));
@@ -1474,370 +1485,6 @@ h3 {
 }
 
 
-.diaristas-root {
-    --d-primary: #003369;
-    --d-accent: #02B1EE;
-    --d-surface: #fff;
-    --d-border: #eceff5;
-    --d-muted: #6b7280;
-    --d-shadow: 0 6px 16px rgba(0, 0, 0, .08);
-}
-
-.diaristas-root {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    align-items: center;
-    height: 100%;
-}
-
-.diaristas-root > *:not(.diaristas-modal):not(.diaristas-subtab) {
-    flex-shrink: 0;
-    width: min(1200px, 96vw);
-}
-
-.diaristas-root .diaristas-toolbar {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.diaristas-root .diaristas-toolbar .spacer {
-    flex: 1;
-}
-
-.diaristas-root .filters {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.diaristas-root .filters label {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--d-primary);
-    display: flex;
-    gap: 6px;
-    align-items: center;
-}
-
-.diaristas-root .filters input[type="date"],
-.diaristas-root .filters select {
-    padding: 8px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--d-border);
-    font-weight: 700;
-    font-size: 12px;
-    background: #fff;
-    color: #333;
-}
-
-.diaristas-root .diaristas-subtab {
-    display: none;
-}
-
-.diaristas-root .diaristas-subtab.active {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
-    min-height: 0;
-    width: min(1200px, 96vw);
-}
-
-
-.diaristas-root .table-wrapper {
-    background: #fff;
-    border: 1px solid var(--d-border);
-    border-radius: 14px;
-    box-shadow: var(--d-shadow);
-    flex-grow: 1;
-    min-height: 0;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
-}
-
-.diaristas-root .diaristas-table {
-    width: 100%;
-    min-width: 900px;
-    border-collapse: separate;
-    border-spacing: 0;
-    table-layout: fixed;
-}
-
-
-.diaristas-root .diaristas-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    background: #003369;
-    color: #fff;
-    text-transform: uppercase;
-    letter-spacing: .02em;
-    text-align: center;
-    padding: 10px;
-    font-size: 12px;
-    font-weight: 800;
-    border-bottom: 1px solid var(--d-border);
-}
-
-.diaristas-root .diaristas-table thead th:first-child {
-    border-top-left-radius: 14px;
-}
-
-.diaristas-root .diaristas-table thead th:last-child {
-    border-top-right-radius: 14px;
-}
-
-.diaristas-root .diaristas-table tbody td {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--d-border);
-    font-size: 13px;
-    text-align: center;
-    background: #fff;
-}
-
-.diaristas-root .diaristas-table th,
-.diaristas-root .diaristas-table td {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-
-.diaristas-root .relatorio-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(260px, 1fr));
-    gap: 12px;
-}
-
-.diaristas-root .card {
-    background: var(--d-surface);
-    border: 1px solid var(--d-border);
-    border-radius: 14px;
-    box-shadow: var(--d-shadow);
-    padding: 12px;
-}
-
-.diaristas-root .card h3 {
-    margin: 0 0 8px;
-    color: var(--d-primary);
-    font-size: 14px;
-    font-weight: 800;
-}
-
-.diaristas-root .card small {
-    color: var(--d-muted);
-}
-
-.diaristas-root .kpis {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.diaristas-root .kpi {
-    background: #f6f9ff;
-    border: 1px solid var(--d-border);
-    border-radius: 12px;
-    padding: 10px;
-    text-align: center;
-}
-
-.diaristas-root .kpi.total {
-    background: #e6f6ff;
-}
-
-.diaristas-root .kpi-label {
-    font-size: 11px;
-    color: var(--d-muted);
-    font-weight: 700;
-}
-
-.diaristas-root .kpi-value {
-    font-size: 20px;
-    font-weight: 900;
-    color: var(--d-primary);
-}
-
-
-#diarista-modal.diaristas-modal {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-#diarista-modal.diaristas-modal.hidden {
-    display: none;
-}
-
-#diarista-modal .modal-card {
-    width: min(760px, 94vw);
-    background: #fff;
-    border-radius: 16px;
-    box-shadow: 0 14px 36px rgba(0, 0, 0, .25);
-    padding: 16px;
-}
-
-#diarista-modal .modal-card h3 {
-    margin: 0 0 10px;
-    color: var(--d-primary);
-}
-
-#diarista-modal .modal-card .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
-    margin-bottom: 12px;
-}
-
-#diarista-modal .modal-card label {
-    font-size: 12px;
-    font-weight: 800;
-    color: var(--d-primary);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-#diarista-modal .modal-card input[type="text"],
-#diarista-modal .modal-card input[type="number"],
-#diarista-modal .modal-card input[type="date"],
-#diarista-modal .modal-card select {
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--d-border);
-    font-weight: 600;
-}
-
-#diarista-modal .names-list {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin: 12px 0;
-    max-height: 260px;
-    overflow-y: auto;
-    padding-right: 6px;
-}
-
-#diarista-modal .names-list::-webkit-scrollbar {
-    width: 6px;
-}
-
-#diarista-modal .names-list::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, .2);
-    border-radius: 4px;
-}
-
-#diarista-modal .names-list::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-#diarista-modal .name-item label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-weight: 800;
-    color: var(--d-primary);
-}
-
-#diarista-modal .name-item input {
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--d-border);
-    font-weight: 600;
-}
-
-#diarista-modal .actions {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    margin-top: 10px;
-}
-
-
-@media (max-width: 900px) {
-    .diaristas-root .relatorio-grid {
-        grid-template-columns: 1fr;
-    }
-
-    #diarista-modal .names-list {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 640px) {
-    .diaristas-root .diaristas-table {
-        min-width: 720px;
-    }
-}
-
-
-.diaristas-root #btn-add-diarista {
-    align-self: center;
-    padding: 8px 14px;
-    min-width: 130px;
-    border: none;
-    border-radius: 24px !important;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all .2s ease;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
-    background: #28a745;
-    color: #fff;
-    appearance: none;
-    -webkit-appearance: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1.1;
-}
-
-.diaristas-root #btn-add-diarista:hover {
-    background: #218838;
-    transform: translateY(-2px);
-}
-
-.diaristas-root #btn-export-xlsx {
-    align-self: center;
-    padding: 8px 14px;
-    min-width: 130px;
-    border: none;
-    border-radius: 24px !important;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all .2s ease;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
-    background: #003369;
-    color: #fff;
-    margin-left: 10px;
-    appearance: none;
-    -webkit-appearance: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1.1;
-}
-
-.diaristas-root #btn-export-xlsx:hover {
-    background: #02B1EE;
-    transform: translateY(-2px);
-}
-
-.diaristas-root #btn-export-xlsx:disabled {
-    opacity: .6;
-    cursor: not-allowed;
-    transform: none;
-}
-
 /* =============================================== */
 /* Estilos Finais e Completos para a Análise de ABS */
 /* =============================================== */
@@ -1856,7 +1503,6 @@ h3 {
 
 @media (min-width: 1024px) {
     #hc-analise-abs .hcabs-grid {
-        /* ESTA É A CORREÇÃO PARA O SCROLL HORIZONTAL */
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
@@ -2083,7 +1729,6 @@ h3 {
     display: grid;
     gap: 1.5rem;
     grid-template-columns: 1fr;
-    /* ADICIONE ESTA LINHA: Força todas as linhas da grade a terem a mesma altura */
     grid-auto-rows: 1fr;
 }
 
@@ -2122,7 +1767,7 @@ h3 {
     width: 100%;
 }
 
-/* --- Gráfico "Em Construção" para a Aba Índice --- */
+
 #hc-indice .hcidx-placeholder {
     display: flex;
     flex-direction: column;
@@ -2135,7 +1780,6 @@ h3 {
     opacity: 0.8;
 }
 
-/* Esta regra pode voltar, pois com o grid corrigido, ela não vai mais "achatar" o layout */
 #hc-indice .hcidx-placeholder svg {
     width: 64px;
     height: 64px;
@@ -2147,12 +1791,10 @@ h3 {
 /* Animação de Transição entre Abas                */
 /* =============================================== */
 
-/* Aplica a animação de opacidade à área de conteúdo principal */
 #content-area {
     transition: opacity 0.25s ease-in-out;
 }
 
-/* Classe que será usada via JS para deixar o conteúdo transparente */
 #content-area.fade-out {
     opacity: 0;
 }
@@ -2168,4 +1810,698 @@ h3 {
     object-fit: cover;
     border: 2px solid #003369;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* ========================================= */
+/* ESTILO PARA MENSAGEM DE ACESSO BLOQUEADO */
+/* ========================================= */
+
+.acesso-negado {
+    text-align: center;
+    padding: 40px 20px;
+    background-color: #fff8f8;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    margin: 20px;
+}
+
+.acesso-negado h3 {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #b91c1c;
+}
+
+.acesso-negado p {
+    color: #7f1d1d;
+    margin-top: 8px;
+}
+
+/* ========================================= */
+/* == CSS PADRONIZADO - PAINEL GERENCIAL == */
+/* ========================================= */
+
+.gerencial-root {
+
+    --g-primary: #003369;
+    --g-accent: #02B1EE;
+    --g-surface: #fff;
+    --g-border: #eceff5;
+    --g-muted: #6b7280;
+    --g-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+    --g-success: #16a34a;
+    --g-warning: #d97706;
+    --g-danger: #D81D1D;
+}
+
+
+.gerencial-root {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+    height: 100%;
+    padding: 12px 0;
+}
+
+
+.gerencial-root > * {
+    flex-shrink: 0;
+    width: min(1200px, 96vw);
+}
+
+
+.gerencial-header {
+    background: var(--g-surface);
+    border: 1px solid var(--g-border);
+    border-radius: 14px;
+    box-shadow: var(--g-shadow);
+    padding: 16px;
+    text-align: center;
+}
+
+.gerencial-header h2 {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--g-primary);
+    margin: 0 0 8px;
+}
+
+.gerencial-header p {
+    color: var(--g-muted);
+    margin: 0 0 16px;
+}
+
+.gerencial-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+
+.gerencial-report {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.gerencial-report h3 {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--g-primary);
+    margin: 0;
+}
+
+
+.gerencial-root .table-wrapper {
+    background: var(--g-surface);
+    border: 1px solid var(--g-border);
+    border-radius: 14px;
+    box-shadow: var(--g-shadow);
+    flex-grow: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+
+.gerencial-table {
+    width: 100%;
+    min-width: 800px;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.gerencial-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--g-primary);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.gerencial-table thead th:first-child { border-top-left-radius: 14px; }
+.gerencial-table thead th:last-child { border-top-right-radius: 14px; }
+
+.gerencial-table tbody td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--g-border);
+    font-size: 13px;
+    text-align: left;
+    background: var(--g-surface);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gerencial-table tbody tr {
+    cursor: pointer;
+    transition: background-color 0.1s ease-in-out;
+}
+
+.gerencial-table tbody tr:hover {
+    background-color: #f6f9ff;
+}
+
+.status-ativo {
+    color: var(--g-success);
+    font-weight: 600;
+}
+.status-pendente {
+    color: var(--g-warning);
+    font-weight: 600;
+}
+
+
+/* ========================================= */
+/* == CSS PADRONIZADO - PAINEL GERENCIAL == */
+/* ========================================= */
+
+
+#tab-painel-gerencial .page-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #003369;
+}
+
+
+#tab-painel-gerencial .spacer {
+    flex-grow: 1;
+}
+
+
+#tab-painel-gerencial #btnAbrirModalMatriz,
+#tab-painel-gerencial #btnAbrirModalGestor {
+    background-color: #22B14C;
+}
+#tab-painel-gerencial #btnAbrirModalMatriz:hover,
+#tab-painel-gerencial #btnAbrirModalGestor:hover {
+    background-color: #218838;
+}
+
+
+
+#tab-painel-gerencial .gerencial-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#tab-painel-gerencial .gerencial-table thead th {
+
+    text-align: left;
+    padding: 12px 16px;
+}
+
+#tab-painel-gerencial .gerencial-table tbody td {
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+#tab-painel-gerencial .gerencial-table tbody tr {
+    cursor: pointer;
+}
+
+
+.status-ativo {
+    color: #22B14C;
+    font-weight: 700;
+}
+.status-pendente {
+    color: #ffc107;
+    font-weight: 700;
+}
+
+
+/* ========================================= */
+/* == CSS PADRONIZADO - PAINEL GERENCIAL == */
+/* ========================================= */
+
+#tab-painel-gerencial .page-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #003369;
+}
+#tab-painel-gerencial .spacer {
+    flex-grow: 1;
+}
+
+
+#tab-painel-gerencial .gerencial-table thead th {
+    background: #003369;
+    color: #fff;
+    text-align: left;
+}
+
+#tab-painel-gerencial .gerencial-table tbody td {
+    text-align: left;
+}
+
+#tab-painel-gerencial .gerencial-table tbody tr:nth-child(even) td {
+    background: #f9f9f9;
+}
+#tab-painel-gerencial .gerencial-table tbody tr:hover td {
+    background: #e8f7ff;
+}
+
+.status-ativo {
+    color: #22B14C;
+    font-weight: 700;
+}
+.status-pendente {
+    color: #ffc107;
+    font-weight: 700;
+}
+
+.checkbox-container {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 2px solid #e8ecf3;
+    border-radius: 10px;
+    padding: 12px;
+    background-color: #f6f9ff;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #242c4c;
+}
+
+.services-display {
+    min-height: 44px;
+    border-radius: 10px;
+    padding: 12px;
+    background-color: #e9eef7;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.services-display span:not(.service-tag) {
+    color: #56607f;
+    font-style: italic;
+    font-size: 13px;
+}
+.service-tag {
+    background-color: #02B1EE;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ================================
+   Vars / Base da página de Diaristas
+   ================================ */
+.diaristas-root {
+  --d-primary: #003369;
+  --d-accent:  #02B1EE;
+  --d-surface: #fff;
+  --d-border:  #eceff5;
+  --d-muted:   #6b7280;
+  --d-shadow:  0 6px 16px rgba(0, 0, 0, .08);
+}
+
+.diaristas-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  height: 100%;
+}
+
+.diaristas-root > *:not(.diaristas-modal):not(.diaristas-subtab) {
+  flex-shrink: 0;
+  width: min(1200px, 96vw);
+}
+
+.diaristas-root .diaristas-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.diaristas-root .diaristas-toolbar .spacer { flex: 1; }
+
+.diaristas-root .filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.diaristas-root .filters label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--d-primary);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.diaristas-root .filters input[type="date"],
+.diaristas-root .filters select {
+  padding: 8px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--d-border);
+  font-weight: 700;
+  font-size: 12px;
+  background: #fff;
+  color: #333;
+}
+
+.diaristas-root .diaristas-subtab { display: none; }
+.diaristas-root .diaristas-subtab.active {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-height: 0;
+  width: min(1200px, 96vw);
+}
+
+/* ================================
+   Tabela e Cards
+   ================================ */
+.diaristas-root .table-wrapper {
+  background: #fff;
+  border: 1px solid var(--d-border);
+  border-radius: 14px;
+  box-shadow: var(--d-shadow);
+  flex-grow: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.diaristas-root .diaristas-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.diaristas-root .diaristas-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #003369;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  text-align: center;
+  padding: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  border-bottom: 1px solid var(--d-border);
+}
+.diaristas-root .diaristas-table thead th:first-child { border-top-left-radius: 14px; }
+.diaristas-root .diaristas-table thead th:last-child  { border-top-right-radius: 14px; }
+
+.diaristas-root .diaristas-table tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--d-border);
+  font-size: 13px;
+  text-align: center;
+  background: #fff;
+}
+
+.diaristas-root .diaristas-table th,
+.diaristas-root .diaristas-table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diaristas-root .relatorio-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.diaristas-root .card {
+  background: var(--d-surface);
+  border: 1px solid var(--d-border);
+  border-radius: 14px;
+  box-shadow: var(--d-shadow);
+  padding: 12px;
+}
+
+.diaristas-root .card h3 {
+  margin: 0 0 8px;
+  color: var(--d-primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.diaristas-root .card small { color: var(--d-muted); }
+
+.diaristas-root .kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.diaristas-root .kpi {
+  background: #f6f9ff;
+  border: 1px solid var(--d-border);
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.diaristas-root .kpi.total { background: #e6f6ff; }
+
+.diaristas-root .kpi-label {
+  font-size: 11px;
+  color: var(--d-muted);
+  font-weight: 700;
+}
+
+.diaristas-root .kpi-value {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--d-primary);
+}
+
+/* ================================
+   Botões da Toolbar
+   ================================ */
+.diaristas-root #btn-add-diarista,
+.diaristas-root #btn-export-xlsx {
+  align-self: center;
+  padding: 8px 14px;
+  min-width: 130px;
+  border: none;
+  border-radius: 24px !important;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s ease;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
+  color: #fff;
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+.diaristas-root #btn-add-diarista       { background: #28a745; }
+.diaristas-root #btn-add-diarista:hover { background: #218838; transform: translateY(-2px); }
+
+.diaristas-root #btn-export-xlsx       { background: #003369; margin-left: 10px; }
+.diaristas-root #btn-export-xlsx:hover { background: #02B1EE; transform: translateY(-2px); }
+.diaristas-root #btn-export-xlsx:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+/* ================================
+   Modal Diaristas (padrão Colaboradores)
+   ================================ */
+
+/* Overlay */
+#diarista-modal.diaristas-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+#diarista-modal.diaristas-modal.hidden { display: none; }
+
+/* Card do modal (apenas UMA definição, harmonizada) */
+#diarista-modal .modal-card {
+  width: min(860px, 94vw);              /* largura pensada para 3 colunas de form */
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .18);
+  padding: 16px 18px;
+  border: 1px solid #e7ebf4;            /* borda igual Colaboradores */
+}
+
+/* Título h3 igual Colaboradores */
+#diarista-modal h3 {
+  color: #003369;
+  font-weight: 700;
+  border-bottom: 1px solid #e7ebf4;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+
+/* Grid padrão de formulário (mesmo de Colaboradores) */
+#diarista-modal .form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Grupos de campo */
+#diarista-modal .form-group { display: flex; flex-direction: column; }
+#diarista-modal .form-group label {
+  font-size: 12px;
+  color: #56607f;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+/* Inputs/Selects iguais Colaboradores */
+#diarista-modal .form-group input,
+#diarista-modal .form-group select {
+  padding: 8px 9px;
+  border: 2px solid #e8ecf3;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #242c4c;
+  background: #fff;
+  outline: none;
+  transition: all .2s ease;
+}
+#diarista-modal .form-group input:focus,
+#diarista-modal .form-group select:focus {
+  border-color: #02B1EE;
+  box-shadow: 0 0 0 3px rgba(2, 177, 238, .15);
+}
+
+/* Campo somente leitura com mesmo look */
+#diarista-modal #f-matriz[readonly] {
+  background: #f6f9ff;
+  color: #2b3355;
+}
+
+/* Lista de Nomes + ID GROOT também usa .form-grid */
+#diarista-modal .names-list {
+  display: grid;                         /* garante grid, caso não venha do HTML */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+  max-height: 264px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+/* Scrollbar discreto */
+#diarista-modal .names-list::-webkit-scrollbar { width: 6px; }
+#diarista-modal .names-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, .2);
+  border-radius: 4px;
+}
+#diarista-modal .names-list::-webkit-scrollbar-track { background: transparent; }
+
+/* Ações (botões) no padrão Colaboradores */
+#diarista-modal .form-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+#diarista-modal .btn-salvar,
+#diarista-modal .btn-cancelar {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 26px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s ease;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+#diarista-modal .btn-salvar { background-color: #02B1EE; color: #fff; }
+#diarista-modal .btn-salvar:hover { background-color: #003369; transform: translateY(-2px); }
+#diarista-modal .btn-cancelar { background-color: #e4e6eb; color: #4b4f56; }
+#diarista-modal .btn-cancelar:hover { background-color: #d8dadf; transform: translateY(-2px); }
+
+/* ================================
+   Responsividade
+   ================================ */
+@media (max-width: 980px) {
+  .diaristas-root .relatorio-grid { grid-template-columns: 1fr; }
+  #diarista-modal .form-grid,
+  #diarista-modal .names-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .diaristas-root .diaristas-table { min-width: 720px; }
+  #diarista-modal .form-grid,
+  #diarista-modal .names-list { grid-template-columns: 1fr; }
+}
+
+/* ========================================= */
+/* == ESTILOS PARA FILTROS DO PAINEL GERENCIAL == */
+/* ========================================= */
+
+.gerencial-filters select {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: #fff;
+    font-weight: 600;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 150px; /* Adicionado para um tamanho mínimo */
+}
+
+.gerencial-filters button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 26px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s ease;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+    background-color: #6c757d; /* Cor cinza do botão "Limpar" */
+    color: #fff;
+}
+
+.gerencial-filters button:hover {
+    background-color: #5a6268;
+    transform: translateY(-2px);
 }

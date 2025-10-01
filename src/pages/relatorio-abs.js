@@ -142,7 +142,7 @@ import {supabase} from '../supabaseClient.js';
     function computeAbsenteismo(row) {
         var falta = Number(row && row.Falta || 0) > 0;
         var atest = Number(row && row.Atestado || 0) > 0;
-        if (atest) return 'Atestado';          // pode chegar como 'Atestado' na RelatorioABS
+        if (atest) return 'Atestado';
         if (falta) return 'Injustificado';
         return null;
     }
@@ -170,6 +170,8 @@ import {supabase} from '../supabaseClient.js';
             Escala: (extra.Escala != null ? extra.Escala : String(escalaRow).toUpperCase()) || null,
             Entrevista: null,
             Acao: null,
+            Observacao: null,
+            CID: null,
             SVC: (extra.SVC != null ? extra.SVC : null),
             MATRIZ: (extra.MATRIZ != null ? extra.MATRIZ : null)
         };
@@ -291,12 +293,14 @@ import {supabase} from '../supabaseClient.js';
             '        <th>Escala</th>' +
             '        <th>Entrevista</th>' +
             '        <th>Ação</th>' +
-            '        <th>SVC</th>' +
+            // '        <th>Observação</th>' +
+            '        <th>CID</th>' +
+            // '        <th>SVC</th>' +
             '        <th>MATRIZ</th>' +
             '      </tr>' +
             '    </thead>' +
             '    <tbody id="abs-tbody">' +
-            '      <tr><td colspan="8" class="muted">Carregando…</td></tr>' +
+            // '      <tr><td colspan="10" class="muted">Carregando…</td></tr>' +
             '    </tbody>' +
             '  </table>' +
             '</div>';
@@ -383,13 +387,12 @@ import {supabase} from '../supabaseClient.js';
         var endISO = toISO(state.periodo.end);
 
         try {
-
             const colabIndex = await getColabIndex();
 
-
+            // **AJUSTE AQUI: Adicionado Observacao e CID na consulta**
             const {data: allAbsRows, error} = await supabase
                 .from('RelatorioABS')
-                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ')
+                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID')
                 .gte('Data', startISO)
                 .lte('Data', endISO);
 
@@ -397,7 +400,6 @@ import {supabase} from '../supabaseClient.js';
 
             var rows = (allAbsRows || []).filter(function (absRow) {
                 const colabInfo = colabIndex.get(String(absRow.Nome || ''));
-
                 return colabInfo && norm(colabInfo.Cargo) === 'AUXILIAR';
             });
 
@@ -451,9 +453,10 @@ import {supabase} from '../supabaseClient.js';
         try {
             const matrizesPermitidas = getMatrizesPermitidas();
 
+            // **AJUSTE AQUI: Adicionado Observacao e CID na consulta**
             var q = supabase
                 .from('RelatorioABS')
-                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ', {count: 'exact'})
+                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID', {count: 'exact'})
                 .gte('Data', startISO);
 
             if (applyMode === 'lt') q = q.lt('Data', endISO);
@@ -482,9 +485,10 @@ import {supabase} from '../supabaseClient.js';
         try {
             const matrizesPermitidas = getMatrizesPermitidas();
 
+            // **AJUSTE AQUI: Adicionado Observacao e CID na consulta**
             var q = supabase
                 .from('RelatorioABS')
-                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ', {count: 'exact'});
+                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID', {count: 'exact'});
 
             if (state.escala) q = q.ilike('Escala', ilikeEq(state.escala));
             if (state.svc) q = q.ilike('SVC', ilikeEq(state.svc));
@@ -548,7 +552,7 @@ import {supabase} from '../supabaseClient.js';
         updateCounters(filtered);
 
         if (!filtered.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="muted">Sem registros no período/filtros.</td></tr>';
+            // tbody.innerHTML = '<tr><td colspan="10" class="muted">Sem registros no período/filtros.</td></tr>';
             return;
         }
 
@@ -558,7 +562,9 @@ import {supabase} from '../supabaseClient.js';
             tr.tabIndex = 0;
             tr.className = 'abs-row';
             tr.dataset.id = row.id == null ? '' : row.id;
-            tr.setAttribute('data-idx', String(idx));
+
+            var originalIndex = state.rows.findIndex(r => r.id === row.id);
+            tr.setAttribute('data-idx', String(originalIndex));
 
             tr.innerHTML =
                 '<td class="cell-name">' + esc(row.Nome || '') + '</td>' +
@@ -567,7 +573,9 @@ import {supabase} from '../supabaseClient.js';
                 '<td>' + esc(row.Escala || '') + '</td>' +
                 '<td>' + (String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não') + '</td>' +
                 '<td>' + esc(row.Acao || '') + '</td>' +
-                '<td>' + esc(row.SVC || '') + '</td>' +
+                // '<td>' + esc(row.Observacao || '') + '</td>' +
+                '<td>' + esc(row.CID || '') + '</td>' +
+                // '<td>' + esc(row.SVC || '') + '</td>' +
                 '<td>' + esc(row.MATRIZ || '') + '</td>';
 
             frag.appendChild(tr);
@@ -598,6 +606,7 @@ import {supabase} from '../supabaseClient.js';
         modal.style.maxWidth = '90vw';
         modal.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';
 
+        // **INÍCIO DA GRANDE MUDANÇA NO HTML DO MODAL**
         modal.innerHTML =
             '<h3 style="margin:0 0 12px 0;">Atualizar registro</h3>' +
             '<div class="abs-modal-meta" style="font-size:14px;line-height:1.4;margin-bottom:12px;">' +
@@ -611,6 +620,34 @@ import {supabase} from '../supabaseClient.js';
             '  <div class="abs-radio" style="display:flex;gap:16px;">' +
             '    <label><input type="radio" name="abs-entrevista" value="SIM"> Sim</label>' +
             '    <label><input type="radio" name="abs-entrevista" value="NAO"> Não</label>' +
+            '  </div>' +
+            // Container para os campos condicionais da entrevista
+            '  <div id="abs-entrevista-details" style="display:none; flex-direction:column; gap:8px; margin-top:6px;">' +
+            // Campos para ABS Injustificado
+            '    <div id="abs-injustificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
+            '      <label>Observação</label>' +
+            '      <select id="abs-obs-injustificado" class="abs-observacao-select">' +
+            '        <option value="">— Selecionar —</option>' +
+            '        <option>Falecimento parente</option>' +
+            '        <option>Proposital</option>' +
+            '        <option>Não quis informar</option>' +
+            '        <option>Problemas pessoais</option>' +
+            '      </select>' +
+            '    </div>' +
+            // Campos para ABS Justificado
+            '    <div id="abs-justificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
+            '      <label>Observação</label>' +
+            '      <select id="abs-obs-justificado" class="abs-observacao-select">' +
+            '        <option value="">— Selecionar —</option>' +
+            '        <option>Atestado médico</option>' +
+            '        <option>Acidente</option>' +
+            '        <option>Gravidez</option>' +
+            '      </select>' +
+            '      <div id="abs-cid-container" style="display:none; flex-direction:column; gap:8px;">' +
+            '        <label>CID</label>' +
+            '        <input type="text" id="abs-cid-input" placeholder="Insira o CID..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
+            '      </div>' +
+            '    </div>' +
             '  </div>' +
             '  <label style="margin-top:6px;">Ação tomada</label>' +
             '  <select id="abs-acao" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">' +
@@ -626,19 +663,69 @@ import {supabase} from '../supabaseClient.js';
             '  <button class="btn" id="abs-cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fafafa;">Cancelar</button>' +
             '  <button class="btn-add" id="abs-save" style="padding:8px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;">Salvar</button>' +
             '</div>';
+        // **FIM DA GRANDE MUDANÇA NO HTML DO MODAL**
 
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
+        // Elementos do formulário
         var radioSim = modal.querySelector('input[value="SIM"]');
         var radioNao = modal.querySelector('input[value="NAO"]');
-        if (String(row.Entrevista || '').toUpperCase() === 'SIM') {
-            if (radioSim) radioSim.checked = true;
-        } else {
-            if (radioNao) radioNao.checked = true;
+        var selAcao = modal.querySelector('#abs-acao');
+
+        var entrevistaDetails = modal.querySelector('#abs-entrevista-details');
+        var injustificadoFields = modal.querySelector('#abs-injustificado-fields');
+        var justificadoFields = modal.querySelector('#abs-justificado-fields');
+        var selObsInjustificado = modal.querySelector('#abs-obs-injustificado');
+        var selObsJustificado = modal.querySelector('#abs-obs-justificado');
+        var cidContainer = modal.querySelector('#abs-cid-container');
+        var cidInput = modal.querySelector('#abs-cid-input');
+
+        // Função para controlar a visibilidade dos campos condicionais
+        function toggleConditionalFields() {
+            var entrevistaSim = radioSim.checked;
+            entrevistaDetails.style.display = entrevistaSim ? 'flex' : 'none';
+
+            if (entrevistaSim) {
+                var absType = String(row.Absenteismo || '').toUpperCase().trim();
+                if (absType === 'INJUSTIFICADO') {
+                    injustificadoFields.style.display = 'flex';
+                    justificadoFields.style.display = 'none';
+                } else if (absType === 'JUSTIFICADO' || absType === 'ATESTADO') {
+                    injustificadoFields.style.display = 'none';
+                    justificadoFields.style.display = 'flex';
+                    // Também controla o campo CID baseado na seleção de 'Atestado'
+                    cidContainer.style.display = selObsJustificado.value === 'Atestado médico' ? 'flex' : 'none';
+                } else {
+                    injustificadoFields.style.display = 'none';
+                    justificadoFields.style.display = 'none';
+                }
+            } else {
+                injustificadoFields.style.display = 'none';
+                justificadoFields.style.display = 'none';
+                cidContainer.style.display = 'none';
+            }
         }
-        var sel = modal.querySelector('#abs-acao');
-        if (sel) sel.value = row.Acao || '';
+
+        // Listeners para os eventos de mudança
+        radioSim.addEventListener('change', toggleConditionalFields);
+        radioNao.addEventListener('change', toggleConditionalFields);
+        selObsJustificado.addEventListener('change', toggleConditionalFields);
+
+
+        // Preencher valores iniciais
+        if (String(row.Entrevista || '').toUpperCase() === 'SIM') {
+            radioSim.checked = true;
+        } else {
+            radioNao.checked = true;
+        }
+        selAcao.value = row.Acao || '';
+        selObsInjustificado.value = row.Observacao || '';
+        selObsJustificado.value = row.Observacao || '';
+        cidInput.value = row.CID || '';
+
+        // Chamar a função uma vez para definir o estado inicial do modal
+        toggleConditionalFields();
 
         var btnCancel = modal.querySelector('#abs-cancel');
         if (btnCancel) btnCancel.addEventListener('click', function () {
@@ -648,28 +735,45 @@ import {supabase} from '../supabaseClient.js';
             if (ev.target === overlay) document.body.removeChild(overlay);
         });
 
+        // **INÍCIO DA MUDANÇA NA LÓGICA DE SALVAMENTO**
         var btnSave = modal.querySelector('#abs-save');
         if (btnSave) btnSave.addEventListener('click', async function () {
-            var pick = (modal.querySelector('input[name="abs-entrevista"]:checked') || {}).value;
-            var entrevista = (pick === 'SIM') ? 'SIM' : 'NAO';
-            var acao = (modal.querySelector('#abs-acao') || {}).value || '';
+            var entrevista = (modal.querySelector('input[name="abs-entrevista"]:checked') || {}).value || 'NAO';
+            var acao = selAcao.value || null;
+
+            var updatePayload = {
+                Entrevista: entrevista,
+                Acao: acao,
+                Observacao: null,
+                CID: null
+            };
+
+            if (entrevista === 'SIM') {
+                var absType = String(row.Absenteismo || '').toUpperCase().trim();
+                if (absType === 'INJUSTIFICADO') {
+                    updatePayload.Observacao = selObsInjustificado.value || null;
+                } else if (absType === 'JUSTIFICADO' || absType === 'ATESTADO') {
+                    updatePayload.Observacao = selObsJustificado.value || null;
+                    if (updatePayload.Observacao === 'Atestado médico') {
+                        updatePayload.CID = cidInput.value.trim() || null;
+                    }
+                }
+            }
 
             try {
                 if (row.id != null && row.id !== '') {
                     var u = await supabase
                         .from('RelatorioABS')
-                        .update({Entrevista: entrevista, Acao: acao})
+                        .update(updatePayload)
                         .eq('id', row.id);
                     if (u.error) throw u.error;
                 } else {
+                    // Adiciona os campos obrigatórios para o upsert
+                    updatePayload.Nome = row.Nome;
+                    updatePayload.Data = parseAnyDateToISO(row.Data);
                     var up = await supabase
                         .from('RelatorioABS')
-                        .upsert([{
-                            Nome: row.Nome,
-                            Data: parseAnyDateToISO(row.Data),
-                            Entrevista: entrevista,
-                            Acao: acao
-                        }], {onConflict: 'Nome,Data'});
+                        .upsert([updatePayload], {onConflict: 'Nome,Data'});
                     if (up.error) throw up.error;
                 }
                 await fetchAndRender();
@@ -679,6 +783,7 @@ import {supabase} from '../supabaseClient.js';
                 alert('Falha ao salvar. Veja o console.');
             }
         });
+        // **FIM DA MUDANÇA NA LÓGICA DE SALVAMENTO**
     }
 
     function openPeriodModal() {
@@ -749,6 +854,7 @@ import {supabase} from '../supabaseClient.js';
                 return;
             }
 
+            // **AJUSTE AQUI: Adicionado Observacao e CID ao objeto de exportação**
             var csvRows = rows.map(function (r) {
                 return {
                     Nome: r.Nome || '',
@@ -757,7 +863,9 @@ import {supabase} from '../supabaseClient.js';
                     Escala: r.Escala || '',
                     Entrevista: String(r.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não',
                     'Ação': r.Acao || '',
-                    SVC: r.SVC || '',
+                    // 'Observação': r.Observacao || '',
+                    'CID': r.CID || '',
+                    // SVC: r.SVC || '',
                     MATRIZ: r.MATRIZ || ''
                 };
             });

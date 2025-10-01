@@ -29,9 +29,110 @@
         <button data-page="controle-diario" class="tab-btn">Controle Diário</button>
         <button data-page="hc-consolidado" class="tab-btn">HC Consolidado</button>
         <button data-page="diarista" class="tab-btn">Diarista</button>
+        <button data-page="painel-gerencial" class="tab-btn">Painel Gerencial</button>
     </div>
 
     <main id="content-area" class="flex-grow min-h-0 flex flex-col"></main>
+</div>
+
+<div id="matrizModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-lg">
+        <h3>Registrar Nova Matriz</h3>
+        <form id="matrizForm">
+            <div class="form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-group">
+                    <label for="matrizService">SERVICE</label>
+                    <input type="text" id="matrizService" required placeholder="Ex: GSA"/>
+                </div>
+                <div class="form-group">
+                    <label for="matrizNome">MATRIZ</label>
+                    <input type="text" id="matrizNome" required placeholder="Ex: GSA-FOR"/>
+                </div>
+            </div>
+            <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" class="btn-cancelar" data-close-modal="matrizModal">Cancelar</button>
+                <button type="submit" class="btn-salvar">Salvar Matriz</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="editUserModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-2xl">
+        <h3>Editar Usuário</h3>
+        <form id="editUserForm">
+            <div class="form-grid">
+                <div class="form-group"><label for="editUserNome">Nome Completo</label><input type="text"
+                                                                                              id="editUserNome"
+                                                                                              required/></div>
+                <div class="form-group"><label for="editUserUsuario">Usuário (Login)</label><input type="text"
+                                                                                                   id="editUserUsuario"
+                                                                                                   required/></div>
+                <div class="form-group"><label for="editUserPin">Alterar PIN (deixe em branco para não
+                    mudar)</label><input type="password" id="editUserPin" placeholder="Novo PIN de 6 dígitos"
+                                         maxlength="6"/></div>
+                <div class="form-group"><label for="editUserAprovacao">Status de Aprovação</label><select
+                        id="editUserAprovacao" required>
+                    <option value="SIM">Ativo</option>
+                    <option value="PENDENTE">Pendente</option>
+                    <option value="BLOQUEADO">Bloqueado</option>
+                </select></div>
+                <div class="form-group">
+                    <label for="editUserTipo">Tipo de Usuário</label>
+                    <select id="editUserTipo" required>
+                        <option value="JOVEM APRENDIZ">Jovem Aprendiz</option>
+                        <option value="ESTAGIÁRIO">Estagiário</option>
+                        <option value="LÍDER">Líder</option>
+                        <option value="SHE">SHE</option>
+                        <option value="ANALISTA">Analista</option>
+                        <option value="RH">RH</option>
+                        <option value="COORDENADOR">Coordenador</option>
+                        <option value="SUPERVISOR">Supervisor</option>
+                        <option value="GERENTE">Gerente</option>
+                    </select>
+                </div>
+                <div class="form-group full-width"><label>Matrizes</label>
+                    <div id="editUserMatrizesCheckbox" class="checkbox-container"><span>Carregando...</span></div>
+                </div>
+            </div>
+            <div class="form-actions" style="justify-content:space-between;">
+                <button type="button" id="btnExcluirUsuario" class="btn-cancelar"
+                        style="background:#D81D1D;color:#fff;">Excluir Usuário
+                </button>
+                <div>
+                    <button type="button" class="btn-cancelar" data-close-modal="editUserModal">Cancelar</button>
+                    <button type="submit" class="btn-salvar">Salvar Alterações</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="gestorModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-2xl">
+        <h3>Registrar Novo Gestor</h3>
+        <form id="gestorForm">
+            <div class="form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-group"><label for="gestorNome">Nome Completo</label><input type="text" id="gestorNome"
+                                                                                            required/></div>
+                <div class="form-group"><label>Selecione as Matrizes</label>
+                    <div id="gestorMatrizesCheckbox" class="checkbox-container"><span>Carregando matrizes...</span>
+                    </div>
+                </div>
+                <div class="form-group"><label>Services Vinculados</label>
+                    <div id="gestorServicesVinculados" class="services-display"><span>Selecione uma matriz para ver os services.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" class="btn-cancelar" data-close-modal="gestorModal">Cancelar</button>
+                <button type="submit" class="btn-salvar">Salvar Gestor</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <div id="addModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -114,7 +215,6 @@
                     <input type="text" id="addMatriz" required readonly/>
                 </div>
             </div>
-
             <div class="form-actions" style="justify-content:flex-end;">
                 <div class="actions-right">
                     <button type="submit" class="btn-salvar">Salvar Colaborador</button>
@@ -128,24 +228,20 @@
 <div id="editModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="container !h-auto !w-auto max-w-4xl">
         <h3 id="editTitulo">Editar Colaborador</h3>
-
         <form id="editForm">
             <div class="form-grid">
                 <div class="form-group">
                     <label for="editNome">Nome</label>
                     <input id="editNome" type="text"/>
                 </div>
-
                 <div class="form-group">
                     <label for="editCPF">CPF</label>
                     <input id="editCPF" type="text" maxlength="11"/>
                 </div>
-
                 <div class="form-group">
                     <label for="editContrato">Contrato</label>
                     <input id="editContrato" type="text"/>
                 </div>
-
                 <div class="form-group">
                     <label for="editCargo">Cargo</label>
                     <select id="editCargo">
@@ -155,7 +251,6 @@
                         <option value="COORDENADOR">COORDENADOR</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="editDSR">DSR</label>
                     <select id="editDSR">
@@ -168,7 +263,6 @@
                         <option value="SABADO">SÁBADO</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="editFolgaEspecial">Folga Especial</label>
                     <select id="editFolgaEspecial">
@@ -203,7 +297,6 @@
                         <option value="4º SÁBADO">4º SÁBADO</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="editEscala">Escala</label>
                     <select id="editEscala">
@@ -212,35 +305,29 @@
                         <option value="T3">T3</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="editSVC">SVC</label>
                     <select id="editSVC">
                         <option value="" disabled selected>Carregando...</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="editGestor">Gestor</label>
                     <select id="editGestor"></select>
                 </div>
-
                 <div class="form-group">
                     <label for="editDataNascimento">Data de Nascimento</label>
                     <input id="editDataNascimento" type="date"/>
                 </div>
-
                 <div class="form-group">
                     <label for="editLDAP">LDAP</label>
                     <input id="editLDAP" type="text"/>
                 </div>
-
                 <div class="form-group">
                     <label for="editIdGroot">ID GROOT</label>
                     <input id="editIdGroot" type="text"/>
                 </div>
             </div>
-
             <div class="form-actions" style="justify-content:space-between;">
                 <div class="actions-left" style="display:flex;gap:8px;">
                     <button type="button" id="editHistoricoBtn" class="btn-cancelar"
@@ -248,6 +335,9 @@
                     </button>
                     <button type="button" id="editFeriasBtn" class="btn-cancelar"
                             style="background:#00a884;color:#fff;">Férias
+                    </button>
+                    <button type="button" id="editAfastarBtn" class="btn-cancelar"
+                            style="background:#3807a8;color:#fff;">Afastar
                     </button>
                     <button type="button" id="editDesligarBtn" class="btn-cancelar"
                             style="background:#f0ad4e;color:#fff;">Desligar
@@ -297,7 +387,6 @@
                     </select>
                 </div>
             </div>
-
             <div class="form-actions" style="justify-content:flex-end;">
                 <button type="button" id="desligarCancelarBtn" class="btn-cancelar">Cancelar</button>
                 <button type="submit" class="btn-salvar">Confirmar Desligamento</button>
@@ -325,7 +414,6 @@
                     <input id="feriasDataFinal" type="date" required/>
                 </div>
             </div>
-
             <div class="form-actions" style="justify-content:flex-end;">
                 <button type="button" id="feriasCancelarBtn" class="btn-cancelar">Cancelar</button>
                 <button type="submit" class="btn-salvar">Confirmar Férias</button>
@@ -338,7 +426,6 @@
      class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
     <div class="container !h-auto !w-auto max-w-5xl">
         <h3>Histórico de Presenças</h3>
-
         <style>
             #historicoModal .hist-wrap {
                 gap: 10px;
@@ -563,11 +650,9 @@
                 color: #9ca3af;
             }
         </style>
-
         <div class="hist-wrap">
             <div class="hist-header">
                 <div class="hist-title" id="hist-title">Histórico</div>
-
                 <div class="legend">
                     <span><span class="dot lg-presenca"></span> Presença</span>
                     <span><span class="dot lg-falta"></span> Faltou</span>
@@ -577,17 +662,14 @@
                     <span><span class="dot lg-susp"></span> Suspenso</span>
                     <span><span class="dot lg-dsr" style="border:1px solid #e5e7eb"></span> DSR</span>
                 </div>
-
                 <div class="hist-year">
                     <label for="hist-year">Ano:</label>
                     <select id="hist-year"></select>
                 </div>
             </div>
-
             <div class="year-grid">
                 <div id="months" class="months" aria-live="polite"></div>
             </div>
-
             <div class="form-actions" style="justify-content:flex-end;margin-top:8px;">
                 <button type="button" id="historicoFecharBtn" class="btn-cancelar">Fechar</button>
             </div>

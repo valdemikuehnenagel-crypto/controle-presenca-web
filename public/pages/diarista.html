@@ -84,6 +84,7 @@
             <th>TURNO</th>
             <th>SVC</th>
             <th>MATRIZ</th>
+            <th>NOMES</th><!-- nova coluna -->
           </tr>
         </thead>
         <tbody id="diaristas-tbody"></tbody>
@@ -92,65 +93,76 @@
   </div>
 </section>
 
-<!-- Modal -->
+<!-- Modal (padrão Colaboradores) -->
 <div id="diarista-modal" class="diaristas-modal hidden">
   <div class="modal-card">
     <h3>Adicionar Diarista(s)</h3>
+
     <form id="diarista-form">
-      <div class="grid">
-        <label>Quantidade
+      <!-- Grid principal no padrão .form-grid -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="f-quantidade">Quantidade</label>
           <input type="number" id="f-quantidade" min="1" value="1" required>
-        </label>
+        </div>
 
-        <label>Empresa
+        <div class="form-group">
+          <label for="f-empresa">Empresa</label>
           <input type="text" id="f-empresa" placeholder="Ex.: TSI" required>
-        </label>
+        </div>
 
-        <label>Solicitado por
+        <div class="form-group">
+          <label for="f-solicitado">Solicitado por</label>
           <select id="f-solicitado" required>
             <option value="">Selecione</option>
             <option value="KN">KN</option>
             <option value="MELI">MELI</option>
           </select>
-        </label>
+        </div>
 
-        <label>Autorizado por
+        <div class="form-group">
+          <label for="f-autorizado">Autorizado por</label>
           <select id="f-autorizado" required>
             <option value="">Selecione</option>
             <option value="LIDERANÇA KN">Liderança KN</option>
             <option value="LIDERANÇA MELI">Liderança MELI</option>
           </select>
-        </label>
+        </div>
 
-        <label>Turno
+        <div class="form-group">
+          <label for="f-turno">Turno</label>
           <select id="f-turno" required>
             <option value="">Selecione</option>
             <option value="T1">T1</option>
             <option value="T2">T2</option>
             <option value="T3">T3</option>
           </select>
-        </label>
+        </div>
 
-        <label>SVC
+        <div class="form-group">
+          <label for="f-svc">SVC</label>
           <select id="f-svc" required>
             <option value="">Selecione</option>
           </select>
-        </label>
+        </div>
 
-        <label>MATRIZ
+        <div class="form-group">
+          <label for="f-matriz">Matriz</label>
           <input type="text" id="f-matriz" placeholder="Preenchido automaticamente" readonly>
-        </label>
+        </div>
 
-        <label>Data
+        <div class="form-group">
+          <label for="f-data">Data</label>
           <input type="date" id="f-data" required>
-        </label>
+        </div>
       </div>
 
-      <div id="names-list" class="names-list"></div>
+      <!-- Pares Nome + ID GROOT no mesmo padrão (grid fluido) -->
+      <div id="names-list" class="form-grid names-list"></div>
 
-      <div class="actions">
-        <button type="button" id="btn-cancel-modal" class="btn">Cancelar</button>
-        <button type="submit" class="btn-add">Salvar</button>
+      <div class="form-actions">
+        <button type="button" id="btn-cancel-modal" class="btn-cancelar">Cancelar</button>
+        <button type="submit" class="btn-salvar">Salvar</button>
       </div>
     </form>
   </div>
