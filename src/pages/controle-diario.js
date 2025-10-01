@@ -64,7 +64,7 @@ async function pageAll(buildQuery, pageSize = 1000) {
     return {data: out};
 }
 
-// === getColaboradoresElegiveis (substitua a sua por esta) ===
+
 async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
     const variantes = [dia, NORM(dia)];
@@ -347,7 +347,7 @@ function passFilters(x) {
     if (f.cargo && (x.Cargo || '') !== f.cargo) return false;
     if (f.contrato && (x.Contrato || '') !== f.contrato) return false;
     if (f.svc && (x.SVC || '') !== f.svc) return false;
-    if (f.matriz && getMatriz(x) !== f.matriz) return false; // << aqui o fix
+    if (f.matriz && getMatriz(x) !== f.matriz) return false;
     return true;
 }
 
@@ -356,7 +356,6 @@ function applyFilters(list) {
     return list.filter(passFilters).sort((a, b) => collator.compare(a.Nome, b.Nome));
 }
 
-// === buildFilterOptions + fill (substitua as suas por estas) ===
 function buildFilterOptions(list) {
     const gestores  = uniqSorted(list.map(x => (x.Gestor   || '').trim()).filter(Boolean));
     const cargos    = uniqSorted(list.map(x => (x.Cargo    || '').trim()).filter(Boolean));

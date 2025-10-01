@@ -1,169 +1,205 @@
 <section class="diaristas-root">
-  <div class="diaristas-toolbar">
-    <div class="filters">
-      <label>Período
-        <input type="date" id="flt-start">
-      </label>
-      <span>—</span>
-      <label>
-        <input type="date" id="flt-end">
-      </label>
+    <div class="diaristas-toolbar">
+        <div class="filters">
+            <label>Período
+                <input type="date" id="flt-start">
+            </label>
+            <span>—</span>
+            <label>
+                <input type="date" id="flt-end">
+            </label>
 
-      <label>SVC
-        <select id="flt-svc">
-          <option value="">Todos</option>
-        </select>
-      </label>
+            <label>SVC
+                <select id="flt-svc">
+                    <option value="">Todos</option>
+                </select>
+            </label>
 
-      <label>Matriz
-        <select id="flt-matriz">
-          <option value="">Todas</option>
-        </select>
-      </label>
+            <label>Matriz
+                <select id="flt-matriz">
+                    <option value="">Todas</option>
+                </select>
+            </label>
 
-      <label>Turno
-        <select id="flt-turno">
-          <option value="">Todos</option>
-          <option value="T1">T1</option>
-          <option value="T2">T2</option>
-          <option value="T3">T3</option>
-        </select>
-      </label>
+            <label>Turno
+                <select id="flt-turno">
+                    <option value="">Todos</option>
+                    <option value="T1">T1</option>
+                    <option value="T2">T2</option>
+                    <option value="T3">T3</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="spacer"></div>
+
+        <button id="btn-add-diarista" class="btn-add">Adicionar Diarista</button>
+        <button id="btn-export-xlsx" class="btn-export">Exportar Dados</button>
     </div>
 
-    <div class="spacer"></div>
+    <div id="diaristas-kpi-top" style="margin-bottom:10px;">
+        <div class="relatorio-grid">
+            <div class="card">
+                <h3>KN — Total por Turno</h3>
+                <div class="kpis">
+                    <div class="kpi">
+                        <div class="kpi-label">T1</div>
+                        <div id="kpiTOP-kn-t1" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-label">T2</div>
+                        <div id="kpiTOP-kn-t2" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-label">T3</div>
+                        <div id="kpiTOP-kn-t3" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi total">
+                        <div class="kpi-label">TOTAL</div>
+                        <div id="kpiTOP-kn-total" class="kpi-value">0</div>
+                    </div>
+                </div>
+            </div>
 
-    <button id="btn-add-diarista" class="btn-add">Adicionar Diarista</button>
-    <button id="btn-export-xlsx" class="btn-export">Exportar Dados</button>
-  </div>
+            <div class="card">
+                <h3>MELI — Total por Turno</h3>
+                <div class="kpis">
+                    <div class="kpi">
+                        <div class="kpi-label">T1</div>
+                        <div id="kpiTOP-meli-t1" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-label">T2</div>
+                        <div id="kpiTOP-meli-t2" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-label">T3</div>
+                        <div id="kpiTOP-meli-t3" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi total">
+                        <div class="kpi-label">TOTAL</div>
+                        <div id="kpiTOP-meli-total" class="kpi-value">0</div>
+                    </div>
+                </div>
+            </div>
 
-  <div id="diaristas-kpi-top" style="margin-bottom:10px;">
-    <div class="relatorio-grid">
-      <div class="card">
-        <h3>KN — Total por Turno</h3>
-        <div class="kpis">
-          <div class="kpi"><div class="kpi-label">T1</div><div id="kpiTOP-kn-t1" class="kpi-value">0</div></div>
-          <div class="kpi"><div class="kpi-label">T2</div><div id="kpiTOP-kn-t2" class="kpi-value">0</div></div>
-          <div class="kpi"><div class="kpi-label">T3</div><div id="kpiTOP-kn-t3" class="kpi-value">0</div></div>
-          <div class="kpi total"><div class="kpi-label">TOTAL</div><div id="kpiTOP-kn-total" class="kpi-value">0</div></div>
+            <div class="card">
+                <h3>Geral — Soma</h3>
+                <div class="kpis">
+                    <div class="kpi">
+                        <div class="kpi-label">T1</div>
+                        <div id="kpiTOP-all-t1" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-label">T2</div>
+                        <div id="kpiTOP-all-t2" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi">
+                        <div class="kpi-label">T3</div>
+                        <div id="kpiTOP-all-t3" class="kpi-value">0</div>
+                    </div>
+                    <div class="kpi total">
+                        <div class="kpi-label">TOTAL</div>
+                        <div id="kpiTOP-all-total" class="kpi-value">0</div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-
-      <div class="card">
-        <h3>MELI — Total por Turno</h3>
-        <div class="kpis">
-          <div class="kpi"><div class="kpi-label">T1</div><div id="kpiTOP-meli-t1" class="kpi-value">0</div></div>
-          <div class="kpi"><div class="kpi-label">T2</div><div id="kpiTOP-meli-t2" class="kpi-value">0</div></div>
-          <div class="kpi"><div class="kpi-label">T3</div><div id="kpiTOP-meli-t3" class="kpi-value">0</div></div>
-          <div class="kpi total"><div class="kpi-label">TOTAL</div><div id="kpiTOP-meli-total" class="kpi-value">0</div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Geral — Soma</h3>
-        <div class="kpis">
-          <div class="kpi"><div class="kpi-label">T1</div><div id="kpiTOP-all-t1" class="kpi-value">0</div></div>
-          <div class="kpi"><div class="kpi-label">T2</div><div id="kpiTOP-all-t2" class="kpi-value">0</div></div>
-          <div class="kpi"><div class="kpi-label">T3</div><div id="kpiTOP-all-t3" class="kpi-value">0</div></div>
-          <div class="kpi total"><div class="kpi-label">TOTAL</div><div id="kpiTOP-all-total" class="kpi-value">0</div></div>
-        </div>
-      </div>
     </div>
-  </div>
 
-  <div class="diaristas-subtab active">
-    <div class="table-wrapper" id="diaristas-wrapper">
-      <table class="diaristas-table" id="diaristas-table">
-        <thead>
-          <tr>
-            <th>QTD</th>
-            <th>EMPRESA</th>
-            <th>DATA</th>
-            <th>SOLICITADO POR</th>
-            <th>AUTORIZADO POR</th>
-            <th>TURNO</th>
-            <th>SVC</th>
-            <th>MATRIZ</th>
-            <th>NOMES</th><!-- nova coluna -->
-          </tr>
-        </thead>
-        <tbody id="diaristas-tbody"></tbody>
-      </table>
+    <div class="diaristas-subtab active">
+        <div class="table-wrapper" id="diaristas-wrapper">
+            <table class="diaristas-table" id="diaristas-table">
+                <thead>
+                <tr>
+                    <th>QTD</th>
+                    <th>EMPRESA</th>
+                    <th>DATA</th>
+                    <th>SOLICITADO POR</th>
+                    <th>AUTORIZADO POR</th>
+                    <th>TURNO</th>
+                    <th>SVC</th>
+                    <th>MATRIZ</th>
+                    <th>NOMES</th>
+                </tr>
+                </thead>
+                <tbody id="diaristas-tbody"></tbody>
+            </table>
+        </div>
     </div>
-  </div>
 </section>
 
-<!-- Modal (padrão Colaboradores) -->
+
 <div id="diarista-modal" class="diaristas-modal hidden">
-  <div class="modal-card">
-    <h3>Adicionar Diarista(s)</h3>
+    <div class="modal-card">
+        <h3>Adicionar Diarista(s)</h3>
 
-    <form id="diarista-form">
-      <!-- Grid principal no padrão .form-grid -->
-      <div class="form-grid">
-        <div class="form-group">
-          <label for="f-quantidade">Quantidade</label>
-          <input type="number" id="f-quantidade" min="1" value="1" required>
-        </div>
+        <form id="diarista-form">
 
-        <div class="form-group">
-          <label for="f-empresa">Empresa</label>
-          <input type="text" id="f-empresa" placeholder="Ex.: TSI" required>
-        </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="f-quantidade">Quantidade</label>
+                    <input type="number" id="f-quantidade" min="1" value="1" required>
+                </div>
 
-        <div class="form-group">
-          <label for="f-solicitado">Solicitado por</label>
-          <select id="f-solicitado" required>
-            <option value="">Selecione</option>
-            <option value="KN">KN</option>
-            <option value="MELI">MELI</option>
-          </select>
-        </div>
+                <div class="form-group">
+                    <label for="f-empresa">Empresa</label>
+                    <input type="text" id="f-empresa" placeholder="Ex.: TSI" required>
+                </div>
 
-        <div class="form-group">
-          <label for="f-autorizado">Autorizado por</label>
-          <select id="f-autorizado" required>
-            <option value="">Selecione</option>
-            <option value="LIDERANÇA KN">Liderança KN</option>
-            <option value="LIDERANÇA MELI">Liderança MELI</option>
-          </select>
-        </div>
+                <div class="form-group">
+                    <label for="f-solicitado">Solicitado por</label>
+                    <select id="f-solicitado" required>
+                        <option value="">Selecione</option>
+                        <option value="KN">KN</option>
+                        <option value="MELI">MELI</option>
+                    </select>
+                </div>
 
-        <div class="form-group">
-          <label for="f-turno">Turno</label>
-          <select id="f-turno" required>
-            <option value="">Selecione</option>
-            <option value="T1">T1</option>
-            <option value="T2">T2</option>
-            <option value="T3">T3</option>
-          </select>
-        </div>
+                <div class="form-group">
+                    <label for="f-autorizado">Autorizado por</label>
+                    <select id="f-autorizado" required>
+                        <option value="">Selecione</option>
+                        <option value="LIDERANÇA KN">Liderança KN</option>
+                        <option value="LIDERANÇA MELI">Liderança MELI</option>
+                    </select>
+                </div>
 
-        <div class="form-group">
-          <label for="f-svc">SVC</label>
-          <select id="f-svc" required>
-            <option value="">Selecione</option>
-          </select>
-        </div>
+                <div class="form-group">
+                    <label for="f-turno">Turno</label>
+                    <select id="f-turno" required>
+                        <option value="">Selecione</option>
+                        <option value="T1">T1</option>
+                        <option value="T2">T2</option>
+                        <option value="T3">T3</option>
+                    </select>
+                </div>
 
-        <div class="form-group">
-          <label for="f-matriz">Matriz</label>
-          <input type="text" id="f-matriz" placeholder="Preenchido automaticamente" readonly>
-        </div>
+                <div class="form-group">
+                    <label for="f-svc">SVC</label>
+                    <select id="f-svc" required>
+                        <option value="">Selecione</option>
+                    </select>
+                </div>
 
-        <div class="form-group">
-          <label for="f-data">Data</label>
-          <input type="date" id="f-data" required>
-        </div>
-      </div>
+                <div class="form-group">
+                    <label for="f-matriz">Matriz</label>
+                    <input type="text" id="f-matriz" placeholder="Preenchido automaticamente" readonly>
+                </div>
 
-      <!-- Pares Nome + ID GROOT no mesmo padrão (grid fluido) -->
-      <div id="names-list" class="form-grid names-list"></div>
+                <div class="form-group">
+                    <label for="f-data">Data</label>
+                    <input type="date" id="f-data" required>
+                </div>
+            </div>
 
-      <div class="form-actions">
-        <button type="button" id="btn-cancel-modal" class="btn-cancelar">Cancelar</button>
-        <button type="submit" class="btn-salvar">Salvar</button>
-      </div>
-    </form>
-  </div>
+
+            <div id="names-list" class="form-grid names-list"></div>
+
+            <div class="form-actions">
+                <button type="button" id="btn-cancel-modal" class="btn-cancelar">Cancelar</button>
+                <button type="submit" class="btn-salvar">Salvar</button>
+            </div>
+        </form>
+    </div>
 </div>

@@ -2,12 +2,12 @@ import {supabase} from '../supabaseClient.js';
 
 let state = {
     matrizesData: [],
-    loginsData: [], // Armazena todos os logins
-    svcMap: new Map(), // Mapa de Matriz -> SVC
+    loginsData: [],
+    svcMap: new Map(),
     usuarioEmEdicao: null,
 };
 
-// Elementos do DOM
+
 let registrarMatrizBtn, registrarGestorBtn;
 let matrizModal, matrizForm;
 let gestorModal, gestorForm, gestorNomeInput, gestorMatrizesCheckboxContainer, gestorServicesVinculadosDisplay;
@@ -24,7 +24,7 @@ function getUsuarioDaSessao() {
     }
 }
 
-// <<-- NOVA FUNÇÃO PARA POPULAR OS FILTROS -->>
+
 function populateFilters() {
     const aprovacoes = [...new Set(state.loginsData.map(u => u.Aprovacao).filter(Boolean))].sort();
     const tipos = [...new Set(state.loginsData.map(u => u.Tipo).filter(Boolean))].sort();
@@ -37,7 +37,7 @@ function populateFilters() {
     svcs.forEach(val => filterSvc.add(new Option(val, val)));
 }
 
-// <<-- NOVA FUNÇÃO PARA APLICAR OS FILTROS -->>
+
 function applyFilters() {
     const filtroAprovacao = filterAprovacao.value;
     const filtroTipo = filterTipo.value;
@@ -52,7 +52,7 @@ function applyFilters() {
         if (filtroMatriz && user.Matriz !== 'TODOS' && !userMatrizes.includes(filtroMatriz)) return false;
 
         if (filtroSvc) {
-            if (user.Matriz === 'TODOS') return true; // Se tem acesso a tudo, passa no filtro de SVC
+            if (user.Matriz === 'TODOS') return true;
             const userSvcs = new Set(userMatrizes.map(m => state.svcMap.get(m)).filter(Boolean));
             if (!userSvcs.has(filtroSvc)) return false;
         }
@@ -63,7 +63,7 @@ function applyFilters() {
     renderTable(filteredLogins);
 }
 
-// <<-- FUNÇÃO DE RENDERIZAÇÃO SEPARADA -->>
+
 function renderTable(logins) {
     const tbody = document.getElementById('relatorio-logins-tbody');
     if (!tbody) return;
@@ -96,7 +96,7 @@ function renderTable(logins) {
     });
 }
 
-// <<-- FUNÇÃO PRINCIPAL MODIFICADA -->>
+
 async function fetchAndRenderData() {
     const tbody = document.getElementById('relatorio-logins-tbody');
     if (!tbody) return;
@@ -116,13 +116,13 @@ async function fetchAndRenderData() {
         return;
     }
 
-    // Armazena os dados no state
+
     state.loginsData = logins || [];
     state.matrizesData = matrizes || [];
     state.svcMap = new Map(matrizes.map(item => [item.MATRIZ, item.SERVICE]));
 
     populateFilters();
-    applyFilters(); // Renderiza a tabela com todos os dados inicialmente
+    applyFilters();
 }
 
 
@@ -142,7 +142,7 @@ async function handleRegistrarMatriz(event) {
         alert('Matriz/Service registrada com sucesso!');
         matrizForm.reset();
         matrizModal.classList.add('hidden');
-        await fetchAndRenderData(); // Atualiza os dados
+        await fetchAndRenderData();
     }
 }
 
@@ -203,7 +203,7 @@ async function handleEditUserSubmit(event) {
     } else {
         alert("Usuário atualizado com sucesso!");
         editUserModal.classList.add('hidden');
-        fetchAndRenderData(); // Atualiza a tabela
+        fetchAndRenderData();
     }
 }
 
@@ -220,7 +220,7 @@ async function handleDeleteUser() {
     } else {
         alert("Usuário excluído com sucesso!");
         editUserModal.classList.add('hidden');
-        fetchAndRenderData(); // Atualiza a tabela
+        fetchAndRenderData();
     }
 }
 
@@ -291,17 +291,17 @@ function atualizarServicesVinculados() {
 
 export async function init() {
     const usuarioLogado = getUsuarioDaSessao();
-    // A verificação de Nível está correta
+
     if (usuarioLogado?.Nivel !== 'Administrador') {
-        // <<-- ESTA É A LINHA QUE PRECISA SER CORRIGIDA -->>
-        const container = document.querySelector('#tab-painel-gerencial'); // Alterado de '.gerencial-container'
+
+        const container = document.querySelector('#tab-painel-gerencial');
         if (container) {
             container.innerHTML = `<div class="acesso-negado"><h3>Acesso Bloqueado</h3><p>Apenas usuários com nível "Administrador" podem acessar esta página.</p></div>`;
         }
-        return; // Impede que o resto do código seja executado
+        return;
     }
 
-    // Seleciona os elementos do DOM
+
     registrarMatrizBtn = document.getElementById('btnAbrirModalMatriz');
     registrarGestorBtn = document.getElementById('btnAbrirModalGestor');
     matrizModal = document.getElementById('matrizModal');
@@ -315,7 +315,7 @@ export async function init() {
     editUserForm = document.getElementById('editUserForm');
     btnExcluirUsuario = document.getElementById('btnExcluirUsuario');
 
-    // Seletores dos filtros
+
     filterAprovacao = document.getElementById('filter-aprovacao');
     filterTipo = document.getElementById('filter-tipo');
     filterMatriz = document.getElementById('filter-matriz');
@@ -327,7 +327,7 @@ export async function init() {
         return;
     }
 
-    // Configura os listeners dos botões e modais
+
     registrarMatrizBtn.addEventListener('click', () => {
         matrizForm.reset();
         matrizModal.classList.remove('hidden');
@@ -349,7 +349,7 @@ export async function init() {
         });
     });
 
-    // Listeners dos filtros
+
     filterAprovacao.addEventListener('change', applyFilters);
     filterTipo.addEventListener('change', applyFilters);
     filterMatriz.addEventListener('change', applyFilters);
@@ -362,6 +362,6 @@ export async function init() {
         applyFilters();
     });
 
-    // Inicia o carregamento dos dados
+
     await fetchAndRenderData();
 }

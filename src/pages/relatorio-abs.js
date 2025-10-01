@@ -293,14 +293,14 @@ import {supabase} from '../supabaseClient.js';
             '        <th>Escala</th>' +
             '        <th>Entrevista</th>' +
             '        <th>Ação</th>' +
-            // '        <th>Observação</th>' +
+
             '        <th>CID</th>' +
-            // '        <th>SVC</th>' +
+
             '        <th>MATRIZ</th>' +
             '      </tr>' +
             '    </thead>' +
             '    <tbody id="abs-tbody">' +
-            // '      <tr><td colspan="10" class="muted">Carregando…</td></tr>' +
+
             '    </tbody>' +
             '  </table>' +
             '</div>';
@@ -389,7 +389,7 @@ import {supabase} from '../supabaseClient.js';
         try {
             const colabIndex = await getColabIndex();
 
-            // **AJUSTE AQUI: Adicionado Observacao e CID na consulta**
+
             const {data: allAbsRows, error} = await supabase
                 .from('RelatorioABS')
                 .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID')
@@ -453,7 +453,7 @@ import {supabase} from '../supabaseClient.js';
         try {
             const matrizesPermitidas = getMatrizesPermitidas();
 
-            // **AJUSTE AQUI: Adicionado Observacao e CID na consulta**
+
             var q = supabase
                 .from('RelatorioABS')
                 .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID', {count: 'exact'})
@@ -485,7 +485,7 @@ import {supabase} from '../supabaseClient.js';
         try {
             const matrizesPermitidas = getMatrizesPermitidas();
 
-            // **AJUSTE AQUI: Adicionado Observacao e CID na consulta**
+
             var q = supabase
                 .from('RelatorioABS')
                 .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID', {count: 'exact'});
@@ -552,7 +552,7 @@ import {supabase} from '../supabaseClient.js';
         updateCounters(filtered);
 
         if (!filtered.length) {
-            // tbody.innerHTML = '<tr><td colspan="10" class="muted">Sem registros no período/filtros.</td></tr>';
+
             return;
         }
 
@@ -573,9 +573,9 @@ import {supabase} from '../supabaseClient.js';
                 '<td>' + esc(row.Escala || '') + '</td>' +
                 '<td>' + (String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não') + '</td>' +
                 '<td>' + esc(row.Acao || '') + '</td>' +
-                // '<td>' + esc(row.Observacao || '') + '</td>' +
+
                 '<td>' + esc(row.CID || '') + '</td>' +
-                // '<td>' + esc(row.SVC || '') + '</td>' +
+
                 '<td>' + esc(row.MATRIZ || '') + '</td>';
 
             frag.appendChild(tr);
@@ -606,7 +606,7 @@ import {supabase} from '../supabaseClient.js';
         modal.style.maxWidth = '90vw';
         modal.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';
 
-        // **INÍCIO DA GRANDE MUDANÇA NO HTML DO MODAL**
+
         modal.innerHTML =
             '<h3 style="margin:0 0 12px 0;">Atualizar registro</h3>' +
             '<div class="abs-modal-meta" style="font-size:14px;line-height:1.4;margin-bottom:12px;">' +
@@ -621,9 +621,9 @@ import {supabase} from '../supabaseClient.js';
             '    <label><input type="radio" name="abs-entrevista" value="SIM"> Sim</label>' +
             '    <label><input type="radio" name="abs-entrevista" value="NAO"> Não</label>' +
             '  </div>' +
-            // Container para os campos condicionais da entrevista
+
             '  <div id="abs-entrevista-details" style="display:none; flex-direction:column; gap:8px; margin-top:6px;">' +
-            // Campos para ABS Injustificado
+
             '    <div id="abs-injustificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
             '      <label>Observação</label>' +
             '      <select id="abs-obs-injustificado" class="abs-observacao-select">' +
@@ -634,7 +634,7 @@ import {supabase} from '../supabaseClient.js';
             '        <option>Problemas pessoais</option>' +
             '      </select>' +
             '    </div>' +
-            // Campos para ABS Justificado
+
             '    <div id="abs-justificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
             '      <label>Observação</label>' +
             '      <select id="abs-obs-justificado" class="abs-observacao-select">' +
@@ -663,12 +663,12 @@ import {supabase} from '../supabaseClient.js';
             '  <button class="btn" id="abs-cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fafafa;">Cancelar</button>' +
             '  <button class="btn-add" id="abs-save" style="padding:8px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;">Salvar</button>' +
             '</div>';
-        // **FIM DA GRANDE MUDANÇA NO HTML DO MODAL**
+
 
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
-        // Elementos do formulário
+
         var radioSim = modal.querySelector('input[value="SIM"]');
         var radioNao = modal.querySelector('input[value="NAO"]');
         var selAcao = modal.querySelector('#abs-acao');
@@ -681,7 +681,7 @@ import {supabase} from '../supabaseClient.js';
         var cidContainer = modal.querySelector('#abs-cid-container');
         var cidInput = modal.querySelector('#abs-cid-input');
 
-        // Função para controlar a visibilidade dos campos condicionais
+
         function toggleConditionalFields() {
             var entrevistaSim = radioSim.checked;
             entrevistaDetails.style.display = entrevistaSim ? 'flex' : 'none';
@@ -694,7 +694,7 @@ import {supabase} from '../supabaseClient.js';
                 } else if (absType === 'JUSTIFICADO' || absType === 'ATESTADO') {
                     injustificadoFields.style.display = 'none';
                     justificadoFields.style.display = 'flex';
-                    // Também controla o campo CID baseado na seleção de 'Atestado'
+
                     cidContainer.style.display = selObsJustificado.value === 'Atestado médico' ? 'flex' : 'none';
                 } else {
                     injustificadoFields.style.display = 'none';
@@ -707,13 +707,12 @@ import {supabase} from '../supabaseClient.js';
             }
         }
 
-        // Listeners para os eventos de mudança
+
         radioSim.addEventListener('change', toggleConditionalFields);
         radioNao.addEventListener('change', toggleConditionalFields);
         selObsJustificado.addEventListener('change', toggleConditionalFields);
 
 
-        // Preencher valores iniciais
         if (String(row.Entrevista || '').toUpperCase() === 'SIM') {
             radioSim.checked = true;
         } else {
@@ -724,7 +723,7 @@ import {supabase} from '../supabaseClient.js';
         selObsJustificado.value = row.Observacao || '';
         cidInput.value = row.CID || '';
 
-        // Chamar a função uma vez para definir o estado inicial do modal
+
         toggleConditionalFields();
 
         var btnCancel = modal.querySelector('#abs-cancel');
@@ -735,7 +734,7 @@ import {supabase} from '../supabaseClient.js';
             if (ev.target === overlay) document.body.removeChild(overlay);
         });
 
-        // **INÍCIO DA MUDANÇA NA LÓGICA DE SALVAMENTO**
+
         var btnSave = modal.querySelector('#abs-save');
         if (btnSave) btnSave.addEventListener('click', async function () {
             var entrevista = (modal.querySelector('input[name="abs-entrevista"]:checked') || {}).value || 'NAO';
@@ -768,7 +767,7 @@ import {supabase} from '../supabaseClient.js';
                         .eq('id', row.id);
                     if (u.error) throw u.error;
                 } else {
-                    // Adiciona os campos obrigatórios para o upsert
+
                     updatePayload.Nome = row.Nome;
                     updatePayload.Data = parseAnyDateToISO(row.Data);
                     var up = await supabase
@@ -783,7 +782,7 @@ import {supabase} from '../supabaseClient.js';
                 alert('Falha ao salvar. Veja o console.');
             }
         });
-        // **FIM DA MUDANÇA NA LÓGICA DE SALVAMENTO**
+
     }
 
     function openPeriodModal() {
@@ -854,7 +853,6 @@ import {supabase} from '../supabaseClient.js';
                 return;
             }
 
-            // **AJUSTE AQUI: Adicionado Observacao e CID ao objeto de exportação**
             var csvRows = rows.map(function (r) {
                 return {
                     Nome: r.Nome || '',
@@ -863,9 +861,9 @@ import {supabase} from '../supabaseClient.js';
                     Escala: r.Escala || '',
                     Entrevista: String(r.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não',
                     'Ação': r.Acao || '',
-                    // 'Observação': r.Observacao || '',
+
                     'CID': r.CID || '',
-                    // SVC: r.SVC || '',
+
                     MATRIZ: r.MATRIZ || ''
                 };
             });

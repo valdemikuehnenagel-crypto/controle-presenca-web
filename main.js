@@ -1,303 +1,202 @@
-import { createClient } from '@supabase/supabase-js';
+import {createClient} from '@supabase/supabase-js';
 
 document.addEventListener('DOMContentLoaded', () => {
-  const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_KEY
-  );
 
-  // --- Elementos principais ---
-  const container       = document.getElementById('container');
-  const showRegisterBtn = document.getElementById('showRegisterBtn');
-  const showLoginBtn    = document.getElementById('showLoginBtn');
-  const loginForm       = document.getElementById('loginForm');
-  const pinLogin        = document.getElementById('pinLogin');
-  const loginMsg        = document.getElementById('loginMsg');
-  const forgotPinBtn    = document.getElementById('forgotPinBtn');
+    const supabase = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_KEY
+    );
 
-  // Elementos da animação de boas-vindas (opcionais)
-  const loginContent       = document.getElementById('login-form-content');
-  const welcomeContainer   = document.getElementById('welcome-back-container');
-  const welcomeAvatar      = document.getElementById('welcome-avatar');
-  const welcomeMessage     = document.getElementById('welcome-message');
+    // --- Elementos da Interface ---
+    const container = document.getElementById('container');
+    const showRegisterBtn = document.getElementById('showRegisterBtn');
+    const showLoginBtn = document.getElementById('showLoginBtn');
+    const loginForm = document.getElementById('loginForm');
+    const pinLogin = document.getElementById('pinLogin');
+    const loginMsg = document.getElementById('loginMsg');
+    const forgotPinBtn = document.getElementById('forgotPinBtn');
 
-  // --- Tela de cadastro ---
-  const registerForm   = document.getElementById('registerForm');
-  const registerName   = document.getElementById('registerName');
-  const registerEmail  = document.getElementById('registerEmail');
-  const registerMatriz = document.getElementById('registerMatriz');
-  const registerPin    = document.getElementById('registerPin');
-  const registerMsg    = document.getElementById('registerMsg');
-  const registerAvatar = document.getElementById('registerAvatar');
-  const avatarPreview  = document.getElementById('avatarPreview');
 
-  // --- Navegação login/registro ---
-  if (showRegisterBtn) {
-    showRegisterBtn.addEventListener('click', () => {
-      container?.classList.add('active');
-      loadMatrizes();
-    });
-  }
-  if (showLoginBtn) {
-    showLoginBtn.addEventListener('click', () => {
-      container?.classList.remove('active');
-    });
-  }
+    if (showRegisterBtn) {
+        showRegisterBtn.addEventListener('click', () => {
+            container.classList.add('active');
 
-  // --- Controle de verificação para evitar chamadas duplicadas ---
-  let isVerifying = false;
-  let inputTimer  = null;
-
-  // Utilitários
-  const norm = (v) =>
-    String(v ?? '')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-');
-
-  function greet() {
-    const h = new Date().getHours();
-    if (h >= 5 && h < 12) return 'Bom dia';
-    if (h < 18) return 'Boa tarde';
-    return 'Boa noite';
-  }
-
-  function showMessage(msg, type = null) {
-    if (!loginMsg) return;
-    loginMsg.textContent = msg || '';
-    loginMsg.classList.remove('info', 'error');
-    if (type) loginMsg.classList.add(type);
-  }
-
-  // --- Animação de boas-vindas com fallback ---
-  function runWelcome(user) {
-    // Se não houver DOM da animação, faz fallback imediato
-    if (!welcomeContainer || !welcomeMessage || !loginContent) {
-      localStorage.setItem('userSession', JSON.stringify(user));
-      window.location.href = '/dashboard.html';
-      return;
-    }
-
-    try {
-      const firstName = (user.Nome || 'Usuário').split(' ')[0];
-      if (welcomeAvatar) {
-        welcomeAvatar.src = user.avatar_url || '/imagens/avatar.png';
-      }
-      welcomeMessage.textContent = `${greet()}, ${firstName}!`;
-
-      // Some o formulário
-      loginContent.classList.add('fade-out-start');
-
-      // espera 500ms, mostra container
-      setTimeout(() => {
-        welcomeContainer.classList.remove('hidden');
-        // forçar reflow antes de adicionar a classe que faz transição
-        requestAnimationFrame(() => {
-          welcomeContainer.classList.add('visible');
+            loadMatrizes();
+            loadFuncoes();
         });
-
-        // Salva sessão e redireciona após 1.5s
-        setTimeout(() => {
-          localStorage.setItem('userSession', JSON.stringify(user));
-          window.location.href = '/dashboard.html';
-        }, 1500);
-      }, 500);
-    } catch (e) {
-      // fallback se qualquer coisa der errado na animação
-      localStorage.setItem('userSession', JSON.stringify(user));
-      window.location.href = '/dashboard.html';
-    }
-  }
-
-  // --- Verificação do PIN ---
-  async function verifyPin(pin) {
-    if (isVerifying) return;
-    isVerifying = true;
-    showMessage('Verificando...', 'info');
-
-    try {
-      const { data: user, error } = await supabase
-        .from('Logins')
-        .select('PIN, Nome, Usuario, Matriz, Nivel, Aprovacao, avatar_url')
-        .eq('PIN', pin)
-        .single();
-
-      if (error || !user) {
-        showMessage('PIN inválido ou erro na conexão.', 'error');
-        return;
-      }
-      if (user.Aprovacao !== 'SIM') {
-        showMessage('Acesso pendente de aprovação.', 'error');
-        return;
-      }
-
-      if (!user.Matriz || user.Matriz.trim() === '') {
-        user.Matriz = 'TODOS';
-      }
-
-      // roda animação (ou fallback) e redireciona
-      runWelcome(user);
-    } catch (e) {
-      console.error('verifyPin error:', e);
-      showMessage('Falha ao verificar o PIN. Tente novamente.', 'error');
-    } finally {
-      // dá um pequeno atraso para evitar double-submit enquanto anima
-      setTimeout(() => { isVerifying = false; }, 300);
-    }
-  }
-
-  // --- Eventos do Login ---
-  if (loginForm) {
-    loginForm.addEventListener('submit', (ev) => {
-      ev.preventDefault();
-      const pin = pinLogin?.value?.trim() || '';
-      if (/^\d{6}$/.test(pin)) {
-        verifyPin(pin);
-      } else {
-        showMessage('O PIN deve ter 6 dígitos.', 'error');
-      }
-    });
-  }
-
-  if (pinLogin) {
-    // debounce no input para evitar duas chamadas quando o usuário pressiona Enter
-    pinLogin.addEventListener('input', () => {
-      const value = pinLogin.value.trim();
-      if (value.length < 6) {
-        showMessage('');
-        return;
-      }
-      if (value.length === 6) {
-        clearTimeout(inputTimer);
-        inputTimer = setTimeout(() => verifyPin(value), 120); // debounce curto
-      }
-    });
-  }
-
-  if (forgotPinBtn) {
-    forgotPinBtn.addEventListener('click', () => {
-      showMessage('Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com', 'info');
-    });
-  }
-
-  // --- Cadastro ---
-  async function loadMatrizes() {
-    if (!registerMatriz) return;
-    registerMatriz.innerHTML = '<option value="" disabled selected>Carregando...</option>';
-
-    const { data, error } = await supabase.from('Matrizes').select('MATRIZ');
-    if (error) {
-      registerMatriz.innerHTML = '<option value="" disabled selected>Erro ao carregar</option>';
-      console.error('Erro ao buscar matrizes:', error);
-      return;
     }
 
-    const matrizesUnicas = Array.from(new Set((data || []).map(item => item.MATRIZ))).sort();
-    registerMatriz.innerHTML = '<option value="" disabled selected>Selecione a Matriz</option>';
-    matrizesUnicas.forEach(matriz => {
-      const option = document.createElement('option');
-      option.value = matriz;
-      option.textContent = matriz;
-      registerMatriz.appendChild(option);
-    });
+    if (showLoginBtn) {
+        showLoginBtn.addEventListener('click', () => {
+            container.classList.remove('active');
+        });
+    }
+    async function verifyPin(pin) {
 
-    // opção Gerencia (vira TODOS no salvar)
-    const gerenciaOption = document.createElement('option');
-    gerenciaOption.value = 'Gerencia';
-    gerenciaOption.textContent = 'Gerencia';
-    registerMatriz.appendChild(gerenciaOption);
-  }
+        loginMsg.classList.remove('info');
+        loginMsg.textContent = 'Verificando...';
 
-  if (registerAvatar && avatarPreview) {
-    registerAvatar.addEventListener('change', () => {
-      const file = registerAvatar.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => { avatarPreview.src = e.target.result; };
-      reader.readAsDataURL(file);
-    });
-  }
+        const {data, error} = await supabase
+            .from('Logins')
+            .select('*')
+            .eq('PIN', pin)
+            .single();
 
-  if (registerForm) {
-    registerForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!registerMsg) return;
-
-      registerMsg.textContent = 'Enviando...';
-      registerMsg.classList.remove('error');
-
-      const userData = {
-        name: (registerName?.value || '').trim(),
-        email: (registerEmail?.value || '').trim(),
-        matriz: registerMatriz?.value || '',
-        pin: registerPin?.value || '',
-        file: registerAvatar?.files?.[0] || null
-      };
-
-      if (!userData.name || !userData.email || !userData.matriz || !/^\d{6}$/.test(userData.pin)) {
-        registerMsg.classList.add('error');
-        registerMsg.textContent = 'Todos os campos são obrigatórios.';
-        return;
-      }
-
-      let avatarUrl = null;
-      try {
-        if (userData.file) {
-          registerMsg.textContent = 'Enviando imagem...';
-          const fileName = `${norm(userData.name)}-${Date.now()}`;
-          const { error: uploadError } = await supabase
-            .storage
-            .from('avatars')
-            .upload(fileName, userData.file);
-
-          if (uploadError) {
-            registerMsg.classList.add('error');
-            registerMsg.textContent = `Erro no upload da imagem: ${uploadError.message}`;
+        if (error || !data) {
+            loginMsg.textContent = 'PIN inválido ou erro na conexão.';
             return;
-          }
-
-          const { data: urlData } = supabase
-            .storage
-            .from('avatars')
-            .getPublicUrl(fileName);
-
-          avatarUrl = urlData?.publicUrl || null;
-          registerMsg.textContent = 'Registrando dados...';
+        }
+        if (data.Aprovacao !== 'SIM') {
+            loginMsg.textContent = 'Acesso pendente de aprovação.';
+            return;
         }
 
-        let matrizParaSalvar = userData.matriz;
-        if (matrizParaSalvar === 'Gerencia') matrizParaSalvar = 'TODOS';
+        localStorage.setItem('userSession', JSON.stringify(data));
+        window.location.href = '/dashboard.html';
+    }
 
-        const { error: insertError } = await supabase
-          .from('Logins')
-          .insert({
-            PIN: userData.pin,
-            Nome: userData.name.toUpperCase(),
-            Usuario: userData.email.toLowerCase(),
-            Matriz: matrizParaSalvar,
-            Nivel: 'Usuario',
-            Aprovacao: 'PENDENTE',
-            avatar_url: avatarUrl
-          });
+    // 2. Evento de clique no botão "Entrar" (continua funcionando)
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (pinLogin.value.length === 6) {
+                verifyPin(pinLogin.value);
+            } else {
+                loginMsg.textContent = 'O PIN deve ter 6 dígitos.';
+            }
+        });
+    }
 
-        if (insertError) {
-          registerMsg.classList.add('error');
-          registerMsg.textContent = 'Erro: Este PIN ou Email já pode estar em uso.';
-          console.error('Erro no registro:', insertError);
-          return;
+    // 3. NOVO: Evento de input para login automático
+    if (pinLogin) {
+        pinLogin.addEventListener('input', () => {
+            // Limpa mensagens de erro/info se o usuário estiver corrigindo o PIN
+            if (pinLogin.value.length < 6) {
+                loginMsg.textContent = '';
+                loginMsg.classList.remove('info');
+            }
+
+            // Se o PIN atingir 6 dígitos, dispara a verificação
+            if (pinLogin.value.length === 6) {
+                verifyPin(pinLogin.value);
+            }
+        });
+    }
+
+
+    // --- Lógica do Botão "Esqueci meu pin" ---
+    if (forgotPinBtn) {
+        forgotPinBtn.addEventListener('click', () => {
+            loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com';
+            loginMsg.classList.add('info');
+            loginMsg.classList.remove('error');
+        });
+    }
+
+    // --- Lógica do Formulário de Registro (MODIFICADO) ---
+    const registerForm = document.getElementById('registerForm');
+    // NOVO: Adiciona os novos campos do formulário
+    const registerName = document.getElementById('registerName');
+    const registerEmail = document.getElementById('registerEmail');
+    const registerMatriz = document.getElementById('registerMatriz');
+    const registerFuncao = document.getElementById('registerFuncao'); // NOVO
+    const registerPin = document.getElementById('registerPin');
+    const registerMsg = document.getElementById('registerMsg');
+
+
+    const funcoes = [
+        'JOVEM APRENDIZ',
+        'ESTAGIÁRIO',
+        'LÍDER',
+        'SHE',
+        'COORDENADOR',
+        'ANALISTA',
+        'SUPERVISOR',
+        'GERENTE',
+        'DIRETOR'
+    ];
+
+    function loadFuncoes() {
+        registerFuncao.innerHTML = '<option value="" disabled selected>Selecione a Função</option>';
+        funcoes.forEach(funcao => {
+            const option = document.createElement('option');
+            option.value = funcao;
+            option.textContent = funcao;
+            registerFuncao.appendChild(option);
+        });
+    }
+
+    async function loadMatrizes() {
+        registerMatriz.innerHTML = '<option value="" disabled selected>Carregando...</option>';
+
+        const {data, error} = await supabase
+            .from('Matrizes')
+            .select('MATRIZ');
+
+        if (error) {
+            registerMatriz.innerHTML = '<option value="" disabled selected>Erro ao carregar</option>';
+            console.error('Erro ao buscar matrizes:', error);
+            return;
         }
 
-        registerMsg.textContent = 'Solicitação enviada! Aguarde a aprovação.';
-        registerForm.reset();
-        if (avatarPreview) avatarPreview.src = '/imagens/avatar.png';
+        const matrizesUnicas = Array.from(new Set(data.map(item => item.MATRIZ))).sort();
+        registerMatriz.innerHTML = '<option value="" disabled selected>Selecione a Matriz</option>';
 
-        setTimeout(() => container?.classList.remove('active'), 3000);
-      } catch (e) {
-        console.error('Falha no cadastro:', e);
-        registerMsg.classList.add('error');
-        registerMsg.textContent = 'Falha no cadastro. Tente novamente.';
-      }
-    });
-  }
+        matrizesUnicas.forEach(matriz => {
+            const option = document.createElement('option');
+            option.value = matriz;
+            option.textContent = matriz;
+            registerMatriz.appendChild(option);
+        });
+    }
+
+    if (registerForm) {
+        registerForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            registerMsg.textContent = 'Enviando...';
+            registerMsg.classList.remove('error');
+
+            // MODIFICADO: Captura os valores dos novos campos
+            const userData = {
+                nome: registerName.value,
+                email: registerEmail.value,
+                matriz: registerMatriz.value,
+                funcao: registerFuncao.value, // NOVO
+                pin: registerPin.value,
+            };
+
+            // MODIFICADO: Atualiza a validação para incluir os novos campos
+            if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao || !/^\d{6}$/.test(userData.pin)) {
+                registerMsg.classList.add('error');
+                registerMsg.textContent = 'Todos os campos são obrigatórios.';
+                return;
+            }
+
+            // MODIFICADO: O objeto de inserção agora inclui Nome e Tipo
+            const {error} = await supabase
+                .from('Logins')
+                .insert({
+                    PIN: userData.pin,
+                    Nome: userData.nome, // NOVO: Mapeia para a coluna "Nome"
+                    Usuario: userData.email.toLowerCase(),
+                    Matriz: userData.matriz,
+                    Tipo: userData.funcao, // NOVO: Mapeia para a coluna "Tipo"
+                    Nivel: 'Usuario', // Mantém um nível padrão, se necessário
+                    Aprovacao: 'PENDENTE'
+                });
+
+            if (error) {
+                registerMsg.classList.add('error');
+                registerMsg.textContent = 'Erro: Este PIN ou Email já pode estar em uso.';
+                console.error('Erro no registro:', error);
+            } else {
+                registerMsg.textContent = 'Solicitação enviada! Aguarde a aprovação.';
+                registerForm.reset();
+
+                setTimeout(() => {
+                    container.classList.remove('active');
+                }, 3000);
+            }
+        });
+    }
 });

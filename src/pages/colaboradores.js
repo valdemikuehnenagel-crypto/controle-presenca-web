@@ -22,7 +22,7 @@ let colaboradoresTbody,
     addForm;
 
 let editModal, editForm, editTitulo, editSVC, editMatriz, editExcluirBtn, editCancelarBtn, editSalvarBtn,
-    editDesligarBtn, editFeriasBtn, editHistoricoBtn, editAfastarBtn; // <<-- Variável adicionada
+    editDesligarBtn, editFeriasBtn, editHistoricoBtn, editAfastarBtn;
 let editInputs = {};
 let editOriginal = null;
 
@@ -212,16 +212,15 @@ function renderTable(dataToRender) {
         return;
     }
 
-    // <<-- FUNÇÃO INTERNA MODIFICADA PARA ADICIONAR O TEXTO "(Afastado)" -->>
     const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
 
-        // 1. Prioridade: Verifica se o colaborador está afastado
+
         if (colaborador.Ativo === 'AFAS') {
             return `${nomeBase} (Afastado)`;
         }
 
-        // 2. Se não estiver afastado, verifica se está de férias
+
         const diasRest = state?.feriasAtivasMap?.get?.(nomeBase);
         if (diasRest != null && !isNaN(diasRest)) {
             if (diasRest === 0) {
@@ -231,7 +230,7 @@ function renderTable(dataToRender) {
             return `${nomeBase} 🏖️ (Faltam ${diasRest} ${sufixo})`;
         }
 
-        // 3. Se não for nenhum dos casos, retorna apenas o nome
+
         return nomeBase;
     };
 
@@ -239,7 +238,6 @@ function renderTable(dataToRender) {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colaborador.Nome || '');
 
-        // <<-- CHAMADA DA FUNÇÃO ATUALIZADA -->>
         const nomeCelula = formatarNomeColaborador(colaborador);
 
         tr.innerHTML = `
@@ -647,7 +645,6 @@ async function fillEditForm(colab) {
         populateGestorSelectForEdit(svc, colab.Gestor);
     }
 
-    // <<-- INÍCIO DA LÓGICA DO BOTÃO DE AFASTAMENTO -->>
     if (editAfastarBtn) {
         if (colab.Ativo === 'SIM') {
             editAfastarBtn.textContent = 'Afastar Colaborador';
@@ -656,11 +653,11 @@ async function fillEditForm(colab) {
             editAfastarBtn.textContent = 'Remover Afastamento';
             editAfastarBtn.style.display = 'inline-block';
         } else {
-            // Esconde o botão para outros status (ex: 'NAO' para desligado)
+
             editAfastarBtn.style.display = 'none';
         }
     }
-    // <<-- FIM DA LÓGICA DO BOTÃO DE AFASTAMENTO -->>
+
 }
 
 
@@ -736,7 +733,6 @@ async function onEditSubmit(e) {
     hideEditModal();
 }
 
-// <<-- INÍCIO DA NOVA FUNÇÃO PARA AFASTAMENTO (VERSÃO CORRIGIDA) -->>
 async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
         alert('Erro: Colaborador não identificado.');
@@ -745,7 +741,7 @@ async function onAfastarClick() {
 
     let colab;
     try {
-        // A forma correta de chamar a função que pode lançar um erro
+
         colab = await fetchColabByNome(editOriginal.Nome);
     } catch (fetchError) {
         console.error("Erro ao buscar colaborador para afastamento:", fetchError);
@@ -753,7 +749,7 @@ async function onAfastarClick() {
         return;
     }
 
-    // Checagem adicional se o colaborador não for encontrado
+
     if (!colab) {
         alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
         return;
@@ -791,7 +787,7 @@ async function onAfastarClick() {
     hideEditModal();
     await fetchColaboradores();
 }
-//
+
 
 function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
@@ -1342,7 +1338,7 @@ function wireEdit() {
     editDesligarBtn = document.getElementById('editDesligarBtn');
     editFeriasBtn = document.getElementById('editFeriasBtn');
     editHistoricoBtn = document.getElementById('editHistoricoBtn');
-    editAfastarBtn = document.getElementById('editAfastarBtn'); // <<-- Botão adicionado
+    editAfastarBtn = document.getElementById('editAfastarBtn');
 
     editInputs = {
         Nome: document.getElementById('editNome'),
@@ -1371,7 +1367,7 @@ function wireEdit() {
 
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
-    editAfastarBtn?.addEventListener('click', onAfastarClick); // <<-- Evento adicionado
+    editAfastarBtn?.addEventListener('click', onAfastarClick);
 
     editExcluirBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;

@@ -1,4 +1,3 @@
-// /src/pages/diarista.js
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
 
@@ -76,7 +75,7 @@ const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
 /* ======== Estado ======== */
 const state = {
     mounted: false,
-    svcToMatriz: new Map(),   // SERVICE -> MATRIZ (apenas permitidas)
+    svcToMatriz: new Map(),
     records: [],
     filters: {start: '', end: '', svc: '', matriz: '', turno: ''},
     _listeners: [],
@@ -155,7 +154,7 @@ function wireUI() {
 
     on(document.getElementById('diarista-form'), 'submit', onSubmitForm);
 
-    // fecha popover (nomes)
+
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeNamesPopover();
     });
@@ -170,10 +169,10 @@ export async function init() {
     state.mounted = true;
 
     wireUI();
-    await loadSvcMatrizMap();   // agora respeita getMatrizesPermitidas()
-    await loadDiaristas();      // idem
+    await loadSvcMatrizMap();
+    await loadDiaristas();
 
-    // Data em BR
+
     state.records = (state.records || []).map(r => ({...r, Data: diaristaFmtBR(r.Data)}));
     fillFilterCombos();
     renderKPIs();
@@ -280,7 +279,7 @@ function openNamesPopover(entries) {
 async function loadSvcMatrizMap() {
     state.svcToMatriz.clear();
 
-    const matrizesPermitidas = getMatrizesPermitidas(); // null => todas
+    const matrizesPermitidas = getMatrizesPermitidas();
     try {
         let q = supabase.from('Matrizes')
             .select('SERVICE, MATRIZ')
@@ -305,7 +304,7 @@ async function loadSvcMatrizMap() {
         const uniqueSvcs = [...new Set(all.map(r => r.SERVICE))].sort((a, b) => a.localeCompare(b));
         const uniqueMtzs = [...new Set(all.map(r => r.MATRIZ))].sort((a, b) => a.localeCompare(b));
 
-        // FORM: f-svc (popular), f-matriz é INPUT readonly (preenchido ao escolher SVC)
+
         const formSvc = document.getElementById('f-svc');
         if (formSvc) {
             formSvc.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
@@ -317,7 +316,7 @@ async function loadSvcMatrizMap() {
             });
         }
 
-        // FILTROS (top): flt-svc e flt-matriz
+
         const fltSvc = document.getElementById('flt-svc');
         const fltMtz = document.getElementById('flt-matriz');
 
@@ -335,7 +334,7 @@ async function loadSvcMatrizMap() {
             fltMtz.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
             const sessMtz = getSessionMatriz();
 
-            // Se o usuário tem restrição por sessão (e também por getMatrizesPermitidas), respeita
+
             if (sessMtz && sessMtz !== 'TODOS') {
                 const has = [...fltMtz.options].some(o => o.value === sessMtz);
                 if (!has) {
@@ -367,7 +366,7 @@ async function loadDiaristas() {
     const CHUNK = 1000;
     let from = 0, all = [];
     const sessMtz = getSessionMatriz();
-    const matrizesPermitidas = getMatrizesPermitidas(); // null => todas
+    const matrizesPermitidas = getMatrizesPermitidas();
 
     try {
         while (true) {
@@ -376,12 +375,12 @@ async function loadDiaristas() {
                 .order('Numero', {ascending: true})
                 .range(from, from + CHUNK - 1);
 
-            // Restringe pelo que o usuário pode ver
+
             if (matrizesPermitidas !== null && Array.isArray(matrizesPermitidas) && matrizesPermitidas.length > 0) {
                 q = q.in('MATRIZ', matrizesPermitidas);
             }
 
-            // Se a sessão já fixa uma MATRIZ específica, aplica também
+
             if (sessMtz && sessMtz !== 'TODOS') {
                 q = q.eq('MATRIZ', sessMtz);
             }
@@ -480,7 +479,7 @@ function renderKPIs() {
 function parseNomeDiaristaField(str) {
     const s = String(str || '').trim();
     if (!s) return [];
-    // formato "NOME (ID), NOME2 (ID2), ..."
+
     return s.split(/\s*,\s*/).map(pair => {
         const m = /(.*?)(?:\s*\(([^()]*)\))?$/.exec(pair);
         return {nome: (m?.[1] || '').trim(), id: (m?.[2] || '').trim()};
@@ -580,7 +579,7 @@ async function onSubmitForm(ev) {
     const matriz = String(document.getElementById('f-matriz').value || '').trim();
     const dataISO = document.getElementById('f-data').value;
 
-    // Nome + ID
+
     const nomesInputs = Array.from(document.querySelectorAll('.f-nome'));
     const idsInputs = Array.from(document.querySelectorAll('.f-groot'));
     const nomes = nomesInputs.map(i => String(i.value || '').trim()).filter(Boolean);
@@ -590,7 +589,7 @@ async function onSubmitForm(ev) {
         return;
     }
 
-    // Numero: max + 1
+
     let numero = 1;
     try {
         const {data: maxData, error: maxErr} = await supabase

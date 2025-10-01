@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Acesso ao Sistema | KN Conecta</title>
     <link rel="icon" href="/imagens/kn.ico" type="image/x-icon">
+    <style>
+        .select-container {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .select-container select {
+            flex: 1;
+        }
+    </style>
     <link rel="stylesheet" href="/login.css"/>
 </head>
 
@@ -23,12 +34,17 @@
             <span class="form-subtitle"><strong>Use seu nome, email e crie um PIN para se registrar</strong></span>
 
             <input id="registerName" type="text" placeholder="Nome Completo" required/>
-
             <input id="registerEmail" type="email" placeholder="Email" required/>
 
-            <select id="registerMatriz" required>
-                <option value="" disabled selected>Carregando matrizes...</option>
-            </select>
+            <div class="select-container">
+                <select id="registerMatriz" required>
+                    <option value="" disabled selected>Selecione a Matriz</option>
+                </select>
+
+                <select id="registerFuncao" required>
+                    <option value="" disabled selected>a Função</option>
+                </select>
+            </div>
 
             <input id="registerPin" type="password" placeholder="Crie um PIN de 6 dígitos" maxlength="6"
                    inputmode="numeric" required/>
@@ -44,13 +60,12 @@
                 <h1>Faça o seu login</h1>
                 <span>Use o seu PIN de 6 dígitos para entrar</span>
 
-                <input id="pinLogin" type="password" placeholder="Digite aqui" maxlength="6" inputmode="numeric" required
+                <input id="pinLogin" type="password" placeholder="Digite aqui" maxlength="6" inputmode="numeric"
+                       required
                        class="pin-input"/>
 
                 <button id="loginBtn" type="submit">Entrar</button>
-
                 <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci meu pin</button>
-
                 <p id="loginMsg" class="message"></p>
             </div>
 
