@@ -5,7 +5,8 @@ let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
-    serviceMatrizMap: new Map()
+    serviceMatrizMap: new Map(),
+    selectedNames: new Set()
 };
 
 const ITENS_POR_PAGINA = 50;
@@ -373,6 +374,170 @@ async function fetchColaboradores() {
     applyFiltersAndSearch();
 }
 
+async function gerarJanelaDeQRCodes() {
+    if (state.selectedNames.size === 0) {
+        alert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.');
+        return;
+    }
+
+    const todosOsSelecionados = state.colaboradoresData.filter(colab =>
+        state.selectedNames.has(colab.Nome)
+    );
+
+    const colaboradoresParaQR = todosOsSelecionados.filter(colab => colab['ID GROOT']);
+
+    if (todosOsSelecionados.length > colaboradoresParaQR.length) {
+        const faltantes = todosOsSelecionados.length - colaboradoresParaQR.length;
+        const plural = faltantes > 1 ? 'colaboradores não possuem' : 'colaborador não possui';
+        alert(`Aviso: ${todosOsSelecionados.length} colaboradores foram selecionados, mas ${faltantes} ${plural} ID GROOT e não puderam ser gerados.`);
+    }
+
+    if (colaboradoresParaQR.length === 0) {
+        alert('Nenhum dos colaboradores selecionados possui um ID GROOT para gerar o QR Code.');
+        return;
+    }
+
+    const {data: imageData, error: imageError} = await supabase
+        .storage
+        .from('cards')
+        .getPublicUrl('QRCODE.png');
+
+    if (imageError) {
+        console.error('Erro ao buscar a imagem do card:', imageError);
+        alert('Não foi possível carregar o template do card. Verifique o console de erros.');
+        return;
+    }
+    const urlImagemCard = imageData.publicUrl;
+
+    const printWindow = window.open('', '_blank');
+
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>QR Codes - Colaboradores</title>
+            <script src="https://cdn.jsdelivr.net/npm/davidshimjs-qrcodejs@0.0.2/qrcode.min.js"><\/script>
+            <style>
+                body { font-family: sans-serif; }
+                
+                .pagina {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr 1fr;
+                    gap: 5px;
+                    page-break-after: always;
+                }
+
+                .card-item {
+                    position: relative;
+                    width: 240px;
+                    height: 345px;
+                    background-image: url('${urlImagemCard}');
+                    background-size: 100% 100%;
+                    background-repeat: no-repeat;
+                    overflow: hidden;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                
+                .qr-code-area {
+                    position: absolute;
+                    top: 75px;
+                    left: 20px;
+                    width: 200px;
+                    height: 200px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                .info-area {
+                    position: absolute;
+                    bottom: 1px;
+                    left: 0;
+                    width: 100%;
+                    height: 60px;
+                    padding: 0 3px;
+                    box-sizing: border-box;
+                    color: black;
+                    font-weight: bold;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                }
+                
+                .info-area .nome {
+                    display: block;
+                    font-size: 11px;
+                    line-height: 1.2;
+                    margin-bottom: 4px;
+                }
+                .info-area .id {
+                    display: block;
+                    font-size: 15px;
+                }
+
+                @media print {
+                    @page { size: A4; margin: 1cm; }
+                    body { margin: 0; }
+                    .pagina:last-of-type { page-break-after: auto; }
+                }
+            </style>
+        </head>
+        <body>
+    `);
+
+    let htmlContent = '';
+    const ITENS_POR_PAGINA_QR = 9;
+    for (let i = 0; i < colaboradoresParaQR.length; i++) {
+        if (i % ITENS_POR_PAGINA_QR === 0) {
+            if (i > 0) htmlContent += '</div>';
+            htmlContent += '<div class="pagina">';
+        }
+        const colaborador = colaboradoresParaQR[i];
+
+        const idFormatado = String(colaborador['ID GROOT']).padStart(11, '0');
+
+        htmlContent += `
+            <div class="card-item">
+                <div class="qr-code-area">
+                    <div id="qrcode-${i}"></div>
+                </div>
+                <div class="info-area">
+                    <span class="nome">${colaborador.Nome}</span>
+                    <span class="id">ID: ${idFormatado}</span>
+                </div>
+            </div>
+        `;
+    }
+    htmlContent += '</div>';
+    printWindow.document.write(htmlContent);
+
+    printWindow.document.write(`
+        <script>
+            const dados = ${JSON.stringify(colaboradoresParaQR)};
+            window.onload = function() {
+                for (let i = 0; i < dados.length; i++) {
+                    const colaborador = dados[i];
+                    const qrElement = document.getElementById('qrcode-' + i);
+                    if (qrElement) {
+
+                      
+                        const idParaQRCode = String(colaborador['ID GROOT']).padStart(11, '0');
+
+                        new QRCode(qrElement, {
+                            text: idParaQRCode,
+                            width: 180,  
+                            height: 180,
+                            correctLevel: QRCode.CorrectLevel.H 
+                        });
+                    }
+                }
+            };
+        <\/script> 
+    `);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+}
 
 async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
@@ -773,9 +938,9 @@ async function onAfastarClick() {
     const ok = confirm(confirmationMessage);
     if (!ok) return;
 
-    const { error } = await supabase
+    const {error} = await supabase
         .from('Colaboradores')
-        .update({ Ativo: newStatus })
+        .update({Ativo: newStatus})
         .eq('Nome', colab.Nome);
 
     if (error) {
@@ -1555,14 +1720,27 @@ export function init() {
             });
         });
     }
+
     if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
             state.filtrosAtivos = {};
+
+
+            state.selectedNames.clear();
+
+
+            const todasAsLinhas = colaboradoresTbody.querySelectorAll('tr.selecionado');
+            todasAsLinhas.forEach(linha => {
+                linha.classList.remove('selecionado');
+            });
+
+
             applyFiltersAndSearch();
         });
     }
+
     if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
@@ -1596,11 +1774,38 @@ export function init() {
             });
         }
     }
+
     if (colaboradoresTbody) {
-        colaboradoresTbody.addEventListener('dblclick', (event) => {
-            const nome = event.target.closest('tr')?.dataset.nome;
-            if (nome) document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome}}));
+        colaboradoresTbody.addEventListener('click', (event) => {
+            const tr = event.target.closest('tr');
+            if (!tr) return;
+
+            const nome = tr.dataset.nome;
+            if (!nome) return;
+
+            if (event.ctrlKey) {
+                if (state.selectedNames.has(nome)) {
+                    state.selectedNames.delete(nome);
+                    tr.classList.remove('selecionado');
+                } else {
+                    state.selectedNames.add(nome);
+                    tr.classList.add('selecionado');
+                }
+            } else if (event.shiftKey) {
+                event.preventDefault();
+                const todasAsLinhasVisiveis = colaboradoresTbody.querySelectorAll('tr');
+                todasAsLinhasVisiveis.forEach(linha => {
+                    const nomeDaLinha = linha.dataset.nome;
+                    if (nomeDaLinha) {
+                        state.selectedNames.add(nomeDaLinha);
+                        linha.classList.add('selecionado');
+                    }
+                });
+            } else {
+                document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome}}));
+            }
         });
+
         document.addEventListener('colaborador-edited', async () => {
             await fetchColaboradores();
         });
@@ -1630,6 +1835,11 @@ export function init() {
                 exportColaboradoresBtn.disabled = false;
             }
         });
+    }
+
+    const gerarQRBtn = document.getElementById('gerar-qr-btn');
+    if (gerarQRBtn) {
+        gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
     }
 
     wireEdit();

@@ -120,9 +120,9 @@ body {
     gap: 8px;
 }
 
-#limpar-filtros-btn, .btn-add, #export-colaboradores-btn {
-    padding: 8px 14px;
-    min-width: 130px;
+#limpar-filtros-btn, #gerar-qr-btn, .btn-add, #export-colaboradores-btn {
+    padding: 8px 12px;
+    min-width: 100px;
     border: none;
     border-radius: 24px;
     font-size: 12px;
@@ -131,6 +131,11 @@ body {
     box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
     color: #fff;
     transition: all .2s ease;
+}
+
+
+#gerar-qr-btn {
+    background: #007bff;
 }
 
 .btn-add {
@@ -987,7 +992,7 @@ h3 {
     background: var(--hcd-zebra);
 }
 
-/* hover */
+
 .hcd-table tbody tr:hover td {
     background: var(--hcd-hover);
 }
@@ -2340,7 +2345,7 @@ h3 {
    Modal Diaristas (padrão Colaboradores)
    ================================ */
 
-/* Overlay */
+
 #diarista-modal.diaristas-modal {
   position: fixed;
   inset: 0;
@@ -2352,17 +2357,17 @@ h3 {
 }
 #diarista-modal.diaristas-modal.hidden { display: none; }
 
-/* Card do modal (apenas UMA definição, harmonizada) */
+
 #diarista-modal .modal-card {
-  width: min(860px, 94vw);              /* largura pensada para 3 colunas de form */
+  width: min(860px, 94vw);
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, .18);
   padding: 16px 18px;
-  border: 1px solid #e7ebf4;            /* borda igual Colaboradores */
+  border: 1px solid #e7ebf4;
 }
 
-/* Título h3 igual Colaboradores */
+
 #diarista-modal h3 {
   color: #003369;
   font-weight: 700;
@@ -2372,7 +2377,7 @@ h3 {
   font-size: 16px;
 }
 
-/* Grid padrão de formulário (mesmo de Colaboradores) */
+
 #diarista-modal .form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2381,7 +2386,7 @@ h3 {
   min-height: 0;
 }
 
-/* Grupos de campo */
+
 #diarista-modal .form-group { display: flex; flex-direction: column; }
 #diarista-modal .form-group label {
   font-size: 12px;
@@ -2389,8 +2394,6 @@ h3 {
   margin-bottom: 4px;
   font-weight: 600;
 }
-
-/* Inputs/Selects iguais Colaboradores */
 #diarista-modal .form-group input,
 #diarista-modal .form-group select {
   padding: 8px 9px;
@@ -2409,15 +2412,15 @@ h3 {
   box-shadow: 0 0 0 3px rgba(2, 177, 238, .15);
 }
 
-/* Campo somente leitura com mesmo look */
+
 #diarista-modal #f-matriz[readonly] {
   background: #f6f9ff;
   color: #2b3355;
 }
 
-/* Lista de Nomes + ID GROOT também usa .form-grid */
+
 #diarista-modal .names-list {
-  display: grid;                         /* garante grid, caso não venha do HTML */
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin: 12px 0;
@@ -2426,7 +2429,7 @@ h3 {
   padding-right: 6px;
 }
 
-/* Scrollbar discreto */
+
 #diarista-modal .names-list::-webkit-scrollbar { width: 6px; }
 #diarista-modal .names-list::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, .2);
@@ -2434,7 +2437,7 @@ h3 {
 }
 #diarista-modal .names-list::-webkit-scrollbar-track { background: transparent; }
 
-/* Ações (botões) no padrão Colaboradores */
+
 #diarista-modal .form-actions {
   margin-top: 10px;
   display: flex;
@@ -2485,7 +2488,7 @@ h3 {
     color: #333;
     font-size: 12px;
     cursor: pointer;
-    min-width: 150px; /* Adicionado para um tamanho mínimo */
+    min-width: 150px;
 }
 
 .gerencial-filters button {
@@ -2497,7 +2500,7 @@ h3 {
     cursor: pointer;
     transition: all .2s ease;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
-    background-color: #6c757d; /* Cor cinza do botão "Limpar" */
+    background-color: #6c757d;
     color: #fff;
 }
 
@@ -2506,3 +2509,7 @@ h3 {
     transform: translateY(-2px);
 }
 
+#colaboradores-tbody tr.selecionado td {
+    background-color: #dcfce7;
+    font-weight: bold;
+}

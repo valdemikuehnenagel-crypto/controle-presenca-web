@@ -1,18 +1,21 @@
+<script src="https://cdn.jsdelivr.net/npm/davidshimjs-qrcodejs@0.0.2/qrcode.min.js"></script>
+
 <section id="tab-colaboradores" class="tab-panel active flex flex-col flex-grow min-h-0">
 
     <style>
         #tab-colaboradores .controls {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
             padding: 1rem;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
         }
 
         #tab-colaboradores #search-input {
             flex-grow: 1;
             flex-shrink: 1;
             min-width: 150px;
+            max-width: 350px;
         }
 
         #tab-colaboradores .filters,
@@ -33,28 +36,62 @@
         #tab-colaboradores .button-group {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+        }
+
+
+        #tab-colaboradores .filters select {
+            max-width: 120px;
+        }
+
+
+        #tab-colaboradores #limpar-filtros-btn {
+            width: 18px;
+            padding: 0;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        #colaboradores-tbody tr. {
+            background-color: #dbeafe;
+            font-weight: bold;
         }
     </style>
 
     <div class="controls">
-        <input type="search" id="search-input" placeholder="Pesquisar por Nome, CPF, ID GROOT, LDAP..."/>
+        <input type="search" id="search-input" placeholder="Pesquisar..."/>
 
         <div class="filters">
-            <select id="filter-contrato" data-filter-key="Contrato"><option value="">Contrato</option></select>
-            <select id="filter-cargo" data-filter-key="Cargo"><option value="">Cargo</option></select>
-            <select id="filter-escala" data-filter-key="Escala"><option value="">Escala</option></select>
-            <select id="filter-dsr" data-filter-key="DSR"><option value="">DSR</option></select>
-            <select id="filter-matriz" data-filter-key="MATRIZ"><option value="">Matriz</option></select>
-            <select id="filter-svc" data-filter-key="SVC"><option value="">SVC</option></select>
-            <select id="filter-folga-especial" data-filter-key="FOLGA ESPECIAL"><option value="">Folga Especial</option></select>
+            <select id="filter-contrato" data-filter-key="Contrato">
+                <option value="">Contrato</option>
+            </select>
+            <select id="filter-cargo" data-filter-key="Cargo">
+                <option value="">Cargo</option>
+            </select>
+            <select id="filter-escala" data-filter-key="Escala">
+                <option value="">Escala</option>
+            </select>
+            <select id="filter-dsr" data-filter-key="DSR">
+                <option value="">DSR</option>
+            </select>
+            <select id="filter-matriz" data-filter-key="MATRIZ">
+                <option value="">Matriz</option>
+            </select>
+            <select id="filter-svc" data-filter-key="SVC">
+                <option value="">SVC</option>
+            </select>
+            <select id="filter-folga-especial" data-filter-key="FOLGA ESPECIAL">
+                <option value="">Folga Especial</option>
+            </select>
         </div>
 
-        <button id="limpar-filtros-btn">Limpar</button>
+        <button id="limpar-filtros-btn">X</button>
 
         <div class="button-group">
             <button id="add-colaborador-btn" class="btn-add">Adicionar Colaborador</button>
             <button id="export-colaboradores-btn">Exportar Dados</button>
+
+            <button id="gerar-qr-btn">Gerar QR</button>
         </div>
     </div>
 
@@ -74,7 +111,8 @@
                 <th>F. Especial</th>
             </tr>
             </thead>
-            <tbody id="colaboradores-tbody"></tbody>
+            <tbody id="colaboradores-tbody">
+            </tbody>
         </table>
     </div>
 
