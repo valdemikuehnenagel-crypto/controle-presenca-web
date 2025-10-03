@@ -65,71 +65,89 @@ async function pageAll(buildQuery, pageSize = 1000) {
 }
 
 
+async function fetchAllWithPagination(queryBuilder) {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let moreData = true;
+
+    while (moreData) {
+        const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            page++;
+        } else {
+            moreData = false;
+        }
+    }
+    return allData;
+}
+
 async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
     const variantes = [dia, NORM(dia)];
 
-    let matrizesPermitidas = await Promise.resolve(getMatrizesPermitidas());
-    if (Array.isArray(matrizesPermitidas)) {
-        matrizesPermitidas = matrizesPermitidas.map(s => String(s || '').trim()).filter(Boolean);
-        if (matrizesPermitidas.length === 0) matrizesPermitidas = null;
-    } else {
+    let matrizesPermitidas = getMatrizesPermitidas();
+    if (Array.isArray(matrizesPermitidas) && matrizesPermitidas.length === 0) {
         matrizesPermitidas = null;
     }
 
-    const {data: cols, error} = await pageAll(() => {
-        let q = supabase
-            .from('Colaboradores')
-            .select('Nome, Escala, DSR, Ferias, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo')
-            .eq('Ativo', 'SIM');
+    let q = supabase
+        .from('Colaboradores')
+        .select('Nome, Escala, DSR, Ferias, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo')
+        .eq('Ativo', 'SIM');
 
-        if (!turno || turno === 'GERAL') {
-            q = q.in('Escala', ['T1', 'T2', 'T3']);
-        } else {
-            q = q.eq('Escala', turno);
-        }
+    if (!turno || turno === 'GERAL') {
+        q = q.in('Escala', ['T1', 'T2', 'T3']);
+    } else {
+        q = q.eq('Escala', turno);
+    }
 
-        if (matrizesPermitidas && matrizesPermitidas.length) {
-            q = q.in('MATRIZ', matrizesPermitidas);
-        }
+    if (matrizesPermitidas && matrizesPermitidas.length) {
+        q = q.in('MATRIZ', matrizesPermitidas);
+    }
 
-        return q.order('Nome', {ascending: true});
-    });
+    q = q.order('Nome', {ascending: true});
 
-    if (error) throw error;
+    try {
+        const cols = await fetchAllWithPagination(q);
+        const all = cols || [];
 
-    const all = cols || [];
+        const dsrList = all
+            .filter(c => {
+                const dsr = (c.DSR || '').toString().toUpperCase();
+                return variantes.includes(dsr) || variantes.includes(NORM(dsr));
+            })
+            .map(c => c.Nome);
 
-    const dsrList = all
-        .filter(c => {
-            const dsr = (c.DSR || '').toString().toUpperCase();
-            return variantes.includes(dsr) || variantes.includes(NORM(dsr));
-        })
-        .map(c => c.Nome);
+        const elegiveis = all
+            .filter(c => String(c.Ferias || 'NAO').toUpperCase() !== 'SIM')
+            .filter(c => {
+                const dsr = (c.DSR || '').toString().toUpperCase();
+                return !variantes.includes(dsr) && !variantes.includes(NORM(dsr));
+            })
+            .sort((a, b) => collator.compare(a.Nome, b.Nome));
 
-    const elegiveis = all
-        .filter(c => String(c.Ferias || 'NAO').toUpperCase() !== 'SIM')
-        .filter(c => {
-            const dsr = (c.DSR || '').toString().toUpperCase();
-            return !variantes.includes(dsr) && !variantes.includes(NORM(dsr));
-        })
-        .sort((a, b) => collator.compare(a.Nome, b.Nome));
+        return {elegiveis, dsrList};
 
-    return {elegiveis, dsrList};
+    } catch (error) {
+        console.error("Erro ao buscar colaboradores elegíveis com paginação:", error);
+        throw error;
+    }
 }
-
 
 
 async function getMarksFor(dateISO, nomes) {
     if (!nomes.length) return new Map();
-    const {data, error} = await pageAll(() =>
-        supabase
-            .from('ControleDiario')
-            .select('Nome, "Presença", Falta, Atestado, "Folga Especial", Suspensao, Feriado')
-            .eq('Data', dateISO)
-            .in('Nome', nomes)
-            .order('Nome', {ascending: true})
-    );
+
+    const {data, error} = await supabase
+        .rpc('get_marcas_para_nomes', {
+            nomes: nomes,
+            data_consulta: dateISO
+        });
+
     if (error) throw error;
 
     const map = new Map();
@@ -176,7 +194,6 @@ async function fetchList(turno, dateISO) {
 
     return {list, meta: {dsrList}};
 }
-
 
 
 async function upsertMarcacao({nome, turno, dateISO, tipo}) {
@@ -375,17 +392,17 @@ function applyFilters(list) {
 }
 
 function buildFilterOptions(list) {
-    const gestores  = uniqSorted(list.map(x => (x.Gestor   || '').trim()).filter(Boolean));
-    const cargos    = uniqSorted(list.map(x => (x.Cargo    || '').trim()).filter(Boolean));
+    const gestores = uniqSorted(list.map(x => (x.Gestor || '').trim()).filter(Boolean));
+    const cargos = uniqSorted(list.map(x => (x.Cargo || '').trim()).filter(Boolean));
     const contratos = uniqSorted(list.map(x => (x.Contrato || '').trim()).filter(Boolean));
-    const svcs      = uniqSorted(list.map(x => (x.SVC      || '').trim()).filter(Boolean));
-    const matrizes  = uniqSorted(list.map(x => getMatriz(x)).filter(Boolean));
+    const svcs = uniqSorted(list.map(x => (x.SVC || '').trim()).filter(Boolean));
+    const matrizes = uniqSorted(list.map(x => getMatriz(x)).filter(Boolean));
 
-    fill(ui.selGestor,   gestores,  'Gestor');
-    fill(ui.selCargo,    cargos,    'Cargo');
+    fill(ui.selGestor, gestores, 'Gestor');
+    fill(ui.selCargo, cargos, 'Cargo');
     fill(ui.selContrato, contratos, 'Contrato');
-    fill(ui.selSVC,      svcs,      'SVC');
-    fill(ui.selMatriz,   matrizes,  'Matriz');
+    fill(ui.selSVC, svcs, 'SVC');
+    fill(ui.selMatriz, matrizes, 'Matriz');
 }
 
 function fill(sel, values, placeholder) {
@@ -395,7 +412,6 @@ function fill(sel, values, placeholder) {
         values.map(v => `<option value="${v}">${v}</option>`).join('');
     sel.value = values.includes(prev) ? prev : '';
 }
-
 
 
 async function renderRows(list) {

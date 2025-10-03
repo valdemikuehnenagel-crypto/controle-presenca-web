@@ -165,8 +165,28 @@ function persistFilters() {
     window.dispatchEvent(new CustomEvent('hc-filters-changed', {detail: {..._filters}}));
 }
 
-async function buildHCWeekly() {
 
+async function fetchAllWithPagination(queryBuilder) {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let moreData = true;
+
+    while (moreData) {
+        const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            page++;
+        } else {
+            moreData = false;
+        }
+    }
+    return allData;
+}
+
+
+async function buildHCWeekly() {
     const matrizesPermitidas = getMatrizesPermitidas();
 
     let query = supabase
@@ -177,13 +197,15 @@ async function buildHCWeekly() {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
 
-    const {data, error} = await query;
-    if (error) throw error;
-
-    _allColabsCache = data || [];
-    populateFilterSelects(_allColabsCache);
-    renderWeeklyTables(_allColabsCache);
-    pushFiltersToSubtabs();
+    try {
+        const data = await fetchAllWithPagination(query);
+        _allColabsCache = data || [];
+        populateFilterSelects(_allColabsCache);
+        renderWeeklyTables(_allColabsCache);
+        pushFiltersToSubtabs();
+    } catch (error) {
+        console.error("Erro ao construir HC Weekly:", error);
+    }
 }
 
 async function ensureDiarioDOM() {

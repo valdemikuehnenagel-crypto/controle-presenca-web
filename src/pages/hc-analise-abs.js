@@ -128,16 +128,16 @@ import {supabase} from '../supabaseClient.js';
             const overlay = document.createElement('div');
             overlay.id = 'abs-period-overlay';
             overlay.innerHTML = `<div>
-                <h3>Selecionar Período</h3>
-                <div class="dates-grid">
-                  <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
-                  <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
-                </div>
-                <div class="form-actions">
-                  <button id="abs-period-cancel" class="btn">Cancelar</button>
-                  <button id="abs-period-apply" class="btn-add">Aplicar</button>
-                </div>
-            </div>`;
+                    <h3>Selecionar Período</h3>
+                    <div class="dates-grid">
+                      <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
+                      <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
+                    </div>
+                    <div class="form-actions">
+                      <button id="abs-period-cancel" class="btn">Cancelar</button>
+                      <button id="abs-period-apply" class="btn-add">Aplicar</button>
+                    </div>
+                </div>`;
             document.body.appendChild(overlay);
 
             const close = () => overlay.remove();
@@ -163,29 +163,29 @@ import {supabase} from '../supabaseClient.js';
         const host = document.querySelector(HOST_SEL);
         if (!host.querySelector('.hcabs-root')) {
             host.innerHTML = `<div class="hcabs-root">
-          <div class="abs-toolbar"></div>
-          <div class="hcabs-grid">
-            
-            <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
-            <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
-            
-            <div class="hcabs-card hcabs-card--full">
-              <div class="hcabs-doughnut-container">
-                <div class="hcabs-doughnut-item"><h3>Dia da Semana (%)</h3><canvas id="abs-dow-doughnut"></canvas></div>
-                <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
-                <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
+              <div class="abs-toolbar"></div>
+              <div class="hcabs-grid">
+                
+                <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
+                <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
+                
+                <div class="hcabs-card hcabs-card--full">
+                  <div class="hcabs-doughnut-container">
+                    <div class="hcabs-doughnut-item"><h3>Dia da Semana (%)</h3><canvas id="abs-dow-doughnut"></canvas></div>
+                    <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
+                    <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
+                  </div>
+                </div>
+                <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
+                <div class="hcabs-card">
+                  <div class="hcabs-placeholder">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"></path></svg>
+                    <span>Em Construção</span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
-            <div class="hcabs-card">
-              <div class="hcabs-placeholder">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"></path></svg>
-                <span>Em Construção</span>
-              </div>
-            </div>
-          </div>
-          <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
-        </div>`;
+              <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
+            </div>`;
         }
         ensureCanvasWrappers();
         setupPeriodFilter(host);
@@ -238,27 +238,38 @@ import {supabase} from '../supabaseClient.js';
         if (el) el.style.display = f ? 'flex' : 'none';
     }
 
+
+
+
+    async function fetchAllWithPagination(queryBuilder) {
+        let allData = [];
+        let page = 0;
+        const pageSize = 1000;
+        let moreData = true;
+
+        while (moreData) {
+            const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
+            if (error) throw error;
+            if (data && data.length > 0) {
+                allData = allData.concat(data);
+                page++;
+            } else {
+                moreData = false;
+            }
+        }
+        return allData;
+    }
+
+
     async function refresh() {
         if (state.loading) return;
         state.loading = true;
         showBusy(true);
-        const fetchAllPaginated = async (queryBuilder) => {
-            let all = [];
-            let page = 0;
-            const pageSize = 1000;
-            let keep = true;
-            while (keep) {
-                const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
-                if (error) throw error;
-                if (data) all = all.concat(data);
-                if (!data || data.length < pageSize) keep = false;
-                page++;
-            }
-            return all;
-        };
+
         try {
             ensureMounted();
             await ensureChartLib();
+
             const toISO = d => d.toISOString().split('T')[0];
             let startDate, endDate;
             if (state.inicioISO && state.fimISO) {
@@ -272,29 +283,46 @@ import {supabase} from '../supabaseClient.js';
                 state.inicioISO = startDate;
                 state.fimISO = endDate;
             }
+
             const matrizesPermitidas = getMatrizesPermitidas();
             let colabQuery = supabase.from('Colaboradores').select('Nome, Genero, Contrato, "Data de nascimento"').eq('Ativo', 'SIM');
             if (matrizesPermitidas) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
             if (state.matriz) colabQuery = colabQuery.eq('MATRIZ', state.matriz);
             if (state.svc) colabQuery = colabQuery.eq('SVC', state.svc);
-            const colabs = await fetchAllPaginated(colabQuery);
+
+            const colabs = await fetchAllWithPagination(colabQuery);
+
             if (!colabs || colabs.length === 0) {
                 state.absenteeismData = [];
                 ensureChartsCreated();
                 applyFiltersAndUpdate();
+
+                state.loading = false;
+                showBusy(false);
                 return;
             }
+
             const colabMap = new Map();
             colabs.forEach(c => colabMap.set(norm(c.Nome), c));
-            let diarioQuery = supabase.from('ControleDiario').select('Nome, Data').in('Nome', colabs.map(c => c.Nome)).or('Falta.eq.1,Atestado.eq.1').gte('Data', startDate).lte('Data', endDate);
-            const diario = await fetchAllPaginated(diarioQuery);
+
+            const {data: diario, error: diarioError} = await supabase
+                .rpc('get_abs_para_analise', {
+                    nomes: colabs.map(c => c.Nome),
+                    data_inicio: startDate,
+                    data_fim: endDate
+                });
+
+            if (diarioError) throw diarioError;
+
             state.absenteeismData = diario.map(record => ({
                 ...record,
                 colaborador: colabMap.get(norm(record.Nome)) || {}
             })).filter(d => d.colaborador && d.colaborador.Nome);
+
             ensureChartsCreated();
             state.interactiveFilters = {week: null, gender: null, contract: null, dow: null, age: null};
             applyFiltersAndUpdate();
+
         } catch (e) {
             console.error('Análise ABS erro', e);
             alert('Falha ao carregar Análise de Absenteísmo. Veja o console.');
@@ -520,13 +548,20 @@ import {supabase} from '../supabaseClient.js';
     };
     window.buildHCAnaliseABS.resetState = resetState;
 
-    window.destroyHCAnaliseABS = function() {
+    window.destroyHCAnaliseABS = function () {
         if (state.mounted) {
             console.log('Destruindo estado da Análise ABS.');
             Object.values(state.charts).forEach(chart => chart?.destroy());
 
             state.mounted = false;
-            state.charts = {totalPorWeek: null, totalPorMes: null, diaDaSemana: null, genero: null, contrato: null, faixaEtaria: null};
+            state.charts = {
+                totalPorWeek: null,
+                totalPorMes: null,
+                diaDaSemana: null,
+                genero: null,
+                contrato: null,
+                faixaEtaria: null
+            };
         }
     };
 })();

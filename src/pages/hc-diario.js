@@ -173,18 +173,16 @@ async function fetchFeriasRange(startISO, endISO) {
     if (!nomesPermitidos.length) return [];
 
     const {data, error} = await supabase
-        .from('Ferias')
-        .select('*')
-        .in('Nome', nomesPermitidos)
-        .lte('Data Inicio', endISO)
-        .gte('Data Final', startISO)
-        .order('Numero', {ascending: false});
+        .rpc('get_ferias_no_intervalo', {
+            nomes: nomesPermitidos,
+            data_inicio: startISO,
+            data_fim: endISO
+        });
 
     if (error) throw error;
     return Array.isArray(data) ? data : [];
 }
 
-/** Busca Desligados para QUALQUER intervalo pela data de desligamento */
 async function fetchDesligadosRange(startISO, endISO) {
     const matrizesPermitidas = getMatrizesPermitidas();
 

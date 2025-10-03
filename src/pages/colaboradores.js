@@ -34,6 +34,32 @@ let feriasModal, feriasForm, feriasNomeEl, feriasInicioEl, feriasFinalEl, ferias
 let feriasColaborador = null;
 let isSubmittingFerias = false;
 
+
+async function fetchAllWithPagination(queryBuilder) {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000; // O limite padrão do Supabase
+    let moreData = true;
+
+    while (moreData) {
+        const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+            console.error("Erro na paginação:", error);
+            throw error; // Interrompe o processo se houver erro
+        }
+
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            page++;
+        } else {
+            moreData = false; // Para o loop se não houver mais dados
+        }
+    }
+    return allData;
+}
+
+
 function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
@@ -316,6 +342,7 @@ function applyFiltersAndSearch() {
     updateDisplay();
 }
 
+
 async function fetchColaboradores() {
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">Carregando...</td></tr>';
@@ -332,9 +359,10 @@ async function fetchColaboradores() {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
 
-    const {data, error} = await query;
-
-    if (error) {
+    try {
+        const data = await fetchAllWithPagination(query);
+        state.colaboradoresData = data || [];
+    } catch (error) {
         console.error('Erro ao carregar colaboradores:', error);
         if (colaboradoresTbody) {
             colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4 text-red-500">Erro ao carregar dados.</td></tr>';
@@ -342,18 +370,13 @@ async function fetchColaboradores() {
         return;
     }
 
-    state.colaboradoresData = data || [];
-
     try {
         const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
 
         if (nomes.length > 0) {
             const {data: feriasAtivas, error: ferErr} = await supabase
-                .from('Ferias')
-                .select('Nome, Status, "Dias para finalizar"')
-                .in('Nome', nomes)
-                .eq('Status', 'Em andamento');
+                .rpc('get_ferias_status_para_nomes', {nomes: nomes});
 
             if (ferErr) {
                 console.warn('Falha ao buscar férias ativas:', ferErr);
@@ -368,7 +391,6 @@ async function fetchColaboradores() {
         console.warn('Erro ao montar feriasAtivasMap:', e);
         state.feriasAtivasMap = new Map();
     }
-
 
     populateFilters();
     applyFiltersAndSearch();
