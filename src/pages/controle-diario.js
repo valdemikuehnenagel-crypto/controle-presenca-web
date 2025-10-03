@@ -177,6 +177,8 @@ async function fetchList(turno, dateISO) {
     return {list, meta: {dsrList}};
 }
 
+
+
 async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
     const setOne = {...zeros};
@@ -188,12 +190,15 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1;
     else throw new Error('Tipo inválido.');
 
-    let turnoToUse = turno;
-    if (!turnoToUse || turnoToUse === 'GERAL') {
-        const {data: c, error: e} = await supabase.from('Colaboradores').select('Escala').eq('Nome', nome).limit(1);
-        if (e) throw e;
-        turnoToUse = c && c[0] ? (c[0].Escala || null) : null;
-    }
+
+    const {data: colabInfo, error: colabErr} = await supabase
+        .from('Colaboradores')
+        .select('Escala, SVC, MATRIZ')
+        .eq('Nome', nome)
+        .single();
+    if (colabErr) throw colabErr;
+
+    const turnoToUse = turno || colabInfo.Escala || null;
 
     const {data: existing, error: findErr} = await supabase
         .from('ControleDiario')
@@ -225,20 +230,33 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
 
     try {
         if (window.absSyncForRow) {
+
+            console.log('Enviando para absSyncForRow:', {
+                Nome: nome,
+                Data: dateISO,
+                Falta: setOne['Falta'] || 0,
+                Atestado: setOne['Atestado'] || 0,
+
+                Escala: turnoToUse,
+                SVC: colabInfo.SVC,
+                MATRIZ: colabInfo.MATRIZ
+            });
+
             await window.absSyncForRow({
                 Nome: nome,
                 Data: dateISO,
-                Turno: turnoToUse,
                 Falta: setOne['Falta'] || 0,
-                Atestado: setOne['Atestado'] || 0
+                Atestado: setOne['Atestado'] || 0,
 
+                Escala: turnoToUse,
+                SVC: colabInfo.SVC,
+                MATRIZ: colabInfo.MATRIZ
             });
         }
     } catch (e) {
         console.warn('ABS sync (row) falhou:', e);
     }
 }
-
 
 async function deleteMarcacao({nome, dateISO}) {
     const {error} = await supabase

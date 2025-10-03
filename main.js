@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
         import.meta.env.VITE_SUPABASE_KEY
     );
 
-    // --- Elementos da Interface ---
+
     const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
     const showLoginBtn = document.getElementById('showLoginBtn');
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = '/dashboard.html';
     }
 
-    // 2. Evento de clique no botão "Entrar" (continua funcionando)
+
     if (loginForm) {
         loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -67,16 +67,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. NOVO: Evento de input para login automático
+
     if (pinLogin) {
         pinLogin.addEventListener('input', () => {
-            // Limpa mensagens de erro/info se o usuário estiver corrigindo o PIN
+
             if (pinLogin.value.length < 6) {
                 loginMsg.textContent = '';
                 loginMsg.classList.remove('info');
             }
 
-            // Se o PIN atingir 6 dígitos, dispara a verificação
+
             if (pinLogin.value.length === 6) {
                 verifyPin(pinLogin.value);
             }
@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Lógica do Botão "Esqueci meu pin" ---
+
     if (forgotPinBtn) {
         forgotPinBtn.addEventListener('click', () => {
             loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com';
@@ -93,13 +93,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Lógica do Formulário de Registro (MODIFICADO) ---
+
     const registerForm = document.getElementById('registerForm');
-    // NOVO: Adiciona os novos campos do formulário
+
     const registerName = document.getElementById('registerName');
     const registerEmail = document.getElementById('registerEmail');
     const registerMatriz = document.getElementById('registerMatriz');
-    const registerFuncao = document.getElementById('registerFuncao'); // NOVO
+    const registerFuncao = document.getElementById('registerFuncao');
     const registerPin = document.getElementById('registerPin');
     const registerMsg = document.getElementById('registerMsg');
 
@@ -156,32 +156,32 @@ document.addEventListener('DOMContentLoaded', () => {
             registerMsg.textContent = 'Enviando...';
             registerMsg.classList.remove('error');
 
-            // MODIFICADO: Captura os valores dos novos campos
+
             const userData = {
                 nome: registerName.value,
                 email: registerEmail.value,
                 matriz: registerMatriz.value,
-                funcao: registerFuncao.value, // NOVO
+                funcao: registerFuncao.value,
                 pin: registerPin.value,
             };
 
-            // MODIFICADO: Atualiza a validação para incluir os novos campos
+
             if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao || !/^\d{6}$/.test(userData.pin)) {
                 registerMsg.classList.add('error');
                 registerMsg.textContent = 'Todos os campos são obrigatórios.';
                 return;
             }
 
-            // MODIFICADO: O objeto de inserção agora inclui Nome e Tipo
+
             const {error} = await supabase
                 .from('Logins')
                 .insert({
                     PIN: userData.pin,
-                    Nome: userData.nome, // NOVO: Mapeia para a coluna "Nome"
+                    Nome: userData.nome,
                     Usuario: userData.email.toLowerCase(),
                     Matriz: userData.matriz,
-                    Tipo: userData.funcao, // NOVO: Mapeia para a coluna "Tipo"
-                    Nivel: 'Usuario', // Mantém um nível padrão, se necessário
+                    Tipo: userData.funcao,
+                    Nivel: 'Usuario',
                     Aprovacao: 'PENDENTE'
                 });
 

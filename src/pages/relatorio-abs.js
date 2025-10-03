@@ -55,12 +55,6 @@ import {supabase} from '../supabaseClient.js';
         return toISO(s);
     }
 
-    function addDaysISO(iso, n) {
-        var p = parseAnyDateToISO(iso).split('-').map(Number);
-        var dt = new Date(p[0], p[1] - 1, p[2] + n);
-        return toISO(dt);
-    }
-
     function fmtBR(iso) {
         if (!iso) return '';
         var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -94,15 +88,6 @@ import {supabase} from '../supabaseClient.js';
 
     function stripAccents(s) {
         return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    }
-
-    function maxISODate(rows) {
-        var mx = '';
-        (rows || []).forEach(function (r) {
-            var d = parseAnyDateToISO(r && r.Data);
-            if (d && d > mx) mx = d;
-        });
-        return mx;
     }
 
     function defaultLast3Months() {
@@ -139,79 +124,6 @@ import {supabase} from '../supabaseClient.js';
         return _colabIdx;
     }
 
-    function computeAbsenteismo(row) {
-        var falta = Number(row && row.Falta || 0) > 0;
-        var atest = Number(row && row.Atestado || 0) > 0;
-        if (atest) return 'Atestado';
-        if (falta) return 'Injustificado';
-        return null;
-    }
-
-    async function syncABSForRow(row) {
-        var nome = String(row && row.Nome || '').trim();
-        if (!nome) return;
-        var dataISO = parseAnyDateToISO(row && row.Data);
-        if (!dataISO) return;
-
-        var abs = computeAbsenteismo(row);
-
-        if (!abs) {
-            await supabase.from('RelatorioABS').delete().eq('Nome', nome).eq('Data', dataISO);
-            return;
-        }
-
-        var idx = await getColabIndex();
-        var extra = idx.get(nome) || {};
-        var escalaRow = row ? (row.Turno || row.Escala || '') : '';
-        var base = {
-            Nome: nome,
-            Data: dataISO,
-            Absenteismo: abs,
-            Escala: (extra.Escala != null ? extra.Escala : String(escalaRow).toUpperCase()) || null,
-            Entrevista: null,
-            Acao: null,
-            Observacao: null,
-            CID: null,
-            SVC: (extra.SVC != null ? extra.SVC : null),
-            MATRIZ: (extra.MATRIZ != null ? extra.MATRIZ : null)
-        };
-
-        var f = await supabase.from('RelatorioABS').select('id').eq('Nome', base.Nome).eq('Data', base.Data).maybeSingle();
-        if (f.error) throw f.error;
-
-        if (f.data) {
-            var u = await supabase.from('RelatorioABS').update(base).eq('id', f.data.id);
-            if (u.error) throw u.error;
-        } else {
-            var ins = await supabase.from('RelatorioABS').insert(base);
-            if (ins.error) throw ins.error;
-        }
-    }
-
-    async function syncABSBatch(rows) {
-        rows = Array.isArray(rows) ? rows : [];
-        for (var i = 0; i < rows.length; i++) {
-            await syncABSForRow(rows[i]);
-        }
-    }
-
-    async function backfillABSPeriod(inicioISO, fimISO) {
-        var sISO = parseAnyDateToISO(inicioISO);
-        var eISO = parseAnyDateToISO(fimISO);
-        var q = await supabase
-            .from('ControleDiario')
-            .select('Nome, Data, Turno, Falta, Atestado')
-            .gte('Data', sISO)
-            .lte('Data', eISO)
-            .or('Falta.gt.0,Atestado.gt.0');
-
-        if (q.error) throw q.error;
-        await syncABSBatch(q.data || []);
-    }
-
-    window.absSyncForRow = syncABSForRow;
-    window.absSyncBatch = syncABSBatch;
-    window.absBackfillABS = backfillABSPeriod;
 
     window.addEventListener('hc-filters-changed', function (ev) {
         var f = ev && ev.detail ? ev.detail : {};
@@ -289,19 +201,15 @@ import {supabase} from '../supabaseClient.js';
             '      <tr>' +
             '        <th style="min-width:220px;text-align:left;">Nome</th>' +
             '        <th>Data</th>' +
-            '        <th>Abs</th>' +
+            '        <th>Absenteísmo</th>' +
             '        <th>Escala</th>' +
             '        <th>Entrevista</th>' +
             '        <th>Ação</th>' +
-
             '        <th>CID</th>' +
-
             '        <th>MATRIZ</th>' +
             '      </tr>' +
             '    </thead>' +
-            '    <tbody id="abs-tbody">' +
-
-            '    </tbody>' +
+            '    <tbody id="abs-tbody"></tbody>' +
             '  </table>' +
             '</div>';
 
@@ -321,7 +229,6 @@ import {supabase} from '../supabaseClient.js';
         });
         if (elEscala) elEscala.addEventListener('change', function () {
             state.escala = elEscala.value;
-            state.paging.offset = 0;
             fetchAndRender();
         });
 
@@ -361,13 +268,6 @@ import {supabase} from '../supabaseClient.js';
         watchActivation();
     }
 
-
-    function updateDebug(txt) {
-        if (!state.showDebug) return;
-        var el = document.getElementById('abs-debug');
-        if (el) el.textContent = txt;
-    }
-
     function updatePeriodButton() {
         var b = document.getElementById('abs-period');
         if (!b) return;
@@ -389,125 +289,61 @@ import {supabase} from '../supabaseClient.js';
         try {
             const colabIndex = await getColabIndex();
 
-
-            const {data: allAbsRows, error} = await supabase
-                .from('RelatorioABS')
-                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID')
+            let query = supabase
+                .from('ControleDiario')
+                .select('Numero, Nome, Data, Turno, Falta, Atestado, Entrevista, Acao, Observacao, CID, TipoAtestado')
                 .gte('Data', startISO)
-                .lte('Data', endISO);
+                .lte('Data', endISO)
+                .or('Falta.gt.0,Atestado.gt.0');
 
+            if (state.escala) {
+                query = query.eq('Turno', state.escala);
+            }
+
+            const {data: controleRows, error} = await query;
             if (error) throw error;
 
-            var rows = (allAbsRows || []).filter(function (absRow) {
-                const colabInfo = colabIndex.get(String(absRow.Nome || ''));
-                return colabInfo && norm(colabInfo.Cargo) === 'AUXILIAR';
+            var transformedRows = (controleRows || []).map(function (row) {
+                const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
+                return {
+                    Numero: row.Numero,
+                    Nome: row.Nome,
+                    Data: row.Data,
+                    Absenteismo: row.Atestado > 0 ? 'Justificado' : 'Injustificado',
+                    Escala: row.Turno,
+                    Entrevista: row.Entrevista,
+                    Acao: row.Acao,
+                    Observacao: row.Observacao,
+                    CID: row.CID,
+                    TipoAtestado: row.TipoAtestado,
+                    SVC: colabInfo.SVC || null,
+                    MATRIZ: colabInfo.MATRIZ || null,
+                    Cargo: colabInfo.Cargo || null
+                };
             });
 
-            rows.sort(function (a, b) {
-                return (b.Data || '').localeCompare(a.Data || '') || ((b.id || 0) - (a.id || 0));
-            });
-
-            var filteredRows = (rows || []).filter(function (r) {
-                if (state.escala && String(r.Escala || '') !== state.escala) return false;
+            var filteredRows = transformedRows.filter(function (r) {
+                if (norm(r.Cargo) !== 'AUXILIAR') return false;
                 if (state.svc && norm(r.SVC) !== norm(state.svc)) return false;
                 if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
                 return true;
             });
 
+            filteredRows.sort(function (a, b) {
+                return (b.Data || '').localeCompare(a.Data || '');
+            });
+
             state.rows = filteredRows;
-            state.paging.total = filteredRows.length;
             state.dirty = false;
-
-            updateDebug('período=' + startISO + '..' + endISO + ' | rows=' + filteredRows.length + ' | filtros: escala=' + nice(state.escala) + ', svc=' + nice(state.svc) + ', matriz=' + nice(state.matriz));
-
             renderRows();
-            removeWarn();
+
         } catch (e) {
             console.error('RelatorioABS: fetch erro', e);
             var tb = document.getElementById('abs-tbody');
             if (tb) tb.innerHTML = '<tr><td colspan="8" class="muted">Erro ao carregar. Veja o console.</td></tr>';
-            updateDebug('Erro: ' + (e && e.message ? e.message : e));
             updateCounters([]);
         }
     }
-
-    function addWarn(text) {
-        var bar = document.getElementById('abs-warn');
-        if (!bar) {
-            bar = document.createElement('div');
-            bar.id = 'abs-warn';
-            bar.className = 'muted';
-            bar.style.cssText = 'margin:6px 0;font-size:12px;';
-            var toolbar = document.querySelector('.abs-toolbar');
-            if (toolbar) toolbar.insertAdjacentElement('afterend', bar);
-        }
-        bar.innerHTML = text;
-    }
-
-    function removeWarn() {
-        var el = document.getElementById('abs-warn');
-        if (el) el.remove();
-    }
-
-    async function fetchRelatorioABS_DB(startISO, endISO, applyMode) {
-        try {
-            const matrizesPermitidas = getMatrizesPermitidas();
-
-
-            var q = supabase
-                .from('RelatorioABS')
-                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID', {count: 'exact'})
-                .gte('Data', startISO);
-
-            if (applyMode === 'lt') q = q.lt('Data', endISO);
-            else q = q.lte('Data', endISO);
-
-            if (state.escala) q = q.ilike('Escala', ilikeEq(state.escala));
-            if (state.svc) q = q.ilike('SVC', ilikeEq(state.svc));
-            if (state.matriz) q = q.ilike('MATRIZ', ilikeEq(state.matriz));
-
-            if (matrizesPermitidas !== null) q = q.in('MATRIZ', matrizesPermitidas);
-
-            q = q.order('Data', {ascending: false}).order('id', {ascending: false})
-                .range(state.paging.offset, state.paging.offset + state.paging.limit - 1);
-
-            var r = await q;
-            if (r.error) return {ok: false, error: r.error};
-            var rows = Array.isArray(r.data) ? r.data : [];
-            var total = (typeof r.count === 'number') ? r.count : rows.length;
-            return {ok: true, rows: rows, total: total};
-        } catch (err) {
-            return {ok: false, error: err};
-        }
-    }
-
-    async function fetchRelatorioABS_FALLBACK() {
-        try {
-            const matrizesPermitidas = getMatrizesPermitidas();
-
-
-            var q = supabase
-                .from('RelatorioABS')
-                .select('id, Nome, Data, Absenteismo, Escala, Entrevista, Acao, SVC, MATRIZ, Observacao, CID', {count: 'exact'});
-
-            if (state.escala) q = q.ilike('Escala', ilikeEq(state.escala));
-            if (state.svc) q = q.ilike('SVC', ilikeEq(state.svc));
-            if (state.matriz) q = q.ilike('MATRIZ', ilikeEq(state.matriz));
-
-            if (matrizesPermitidas !== null) q = q.in('MATRIZ', matrizesPermitidas);
-
-            q = q.order('id', {ascending: false}).range(0, state.paging.limit - 1);
-
-            var r = await q;
-            if (r.error) return {ok: false, error: r.error};
-            var rows = Array.isArray(r.data) ? r.data : [];
-            var total = (typeof r.count === 'number') ? r.count : rows.length;
-            return {ok: true, rows: rows, total: total};
-        } catch (err) {
-            return {ok: false, error: err};
-        }
-    }
-
 
     function updateCounters(filtered) {
         var el = document.getElementById('abs-counts');
@@ -522,7 +358,7 @@ import {supabase} from '../supabaseClient.js';
             var abs = String(row.Absenteismo || '').toUpperCase().trim();
 
             if (abs === 'INJUSTIFICADO') injust++;
-            else if (abs === 'JUSTIFICADO' || abs === 'ATESTADO') just++;
+            else if (abs === 'JUSTIFICADO') just++;
 
             var ent = String(row.Entrevista || '').toUpperCase().trim();
             if (ent === 'SIM') entrevistas++;
@@ -552,7 +388,7 @@ import {supabase} from '../supabaseClient.js';
         updateCounters(filtered);
 
         if (!filtered.length) {
-
+            tbody.innerHTML = '<tr><td colspan="8" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
             return;
         }
 
@@ -561,9 +397,9 @@ import {supabase} from '../supabaseClient.js';
             var tr = document.createElement('tr');
             tr.tabIndex = 0;
             tr.className = 'abs-row';
-            tr.dataset.id = row.id == null ? '' : row.id;
+            tr.dataset.id = row.Numero;
 
-            var originalIndex = state.rows.findIndex(r => r.id === row.id);
+            var originalIndex = state.rows.findIndex(r => r.Numero === row.Numero);
             tr.setAttribute('data-idx', String(originalIndex));
 
             tr.innerHTML =
@@ -573,16 +409,13 @@ import {supabase} from '../supabaseClient.js';
                 '<td>' + esc(row.Escala || '') + '</td>' +
                 '<td>' + (String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não') + '</td>' +
                 '<td>' + esc(row.Acao || '') + '</td>' +
-
                 '<td>' + esc(row.CID || '') + '</td>' +
-
                 '<td>' + esc(row.MATRIZ || '') + '</td>';
 
             frag.appendChild(tr);
         });
         tbody.replaceChildren(frag);
     }
-
 
     function openEditModal(row) {
         var overlay = document.createElement('div');
@@ -606,13 +439,12 @@ import {supabase} from '../supabaseClient.js';
         modal.style.maxWidth = '90vw';
         modal.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';
 
-
         modal.innerHTML =
-            '<h3 style="margin:0 0 12px 0;">Atualizar registro</h3>' +
+            '<h3 style="margin:0 0 12px 0;">Atualizar registro de absenteísmo</h3>' +
             '<div class="abs-modal-meta" style="font-size:14px;line-height:1.4;margin-bottom:12px;">' +
             '  <div><strong>Nome:</strong> ' + esc(row.Nome) + '</div>' +
             '  <div><strong>Data:</strong> ' + fmtBR(parseAnyDateToISO(row.Data)) + '</div>' +
-            '  <div><strong>Abs:</strong> ' + esc(row.Absenteismo || '') + '</div>' +
+            '  <div><strong>Absenteísmo:</strong> ' + esc(row.Absenteismo || '') + '</div>' +
             '  <div><strong>Escala:</strong> ' + esc(row.Escala || '') + '</div>' +
             '</div>' +
             '<div class="abs-modal-form" style="display:flex;flex-direction:column;gap:8px;">' +
@@ -621,11 +453,9 @@ import {supabase} from '../supabaseClient.js';
             '    <label><input type="radio" name="abs-entrevista" value="SIM"> Sim</label>' +
             '    <label><input type="radio" name="abs-entrevista" value="NAO"> Não</label>' +
             '  </div>' +
-
             '  <div id="abs-entrevista-details" style="display:none; flex-direction:column; gap:8px; margin-top:6px;">' +
-
             '    <div id="abs-injustificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
-            '      <label>Observação</label>' +
+            '      <label>Observação (Falta Injustificada)</label>' +
             '      <select id="abs-obs-injustificado" class="abs-observacao-select">' +
             '        <option value="">— Selecionar —</option>' +
             '        <option>Falecimento parente</option>' +
@@ -634,26 +464,28 @@ import {supabase} from '../supabaseClient.js';
             '        <option>Problemas pessoais</option>' +
             '      </select>' +
             '    </div>' +
-
             '    <div id="abs-justificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
-            '      <label>Observação</label>' +
-            '      <select id="abs-obs-justificado" class="abs-observacao-select">' +
+            '      <label>Tipo de Atestado</label>' +
+            '      <select id="abs-tipo-atestado">' +
             '        <option value="">— Selecionar —</option>' +
             '        <option>Atestado médico</option>' +
-            '        <option>Acidente</option>' +
-            '        <option>Gravidez</option>' +
+            '        <option>Acidente de trabalho</option>' +
+            '        <option>Licença Maternidade/Paternidade</option>' +
+            '        <option>Outros</option>' +
             '      </select>' +
             '      <div id="abs-cid-container" style="display:none; flex-direction:column; gap:8px;">' +
             '        <label>CID</label>' +
             '        <input type="text" id="abs-cid-input" placeholder="Insira o CID..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
             '      </div>' +
+            '       <label>Observação (Atestado)</label>' +
+            '       <input type="text" id="abs-obs-justificado" placeholder="Observações adicionais..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
             '    </div>' +
             '  </div>' +
             '  <label style="margin-top:6px;">Ação tomada</label>' +
             '  <select id="abs-acao" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">' +
             '    <option value="">— Selecionar —</option>' +
-            '    <option>Advertencial Verbal</option>' +
-            '    <option>Advertencia Escrita</option>' +
+            '    <option>Advertência Verbal</option>' +
+            '    <option>Advertência Escrita</option>' +
             '    <option>Suspensão</option>' +
             '    <option>Afastamento</option>' +
             '    <option>Desligamento</option>' +
@@ -664,23 +496,20 @@ import {supabase} from '../supabaseClient.js';
             '  <button class="btn-add" id="abs-save" style="padding:8px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;">Salvar</button>' +
             '</div>';
 
-
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
-
 
         var radioSim = modal.querySelector('input[value="SIM"]');
         var radioNao = modal.querySelector('input[value="NAO"]');
         var selAcao = modal.querySelector('#abs-acao');
-
         var entrevistaDetails = modal.querySelector('#abs-entrevista-details');
         var injustificadoFields = modal.querySelector('#abs-injustificado-fields');
         var justificadoFields = modal.querySelector('#abs-justificado-fields');
         var selObsInjustificado = modal.querySelector('#abs-obs-injustificado');
-        var selObsJustificado = modal.querySelector('#abs-obs-justificado');
+        var selTipoAtestado = modal.querySelector('#abs-tipo-atestado');
+        var inputObsJustificado = modal.querySelector('#abs-obs-justificado');
         var cidContainer = modal.querySelector('#abs-cid-container');
         var cidInput = modal.querySelector('#abs-cid-input');
-
 
         function toggleConditionalFields() {
             var entrevistaSim = radioSim.checked;
@@ -691,11 +520,10 @@ import {supabase} from '../supabaseClient.js';
                 if (absType === 'INJUSTIFICADO') {
                     injustificadoFields.style.display = 'flex';
                     justificadoFields.style.display = 'none';
-                } else if (absType === 'JUSTIFICADO' || absType === 'ATESTADO') {
+                } else if (absType === 'JUSTIFICADO') {
                     injustificadoFields.style.display = 'none';
                     justificadoFields.style.display = 'flex';
-
-                    cidContainer.style.display = selObsJustificado.value === 'Atestado médico' ? 'flex' : 'none';
+                    cidContainer.style.display = selTipoAtestado.value === 'Atestado médico' ? 'flex' : 'none';
                 } else {
                     injustificadoFields.style.display = 'none';
                     justificadoFields.style.display = 'none';
@@ -707,22 +535,22 @@ import {supabase} from '../supabaseClient.js';
             }
         }
 
-
         radioSim.addEventListener('change', toggleConditionalFields);
         radioNao.addEventListener('change', toggleConditionalFields);
-        selObsJustificado.addEventListener('change', toggleConditionalFields);
+        selTipoAtestado.addEventListener('change', toggleConditionalFields);
 
+        if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true;
+        else radioNao.checked = true;
 
-        if (String(row.Entrevista || '').toUpperCase() === 'SIM') {
-            radioSim.checked = true;
-        } else {
-            radioNao.checked = true;
-        }
         selAcao.value = row.Acao || '';
-        selObsInjustificado.value = row.Observacao || '';
-        selObsJustificado.value = row.Observacao || '';
         cidInput.value = row.CID || '';
 
+        if (row.Absenteismo === 'Justificado') {
+            selTipoAtestado.value = row.TipoAtestado || '';
+            inputObsJustificado.value = row.Observacao || '';
+        } else {
+            selObsInjustificado.value = row.Observacao || '';
+        }
 
         toggleConditionalFields();
 
@@ -734,9 +562,11 @@ import {supabase} from '../supabaseClient.js';
             if (ev.target === overlay) document.body.removeChild(overlay);
         });
 
-
         var btnSave = modal.querySelector('#abs-save');
         if (btnSave) btnSave.addEventListener('click', async function () {
+            btnSave.disabled = true;
+            btnSave.textContent = 'Salvando...';
+
             var entrevista = (modal.querySelector('input[name="abs-entrevista"]:checked') || {}).value || 'NAO';
             var acao = selAcao.value || null;
 
@@ -744,6 +574,7 @@ import {supabase} from '../supabaseClient.js';
                 Entrevista: entrevista,
                 Acao: acao,
                 Observacao: null,
+                TipoAtestado: null,
                 CID: null
             };
 
@@ -751,38 +582,32 @@ import {supabase} from '../supabaseClient.js';
                 var absType = String(row.Absenteismo || '').toUpperCase().trim();
                 if (absType === 'INJUSTIFICADO') {
                     updatePayload.Observacao = selObsInjustificado.value || null;
-                } else if (absType === 'JUSTIFICADO' || absType === 'ATESTADO') {
-                    updatePayload.Observacao = selObsJustificado.value || null;
-                    if (updatePayload.Observacao === 'Atestado médico') {
+                } else if (absType === 'JUSTIFICADO') {
+                    updatePayload.TipoAtestado = selTipoAtestado.value || null;
+                    updatePayload.Observacao = inputObsJustificado.value || null;
+                    if (updatePayload.TipoAtestado === 'Atestado médico') {
                         updatePayload.CID = cidInput.value.trim() || null;
                     }
                 }
             }
 
             try {
-                if (row.id != null && row.id !== '') {
-                    var u = await supabase
-                        .from('RelatorioABS')
-                        .update(updatePayload)
-                        .eq('id', row.id);
-                    if (u.error) throw u.error;
-                } else {
+                const {error} = await supabase
+                    .from('ControleDiario')
+                    .update(updatePayload)
+                    .eq('Numero', row.Numero);
 
-                    updatePayload.Nome = row.Nome;
-                    updatePayload.Data = parseAnyDateToISO(row.Data);
-                    var up = await supabase
-                        .from('RelatorioABS')
-                        .upsert([updatePayload], {onConflict: 'Nome,Data'});
-                    if (up.error) throw up.error;
-                }
+                if (error) throw error;
+
                 await fetchAndRender();
                 document.body.removeChild(overlay);
             } catch (e) {
-                console.error('abs-update erro', e);
-                alert('Falha ao salvar. Veja o console.');
+                console.error('Falha ao atualizar registro no ControleDiario:', e);
+                alert('Falha ao salvar. Verifique o console para mais detalhes.');
+                btnSave.disabled = false;
+                btnSave.textContent = 'Salvar';
             }
         });
-
     }
 
     function openPeriodModal() {
@@ -857,14 +682,15 @@ import {supabase} from '../supabaseClient.js';
                 return {
                     Nome: r.Nome || '',
                     Data: fmtBR(parseAnyDateToISO(r.Data || '')),
-                    Abs: r.Absenteismo || '',
+                    Absenteismo: r.Absenteismo || '',
                     Escala: r.Escala || '',
                     Entrevista: String(r.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não',
                     'Ação': r.Acao || '',
-
+                    'Tipo de Atestado': r.TipoAtestado || '',
+                    'Observação': r.Observacao || '',
                     'CID': r.CID || '',
-
-                    MATRIZ: r.MATRIZ || ''
+                    'MATRIZ': r.MATRIZ || '',
+                    'SVC': r.SVC || ''
                 };
             });
             var keys = Object.keys(csvRows[0] || {});
