@@ -5,7 +5,7 @@ const HOST_SEL = '#hc-diario';
 const PARTIAL_URL = '/pages/hc-diario.html';
 
 const ROWS_ORDER = [
-    'TOTAL QUADRO', 'PRESENTES', 'DSR', 'INJUSTIFICADO', 'JUSTIFICADO',
+    'TOTAL QUADRO', 'PRESENTES', 'CONFERENTES', 'DSR', 'INJUSTIFICADO', 'JUSTIFICADO',
     'FOLGA ESPECIAL', 'FERIADO', 'ADMISSÃO', 'DESLIGAMENTOS', 'FÉRIAS'
 ];
 
@@ -84,6 +84,7 @@ function clampEndToToday(startISO, endISO) {
 }
 
 const onlyActiveAux = arr => (arr || []).filter(c => norm(c.Cargo) === 'AUXILIAR' && norm(c.Ativo || 'SIM') === 'SIM');
+const onlyActiveConf = arr => (arr || []).filter(c => norm(c.Cargo) === 'CONFERENTE' && norm(c.Ativo || 'SIM') === 'SIM');
 
 function canonicalMark(row) {
     if (row?.['Presença'] === 1 || row?.['Presença'] === true) return 'PRESENCA';
@@ -108,6 +109,23 @@ function firstISOFrom(row, keys) {
     return '';
 }
 
+
+async function fetchAllWithPagination(queryBuilder, pageSize = 1000) {
+    let all = [], page = 0, more = true;
+    while (more) {
+        const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+        if (data && data.length) {
+            all = all.concat(data);
+            page++;
+            if (data.length < pageSize) more = false;
+        } else {
+            more = false;
+        }
+    }
+    return all;
+}
+
 async function fetchColabs() {
     const matrizesPermitidas = getMatrizesPermitidas();
 
@@ -115,24 +133,14 @@ async function fetchColabs() {
         .from('Colaboradores')
         .select('Nome, Cargo, MATRIZ, SVC, Escala, DSR, Ativo, "Data de admissão"');
 
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
+    if (_filters.matriz) query = query.eq('MATRIZ', _filters.matriz);
+    if (_filters.svc) query = query.eq('SVC', _filters.svc);
 
-    if (_filters.matriz) {
-        query = query.eq('MATRIZ', _filters.matriz);
-    }
-    if (_filters.svc) {
-        query = query.eq('SVC', _filters.svc);
-    }
-
-    const {data, error} = await query;
-    if (error) throw error;
-
-    _colabs = Array.isArray(data) ? data : [];
+    _colabs = await fetchAllWithPagination(query);
 }
-
 
 async function fetchControleDiario(startISO, endISO) {
     const pageSize = 1000;
@@ -158,14 +166,11 @@ async function fetchControleDiario(startISO, endISO) {
         if (rows.length < pageSize) break;
 
         from += pageSize;
-
-
         if (from > 200000) break;
     }
 
     return all;
 }
-
 
 async function fetchFeriasRange(startISO, endISO) {
     if (!_colabs.length) await fetchColabs();
@@ -202,8 +207,17 @@ async function fetchDesligadosRange(startISO, endISO) {
     return Array.isArray(data) ? data : [];
 }
 
-function byTurnFilter(turno) {
+function byTurnFilterAux(turno) {
     return onlyActiveAux(_colabs).filter(c => {
+        if (norm(c.Escala) !== norm(turno)) return false;
+        if (_filters.matriz && norm(c.MATRIZ) !== norm(_filters.matriz)) return false;
+        if (_filters.svc && norm(c.SVC) !== norm(_filters.svc)) return false;
+        return true;
+    });
+}
+
+function byTurnFilterConf(turno) {
+    return onlyActiveConf(_colabs).filter(c => {
         if (norm(c.Escala) !== norm(turno)) return false;
         if (_filters.matriz && norm(c.MATRIZ) !== norm(_filters.matriz)) return false;
         if (_filters.svc && norm(c.SVC) !== norm(_filters.svc)) return false;
@@ -256,10 +270,15 @@ function sumRowsByDate(a, b, dates) {
 async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksByDate) {
     const rows = {};
     ROWS_ORDER.forEach(k => rows[k] = {});
-    const auxTurno = byTurnFilter(turno);
-    const setAux = new Set(auxTurno.map(c => c.Nome));
 
-    const dsrByDate = {};
+
+    const auxTurno = byTurnFilterAux(turno);
+    const confTurno = byTurnFilterConf(turno);
+    const setAux = new Set(auxTurno.map(c => c.Nome));
+    const setConf = new Set(confTurno.map(c => c.Nome));
+
+
+    const dsrAuxByDate = {};
     for (const d of datesISO) {
         const want = weekdayKey(d);
         let n = 0;
@@ -267,62 +286,87 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
             const k = norm(c.DSR).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');
             if (k === want) n++;
         }
-        dsrByDate[d] = n;
+        dsrAuxByDate[d] = n;
     }
 
+
+    const dsrConfByDate = {};
     for (const d of datesISO) {
-        let pres = 0, fal = 0, ate = 0, fe = 0, fer = 0;
+        const want = weekdayKey(d);
+        let n = 0;
+        for (const c of confTurno) {
+            const k = norm(c.DSR).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');
+            if (k === want) n++;
+        }
+        dsrConfByDate[d] = n;
+    }
+
+
+    for (const d of datesISO) {
+        let presAux = 0, presConf = 0, fal = 0, ate = 0, fe = 0, fer = 0;
+
         const marks = marksByDate.get(d) || [];
         for (const m of marks) {
-            if (!setAux.has(m.Nome)) continue;
-            switch (canonicalMark(m)) {
-                case 'PRESENCA':
-                    pres++;
-                    break;
-                case 'FALTA':
-                    fal++;
-                    break;
-                case 'ATESTADO':
-                    ate++;
-                    break;
-                case 'F_ESPECIAL':
-                    fe++;
-                    break;
-                case 'FERIADO':
-                    fer++;
-                    break;
+            const tipo = canonicalMark(m);
+            if (setAux.has(m.Nome)) {
+                switch (tipo) {
+                    case 'PRESENCA':
+                        presAux++;
+                        break;
+                    case 'FALTA':
+                        fal++;
+                        break;
+                    case 'ATESTADO':
+                        ate++;
+                        break;
+                    case 'F_ESPECIAL':
+                        fe++;
+                        break;
+                    case 'FERIADO':
+                        fer++;
+                        break;
+                }
+            } else if (setConf.has(m.Nome)) {
+                if (tipo === 'PRESENCA') presConf++;
             }
         }
-        const dsr = dsrByDate[d] || 0;
-        const adm = countAdmissoes(setAux, d);
+
+        const dsrAux = dsrAuxByDate[d] || 0;
+        const dsrConf = dsrConfByDate[d] || 0;
+
+        const admAux = countAdmissoes(setAux, d);
 
 
         const nomesEmFeriasHoje = feriasPorDia.get(d) || new Set();
-        let ferias = 0;
-        for (const nome of setAux) {
-            if (nomesEmFeriasHoje.has(nome)) ferias++;
-        }
+        let feriasAux = 0, feriasConf = 0;
+        for (const nome of setAux) if (nomesEmFeriasHoje.has(nome)) feriasAux++;
+        for (const nome of setConf) if (nomesEmFeriasHoje.has(nome)) feriasConf++;
+
 
         const deslig = (desligRows || []).reduce((acc, r) => {
             const iso = firstISOFrom(r, ['Data de Desligamento']);
             return acc + (iso === d && matchFiltersFor(r.Nome, turno, r) ? 1 : 0);
         }, 0);
 
-        const total = pres + dsr + fal + ate + fer + ferias + adm;
+
+        const total = (presAux + dsrAux + fal + ate + fe + fer + feriasAux + admAux + deslig)
+            + (presConf + dsrConf + feriasConf);
 
         rows['TOTAL QUADRO'][d] = total;
-        rows['PRESENTES'][d] = pres;
-        rows['DSR'][d] = dsr;
+        rows['PRESENTES'][d] = presAux;
+        rows['CONFERENTES'][d] = presConf;
+        rows['DSR'][d] = dsrAux;
         rows['INJUSTIFICADO'][d] = fal;
         rows['JUSTIFICADO'][d] = ate;
         rows['FOLGA ESPECIAL'][d] = fe;
         rows['FERIADO'][d] = fer;
-        rows['ADMISSÃO'][d] = adm;
+        rows['ADMISSÃO'][d] = admAux;
         rows['DESLIGAMENTOS'][d] = deslig;
-        rows['FÉRIAS'][d] = ferias;
+        rows['FÉRIAS'][d] = feriasAux;
     }
     return rows;
 }
+
 
 export async function buildHCDiario() {
     if (_building) {
@@ -339,14 +383,12 @@ export async function buildHCDiario() {
     }
 
     try {
-
         if (
             !host.querySelector('#hcd-period-btn') ||
             host.querySelector('#hcd-start')?.style.display !== 'none'
         ) {
             setDefaultMonthRange(host);
         }
-
 
         const prevGlobalM = _filters.matriz;
         const prevGlobalS = _filters.svc;
@@ -360,7 +402,6 @@ export async function buildHCDiario() {
 
         let inicioISO = startEl?.value || _filters.inicioISO;
         let fimISO = endEl?.value || _filters.fimISO;
-
 
         [inicioISO, fimISO] = clampEndToToday(inicioISO, fimISO);
 
@@ -376,14 +417,12 @@ export async function buildHCDiario() {
         if (selM) _filters.matriz = selM.value || '';
         if (selS) _filters.svc = selS.value || '';
 
-
         if (!inicioISO || !fimISO) {
             _building = false;
             return;
         }
 
         const dates = eachDateISO(inicioISO, fimISO);
-
 
         const t1El = host.querySelector('#hcd-t1');
         const t2El = host.querySelector('#hcd-t2');
@@ -407,14 +446,13 @@ export async function buildHCDiario() {
             } catch {
                 _colabs = [];
             }
-
             if (myToken !== _buildToken) return;
         }
 
         const [cdRows, feriasRows, desligRows] = await Promise.all([
             fetchControleDiario(inicioISO, fimISO).catch(() => []),
             fetchFeriasRange(inicioISO, fimISO).catch(() => []),
-            fetchDesligadosRange(inicioISO, fimISO).catch(() => []),
+            fetchDesligadosRange(inicioISO, fimISO).catch(() => [])
         ]);
 
         if (myToken !== _buildToken) return;
@@ -443,14 +481,12 @@ export async function buildHCDiario() {
             }
         }
 
-
         const [r1, r2, r3] = await Promise.all([
             buildTurnoRows('T1', dates, feriasPorDia, desligRows, marksByDate),
             buildTurnoRows('T2', dates, feriasPorDia, desligRows, marksByDate),
-            buildTurnoRows('T3', dates, feriasPorDia, desligRows, marksByDate),
+            buildTurnoRows('T3', dates, feriasPorDia, desligRows, marksByDate)
         ]);
         const g = sumRowsByDate(sumRowsByDate(r1, r2, dates), r3, dates);
-
 
         if (t1El) t1El.innerHTML = tableFromRows('TURNO 1', dates, r1);
         if (t2El) t2El.innerHTML = tableFromRows('TURNO 2', dates, r2);
@@ -467,7 +503,6 @@ export async function buildHCDiario() {
         }
     }
 }
-
 
 function setDefaultMonthRange(host) {
     if (!host) return;
@@ -580,10 +615,8 @@ function setDefaultMonthRange(host) {
                 return;
             }
 
-
             const todayISO = toISODate(new Date());
             if (eVal > todayISO) eVal = todayISO;
-
 
             _filters.inicioISO = sVal;
             _filters.fimISO = eVal;
@@ -656,10 +689,8 @@ window.addEventListener('hc-filters-changed', async (ev) => {
     }
 
     if (!_mounted) {
-
         await ensureHCDiarioMountedOnce();
     } else {
-
         try {
             await fetchColabs();
         } catch {
@@ -668,7 +699,6 @@ window.addEventListener('hc-filters-changed', async (ev) => {
         buildHCDiario();
     }
 });
-
 
 ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'colaborador-added', 'hc-refresh']
     .forEach(evt => window.addEventListener(evt, () => {

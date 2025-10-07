@@ -172,6 +172,8 @@ import {supabase} from '../supabaseClient.js';
         var host = document.querySelector(HOST_SEL);
         if (!host) return;
 
+        if (typeof state.cargo !== 'string') state.cargo = '';
+
         var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
         if (state.mounted && hasTable && !forceEnsure) return;
 
@@ -184,6 +186,11 @@ import {supabase} from '../supabaseClient.js';
             '      <option value="T1">T1</option>' +
             '      <option value="T2">T2</option>' +
             '      <option value="T3">T3</option>' +
+            '    </select>' +
+            '    <select id="abs-filter-cargo">' +
+            '      <option value="">Cargo: Todos</option>' +
+            '      <option value="AUXILIAR">AUXILIAR</option>' +
+            '      <option value="CONFERENTE">CONFERENTE</option>' +
             '    </select>' +
             '    <span id="abs-counts" class="abs-counts" aria-live="polite">' +
             '      Injustificado: 0 <span class="sep">|</span> Justificado: 0 <span class="sep">|</span> ABS Total: 0 <span class="sep">|</span> Entrevistas feitas: 0' +
@@ -203,6 +210,7 @@ import {supabase} from '../supabaseClient.js';
             '        <th>Data</th>' +
             '        <th>Absenteísmo</th>' +
             '        <th>Escala</th>' +
+            '        <th>Cargo</th>' +
             '        <th>Entrevista</th>' +
             '        <th>Ação</th>' +
             '        <th>CID</th>' +
@@ -223,12 +231,18 @@ import {supabase} from '../supabaseClient.js';
 
         var elSearch = document.getElementById('abs-search');
         var elEscala = document.getElementById('abs-filter-escala');
+        var elCargo = document.getElementById('abs-filter-cargo');
+
         if (elSearch) elSearch.addEventListener('input', function () {
             state.search = elSearch.value;
             renderRows();
         });
         if (elEscala) elEscala.addEventListener('change', function () {
             state.escala = elEscala.value;
+            fetchAndRender();
+        });
+        if (elCargo) elCargo.addEventListener('change', function () {
+            state.cargo = elCargo.value;
             fetchAndRender();
         });
 
@@ -268,6 +282,7 @@ import {supabase} from '../supabaseClient.js';
         watchActivation();
     }
 
+
     function updatePeriodButton() {
         var b = document.getElementById('abs-period');
         if (!b) return;
@@ -281,7 +296,7 @@ import {supabase} from '../supabaseClient.js';
             requestAnimationFrame(fetchAndRender);
             return;
         }
-        tbody.innerHTML = '<tr><td colspan="8" class="muted">Carregando…</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="muted">Carregando…</td></tr>';
 
         var startISO = toISO(state.periodo.start);
         var endISO = toISO(state.periodo.end);
@@ -323,7 +338,9 @@ import {supabase} from '../supabaseClient.js';
             });
 
             var filteredRows = transformedRows.filter(function (r) {
-                if (norm(r.Cargo) !== 'AUXILIAR') return false;
+                var cargo = norm(r.Cargo);
+                if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
+                if (state.cargo && cargo !== norm(state.cargo)) return false;
                 if (state.svc && norm(r.SVC) !== norm(state.svc)) return false;
                 if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
                 return true;
@@ -340,10 +357,11 @@ import {supabase} from '../supabaseClient.js';
         } catch (e) {
             console.error('RelatorioABS: fetch erro', e);
             var tb = document.getElementById('abs-tbody');
-            if (tb) tb.innerHTML = '<tr><td colspan="8" class="muted">Erro ao carregar. Veja o console.</td></tr>';
+            if (tb) tb.innerHTML = '<tr><td colspan="9" class="muted">Erro ao carregar. Veja o console.</td></tr>';
             updateCounters([]);
         }
     }
+
 
     function updateCounters(filtered) {
         var el = document.getElementById('abs-counts');
@@ -388,7 +406,7 @@ import {supabase} from '../supabaseClient.js';
         updateCounters(filtered);
 
         if (!filtered.length) {
-            tbody.innerHTML = '<tr><td colspan="8" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
             return;
         }
 
@@ -407,6 +425,7 @@ import {supabase} from '../supabaseClient.js';
                 '<td>' + fmtBR(parseAnyDateToISO(row.Data)) + '</td>' +
                 '<td>' + esc(row.Absenteismo || '') + '</td>' +
                 '<td>' + esc(row.Escala || '') + '</td>' +
+                '<td>' + esc(row.Cargo || '') + '</td>' +
                 '<td>' + (String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não') + '</td>' +
                 '<td>' + esc(row.Acao || '') + '</td>' +
                 '<td>' + esc(row.CID || '') + '</td>' +
@@ -416,6 +435,7 @@ import {supabase} from '../supabaseClient.js';
         });
         tbody.replaceChildren(frag);
     }
+
 
     function openEditModal(row) {
         var overlay = document.createElement('div');
@@ -673,6 +693,7 @@ import {supabase} from '../supabaseClient.js';
                 var nm = stripAccents(String(r.Nome || '')).toLowerCase();
                 return !s || nm.indexOf(s) !== -1;
             });
+
             if (!rows.length) {
                 alert('Nada para exportar com os filtros atuais.');
                 return;
@@ -680,11 +701,12 @@ import {supabase} from '../supabaseClient.js';
 
             var csvRows = rows.map(function (r) {
                 return {
-                    Nome: r.Nome || '',
-                    Data: fmtBR(parseAnyDateToISO(r.Data || '')),
-                    Absenteismo: r.Absenteismo || '',
-                    Escala: r.Escala || '',
-                    Entrevista: String(r.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não',
+                    'Nome': r.Nome || '',
+                    'Data': fmtBR(parseAnyDateToISO(r.Data || '')),
+                    'Absenteismo': r.Absenteismo || '',
+                    'Escala': r.Escala || '',
+                    'Cargo': r.Cargo || '',
+                    'Entrevista': String(r.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não',
                     'Ação': r.Acao || '',
                     'Tipo de Atestado': r.TipoAtestado || '',
                     'Observação': r.Observacao || '',
@@ -693,6 +715,7 @@ import {supabase} from '../supabaseClient.js';
                     'SVC': r.SVC || ''
                 };
             });
+
             var keys = Object.keys(csvRows[0] || {});
 
             function escv(v) {
@@ -701,16 +724,19 @@ import {supabase} from '../supabaseClient.js';
                 return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
             }
 
-            var csv = [keys.join(',')].concat(csvRows.map(function (r) {
+            var header = keys.join(',');
+            var body = csvRows.map(function (r) {
                 return keys.map(function (k) {
                     return escv(r[k]);
                 }).join(',');
-            })).join('\n');
+            }).join('\n');
+            var csv = header + '\n' + body;
+
             var blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
             a.href = url;
-            a.download = 'relatorio_abs_' + toISO(new Date()) + '.csv';
+            a.download = 'relatorio_abs_' + toISO(state.periodo.start) + '_a_' + toISO(state.periodo.end) + '.csv';
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -720,6 +746,7 @@ import {supabase} from '../supabaseClient.js';
             alert('Falha ao exportar. Veja o console.');
         }
     }
+
 
     window.ensureHCRelatorioMountedOnce = function () {
         ensureMounted(true);

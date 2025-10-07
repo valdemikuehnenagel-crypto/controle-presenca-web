@@ -49,22 +49,6 @@ function uniqSorted(arr) {
     return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => collator.compare(a, b));
 }
 
-async function pageAll(buildQuery, pageSize = 1000) {
-    let from = 0, to = pageSize - 1;
-    const out = [];
-    for (; ;) {
-        const q = buildQuery().range(from, to);
-        const {data, error} = await q;
-        if (error) return {error};
-        out.push(...(data || []));
-        if (!data || data.length < pageSize) break;
-        from = to + 1;
-        to = from + pageSize - 1;
-    }
-    return {data: out};
-}
-
-
 async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
@@ -94,9 +78,10 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         matrizesPermitidas = null;
     }
 
+
     let q = supabase
         .from('Colaboradores')
-        .select('Nome, Escala, DSR, Ferias, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo')
+        .select('Nome, Escala, DSR, Ferias, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão"')
         .eq('Ativo', 'SIM');
 
     if (!turno || turno === 'GERAL') {
@@ -122,11 +107,21 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             })
             .map(c => c.Nome);
 
+
         const elegiveis = all
-            .filter(c => String(c.Ferias || 'NAO').toUpperCase() !== 'SIM')
             .filter(c => {
+                const dataAdmissao = c['Data de admissão'];
+
+                if (dataAdmissao && dataAdmissao > dateISO) {
+                    return false;
+                }
+
+
+                const isFerias = String(c.Ferias || 'NAO').toUpperCase() === 'SIM';
                 const dsr = (c.DSR || '').toString().toUpperCase();
-                return !variantes.includes(dsr) && !variantes.includes(NORM(dsr));
+                const isDSR = variantes.includes(dsr) || variantes.includes(NORM(dsr));
+
+                return !isFerias && !isDSR;
             })
             .sort((a, b) => collator.compare(a.Nome, b.Nome));
 
@@ -391,19 +386,93 @@ function applyFilters(list) {
     return list.filter(passFilters).sort((a, b) => collator.compare(a.Nome, b.Nome));
 }
 
-function buildFilterOptions(list) {
-    const gestores = uniqSorted(list.map(x => (x.Gestor || '').trim()).filter(Boolean));
-    const cargos = uniqSorted(list.map(x => (x.Cargo || '').trim()).filter(Boolean));
-    const contratos = uniqSorted(list.map(x => (x.Contrato || '').trim()).filter(Boolean));
-    const svcs = uniqSorted(list.map(x => (x.SVC || '').trim()).filter(Boolean));
-    const matrizes = uniqSorted(list.map(x => getMatriz(x)).filter(Boolean));
+function passFiltersExcept(x, exceptKey) {
+    const f = state.filters;
+    if (f.search && !NORM(x.Nome).includes(NORM(f.search))) return false;
 
-    fill(ui.selGestor, gestores, 'Gestor');
-    fill(ui.selCargo, cargos, 'Cargo');
-    fill(ui.selContrato, contratos, 'Contrato');
-    fill(ui.selSVC, svcs, 'SVC');
-    fill(ui.selMatriz, matrizes, 'Matriz');
+    if (exceptKey !== 'gestor' && f.gestor && (x.Gestor || '') !== f.gestor) return false;
+    if (exceptKey !== 'cargo' && f.cargo && (x.Cargo || '') !== f.cargo) return false;
+    if (exceptKey !== 'contrato' && f.contrato && (x.Contrato || '') !== f.contrato) return false;
+    if (exceptKey !== 'svc' && f.svc && (x.SVC || '') !== f.svc) return false;
+    if (exceptKey !== 'matriz' && f.matriz && getMatriz(x) !== f.matriz) return false;
+
+    return true;
 }
+
+function recomputeOptionsFor(key) {
+
+    const base = state.baseList.filter((x) => passFiltersExcept(x, key));
+
+    let values = [];
+    switch (key) {
+        case 'gestor':
+            values = base.map(x => (x.Gestor || '').trim());
+            break;
+        case 'cargo':
+            values = base.map(x => (x.Cargo || '').trim());
+            break;
+        case 'contrato':
+            values = base.map(x => (x.Contrato || '').trim());
+            break;
+        case 'svc':
+            values = base.map(x => (x.SVC || '').trim());
+            break;
+        case 'matriz':
+            values = base.map(x => getMatriz(x));
+            break;
+        default:
+            values = [];
+    }
+    return uniqSorted(values.filter(Boolean));
+}
+
+function fillPreserving(sel, values, placeholder, current, onInvalid) {
+    if (!sel) return;
+
+
+    sel.innerHTML = `<option value="">${placeholder}</option>` +
+        values.map(v => `<option value="${v}">${v}</option>`).join('');
+
+
+    if (current && values.includes(current)) {
+        sel.value = current;
+    } else {
+        sel.value = '';
+        if (typeof onInvalid === 'function') onInvalid();
+    }
+}
+
+/**
+ * Atualiza TODAS as combos com base no estado atual dos filtros,
+ * aplicando todos os demais filtros + busca (comportamento em cascata).
+ */
+function repopulateFilterOptionsCascade() {
+
+    const cur = {
+        gestor: state.filters.gestor,
+        cargo: state.filters.cargo,
+        contrato: state.filters.contrato,
+        svc: state.filters.svc,
+        matriz: state.filters.matriz,
+    };
+
+
+    const opts = {
+        gestor: recomputeOptionsFor('gestor'),
+        cargo: recomputeOptionsFor('cargo'),
+        contrato: recomputeOptionsFor('contrato'),
+        svc: recomputeOptionsFor('svc'),
+        matriz: recomputeOptionsFor('matriz'),
+    };
+
+
+    fillPreserving(ui.selGestor, opts.gestor, 'Gestor', cur.gestor, () => (state.filters.gestor = ''));
+    fillPreserving(ui.selCargo, opts.cargo, 'Cargo', cur.cargo, () => (state.filters.cargo = ''));
+    fillPreserving(ui.selContrato, opts.contrato, 'Contrato', cur.contrato, () => (state.filters.contrato = ''));
+    fillPreserving(ui.selSVC, opts.svc, 'SVC', cur.svc, () => (state.filters.svc = ''));
+    fillPreserving(ui.selMatriz, opts.matriz, 'Matriz', cur.matriz, () => (state.filters.matriz = ''));
+}
+
 
 function fill(sel, values, placeholder) {
     if (!sel) return;
@@ -584,7 +653,8 @@ async function carregar(full = false) {
         state.meta = {dsrList};
 
 
-        buildFilterOptions(state.baseList);
+        repopulateFilterOptionsCascade();
+
         refresh();
 
     } catch (e) {
@@ -821,26 +891,75 @@ const csvEsc = (v) => {
     return /[;\n"]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-async function exportCSV() {
+async function ensureXLSX() {
+    if (window.XLSX) return;
+    await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
+        document.head.appendChild(s);
+    });
+}
+
+function autoColWidths(headers, rows) {
+    return headers.map(h => {
+        const maxLen = Math.max(
+            String(h).length,
+            ...rows.map(r => String(r[h] ?? '').length)
+        );
+        return {wch: Math.min(Math.max(10, maxLen + 2), 40)};
+    });
+}
+
+/**
+ * Exporta o Controle Diário como XLSX respeitando *todos* os filtros atuais.
+ * Cada linha do Excel = (colaborador filtrado) x (dia no período selecionado).
+ */
+async function exportXLSX() {
     const {start, end} = state.period;
     if (!start || !end) return toast('Selecione o período.', 'info');
 
-    if (!confirm(`Exportar somente AUXILIAR (${start} → ${end})?`)) return;
+    if (!confirm(`Exportar dados filtrados (${start} → ${end}) em XLSX?`)) return;
 
     try {
         showLoading(true);
         ui.exportBtn.disabled = true;
         ui.exportBtn.textContent = 'Exportando…';
 
+        await ensureXLSX();
+
+
+        const HEADERS = [
+            'Nome',
+            'Cargo',
+            'Presença',
+            'Falta',
+            'Atestado',
+            'Folga Especial',
+            'Suspensao',
+            'Feriado',
+            'Data',
+            'Turno',
+            'SVC',
+            'Gestor',
+            'Contrato',
+            'Matriz'
+        ];
+
         const rows = [];
-        rows.push('Nome;Presença;Falta;Atestado;Folga Especial;Suspensao;Feriado;Data;Turno;SVC');
+
 
         for (const dateISO of listDates(start, end)) {
             const {list} = await fetchList(state.turnoAtual, dateISO);
-            const filtered = applyFilters(list);
-            const onlyAux = filtered.filter(x => String(x.Cargo || '').toUpperCase() === 'AUXILIAR');
 
-            for (const x of onlyAux) {
+
+            const filtered = applyFilters(list);
+
+
+            filtered.sort((a, b) => collator.compare(a.Nome, b.Nome));
+
+            for (const x of filtered) {
                 const pres = x.Marcacao === 'PRESENCA' ? 1 : 0;
                 const fal = x.Marcacao === 'FALTA' ? 1 : 0;
                 const ate = x.Marcacao === 'ATESTADO' ? 1 : 0;
@@ -848,23 +967,42 @@ async function exportCSV() {
                 const sus = x.Marcacao === 'SUSPENSAO' ? 1 : 0;
                 const fer = x.Marcacao === 'FERIADO' ? 1 : 0;
 
-                rows.push([
-                    csvEsc(x.Nome), pres, fal, ate, fe, sus, fer, dateISO, csvEsc(x.Escala || ''), csvEsc(x.SVC || '')
-                ].join(';'));
+                rows.push({
+                    'Nome': x.Nome || '',
+                    'Cargo': x.Cargo || '',
+                    'Presença': pres,
+                    'Falta': fal,
+                    'Atestado': ate,
+                    'Folga Especial': fe,
+                    'Suspensao': sus,
+                    'Feriado': fer,
+                    'Data': dateISO,
+                    'Turno': x.Escala || '',
+                    'SVC': x.SVC || '',
+                    'Gestor': x.Gestor || '',
+                    'Contrato': x.Contrato || '',
+                    'Matriz': x.Matriz || ''
+                });
             }
         }
 
-        const csv = rows.join('\n');
-        const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const slug = state.turnoAtual === 'GERAL' ? 'GERAL' : state.turnoAtual;
-        a.href = url;
-        a.download = `controle-diario_${slug}_${start}_a_${end}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        if (rows.length === 0) {
+            toast('Nada para exportar com os filtros atuais.', 'info');
+            return;
+        }
+
+
+        const wb = window.XLSX.utils.book_new();
+        const ws = window.XLSX.utils.json_to_sheet(rows, {header: HEADERS});
+
+
+        ws['!cols'] = autoColWidths(HEADERS, rows);
+
+        window.XLSX.utils.book_append_sheet(wb, ws, 'Controle Diário');
+
+        const slugTurno = state.turnoAtual === 'GERAL' ? 'GERAL' : state.turnoAtual;
+        const fileName = `controle-diario_filtrado_${slugTurno}_${start}_a_${end}.xlsx`;
+        window.XLSX.writeFile(wb, fileName);
 
         toast('Exportação concluída', 'success');
     } catch (e) {
@@ -876,6 +1014,7 @@ async function exportCSV() {
         ui.exportBtn.textContent = 'Exportar dados';
     }
 }
+
 
 function formatDateBR(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
@@ -1042,7 +1181,7 @@ export async function init() {
     ui.tbody.addEventListener('click', onRowClick);
     ui.markAllBtn?.addEventListener('click', marcarTodosPresentes);
     ui.clearAllBtn?.addEventListener('click', limparTodas);
-    ui.exportBtn?.addEventListener('click', exportCSV);
+    ui.exportBtn?.addEventListener('click', exportXLSX);
     ui.periodBtn?.addEventListener('click', openPeriodModal);
     ui.date?.addEventListener('change', () => carregar(true));
 
@@ -1077,10 +1216,17 @@ export async function init() {
 
 
 function refresh() {
+
     state.filtered = applyFilters(state.baseList);
+
+
+    repopulateFilterOptionsCascade();
+
+
     renderRows(state.filtered);
     computeSummary(state.filtered, state.meta);
 }
+
 
 export function destroy() {
 }

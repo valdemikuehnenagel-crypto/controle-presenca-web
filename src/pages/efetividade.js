@@ -55,10 +55,12 @@ async function fetchAllPages(query) {
 }
 
 async function fetchData(startDate, endDate, turno) {
-    const matrizesPermitidas = await getMatrizesPermitidas();
+    const matrizesPermitidas = getMatrizesPermitidas();
+
+    // ***** ALTERAÇÃO 1: Adicionado "Data de admissão" na consulta *****
     let colabQuery = supabase
         .from('Colaboradores')
-        .select('Nome, SVC, DSR, Ferias, MATRIZ, Escala')
+        .select('Nome, SVC, DSR, Ferias, MATRIZ, Escala, "Data de admissão"') // <-- ADICIONADO AQUI
         .eq('Ativo', 'SIM');
 
     if (matrizesPermitidas && matrizesPermitidas.length) {
@@ -98,12 +100,31 @@ function processEfetividade(colaboradores, preenchimentos, dates) {
         results[svc] = {};
         state.detailedResults.set(svc, new Map());
         const colaboradoresSVC = colaboradores.filter(c => c.SVC === svc);
+
         for (const date of dates) {
             let status = 'EMPTY';
-            const elegiveis = colaboradoresSVC.filter(c => (c.Ferias || 'NAO').toUpperCase() !== 'SIM' && (c.DSR || '').toUpperCase() !== weekdayPT(date));
+
+            // ***** ALTERAÇÃO 2: Novo filtro pela data de admissão *****
+            const elegiveis = colaboradoresSVC.filter(c => {
+                const dataAdmissao = c['Data de admissão'];
+
+                // Se a data de admissão não existir ou for depois da data atual do calendário, o colaborador não é elegível
+                if (!dataAdmissao || dataAdmissao > date) {
+                    return false;
+                }
+
+                // Mantém as regras antigas
+                const isFerias = (c.Ferias || 'NAO').toUpperCase() === 'SIM';
+                const isDSR = (c.DSR || '').toUpperCase() === weekdayPT(date);
+
+                return !isFerias && !isDSR;
+            });
+
             const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
             const pendentes = elegiveis.filter(c => !nomesPreenchidos.has((c.Nome || '').trim().toUpperCase()));
+
             state.detailedResults.get(svc).set(date, {elegiveis, pendentes});
+
             if (date <= todayISO) {
                 if (elegiveis.length === 0) {
                     status = 'N/A';
@@ -120,7 +141,6 @@ function processEfetividade(colaboradores, preenchimentos, dates) {
     }
     return {svcs, results};
 }
-
 
 function getStatusClass(status) {
     switch (status) {

@@ -15,7 +15,11 @@ const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 
-const onlyActiveAux = a => (a || []).filter(c => norm(c.Cargo) === 'AUXILIAR' && norm(c.Ativo || 'SIM') === 'SIM');
+
+const isActive = c => norm(c.Ativo || 'SIM') === 'SIM';
+const onlyActiveAux = a => (a || []).filter(c => isActive(c) && norm(c.Cargo) === 'AUXILIAR');
+const onlyActiveConf = a => (a || []).filter(c => isActive(c) && norm(c.Cargo) === 'CONFERENTE');
+
 const splitByTurno = a => ({
     T1: a.filter(c => norm(c.Escala) === 'T1'),
     T2: a.filter(c => norm(c.Escala) === 'T2'),
@@ -37,7 +41,6 @@ let _allColabsCache = [];
 const _filters = {matriz: '', svc: ''};
 
 const _deslState = {loaded: false, rows: [], search: '', escala: '', motivo: ''};
-
 const _feriasState = {loaded: false, rows: [], search: '', escala: '', status: ''};
 
 export function destroy() {
@@ -47,8 +50,6 @@ export function destroy() {
         window.buildHCRelatorio,
         window.buildHCDiario
     ];
-
-
     buildFns.forEach(fn => {
         if (fn && typeof fn.resetState === 'function') {
             fn.resetState();
@@ -57,32 +58,51 @@ export function destroy() {
     console.log('Estado do HC Consolidado destruído, pronto para recarregar.');
 }
 
-function buildWeeklyRowsForTurn(aux) {
-    const feriasConst = aux.filter(c => norm(c.Ferias) === 'SIM').length;
+
+function buildWeeklyRowsForCargo(arr) {
+    const feriasConst = (arr || []).filter(c => norm(c.Ferias) === 'SIM').length;
+
     const dsrByDay = {};
     WEEK_KEYS.forEach(d => dsrByDay[d] = 0);
-    aux.forEach(c => {
+    (arr || []).forEach(c => {
         const d = normalizeWeekdayPT(c.DSR);
         if (WEEK_KEYS.includes(d)) dsrByDay[d]++;
     });
-    const presentesByDay = {}, totalQuadroByDay = {};
-    const total = aux.length;
+
+    const presentesByDay = {};
+    const total = (arr || []).length;
     WEEK_KEYS.forEach(d => {
         presentesByDay[d] = Math.max(0, total - dsrByDay[d] - feriasConst);
-        totalQuadroByDay[d] = presentesByDay[d] + dsrByDay[d] + feriasConst;
     });
-    return {feriasConst, dsrByDay, presentesByDay, totalQuadroByDay};
+
+    return {feriasConst, dsrByDay, presentesByDay};
 }
 
-function composeTableDataForTurn(aux) {
-    const {feriasConst, dsrByDay, presentesByDay, totalQuadroByDay} = buildWeeklyRowsForTurn(aux);
+
+function composeTableDataForTurn(auxArr, confArr) {
+    const aux = buildWeeklyRowsForCargo(auxArr);
+    const conf = buildWeeklyRowsForCargo(confArr);
+
+    const totalQuadroByDay = {};
+    WEEK_KEYS.forEach(k => {
+        totalQuadroByDay[k] =
+            (aux.presentesByDay[k] || 0) +
+            (conf.presentesByDay[k] || 0) +
+            (aux.dsrByDay[k] || 0) +
+            (conf.dsrByDay[k] || 0) +
+            (aux.feriasConst || 0) +
+            (conf.feriasConst || 0);
+    });
+
     return [
         {label: 'TOTAL QUADRO', values: totalQuadroByDay},
-        {label: 'PRESENTE', values: presentesByDay},
-        {label: 'DSR', values: dsrByDay},
-        {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = feriasConst, a), {})},
+        {label: 'PRESENTE', values: aux.presentesByDay},
+        {label: 'CONFERENTE', values: conf.presentesByDay},
+        {label: 'DSR', values: aux.dsrByDay},
+        {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = aux.feriasConst, a), {})},
     ];
 }
+
 
 function sumRows(a, b) {
     const mb = new Map(b.map(r => [r.label, r]));
@@ -103,16 +123,23 @@ function toTableHTML(title, rows) {
     return thead + tbody;
 }
 
+
 function renderWeeklyTables(all) {
     const filtered = all.filter(c => {
         if (_filters.matriz && norm(c.MATRIZ) !== norm(_filters.matriz)) return false;
         if (_filters.svc && norm(c.SVC) !== norm(_filters.svc)) return false;
         return true;
     });
-    const aux = onlyActiveAux(filtered), by = splitByTurno(aux);
-    const t1 = composeTableDataForTurn(by.T1);
-    const t2 = composeTableDataForTurn(by.T2);
-    const t3 = composeTableDataForTurn(by.T3);
+
+    const aux = onlyActiveAux(filtered);
+    const conf = onlyActiveConf(filtered);
+
+    const byAux = splitByTurno(aux);
+    const byConf = splitByTurno(conf);
+
+    const t1 = composeTableDataForTurn(byAux.T1, byConf.T1);
+    const t2 = composeTableDataForTurn(byAux.T2, byConf.T2);
+    const t3 = composeTableDataForTurn(byAux.T3, byConf.T3);
     const geral = sumRows(sumRows(t1, t2), t3);
 
     const t1El = document.getElementById('hc-t1');
@@ -165,7 +192,6 @@ function persistFilters() {
     window.dispatchEvent(new CustomEvent('hc-filters-changed', {detail: {..._filters}}));
 }
 
-
 async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
@@ -184,7 +210,6 @@ async function fetchAllWithPagination(queryBuilder) {
     }
     return allData;
 }
-
 
 async function buildHCWeekly() {
     const matrizesPermitidas = getMatrizesPermitidas();
@@ -243,12 +268,10 @@ async function ensureRelatorioABSDOM() {
     if (host.querySelector('.abs-toolbar')) return;
 
     try {
-
         const r = await fetch('/pages/relatorio-abs.html', {cache: 'no-cache'});
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         host.innerHTML = await r.text();
     } catch {
-
         host.innerHTML = `
             <div class="abs-toolbar">
                 <div class="abs-left">
@@ -329,10 +352,8 @@ function wireSubtabs() {
                     nextView.classList.add('active');
 
                     try {
-
                         if (viewName !== 'indice' && typeof window.destroyHCIndice === 'function') window.destroyHCIndice();
                         if (viewName !== 'analise-abs' && typeof window.destroyHCAnaliseABS === 'function') window.destroyHCAnaliseABS();
-
 
                         if (viewName === 'diario') {
                             if (typeof window.buildHCDiario === 'function') await window.buildHCDiario();
@@ -345,7 +366,6 @@ function wireSubtabs() {
                         } else if (viewName === 'desligamentos') {
                             ensureDesligamentosMounted();
                         } else if (viewName === 'ferias') {
-
                             ensureFeriasMounted();
                         }
                         window.dispatchEvent(new CustomEvent('hc-activated', {detail: {view: viewName}}));
@@ -396,6 +416,9 @@ function ensureDesligamentosMounted() {
     const host = document.getElementById('hc-desligamentos');
     if (!host || host.dataset.mounted === '1') return;
 
+
+    if (typeof _deslState.cargo !== 'string') _deslState.cargo = '';
+
     host.innerHTML = `
     <div class="hcdesl-toolbar">
       <div class="hcdesl-left">
@@ -403,6 +426,11 @@ function ensureDesligamentosMounted() {
         <select id="hcdesl-escala">
           <option value="">Escala: Todas</option>
           <option value="T1">T1</option><option value="T2">T2</option><option value="T3">T3</option>
+        </select>
+        <select id="hcdesl-cargo">
+          <option value="">Cargo: Todos</option>
+          <option value="AUXILIAR">AUXILIAR</option>
+          <option value="CONFERENTE">CONFERENTE</option>
         </select>
         <select id="hcdesl-motivo">
           <option value="">Motivo: Todos</option>
@@ -444,6 +472,10 @@ function ensureDesligamentosMounted() {
         _deslState.escala = e.target.value;
         renderDesligamentosTable();
     });
+    document.getElementById('hcdesl-cargo')?.addEventListener('change', (e) => {
+        _deslState.cargo = e.target.value;
+        renderDesligamentosTable();
+    });
     document.getElementById('hcdesl-motivo')?.addEventListener('change', (e) => {
         _deslState.motivo = e.target.value;
         renderDesligamentosTable();
@@ -457,6 +489,7 @@ function getDeslFilters() {
     return {
         search: _deslState.search || '',
         escala: _deslState.escala || '',
+        cargo: _deslState.cargo || '',
         motivo: _deslState.motivo || '',
         svc: _filters.svc || '',
         matriz: _filters.matriz || '',
@@ -512,12 +545,13 @@ function renderDesligamentosTable() {
         return;
     }
 
-    const {search, escala, motivo, svc, matriz} = getDeslFilters();
+    const {search, escala, cargo, motivo, svc, matriz} = getDeslFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
     const filtered = _deslState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
+        if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
         if (motivo && String(r.Motivo || '') !== motivo) return false;
         if (matriz && norm(r.MATRIZ) !== norm(matriz)) return false;
         if (svc && norm(r.SVC) !== norm(svc)) return false;
@@ -552,12 +586,13 @@ function renderDesligamentosTable() {
 }
 
 function getVisibleDesligadosRows() {
-    const {search, escala, motivo, svc, matriz} = getDeslFilters();
+    const {search, escala, cargo, motivo, svc, matriz} = getDeslFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
     const filtered = _deslState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
+        if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
         if (motivo && String(r.Motivo || '') !== motivo) return false;
         if (matriz && norm(r.MATRIZ) !== norm(matriz)) return false;
         if (svc && norm(r.SVC) !== norm(svc)) return false;
@@ -606,6 +641,9 @@ function ensureFeriasMounted() {
     const host = document.getElementById('hc-ferias');
     if (!host || host.dataset.mounted === '1') return;
 
+
+    if (typeof _feriasState.cargo !== 'string') _feriasState.cargo = '';
+
     host.innerHTML = `
     <div class="hcf-toolbar">
       <div class="hcf-left">
@@ -613,6 +651,11 @@ function ensureFeriasMounted() {
         <select id="hcf-escala">
           <option value="">Escala: Todas</option>
           <option value="T1">T1</option><option value="T2">T2</option><option value="T3">T3</option>
+        </select>
+        <select id="hcf-cargo">
+          <option value="">Cargo: Todos</option>
+          <option value="AUXILIAR">AUXILIAR</option>
+          <option value="CONFERENTE">CONFERENTE</option>
         </select>
         <select id="hcf-status">
           <option value="">Status: Todos</option>
@@ -633,12 +676,13 @@ function ensureFeriasMounted() {
             <th>Status</th>
             <th>Dias para Finalizar</th>
             <th>Escala</th>
+            <th>Cargo</th>
             <th>SVC</th>
             <th>MATRIZ</th>
           </tr>
         </thead>
         <tbody id="hcf-tbody">
-          <tr><td colspan="8" class="muted">Carregando…</td></tr>
+          <tr><td colspan="9" class="muted">Carregando…</td></tr>
         </tbody>
       </table>
     </div>
@@ -653,12 +697,15 @@ function ensureFeriasMounted() {
         _feriasState.escala = e.target.value;
         renderFeriasTable();
     });
+    document.getElementById('hcf-cargo')?.addEventListener('change', (e) => {
+        _feriasState.cargo = e.target.value;
+        renderFeriasTable();
+    });
     document.getElementById('hcf-status')?.addEventListener('change', (e) => {
         _feriasState.status = e.target.value;
         renderFeriasTable();
     });
     document.getElementById('hcf-export')?.addEventListener('click', () => exportFerias());
-
 
     window.addEventListener('hc-filters-changed', () => {
         if (_feriasState.loaded) renderFeriasTable();
@@ -671,6 +718,7 @@ function getFeriasFilters() {
     return {
         search: _feriasState.search || '',
         escala: _feriasState.escala || '',
+        cargo: _feriasState.cargo || '',
         status: _feriasState.status || '',
         svc: _filters.svc || '',
         matriz: _filters.matriz || '',
@@ -693,33 +741,47 @@ function calcDiasParaFinalizar(row) {
 
 async function fetchFerias() {
     const tbody = document.getElementById('hcf-tbody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando…</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
 
     try {
         const matrizesPermitidas = getMatrizesPermitidas();
 
-        let query = supabase
+
+        let qFerias = supabase
             .from('Ferias')
-            .select('"Numero", "Nome", "Escala", "SVC", "Data Inicio", "Data Final", "Status", "Dias para finalizar"');
+            .select('"Numero", "Nome", "Escala", "SVC", "Data Inicio", "Data Final", "Status", "Dias para finalizar"')
+            .order('Data Inicio', {ascending: false})
+            .order('Data Final', {ascending: false});
 
-        if (matrizesPermitidas !== null) {
+        const {data: feriasData, error: feriasErr} = await qFerias;
+        if (feriasErr) throw feriasErr;
 
-        }
 
-        query = query.order('Data Inicio', {ascending: false}).order('Data Final', {ascending: false});
+        let qCol = supabase.from('Colaboradores').select('Nome, Cargo, MATRIZ, SVC, Escala');
+        if (matrizesPermitidas !== null) qCol = qCol.in('MATRIZ', matrizesPermitidas);
 
-        const {data, error} = await query;
-        if (error) throw error;
+        const {data: colabs, error: colErr} = await qCol;
+        if (colErr) throw colErr;
 
-        _feriasState.rows = Array.isArray(data)
-            ? data.map(r => ({
-                ...r,
+        const idx = new Map();
+        (colabs || []).forEach(c => idx.set(String(c.Nome || ''), c));
 
-                'Dias para Finalizar': r['Dias para Finalizar'] ?? r['Dias para finalizar'] ?? ''
-            }))
+        _feriasState.rows = Array.isArray(feriasData)
+            ? feriasData.map(r => {
+                const info = idx.get(String(r.Nome || '')) || {};
+                return {
+                    ...r,
+                    MATRIZ: info.MATRIZ || '',
+                    SVC: r.SVC || info.SVC || '',
+                    Escala: r.Escala || info.Escala || '',
+                    Cargo: info.Cargo || '',
+                    'Dias para Finalizar': r['Dias para Finalizar'] ?? r['Dias para finalizar'] ?? ''
+                };
+            })
             : [];
 
         _feriasState.loaded = true;
+
 
         const statusList = Array.from(new Set(
             _feriasState.rows.map(r => String(r.Status || '')).filter(Boolean)
@@ -736,26 +798,26 @@ async function fetchFerias() {
         renderFeriasTable();
     } catch (e) {
         console.error('Férias: erro', e);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Erro ao carregar.</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Erro ao carregar.</td></tr>`;
     }
 }
-
 
 function renderFeriasTable() {
     const tbody = document.getElementById('hcf-tbody');
     if (!tbody) return;
 
     if (!_feriasState.loaded) {
-        tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando…</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
         return;
     }
 
-    const {search, escala, status, svc, matriz} = getFeriasFilters();
+    const {search, escala, cargo, status, svc, matriz} = getFeriasFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
     const filtered = _feriasState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
-        if (escala && String(r.Escala || '') !== escala) return false;
+        if (escala && String(r.Escala || r.Escala) !== escala) return false;
+        if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
         if (status && String(r.Status || '') !== status) return false;
         if (matriz && norm(r.MATRIZ) !== norm(matriz)) return false;
         if (svc && norm(r.SVC) !== norm(svc)) return false;
@@ -763,7 +825,7 @@ function renderFeriasTable() {
     });
 
     if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="muted">Sem registros nos filtros aplicados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="muted">Sem registros nos filtros aplicados.</td></tr>`;
         return;
     }
 
@@ -781,6 +843,7 @@ function renderFeriasTable() {
       <td>${escapeHtml(r.Status || '')}</td>
       <td>${escapeHtml(dias)}</td>
       <td>${escapeHtml(r.Escala || '')}</td>
+      <td>${escapeHtml(r.Cargo || '')}</td>
       <td>${escapeHtml(r.SVC || '')}</td>
       <td>${escapeHtml(r.MATRIZ || '')}</td>`;
         frag.appendChild(tr);
@@ -789,12 +852,13 @@ function renderFeriasTable() {
 }
 
 function getVisibleFeriasRows() {
-    const {search, escala, status, svc, matriz} = getFeriasFilters();
+    const {search, escala, cargo, status, svc, matriz} = getFeriasFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
     const filtered = _feriasState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
+        if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
         if (status && String(r.Status || '') !== status) return false;
         if (matriz && norm(r.MATRIZ) !== norm(matriz)) return false;
         if (svc && norm(r.SVC) !== norm(svc)) return false;
@@ -808,6 +872,7 @@ function getVisibleFeriasRows() {
         Status: r.Status || '',
         'Dias para Finalizar': calcDiasParaFinalizar(r),
         Escala: r.Escala || '',
+        Cargo: r.Cargo || '',
         SVC: r.SVC || '',
         MATRIZ: r.MATRIZ || '',
     }));

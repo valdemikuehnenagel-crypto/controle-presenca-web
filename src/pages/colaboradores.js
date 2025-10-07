@@ -38,7 +38,7 @@ let isSubmittingFerias = false;
 async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
-    const pageSize = 1000; // O limite padrão do Supabase
+    const pageSize = 1000;
     let moreData = true;
 
     while (moreData) {
@@ -46,14 +46,14 @@ async function fetchAllWithPagination(queryBuilder) {
 
         if (error) {
             console.error("Erro na paginação:", error);
-            throw error; // Interrompe o processo se houver erro
+            throw error;
         }
 
         if (data && data.length > 0) {
             allData = allData.concat(data);
             page++;
         } else {
-            moreData = false; // Para o loop se não houver mais dados
+            moreData = false;
         }
     }
     return allData;
@@ -294,25 +294,40 @@ function updateDisplay() {
 
 function populateFilters() {
     if (!filtrosSelect) return;
+
+
     const filtros = {
         Contrato: new Set(),
         Cargo: new Set(),
         Escala: new Set(),
         DSR: new Set(),
+        Gestor: new Set(),
         MATRIZ: new Set(),
         SVC: new Set(),
         'FOLGA ESPECIAL': new Set()
     };
+
     state.colaboradoresData.forEach((c) => {
         Object.keys(filtros).forEach((key) => {
-            if (c[key]) filtros[key].add(String(c[key]));
+            const v = c[key];
+            if (v !== undefined && v !== null && String(v) !== '') {
+                filtros[key].add(String(v));
+            }
         });
     });
+
+
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
         if (!key || !(key in filtros)) return;
-        const options = Array.from(filtros[key]).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+        const options = Array.from(filtros[key]).sort((a, b) =>
+            a.localeCompare(b, 'pt-BR', {sensitivity: 'base'})
+        );
+
+
         while (selectEl.options.length > 1) selectEl.remove(1);
+
         options.forEach((option) => {
             const optionEl = document.createElement('option');
             optionEl.value = option;
@@ -322,24 +337,102 @@ function populateFilters() {
     });
 }
 
+
 function applyFiltersAndSearch() {
     const searchTerm = (searchInput?.value || '').toLowerCase();
+
+
     state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
         for (const key in state.filtrosAtivos) {
-            if (Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key) && state.filtrosAtivos[key] && String(colaborador[key]) !== state.filtrosAtivos[key]) return false;
+            if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
+            const activeVal = state.filtrosAtivos[key];
+            if (!activeVal) continue;
+
+
+            const colVal = String(colaborador?.[key] ?? '');
+            if (colVal !== activeVal) return false;
         }
-        if (searchTerm) {
-            return (
-                String(colaborador.Nome || '').toLowerCase().includes(searchTerm) ||
-                String(colaborador.CPF || '').toLowerCase().includes(searchTerm) ||
-                String(colaborador['ID GROOT'] || '').toLowerCase().includes(searchTerm) ||
-                String(colaborador.LDAP || '').toLowerCase().includes(searchTerm)
-            );
-        }
-        return true;
+
+        if (!searchTerm) return true;
+
+
+        return (
+            String(colaborador.Nome || '').toLowerCase().includes(searchTerm) ||
+            String(colaborador.CPF || '').toLowerCase().includes(searchTerm) ||
+            String(colaborador['ID GROOT'] || '').toLowerCase().includes(searchTerm) ||
+            String(colaborador.LDAP || '').toLowerCase().includes(searchTerm)
+        );
     });
+
     itensVisiveis = ITENS_POR_PAGINA;
+
+
+    repopulateFilterOptionsCascade();
+
     updateDisplay();
+}
+
+function repopulateFilterOptionsCascade() {
+    if (!filtrosSelect || !filtrosSelect.length) return;
+
+
+    filtrosSelect.forEach((selectEl) => {
+        const key = selectEl.dataset.filterKey;
+        if (!key) return;
+
+
+        const searchTerm = (searchInput?.value || '').toLowerCase();
+        const tempFiltrado = state.colaboradoresData.filter((c) => {
+            for (const k in state.filtrosAtivos) {
+                if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, k)) continue;
+                if (k === key) continue;
+                const activeVal = state.filtrosAtivos[k];
+                if (!activeVal) continue;
+                const colVal = String(c?.[k] ?? '');
+                if (colVal !== activeVal) return false;
+            }
+
+            if (!searchTerm) return true;
+
+
+            return (
+                String(c.Nome || '').toLowerCase().includes(searchTerm) ||
+                String(c.CPF || '').toLowerCase().includes(searchTerm) ||
+                String(c['ID GROOT'] || '').toLowerCase().includes(searchTerm) ||
+                String(c.LDAP || '').toLowerCase().includes(searchTerm)
+            );
+        });
+
+
+        const valores = new Set();
+        tempFiltrado.forEach((c) => {
+            const v = c?.[key];
+            if (v != null && v !== '') valores.add(String(v));
+        });
+
+        const selecionadoAntes = selectEl.value || '';
+
+
+        while (selectEl.options.length > 1) selectEl.remove(1);
+
+        Array.from(valores)
+            .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+            .forEach((optVal) => {
+                const o = document.createElement('option');
+                o.value = optVal;
+                o.textContent = optVal;
+                selectEl.appendChild(o);
+            });
+
+
+        if (selecionadoAntes && valores.has(selecionadoAntes)) {
+            selectEl.value = selecionadoAntes;
+        } else {
+
+            if (state.filtrosAtivos[key]) delete state.filtrosAtivos[key];
+            selectEl.selectedIndex = 0;
+        }
+    });
 }
 
 

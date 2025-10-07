@@ -1,7 +1,7 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
 
-/* ========= Sessão / Matrizes ========= */
+
 function readCurrentSession() {
     try {
         if (window.currentSession && typeof window.currentSession === 'object') return window.currentSession;
