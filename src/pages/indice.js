@@ -1,6 +1,27 @@
 import {getMatrizesPermitidas} from '../session.js';
 import {supabase} from '../supabaseClient.js';
 
+async function fetchAllWithPagination(queryBuilder) {
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let moreData = true;
+
+    while (moreData) {
+        const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            page++;
+        } else {
+            moreData = false;
+        }
+    }
+    return allData;
+}
+
+
 (function () {
     const HOST_SEL = '#hc-indice';
 
@@ -227,22 +248,33 @@ import {supabase} from '../supabaseClient.js';
         try {
             await ensureChartLib();
             const matrizesPermitidas = getMatrizesPermitidas();
+
             let query = supabase.from('Colaboradores').select('*');
-            if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
-            const {data, error} = await query;
-            if (error) throw error;
+
+            if (matrizesPermitidas !== null) {
+                query = query.in('MATRIZ', matrizesPermitidas);
+            }
+
+            const data = await fetchAllWithPagination(query);
+
             const rows = Array.isArray(data) ? data.slice() : [];
             rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
+
+
             state.colabs = rows.filter(c => {
-                if (ONLY_AUX && norm(c?.Cargo) !== 'AUXILIAR') return false;
+
                 if (norm(c?.Ativo || 'SIM') !== 'SIM') return false;
+
                 if (state.matriz && c?.MATRIZ !== state.matriz) return false;
                 if (state.svc && c?.SVC !== state.svc) return false;
-                return ['T1', 'T2', 'T3'].includes(String(c?.Escala || '').trim());
+
+
+
+                return true;
             });
+
             ensureChartsCreated();
             updateChartsNow();
-
 
             setTimeout(() => {
                 setResponsiveHeights();
@@ -636,7 +668,7 @@ import {supabase} from '../supabaseClient.js';
         }
     }
 
-   window.buildHCIndice = function () {
+    window.buildHCIndice = function () {
         const host = document.querySelector(HOST_SEL);
         if (!host) {
             console.warn('Host #hc-indice não encontrado.');
@@ -649,7 +681,7 @@ import {supabase} from '../supabaseClient.js';
     };
     window.buildHCIndice.resetState = resetState;
 
-    window.destroyHCIndice = function() {
+    window.destroyHCIndice = function () {
         if (state.mounted) {
             console.log('Destruindo estado do Índice.');
             Object.values(state.charts).forEach(chart => chart?.destroy());

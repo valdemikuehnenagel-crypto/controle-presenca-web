@@ -94,12 +94,19 @@ function composeTableDataForTurn(auxArr, confArr) {
             (conf.feriasConst || 0);
     });
 
+    const dsrTotal = {};
+    WEEK_KEYS.forEach(k => {
+        dsrTotal[k] = (aux.dsrByDay[k] || 0) + (conf.dsrByDay[k] || 0);
+    });
+
+    const feriasTotal = aux.feriasConst + conf.feriasConst;
+
     return [
         {label: 'TOTAL QUADRO', values: totalQuadroByDay},
         {label: 'PRESENTE', values: aux.presentesByDay},
         {label: 'CONFERENTE', values: conf.presentesByDay},
-        {label: 'DSR', values: aux.dsrByDay},
-        {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = aux.feriasConst, a), {})},
+        {label: 'DSR', values: dsrTotal}, // <-- Usando o total de DSR
+        {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = feriasTotal, a), {})}, // <-- Usando o total de Férias
     ];
 }
 
@@ -114,12 +121,24 @@ function sumRows(a, b) {
 }
 
 function toTableHTML(title, rows) {
-    const thead = `<thead><tr><th>${title}</th>${WEEK_LABELS.map(l => `<th>${l}</th>`).join('')}</tr></thead>`;
-    const tbody = `<tbody>${
-        rows.map(r => `<tr class="${r.label === 'TOTAL QUADRO' ? 'hc-total-row' : ''}">
-      <td>${r.label}</td>${WEEK_KEYS.map(k => `<td>${r.values[k]}</td>`).join('')}
-    </tr>`).join('')
-    }</tbody>`;
+    const thead = `
+        <thead>
+            <tr>
+                <th class="align-left">${title}</th> 
+                ${WEEK_LABELS.map(l => `<th>${l}</th>`).join('')}
+            </tr>
+        </thead>`;
+
+    const tbody = `
+        <tbody>
+            ${rows.map(r => `
+                <tr class="${r.label === 'TOTAL QUADRO' ? 'hc-total-row' : ''}">
+                    <td class="align-left">${r.label}</td> 
+                    ${WEEK_KEYS.map(k => `<td>${r.values[k]}</td>`).join('')}
+                </tr>
+            `).join('')}
+        </tbody>`;
+
     return thead + tbody;
 }
 

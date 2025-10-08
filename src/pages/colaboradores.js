@@ -205,6 +205,7 @@ function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     }
 }
 
+
 function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
@@ -221,6 +222,17 @@ function toUpperObject(obj) {
             out[k] = nullIfEmpty(v);
             continue;
         }
+
+        if (k === 'DSR' && typeof v === 'string') {
+            let upperVal = toUpperTrim(v);
+            if (upperVal === 'SABADO') {
+                upperVal = 'SÁBADO';
+            }
+            out[k] = upperVal === '' ? null : upperVal;
+            continue;
+        }
+
+
         if (typeof v === 'string') {
             const up = toUpperTrim(v);
             out[k] = up === '' ? null : up;

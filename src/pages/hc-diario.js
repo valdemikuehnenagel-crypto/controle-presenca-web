@@ -267,48 +267,33 @@ function sumRowsByDate(a, b, dates) {
     return out;
 }
 
+
 async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksByDate) {
     const rows = {};
     ROWS_ORDER.forEach(k => rows[k] = {});
 
-
     const auxTurno = byTurnFilterAux(turno);
     const confTurno = byTurnFilterConf(turno);
-    const setAux = new Set(auxTurno.map(c => c.Nome));
-    const setConf = new Set(confTurno.map(c => c.Nome));
-
-
-    const dsrAuxByDate = {};
-    for (const d of datesISO) {
-        const want = weekdayKey(d);
-        let n = 0;
-        for (const c of auxTurno) {
-            const k = norm(c.DSR).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');
-            if (k === want) n++;
-        }
-        dsrAuxByDate[d] = n;
-    }
-
-
-    const dsrConfByDate = {};
-    for (const d of datesISO) {
-        const want = weekdayKey(d);
-        let n = 0;
-        for (const c of confTurno) {
-            const k = norm(c.DSR).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');
-            if (k === want) n++;
-        }
-        dsrConfByDate[d] = n;
-    }
-
 
     for (const d of datesISO) {
+        const auxElegiveisDoDia = auxTurno.filter(c => !c['Data de admissão'] || c['Data de admissão'] <= d);
+        const confElegiveisDoDia = confTurno.filter(c => !c['Data de admissão'] || c['Data de admissão'] <= d);
+
+        const setAux = new Set(auxElegiveisDoDia.map(c => c.Nome));
+        const setConf = new Set(confElegiveisDoDia.map(c => c.Nome));
+
         let presAux = 0, presConf = 0, fal = 0, ate = 0, fe = 0, fer = 0;
+        const nomesMarcados = new Set();
 
         const marks = marksByDate.get(d) || [];
         for (const m of marks) {
+            const nome = m.Nome;
+            if (!setAux.has(nome) && !setConf.has(nome)) continue;
+
+            nomesMarcados.add(nome);
             const tipo = canonicalMark(m);
-            if (setAux.has(m.Nome)) {
+
+            if (setAux.has(nome)) {
                 switch (tipo) {
                     case 'PRESENCA':
                         presAux++;
@@ -326,43 +311,69 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
                         fer++;
                         break;
                 }
-            } else if (setConf.has(m.Nome)) {
-                if (tipo === 'PRESENCA') presConf++;
+            } else if (setConf.has(nome)) {
+                switch (tipo) {
+                    case 'PRESENCA':
+                        presConf++;
+                        break;
+                    case 'FALTA':
+                        fal++;
+                        break;
+                    case 'ATESTADO':
+                        ate++;
+                        break;
+                    case 'F_ESPECIAL':
+                        fe++;
+                        break;
+                    case 'FERIADO':
+                        fer++;
+                        break;
+                }
             }
         }
 
-        const dsrAux = dsrAuxByDate[d] || 0;
-        const dsrConf = dsrConfByDate[d] || 0;
-
-        const admAux = countAdmissoes(setAux, d);
-
+        const want = weekdayKey(d);
+        const dsrAux = auxElegiveisDoDia.filter(c => norm(c.DSR || '').replace(/Ç|Á/g, a => ({
+            'Ç': 'C',
+            'Á': 'A'
+        })[a]) === want).length;
+        const dsrConf = confElegiveisDoDia.filter(c => norm(c.DSR || '').replace(/Ç|Á/g, a => ({
+            'Ç': 'C',
+            'Á': 'A'
+        })[a]) === want).length;
 
         const nomesEmFeriasHoje = feriasPorDia.get(d) || new Set();
         let feriasAux = 0, feriasConf = 0;
-        for (const nome of setAux) if (nomesEmFeriasHoje.has(nome)) feriasAux++;
-        for (const nome of setConf) if (nomesEmFeriasHoje.has(nome)) feriasConf++;
+        for (const c of auxElegiveisDoDia) if (nomesEmFeriasHoje.has(c.Nome)) feriasAux++;
+        for (const c of confElegiveisDoDia) if (nomesEmFeriasHoje.has(c.Nome)) feriasConf++;
 
-
+        const adm = countAdmissoes(new Set([...setAux, ...setConf]), d);
         const deslig = (desligRows || []).reduce((acc, r) => {
             const iso = firstISOFrom(r, ['Data de Desligamento']);
-            return acc + (iso === d && matchFiltersFor(r.Nome, turno, r) ? 1 : 0);
+            if (iso === d && (setAux.has(r.Nome) || setConf.has(r.Nome))) {
+                return acc + 1;
+            }
+            return acc;
         }, 0);
 
+        const totalPrevistoAux = auxElegiveisDoDia.length;
+        const totalPrevistoConf = confElegiveisDoDia.length;
 
-        const total = (presAux + dsrAux + fal + ate + fe + fer + feriasAux + admAux + deslig)
-            + (presConf + dsrConf + feriasConf);
+        presAux = totalPrevistoAux - (fal + ate + fe + fer + dsrAux + feriasAux);
+        presConf = totalPrevistoConf - (dsrConf + feriasConf);
 
-        rows['TOTAL QUADRO'][d] = total;
         rows['PRESENTES'][d] = presAux;
         rows['CONFERENTES'][d] = presConf;
-        rows['DSR'][d] = dsrAux;
+        rows['DSR'][d] = dsrAux + dsrConf;
+        rows['FÉRIAS'][d] = feriasAux + feriasConf;
         rows['INJUSTIFICADO'][d] = fal;
         rows['JUSTIFICADO'][d] = ate;
         rows['FOLGA ESPECIAL'][d] = fe;
         rows['FERIADO'][d] = fer;
-        rows['ADMISSÃO'][d] = admAux;
+        rows['ADMISSÃO'][d] = adm;
         rows['DESLIGAMENTOS'][d] = deslig;
-        rows['FÉRIAS'][d] = feriasAux;
+
+        rows['TOTAL QUADRO'][d] = (totalPrevistoAux + totalPrevistoConf) - deslig;
     }
     return rows;
 }
