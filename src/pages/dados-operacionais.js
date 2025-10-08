@@ -1,0 +1,271 @@
+import {supabase} from '../supabaseClient.js';
+import {getMatrizesPermitidas} from '../session.js';
+
+let ui;
+let pageStyle = null;
+const state = {
+    detailedResults: new Map(),
+};
+
+async function fetchAllPages(query) {
+    const pageSize = 1000;
+    let allData = [];
+    let page = 0;
+    let keepFetching = true;
+
+    while (keepFetching) {
+        const {data, error} = await query.range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+            allData = allData.concat(data);
+            page++;
+        } else {
+            keepFetching = false;
+        }
+        if (!data || data.length < pageSize) {
+            keepFetching = false;
+        }
+    }
+    return allData;
+}
+
+async function fetchData() {
+    const matrizesPermitidas = getMatrizesPermitidas();
+
+    let colabQuery = supabase
+        .from('Colaboradores')
+        .select('Nome, SVC, Contrato, "Data de admissão", LDAP, "ID GROOT", Gestor, MATRIZ, Cargo, Escala, DSR, Genero, CPF')
+        .eq('Ativo', 'SIM');
+
+    if (matrizesPermitidas && matrizesPermitidas.length) {
+        colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
+    }
+
+    const colaboradores = await fetchAllPages(colabQuery);
+    return {colaboradores};
+}
+
+function processDataQuality(colaboradores) {
+    state.detailedResults.clear();
+    const svcs = [...new Set(colaboradores.map(c => c.SVC).filter(Boolean))].sort();
+
+    const colunasParaVerificar = ['Contrato', 'Data de admissão', 'LDAP', 'ID GROOT', 'Gestor', 'Cargo', 'Escala', 'DSR', 'Genero', 'CPF'];
+
+    const results = {};
+
+    for (const svc of svcs) {
+        results[svc] = {};
+        state.detailedResults.set(svc, new Map());
+        const colaboradoresSVC = colaboradores.filter(c => c.SVC === svc);
+        const totalColabsSVC = colaboradoresSVC.length;
+
+        if (totalColabsSVC === 0) continue;
+
+        for (const coluna of colunasParaVerificar) {
+            const pendentes = colaboradoresSVC.filter(c => {
+                const valor = c[coluna];
+                return valor === null || valor === undefined || String(valor).trim() === '';
+            });
+
+            const preenchidosCount = totalColabsSVC - pendentes.length;
+            const percentual = (preenchidosCount / totalColabsSVC) * 100;
+
+            results[svc][coluna] = {percentual, pendentes};
+
+            if (!state.detailedResults.get(svc).has(coluna)) {
+                state.detailedResults.get(svc).set(coluna, {pendentes, total: totalColabsSVC});
+            }
+        }
+    }
+    return {svcs, results, colunas: colunasParaVerificar};
+}
+
+function getStatusClass(percentual) {
+    if (percentual === 100) return 'status-ok';
+    if (percentual > 0) return 'status-pendente';
+    if (percentual === 0) return 'status-nok';
+    return 'status-na';
+}
+
+function showDetailsModal(svc, coluna) {
+    const details = state.detailedResults.get(svc)?.get(coluna);
+    if (!details) return;
+
+    const oldModal = document.getElementById('dados-op-details-modal');
+    if (oldModal) oldModal.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'dados-op-details-modal';
+    modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
+
+    let contentHtml = '';
+    if (details.pendentes.length === 0) {
+        contentHtml = '<p>Nenhum colaborador com pendência neste campo.</p>';
+    } else {
+        contentHtml = `
+                <p class="mb-2">Total de colaboradores no SVC: <strong>${details.total}</strong> | Pendentes: <strong>${details.pendentes.length}</strong></p>
+                <ul class="details-list">
+                    ${details.pendentes.map(p => `<li><strong>${p.Nome}</strong></li>`).join('')}
+                </ul>
+            `;
+    }
+
+    modal.innerHTML = `
+            <div class="container !h-auto !w-auto max-w-lg">
+                <h3 class="mb-4">Pendências de "${coluna}" em ${svc}</h3>
+                <div class="max-h-[60vh] overflow-y-auto pr-2">
+                    ${contentHtml}
+                </div>
+                <div class="form-actions" style="justify-content:flex-end;">
+                    <button type="button" class="btn-cancelar" data-close-modal>Fechar</button>
+                </div>
+            </div>
+        `;
+    document.body.appendChild(modal);
+    modal.querySelector('[data-close-modal]').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+function renderTable(svcs, colunas, results) {
+    if (!ui.resultContainer) return;
+
+    const colunasDisplay = {
+        'Contrato': 'Contrato',
+        'Data de admissão': 'Admissão',
+        'LDAP': 'LDAP',
+        'ID GROOT': 'ID GROOT',
+        'Gestor': 'Gestor',
+        'Cargo': 'Cargo',
+        'Escala': 'Escala',
+        'DSR': 'DSR',
+        'Genero': 'Gênero',
+        'CPF': 'CPF'
+    };
+
+    const headerHtml = `<tr><th>SVC</th>${colunas.map(col => `<th>${colunasDisplay[col] || col}</th>`).join('')}</tr>`;
+
+    const bodyHtml = svcs.map(svc => `
+            <tr>
+                <td>${svc}</td>
+                ${colunas.map(col => {
+        const data = results[svc]?.[col];
+        if (!data) return '<td class="status-na">N/A</td>';
+
+        const percentual = data.percentual;
+        const statusClass = getStatusClass(percentual);
+        const podeClicar = percentual < 100 && data.pendentes.length > 0;
+        const title = podeClicar ? 'Duplo clique para ver os pendentes' : '100% preenchido';
+
+        return `<td data-svc="${svc}" data-coluna="${col}" class="${statusClass}" title="${title}">
+                        ${percentual.toFixed(0)}%
+                    </td>`;
+    }).join('')}
+            </tr>
+        `).join('');
+
+    ui.resultContainer.innerHTML = `<div class="table-container"><table class="main-table"><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
+
+    const table = ui.resultContainer.querySelector('.main-table');
+    if (table) {
+        table.addEventListener('dblclick', (event) => {
+            const cell = event.target.closest('td[data-svc]');
+            if (!cell || !cell.dataset.coluna) return;
+            showDetailsModal(cell.dataset.svc, cell.dataset.coluna);
+        });
+    }
+}
+
+
+async function generateReport() {
+    ui.loader.style.display = 'flex';
+    ui.resultContainer.innerHTML = `<p>Gerando relatório...</p>`;
+    try {
+        const {colaboradores} = await fetchData();
+        const {svcs, results, colunas} = processDataQuality(colaboradores);
+
+        if (svcs.length > 0) {
+            svcs.sort((svcA, svcB) => {
+                const resultsA = results[svcA] || {};
+                const resultsB = results[svcB] || {};
+
+                const count100A = colunas.filter(col => (resultsA[col]?.percentual || 0) === 100).length;
+                const count100B = colunas.filter(col => (resultsB[col]?.percentual || 0) === 100).length;
+
+                if (count100A !== count100B) {
+                    return count100B - count100A;
+                }
+
+                const totalPercentA = colunas.reduce((sum, col) => sum + (resultsA[col]?.percentual || 0), 0);
+                const avgA = totalPercentA / colunas.length;
+
+                const totalPercentB = colunas.reduce((sum, col) => sum + (resultsB[col]?.percentual || 0), 0);
+                const avgB = totalPercentB / colunas.length;
+
+                if (avgA !== avgB) {
+                    return avgB - avgA;
+                }
+
+                return svcA.localeCompare(svcB);
+            });
+        }
+
+        if (svcs.length === 0) {
+            ui.resultContainer.innerHTML = '<p>Nenhum SVC encontrado para gerar o relatório.</p>';
+        } else {
+            renderTable(svcs, colunas, results);
+        }
+    } catch (error) {
+        console.error('Erro ao gerar relatório de dados operacionais:', error);
+        ui.resultContainer.innerHTML = `<p class="text-red-500">Falha ao gerar relatório: ${error.message}</p>`;
+    } finally {
+        ui.loader.style.display = 'none';
+    }
+}
+
+function injectCSS() {
+    if (document.getElementById('dados-op-style')) return;
+    const css = `
+            #dados-op-page .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+            #dados-op-page .legend-container { display: flex; gap: 1.5rem; font-size: 0.8rem; color: black; font-weight: bold; }
+            #dados-op-page .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+            #dados-op-page .legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
+            #dados-op-page .legend-dot.status-ok { background-color: #d4edda; }
+            #dados-op-page .legend-dot.status-pendente { background-color: #fff3cd; }
+            #dados-op-page .legend-dot.status-nok { background-color: #f8d7da; }
+            #dados-op-page .legend-dot.status-na { background-color: #e9ecef; }
+            #dados-op-result .main-table td.status-ok { background-color: #d4edda !important; color: #155724 !important; }
+            #dados-op-result .main-table td.status-pendente { background-color: #fff3cd !important; color: #856404 !important; }
+            #dados-op-result .main-table td.status-nok { background-color: #f8d7da !important; color: #721c24 !important; }
+            #dados-op-result .main-table td.status-na { background-color: #e9ecef !important; color: #495057 !important; }
+            #dados-op-result .main-table td[data-svc] { cursor: pointer; }
+            .details-list { list-style: disc; padding-left: 20px; }
+            .details-list li { margin-bottom: 4px; }
+            #dados-op-result .table-container { max-height: calc(100vh - 250px); overflow: auto; }             #dados-op-result .main-table { width: 100%; border-collapse: collapse; }             #dados-op-result .main-table th, #dados-op-result .main-table td { text-align: center; padding: 8px 6px; font-size: 0.8rem; border: 1px solid #dee2e6; white-space: nowrap; }             #dados-op-result .main-table th:first-child, #dados-op-result .main-table td:first-child { text-align: left; font-weight: bold; position: sticky; left: 0; background-color: #f8f9fa; z-index: 1; }
+        `;
+    pageStyle = document.createElement('style');
+    pageStyle.id = 'dados-op-style';
+    pageStyle.textContent = css;
+    document.head.appendChild(pageStyle);
+}
+
+
+export function init() {
+    injectCSS();
+    ui = {
+        resultContainer: document.getElementById('dados-op-result'),
+        loader: document.getElementById('dados-op-loader'),
+    };
+    generateReport();
+}
+
+
+export function destroy() {
+    if (pageStyle) {
+        pageStyle.remove();
+        pageStyle = null;
+    }
+    const modal = document.getElementById('dados-op-details-modal');
+    if (modal) modal.remove();
+}
