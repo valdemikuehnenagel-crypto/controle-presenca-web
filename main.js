@@ -17,6 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const forgotPinBtn = document.getElementById('forgotPinBtn');
 
 
+    const loginFormContent = document.getElementById('login-form-content');
+    const welcomeBackContainer = document.getElementById('welcome-back-container');
+    const welcomeAvatar = document.getElementById('welcome-avatar');
+    const welcomeMessage = document.getElementById('welcome-message');
+
+
     if (showRegisterBtn) {
         showRegisterBtn.addEventListener('click', () => {
             container.classList.add('active');
@@ -31,14 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
             container.classList.remove('active');
         });
     }
-    async function verifyPin(pin) {
 
+
+    async function verifyPin(pin) {
         loginMsg.classList.remove('info');
         loginMsg.textContent = 'Verificando...';
 
         const {data, error} = await supabase
             .from('Logins')
-            .select('*')
+            .select('*') // Seleciona todas as colunas para ter acesso a Nome e avatar_url
             .eq('PIN', pin)
             .single();
 
@@ -52,9 +59,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         localStorage.setItem('userSession', JSON.stringify(data));
-        window.location.href = '/dashboard.html';
-    }
 
+
+        if (loginFormContent) {
+            loginFormContent.classList.add('fade-out-start');
+        }
+
+
+        if (welcomeBackContainer) {
+            const fullName = data.Nome || 'Usuário';
+            const firstName = fullName.split(' ')[0];
+
+            if (welcomeMessage) {
+                welcomeMessage.textContent = `Olá, ${firstName}!`;
+            }
+
+
+            if (welcomeAvatar && data.avatar_url) {
+                welcomeAvatar.src = data.avatar_url;
+            }
+
+
+            welcomeBackContainer.classList.remove('hidden');
+            setTimeout(() => {
+                welcomeBackContainer.classList.add('visible');
+            }, 10);
+        }
+
+
+        setTimeout(() => {
+            window.location.href = '/dashboard.html';
+        }, 2800);
+    }
 
     if (loginForm) {
         loginForm.addEventListener('submit', async (event) => {
@@ -67,22 +103,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
     if (pinLogin) {
         pinLogin.addEventListener('input', () => {
-
             if (pinLogin.value.length < 6) {
                 loginMsg.textContent = '';
                 loginMsg.classList.remove('info');
             }
-
-
             if (pinLogin.value.length === 6) {
                 verifyPin(pinLogin.value);
             }
         });
     }
-
 
 
     if (forgotPinBtn) {
@@ -93,9 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
     const registerForm = document.getElementById('registerForm');
-
     const registerName = document.getElementById('registerName');
     const registerEmail = document.getElementById('registerEmail');
     const registerMatriz = document.getElementById('registerMatriz');
@@ -156,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
             registerMsg.textContent = 'Enviando...';
             registerMsg.classList.remove('error');
 
-
             const userData = {
                 nome: registerName.value,
                 email: registerEmail.value,
@@ -165,13 +193,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 pin: registerPin.value,
             };
 
-
             if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao || !/^\d{6}$/.test(userData.pin)) {
                 registerMsg.classList.add('error');
                 registerMsg.textContent = 'Todos os campos são obrigatórios.';
                 return;
             }
-
 
             const {error} = await supabase
                 .from('Logins')
