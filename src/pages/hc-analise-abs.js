@@ -13,7 +13,8 @@ import {supabase} from '../supabaseClient.js';
             diaDaSemana: null,
             genero: null,
             contrato: null,
-            faixaEtaria: null
+            faixaEtaria: null,
+            top5: null // <-- NOVO GRÁFICO ADICIONADO AO ESTADO
         },
         matriz: '',
         svc: '',
@@ -107,7 +108,6 @@ import {supabase} from '../supabaseClient.js';
         updateChartsNow(filteredData);
     }
 
-    /** NOVO Seletor de Período, adaptado do seu código */
     function setupPeriodFilter(host) {
         const toolbar = host.querySelector('.abs-toolbar');
         if (!toolbar || toolbar.querySelector('#abs-period-btn')) return;
@@ -165,10 +165,8 @@ import {supabase} from '../supabaseClient.js';
             host.innerHTML = `<div class="hcabs-root">
               <div class="abs-toolbar"></div>
               <div class="hcabs-grid">
-                
                 <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
                 <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
-                
                 <div class="hcabs-card hcabs-card--full">
                   <div class="hcabs-doughnut-container">
                     <div class="hcabs-doughnut-item"><h3>Dia da Semana (%)</h3><canvas id="abs-dow-doughnut"></canvas></div>
@@ -178,10 +176,8 @@ import {supabase} from '../supabaseClient.js';
                 </div>
                 <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
                 <div class="hcabs-card">
-                  <div class="hcabs-placeholder">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"></path></svg>
-                    <span>Em Construção</span>
-                  </div>
+                    <h3>Top 5 Ofensores</h3>
+                    <canvas id="abs-top5-bar"></canvas>
                 </div>
               </div>
               <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
@@ -238,9 +234,6 @@ import {supabase} from '../supabaseClient.js';
         if (el) el.style.display = f ? 'flex' : 'none';
     }
 
-
-
-
     async function fetchAllWithPagination(queryBuilder) {
         let allData = [];
         let page = 0;
@@ -259,7 +252,6 @@ import {supabase} from '../supabaseClient.js';
         }
         return allData;
     }
-
 
     async function refresh() {
         if (state.loading) return;
@@ -296,7 +288,6 @@ import {supabase} from '../supabaseClient.js';
                 state.absenteeismData = [];
                 ensureChartsCreated();
                 applyFiltersAndUpdate();
-
                 state.loading = false;
                 showBusy(false);
                 return;
@@ -335,7 +326,7 @@ import {supabase} from '../supabaseClient.js';
     const animationConfig = {duration: 800, easing: 'easeOutQuart', delay: (ctx) => ctx.dataIndex * 25};
     const baseChartOpts = (onClick) => ({
         animation: animationConfig, onClick: (evt, elements, chart) => {
-            if (elements.length > 0) onClick(chart, elements[0].index);
+            if (elements.length > 0 && onClick) onClick(chart, elements[0].index);
         }, onHover: (evt, elements) => {
             evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
         },
@@ -354,7 +345,7 @@ import {supabase} from '../supabaseClient.js';
                 color: css(root(), '--hcidx-primary', '#003369'),
                 formatter: v => Math.round(v)
             },
-            tooltip: {displayColors: false, callbacks: {label: (ctx) => `Total: ${ctx.parsed.y}`}}
+            tooltip: {displayColors: false, callbacks: {label: (ctx) => `Total: ${ctx.parsed.y || ctx.parsed.x}`}}
         },
         scales: {x: {grid: {display: false}}, y: {beginAtZero: true, grid: {display: false}}}
     });
@@ -377,8 +368,32 @@ import {supabase} from '../supabaseClient.js';
         cutout: '40%'
     });
 
+    // Arquivo: hc-analise-abs.js
+
+    const top5BarOpts = () => {
+        const opts = barLineOpts(() => {
+        }); // Reutiliza as opções base
+
+        // A linha 'opts.indexAxis = 'y';' foi REMOVIDA para que as barras fiquem em pé.
+
+        opts.scales.x.ticks = { // Lógica de ticks movida de 'y' para 'x'
+            callback: function (value, index, ticks) {
+                const label = this.getLabelForValue(value);
+                // Trunca nomes longos para não quebrar o layout no eixo horizontal
+                return label.length > 10 ? label.substring(0, 10) + '...' : label;
+            }
+        };
+        opts.plugins.datalabels.align = 'end';
+        opts.plugins.datalabels.anchor = 'end';
+        opts.plugins.datalabels.formatter = v => v; // Mostra o número absoluto
+
+        return opts;
+    };
+
+
     function ensureChartsCreated() {
         if (state.charts.totalPorMes) return;
+
         state.charts.totalPorMes = new Chart(document.getElementById('abs-mes-line').getContext('2d'), {
             type: 'line',
             options: {
@@ -406,6 +421,12 @@ import {supabase} from '../supabaseClient.js';
             type: 'bar',
             options: barLineOpts((c, i) => handleChartClick(c, i, 'age'))
         });
+
+        // ***** NOVO: Criação do gráfico Top 5 *****
+        state.charts.top5 = new Chart(document.getElementById('abs-top5-bar').getContext('2d'), {
+            type: 'bar',
+            options: top5BarOpts()
+        });
     }
 
     function updateChartsNow(dataToRender) {
@@ -413,6 +434,8 @@ import {supabase} from '../supabaseClient.js';
         const totalAbs = dataToRender.length || 1;
         const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
 
+        // ... [código dos outros gráficos permanece igual] ...
+        // Gráfico de Visão Mensal
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -441,6 +464,7 @@ import {supabase} from '../supabaseClient.js';
             };
             ch.update();
         }
+        // Gráfico de Visão Semanal
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -457,6 +481,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
+        // Gráfico de Dia da Semana
         {
             const counts = Array(7).fill(0);
             dataToRender.forEach(d => counts[parseDateMaybe(d.Data).getDay()]++);
@@ -469,6 +494,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
+        // Gráfico de Gênero
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -493,6 +519,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
+        // Gráfico de Contrato
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -512,6 +539,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
+        // Gráfico de Faixa Etária
         {
             const counts = new Map(AGE_BUCKETS.map(k => [k, 0]));
             dataToRender.forEach(d => {
@@ -525,6 +553,29 @@ import {supabase} from '../supabaseClient.js';
             ch.data.datasets = [{
                 data: ageData,
                 backgroundColor: labels.map(l => state.interactiveFilters.age === l ? pal[0] : pal[5])
+            }];
+            ch.update();
+        }
+
+        // ***** NOVO: Lógica para o gráfico Top 5 Ofensores *****
+        {
+            const counts = new Map();
+            // Conta a ocorrência de cada nome
+            dataToRender.forEach(d => {
+                const nome = d.colaborador.Nome;
+                counts.set(nome, (counts.get(nome) || 0) + 1);
+            });
+
+            // Ordena do maior para o menor e pega os 5 primeiros
+            const top5 = [...counts.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            const ch = state.charts.top5;
+            ch.data.labels = top5.map(item => item[0]); // Nomes
+            ch.data.datasets = [{
+                data: top5.map(item => item[1]), // Contagem de ausências
+                backgroundColor: pal[1]
             }];
             ch.update();
         }
@@ -551,7 +602,9 @@ import {supabase} from '../supabaseClient.js';
     window.destroyHCAnaliseABS = function () {
         if (state.mounted) {
             console.log('Destruindo estado da Análise ABS.');
-            Object.values(state.charts).forEach(chart => chart?.destroy());
+            Object.values(state.charts).forEach(chart => {
+                if (chart) chart.destroy()
+            });
 
             state.mounted = false;
             state.charts = {
@@ -560,7 +613,8 @@ import {supabase} from '../supabaseClient.js';
                 diaDaSemana: null,
                 genero: null,
                 contrato: null,
-                faixaEtaria: null
+                faixaEtaria: null,
+                top5: null
             };
         }
     };

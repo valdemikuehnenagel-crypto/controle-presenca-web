@@ -103,7 +103,7 @@ function composeTableDataForTurn(auxArr, confArr) {
 
     return [
         {label: 'TOTAL QUADRO', values: totalQuadroByDay},
-        {label: 'PRESENTE', values: aux.presentesByDay},
+        {label: 'LOG I', values: aux.presentesByDay},
         {label: 'CONFERENTE', values: conf.presentesByDay},
         {label: 'DSR', values: dsrTotal}, // <-- Usando o total de DSR
         {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = feriasTotal, a), {})}, // <-- Usando o total de Férias

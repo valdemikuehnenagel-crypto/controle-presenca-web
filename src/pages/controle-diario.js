@@ -69,6 +69,8 @@ async function fetchAllWithPagination(queryBuilder) {
     return allData;
 }
 
+// Arquivo: controle-diario.js
+
 async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
     const variantes = [dia, NORM(dia)];
@@ -78,10 +80,9 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         matrizesPermitidas = null;
     }
 
-
     let q = supabase
         .from('Colaboradores')
-        .select('Nome, Escala, DSR, Ferias, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão"')
+        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão"')
         .eq('Ativo', 'SIM');
 
     if (!turno || turno === 'GERAL') {
@@ -98,6 +99,22 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
     try {
         const cols = await fetchAllWithPagination(q);
+
+        // ***** NOVA LÓGICA ADICIONADA AQUI *****
+        // 1. Busca na tabela Férias quem está de férias NA DATA ESPECÍFICA (dateISO)
+        const {data: feriasHoje, error: feriasError} = await supabase
+            .from('Ferias')
+            .select('Nome')
+            .lte('"Data Inicio"', dateISO)
+            .gte('"Data Final"', dateISO);
+
+        if (feriasError) {
+            console.warn("Erro ao buscar férias do dia:", feriasError);
+        }
+
+        const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
+        // ***** FIM DA NOVA LÓGICA *****
+
         const all = cols || [];
 
         const dsrList = all
@@ -107,21 +124,25 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             })
             .map(c => c.Nome);
 
-
         const elegiveis = all
             .filter(c => {
+                // Filtro de data de admissão
                 const dataAdmissao = c['Data de admissão'];
-
                 if (dataAdmissao && dataAdmissao > dateISO) {
                     return false;
                 }
 
+                // ***** LÓGICA DE FÉRIAS CORRIGIDA *****
+                // 2. Verifica se o nome do colaborador está na lista de férias do dia
+                if (nomesEmFeriasHoje.has(c.Nome)) {
+                    return false; // Se estiver de férias, não é elegível
+                }
 
-                const isFerias = String(c.Ferias || 'NAO').toUpperCase() === 'SIM';
+                // Filtro de DSR
                 const dsr = (c.DSR || '').toString().toUpperCase();
                 const isDSR = variantes.includes(dsr) || variantes.includes(NORM(dsr));
 
-                return !isFerias && !isDSR;
+                return !isDSR; // Retorna true se NÃO for DSR (e já passou pelos outros filtros)
             })
             .sort((a, b) => collator.compare(a.Nome, b.Nome));
 
@@ -139,8 +160,7 @@ async function getMarksFor(dateISO, nomes) {
 
     const {data, error} = await supabase
         .rpc('get_marcas_para_nomes', {
-            nomes: nomes,
-            data_consulta: dateISO
+            nomes: nomes, data_consulta: dateISO
         });
 
     if (error) throw error;
@@ -148,12 +168,7 @@ async function getMarksFor(dateISO, nomes) {
     const map = new Map();
     (data || []).forEach(m => {
         let tipo = null;
-        if (m['Presença']) tipo = 'PRESENCA';
-        else if (m['Falta']) tipo = 'FALTA';
-        else if (m['Atestado']) tipo = 'ATESTADO';
-        else if (m['Folga Especial']) tipo = 'F_ESPECIAL';
-        else if (m['Feriado']) tipo = 'FERIADO';
-        else if (m['Suspensao']) tipo = 'SUSPENSAO';
+        if (m['Presença']) tipo = 'PRESENCA'; else if (m['Falta']) tipo = 'FALTA'; else if (m['Atestado']) tipo = 'ATESTADO'; else if (m['Folga Especial']) tipo = 'F_ESPECIAL'; else if (m['Feriado']) tipo = 'FERIADO'; else if (m['Suspensao']) tipo = 'SUSPENSAO';
         map.set(m.Nome, tipo);
     });
     return map;
@@ -194,13 +209,7 @@ async function fetchList(turno, dateISO) {
 async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
     const setOne = {...zeros};
-    if (tipo === 'PRESENCA') setOne['Presença'] = 1;
-    else if (tipo === 'FALTA') setOne['Falta'] = 1;
-    else if (tipo === 'ATESTADO') setOne['Atestado'] = 1;
-    else if (tipo === 'F_ESPECIAL') setOne['Folga Especial'] = 1;
-    else if (tipo === 'FERIADO') setOne['Feriado'] = 1;
-    else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1;
-    else throw new Error('Tipo inválido.');
+    if (tipo === 'PRESENCA') setOne['Presença'] = 1; else if (tipo === 'FALTA') setOne['Falta'] = 1; else if (tipo === 'ATESTADO') setOne['Atestado'] = 1; else if (tipo === 'F_ESPECIAL') setOne['Folga Especial'] = 1; else if (tipo === 'FERIADO') setOne['Feriado'] = 1; else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1; else throw new Error('Tipo inválido.');
 
 
     const {data: colabInfo, error: colabErr} = await supabase
@@ -244,25 +253,15 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         if (window.absSyncForRow) {
 
             console.log('Enviando para absSyncForRow:', {
-                Nome: nome,
-                Data: dateISO,
-                Falta: setOne['Falta'] || 0,
-                Atestado: setOne['Atestado'] || 0,
+                Nome: nome, Data: dateISO, Falta: setOne['Falta'] || 0, Atestado: setOne['Atestado'] || 0,
 
-                Escala: turnoToUse,
-                SVC: colabInfo.SVC,
-                MATRIZ: colabInfo.MATRIZ
+                Escala: turnoToUse, SVC: colabInfo.SVC, MATRIZ: colabInfo.MATRIZ
             });
 
             await window.absSyncForRow({
-                Nome: nome,
-                Data: dateISO,
-                Falta: setOne['Falta'] || 0,
-                Atestado: setOne['Atestado'] || 0,
+                Nome: nome, Data: dateISO, Falta: setOne['Falta'] || 0, Atestado: setOne['Atestado'] || 0,
 
-                Escala: turnoToUse,
-                SVC: colabInfo.SVC,
-                MATRIZ: colabInfo.MATRIZ
+                Escala: turnoToUse, SVC: colabInfo.SVC, MATRIZ: colabInfo.MATRIZ
             });
         }
     } catch (e) {
@@ -281,10 +280,7 @@ async function deleteMarcacao({nome, dateISO}) {
     try {
         if (window.absSyncForRow) {
             await window.absSyncForRow({
-                Nome: nome,
-                Data: dateISO,
-                Falta: 0,
-                Atestado: 0
+                Nome: nome, Data: dateISO, Falta: 0, Atestado: 0
             });
         }
     } catch (e) {
@@ -296,12 +292,10 @@ async function deleteMarcacao({nome, dateISO}) {
 function ensureExtendedHeader() {
     const headerRow = document.querySelector('.main-table thead tr');
     if (!headerRow) return;
-    const need = [
-        {key: 'cargo', label: 'Cargo'},
-        {key: 'svc', label: 'SVC'},
-        {key: 'gestor', label: 'Gestor'},
-        {key: 'dsr', label: 'DSR do dia'}
-    ];
+    const need = [{key: 'cargo', label: 'Cargo'}, {key: 'svc', label: 'SVC'}, {
+        key: 'gestor',
+        label: 'Gestor'
+    }, {key: 'dsr', label: 'DSR do dia'}];
     need.forEach(({key, label}) => {
         if (!headerRow.querySelector(`th[data-col="${key}"]`)) {
             const th = document.createElement('th');
@@ -333,15 +327,19 @@ function label(tipo) {
 }
 
 function btnsHTML(item) {
-    const tipos = [
-        {label: 'P', tipo: 'PRESENCA', className: 'status-p'},
-        {label: 'F', tipo: 'FALTA', className: 'status-f'},
-        {label: 'A', tipo: 'ATESTADO', className: 'status-a'},
-        {label: 'F.E', tipo: 'F_ESPECIAL', className: 'status-fe'},
-        {label: 'S', tipo: 'SUSPENSAO', className: 'status-s'},
-        {label: 'F.D', tipo: 'FERIADO', className: 'status-fd'},
-        {label: 'X', tipo: 'LIMPAR', className: 'status-x'},
-    ];
+    const tipos = [{label: 'P', tipo: 'PRESENCA', className: 'status-p'}, {
+        label: 'F',
+        tipo: 'FALTA',
+        className: 'status-f'
+    }, {label: 'A', tipo: 'ATESTADO', className: 'status-a'}, {
+        label: 'F.E',
+        tipo: 'F_ESPECIAL',
+        className: 'status-fe'
+    }, {label: 'S', tipo: 'SUSPENSAO', className: 'status-s'}, {
+        label: 'F.D',
+        tipo: 'FERIADO',
+        className: 'status-fd'
+    }, {label: 'X', tipo: 'LIMPAR', className: 'status-x'},];
     return tipos.map(b => {
         const on = item.Marcacao === b.tipo ? ' active' : '';
         return `<button class="cd-btn ${b.className}${on}" data-tipo="${b.tipo}" data-nome="${item.Nome}">${b.label}</button>`;
@@ -370,6 +368,8 @@ function applyMarkToRow(tr, tipo) {
     });
 }
 
+// Arquivo: controle-diario.js
+
 function passFilters(x) {
     const f = state.filters;
     if (f.search && !NORM(x.Nome).includes(NORM(f.search))) return false;
@@ -378,6 +378,13 @@ function passFilters(x) {
     if (f.contrato && (x.Contrato || '') !== f.contrato) return false;
     if (f.svc && (x.SVC || '') !== f.svc) return false;
     if (f.matriz && getMatriz(x) !== f.matriz) return false;
+
+    // ***** NOVA LÓGICA DO FILTRO DE PENDENTES *****
+    // Se o filtro de pendentes estiver ativo, esconde quem JÁ TEM marcação.
+    if (state.isPendingFilterActive && x.Marcacao) {
+        return false;
+    }
+
     return true;
 }
 
@@ -430,8 +437,7 @@ function fillPreserving(sel, values, placeholder, current, onInvalid) {
     if (!sel) return;
 
 
-    sel.innerHTML = `<option value="">${placeholder}</option>` +
-        values.map(v => `<option value="${v}">${v}</option>`).join('');
+    sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
 
 
     if (current && values.includes(current)) {
@@ -477,8 +483,7 @@ function repopulateFilterOptionsCascade() {
 function fill(sel, values, placeholder) {
     if (!sel) return;
     const prev = sel.value;
-    sel.innerHTML = `<option value="">${placeholder}</option>` +
-        values.map(v => `<option value="${v}">${v}</option>`).join('');
+    sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
     sel.value = values.includes(prev) ? prev : '';
 }
 
@@ -573,21 +578,28 @@ async function renderRows(list) {
     ui.tbody.replaceChildren(frag);
 }
 
+// Arquivo: controle-diario.js
+
 function computeSummary(list, meta) {
-    const isAux = x => String(x.Cargo || '').toUpperCase() === 'AUXILIAR';
     const isConf = x => String(x.Cargo || '').toUpperCase() === 'CONFERENTE';
-    const aux = list.filter(isAux);
-    const conf = list.filter(isConf);
+
+    // Filtramos os auxiliares para o HC Previsto, que é específico para eles
+    const aux = list.filter(x => !isConf(x));
 
     const hcPrevisto = aux.length;
     const hcReal = aux.filter(x => x.Marcacao === 'PRESENCA').length;
-    const faltas = aux.filter(x => x.Marcacao === 'FALTA').length;
-    const atest = aux.filter(x => x.Marcacao === 'ATESTADO').length;
-    const fesp = aux.filter(x => x.Marcacao === 'F_ESPECIAL').length;
-    const fer = aux.filter(x => x.Marcacao === 'FERIADO').length;
-    const susp = aux.filter(x => x.Marcacao === 'SUSPENSAO').length;
-    const pend = aux.filter(x => !x.Marcacao).length;
-    const confReal = conf.filter(x => x.Marcacao === 'PRESENCA').length;
+    const confReal = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
+
+    // ***** ALTERAÇÃO 1: 'pend' agora usa a lista completa ('list') *****
+    // Isso garante que tanto auxiliares quanto conferentes pendentes sejam contados.
+    const pend = list.filter(x => !x.Marcacao).length;
+
+    const faltas = list.filter(x => x.Marcacao === 'FALTA').length;
+    const atest = list.filter(x => x.Marcacao === 'ATESTADO').length;
+    const fesp = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
+    const fer = list.filter(x => x.Marcacao === 'FERIADO').length;
+    const susp = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
+
     const quadroTotal = hcReal + confReal;
 
     let dsrCount = 0;
@@ -598,14 +610,12 @@ function computeSummary(list, meta) {
 
     const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
 
-    const mainSummaryHTML =
-        `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` +
-        `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` +
-        `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | ` +
-        `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
+    const mainSummaryHTML = `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` + `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` + `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | ` + `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
 
+    // ***** ALTERAÇÃO 2: Adicionando um ID para o botão e a classe 'active' se o filtro estiver ligado *****
+    const activeClass = state.isPendingFilterActive ? 'active' : '';
     ui.summary.innerHTML = `
-        <div class="summary-pending ${pendentesClass}">
+        <div id="cd-summary-pending-btn" class="summary-pending ${pendentesClass} ${activeClass}" title="Clique para filtrar pendentes">
             Pendentes: ${pend}
         </div>
         <div class="summary-main">
@@ -645,8 +655,7 @@ async function carregar(full = false) {
         state.baseList = elegiveis.map(c => ({
             ...c,
 
-            Matriz: getMatriz(c),
-            Marcacao: markMap.get(c.Nome) || null
+            Matriz: getMatriz(c), Marcacao: markMap.get(c.Nome) || null
         }));
 
 
@@ -800,11 +809,7 @@ async function marcarTodosPresentes() {
         try {
             if (window.absSyncBatch) {
                 const payload = nomes.map(n => ({
-                    Nome: n,
-                    Data: dataISO,
-                    Turno: escMap.get(n) || null,
-                    Falta: 0,
-                    Atestado: 0
+                    Nome: n, Data: dataISO, Turno: escMap.get(n) || null, Falta: 0, Atestado: 0
                 }));
                 await window.absSyncBatch(payload);
             }
@@ -854,10 +859,7 @@ async function limparTodas() {
         try {
             if (window.absSyncBatch) {
                 const payload = nomes.map(n => ({
-                    Nome: n,
-                    Data: dataISO,
-                    Falta: 0,
-                    Atestado: 0
+                    Nome: n, Data: dataISO, Falta: 0, Atestado: 0
                 }));
                 await window.absSyncBatch(payload);
             }
@@ -904,10 +906,7 @@ async function ensureXLSX() {
 
 function autoColWidths(headers, rows) {
     return headers.map(h => {
-        const maxLen = Math.max(
-            String(h).length,
-            ...rows.map(r => String(r[h] ?? '').length)
-        );
+        const maxLen = Math.max(String(h).length, ...rows.map(r => String(r[h] ?? '').length));
         return {wch: Math.min(Math.max(10, maxLen + 2), 40)};
     });
 }
@@ -930,22 +929,7 @@ async function exportXLSX() {
         await ensureXLSX();
 
 
-        const HEADERS = [
-            'Nome',
-            'Cargo',
-            'Presença',
-            'Falta',
-            'Atestado',
-            'Folga Especial',
-            'Suspensao',
-            'Feriado',
-            'Data',
-            'Turno',
-            'SVC',
-            'Gestor',
-            'Contrato',
-            'Matriz'
-        ];
+        const HEADERS = ['Nome', 'Cargo', 'Presença', 'Falta', 'Atestado', 'Folga Especial', 'Suspensao', 'Feriado', 'Data', 'Turno', 'SVC', 'Gestor', 'Contrato', 'Matriz'];
 
         const rows = [];
 
@@ -1029,12 +1013,20 @@ function updatePeriodLabel() {
 function openPeriodModal() {
     const overlay = document.createElement('div');
     Object.assign(overlay.style, {
-        position: 'fixed', inset: '0', background: 'rgba(0,0,0,.45)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: '9997'
+        position: 'fixed',
+        inset: '0',
+        background: 'rgba(0,0,0,.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: '9997'
     });
     const modal = document.createElement('div');
     Object.assign(modal.style, {
-        background: '#fff', borderRadius: '12px', padding: '16px', minWidth: '420px',
+        background: '#fff',
+        borderRadius: '12px',
+        padding: '16px',
+        minWidth: '420px',
         boxShadow: '0 10px 30px rgba(0,0,0,.25)'
     });
     const h3 = document.createElement('h3');
@@ -1093,40 +1085,46 @@ function openPeriodModal() {
     });
 }
 
+// Arquivo: controle-diario.js
+
 function injectSummaryStyles() {
     const style = document.createElement('style');
     style.textContent = `
-        /* Transforma o container principal em um layout flexível */
         #cd-summary {
             display: flex;
-            flex-direction: column; /* Organiza os itens em coluna */
-            align-items: center;   /* MUDANÇA: Alinha os itens no centro */
-            gap: 4px;              /* Pequeno espaço entre as linhas */
-            margin-bottom: 1rem;   /* Adiciona um espaço abaixo dos contadores */
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 1rem;
         }
 
-        /* Estilo para o contador de Pendentes */
         .summary-pending {
-            font-size: 1.2em; /* Um pouco maior */
+            font-size: 1.2em;
             font-weight: bold;
             padding: 4px 8px;
             border-radius: 6px;
             color: #fff;
-            transition: background-color 0.3s ease;
+            transition: all 0.2s ease;
+            cursor: pointer; /* <-- Adicionado cursor de clique */
         }
         
-        /* Cor laranja para quando houver pendentes */
-        .summary-pending.status-orange {
-            background-color: #f59e0b; /* Laranja */
+        /* ***** NOVOS ESTILOS ***** */
+        .summary-pending:hover {
+            transform: scale(1.05); /* Efeito ao passar o mouse */
         }
+        .summary-pending.active {
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.4); /* Efeito de botão pressionado */
+            transform: translateY(1px);
+        }
+        /* ***** FIM DOS NOVOS ESTILOS ***** */
         
-        /* Cor verde para quando estiver zerado */
-        .summary-pending.status-green {
-            background-color: #10b981; /* Verde */
-        }
+        .summary-pending.status-orange { background-color: #f59e0b; }
+        .summary-pending.status-green { background-color: #10b981; }
     `;
     document.head.appendChild(style);
 }
+
+// Arquivo: controle-diario.js
 
 export async function init() {
     const pad2 = (n) => String(n).padStart(2, '0');
@@ -1151,7 +1149,6 @@ export async function init() {
         selMatriz: document.getElementById('cd-filter-matriz'),
     };
 
-
     const hoje = localISO(new Date());
     const firstOfMonth = (() => {
         const d = new Date();
@@ -1161,10 +1158,13 @@ export async function init() {
 
     state = {
         turnoAtual: 'GERAL',
-        baseList: [], filtered: [], meta: {},
+        baseList: [],
+        filtered: [],
+        meta: {},
         colabMap: new Map(),
         filters: {search: '', gestor: '', cargo: '', contrato: '', svc: '', matriz: ''},
-        period: {start: firstOfMonth, end: hoje}
+        period: {start: firstOfMonth, end: hoje},
+        isPendingFilterActive: false, // ***** NOVO ESTADO DO FILTRO *****
     };
 
     if (!ui.date.value) ui.date.value = hoje;
@@ -1177,6 +1177,17 @@ export async function init() {
             carregar(true);
         });
     });
+
+    // ***** NOVO EVENTO DE CLIQUE PARA O FILTRO *****
+    if (ui.summary) {
+        ui.summary.addEventListener('click', (e) => {
+            const pendingBtn = e.target.closest('#cd-summary-pending-btn');
+            if (pendingBtn) {
+                state.isPendingFilterActive = !state.isPendingFilterActive; // Inverte o estado
+                refresh(); // Re-renderiza a tabela com o filtro aplicado/removido
+            }
+        });
+    }
 
     ui.tbody.addEventListener('click', onRowClick);
     ui.markAllBtn?.addEventListener('click', marcarTodosPresentes);
