@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const {data, error} = await supabase
             .from('Logins')
-            .select('*') // Seleciona todas as colunas para ter acesso a Nome e avatar_url
+            .select('*')
             .eq('PIN', pin)
             .single();
 

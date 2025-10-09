@@ -1,12 +1,11 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
 
-
 let ui;
-let pageStyle = null;
 const state = {
     turnoAtual: 'GERAL',
     detailedResults: new Map(),
+    period: {start: '', end: ''},
 };
 
 
@@ -29,6 +28,60 @@ function listDates(startISO, endISO) {
         out.push(d.toISOString().slice(0, 10));
     }
     return out;
+}
+
+
+function updatePeriodLabel() {
+    if (ui.periodBtn) {
+        ui.periodBtn.textContent = 'Selecionar Período';
+    }
+}
+
+
+function openPeriodModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
+
+    const modalHTML = `
+        <div class="container !h-auto !w-auto max-w-md">
+            <h3>Selecionar Período</h3>
+            <div class="grid grid-cols-2 gap-4 my-4">
+                <div>
+                    <label for="modal-start-date" class="block mb-1 font-semibold text-sm">Início</label>
+                    <input type="date" id="modal-start-date" class="w-full p-2 border rounded-md" value="${state.period.start || ''}">
+                </div>
+                <div>
+                    <label for="modal-end-date" class="block mb-1 font-semibold text-sm">Fim</label>
+                    <input type="date" id="modal-end-date" class="w-full p-2 border rounded-md" value="${state.period.end || ''}">
+                </div>
+            </div>
+            <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" class="btn-cancelar" data-action="cancel">Cancelar</button>
+                <button type="button" class="btn-salvar" data-action="apply">Aplicar</button>
+            </div>
+        </div>
+    `;
+    overlay.innerHTML = modalHTML;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        if (e.target === overlay || action === 'cancel') {
+            document.body.removeChild(overlay);
+        } else if (action === 'apply') {
+            const startInput = document.getElementById('modal-start-date');
+            const endInput = document.getElementById('modal-end-date');
+            if (!startInput.value || !endInput.value) {
+                alert('Por favor, selecione as duas datas.');
+                return;
+            }
+            state.period.start = startInput.value;
+            state.period.end = endInput.value;
+            updatePeriodLabel();
+            document.body.removeChild(overlay);
+            generateReport();
+        }
+    });
 }
 
 
@@ -79,7 +132,6 @@ async function fetchData(startDate, endDate, turno) {
         .lte('Data', endDate);
     const preenchimentos = await fetchAllPages(preenchimentosQuery);
 
-
     const feriasQuery = supabase
         .from('Ferias')
         .select('Nome, "Data Inicio", "Data Final"')
@@ -91,9 +143,9 @@ async function fetchData(startDate, endDate, turno) {
     return {colaboradores, preenchimentos, ferias};
 }
 
+
 function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
     state.detailedResults.clear();
-
 
     const feriasPorDia = new Map();
     for (const registro of ferias) {
@@ -129,7 +181,6 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
             let status = 'EMPTY';
 
             const nomesEmFerias = feriasPorDia.get(date) || new Set();
-
 
             const elegiveis = colaboradoresSVC.filter(c => {
                 const nomeColaborador = (c.Nome || '').trim().toUpperCase();
@@ -197,7 +248,7 @@ function showDetailsModal(svc, date) {
     const dateFormatted = `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
     let contentHtml = '';
     if (details.pendentes.length === 0) {
-        contentHtml = '<p>Nenhum colaborador pendente encontrado para esta seleção.</p><p>Total de Elegíveis: ' + details.elegiveis.length + '</p>';
+        contentHtml = '<p>Nenhum colaborador pendente encontrado.</p><p>Total de Elegíveis: ' + details.elegiveis.length + '</p>';
     } else {
         contentHtml = `
             <p class="mb-2">Total de Elegíveis: <strong>${details.elegiveis.length}</strong> | Pendentes: <strong>${details.pendentes.length}</strong></p>
@@ -251,24 +302,21 @@ function renderTable(svcs, dates, results) {
     }
 }
 
-
 async function generateReport() {
-    const startDate = ui.startDateInput.value;
-    const endDate = ui.endDateInput.value;
+    const startDate = state.period.start;
+    const endDate = state.period.end;
+
     if (!startDate || !endDate) {
-        ui.resultContainer.innerHTML = '<p>Por favor, selecione as datas de início e fim.</p>';
+        ui.resultContainer.innerHTML = '<p class="p-4 text-center">Por favor, selecione o período desejado.</p>';
         return;
     }
     showLoading(true);
-    ui.resultContainer.innerHTML = `<p>Gerando relatório para o turno ${state.turnoAtual}...</p>`;
+    ui.resultContainer.innerHTML = `<p class="p-4 text-center">Gerando relatório para o turno ${state.turnoAtual}...</p>`;
     try {
         const dates = listDates(startDate, endDate);
         if (dates.length > 31) throw new Error("O período selecionado não pode exceder 31 dias.");
 
-
         const {colaboradores, preenchimentos, ferias} = await fetchData(startDate, endDate, state.turnoAtual);
-
-
         const {svcs, results} = processEfetividade(colaboradores, preenchimentos, dates, ferias);
 
         if (svcs.length > 0) {
@@ -287,99 +335,39 @@ async function generateReport() {
                 return svcA.localeCompare(svcB);
             });
         }
-        if (svcs.length === 0) ui.resultContainer.innerHTML = '<p>Nenhum colaborador encontrado para o período e turno selecionados.</p>';
-        else renderTable(svcs, dates, results);
+
+        if (svcs.length === 0) {
+            ui.resultContainer.innerHTML = '<p class="p-4 text-center">Nenhum colaborador encontrado.</p>';
+        } else {
+            renderTable(svcs, dates, results);
+        }
+
     } catch (error) {
         console.error('Erro ao gerar relatório de efetividade:', error);
-        ui.resultContainer.innerHTML = `<p class="text-red-500">Falha ao gerar relatório: ${error.message}</p>`;
+        ui.resultContainer.innerHTML = `<p class="p-4 text-center text-red-500">Falha: ${error.message}</p>`;
     } finally {
         showLoading(false);
     }
 }
 
-function injectCSS() {
-    if (document.getElementById('efetividade-style')) return;
-
-
-    const css = `
-        /* Estrutura principal do novo cabeçalho */
-        #efetividade-page .efetividade-header {
-            display: flex;
-            flex-direction: column; /* Organiza as barras em linhas */
-            gap: 1rem; /* Espaço entre a linha de filtros e a de ações */
-            margin-bottom: 1rem;
-        }
-
-        /* Linha 1: Barra de Filtros */
-        #efetividade-page .filter-bar {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap; /* Permite quebrar linha em telas menores */
-            gap: 2rem; /* Espaço entre os grupos de filtros */
-        }
-        #efetividade-page .date-filters {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-        
-        /* Linha 2: Barra de Ações e Legenda */
-        #efetividade-page .action-bar {
-            display: flex;
-            justify-content: space-between; /* Empurra a legenda para a esquerda e o botão para a direita */
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-
-        /* Estilos da Legenda */
-        #efetividade-page .legend-container { display: flex; gap: 1.5rem; font-size: 0.8rem; color: black; font-weight: bold; }
-        #efetividade-page .legend-item { display: flex; align-items: center; gap: 0.4rem; }
-        #efetividade-page .legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
-        #efetividade-page .legend-dot.status-ok { background-color: #d4edda; }
-        #efetividade-page .legend-dot.status-pendente { background-color: #fff3cd; }
-        #efetividade-page .legend-dot.status-nok { background-color: #f8d7da; }
-
-        /* Cores da Tabela (com alta especificidade) */
-        #efet-result .main-table td.status-ok { background-color: #d4edda !important; color: #155724 !important; }
-        #efet-result .main-table td.status-pendente { background-color: #fff3cd !important; color: #856404 !important; }
-        #efet-result .main-table td.status-nok { background-color: #f8d7da !important; color: #721c24 !important; }
-        #efet-result .main-table td.status-na { background-color: #e9ecef !important; color: #495057 !important; }
-        #efet-result .main-table td.status-empty { background-color: #fff !important; }
-
-        /* Estilos gerais */
-        .status-pendente, .status-nok { cursor: pointer; }
-        .details-list { list-style: disc; padding-left: 20px; }
-        .details-list li { margin-bottom: 4px; }
-        #efet-result .table-container { max-height: calc(100vh - 300px); }
-        #efet-result .main-table th, #efet-result .main-table td { text-align: center; padding: 8px 6px; font-size: 0.8rem; border: 1px solid #dee2e6; }
-        #efet-result .main-table th:first-child, #efet-result .main-table td:first-child { text-align: left; font-weight: bold; position: sticky; left: 0; background-color: #f8f9fa; z-index: 1; }
-    `;
-    pageStyle = document.createElement('style');
-    pageStyle.id = 'efetividade-style';
-    pageStyle.textContent = css;
-    document.head.appendChild(pageStyle);
-}
-
 export function init() {
-    injectCSS();
     ui = {
-        startDateInput: document.getElementById('efet-start-date'),
-        endDateInput: document.getElementById('efet-end-date'),
-        generateBtn: document.getElementById('efet-generate-btn'),
+        periodBtn: document.getElementById('efet-period-btn'),
         resultContainer: document.getElementById('efet-result'),
         loader: document.getElementById('efet-loader'),
         subtabButtons: document.querySelectorAll('#efetividade-page .subtab-btn'),
     };
-    if (!ui.startDateInput.value || !ui.endDateInput.value) {
+
+    if (!state.period.start || !state.period.end) {
         const today = new Date();
         const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
         const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
-        ui.startDateInput.value = firstDay;
-        ui.endDateInput.value = lastDay;
+        state.period.start = firstDay;
+        state.period.end = lastDay;
     }
-    ui.generateBtn.addEventListener('click', generateReport);
+
+    ui.periodBtn.addEventListener('click', openPeriodModal);
+
     ui.subtabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             ui.subtabButtons.forEach(b => b.classList.remove('active'));
@@ -388,16 +376,14 @@ export function init() {
             generateReport();
         });
     });
+
+    updatePeriodLabel();
     generateReport();
 }
 
 export function destroy() {
-    if (ui && ui.generateBtn) {
-        ui.generateBtn.removeEventListener('click', generateReport);
-    }
-    if (pageStyle) {
-        pageStyle.remove();
-        pageStyle = null;
+    if (ui && ui.periodBtn) {
+        ui.periodBtn.removeEventListener('click', openPeriodModal);
     }
     const modal = document.getElementById('efet-details-modal');
     if (modal) modal.remove();

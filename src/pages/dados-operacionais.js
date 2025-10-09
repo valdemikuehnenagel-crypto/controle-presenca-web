@@ -2,7 +2,6 @@ import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
 
 let ui;
-let pageStyle = null;
 const state = {
     detailedResults: new Map(),
 };
@@ -177,10 +176,9 @@ function renderTable(svcs, colunas, results) {
     }
 }
 
-
 async function generateReport() {
     ui.loader.style.display = 'flex';
-    ui.resultContainer.innerHTML = `<p>Gerando relatório...</p>`;
+    ui.resultContainer.innerHTML = `<p class="p-4 text-center">Gerando relatório...</p>`;
     try {
         const {colaboradores} = await fetchData();
         const {svcs, results, colunas} = processDataQuality(colaboradores);
@@ -189,70 +187,36 @@ async function generateReport() {
             svcs.sort((svcA, svcB) => {
                 const resultsA = results[svcA] || {};
                 const resultsB = results[svcB] || {};
-
                 const count100A = colunas.filter(col => (resultsA[col]?.percentual || 0) === 100).length;
                 const count100B = colunas.filter(col => (resultsB[col]?.percentual || 0) === 100).length;
-
                 if (count100A !== count100B) {
                     return count100B - count100A;
                 }
-
                 const totalPercentA = colunas.reduce((sum, col) => sum + (resultsA[col]?.percentual || 0), 0);
                 const avgA = totalPercentA / colunas.length;
-
                 const totalPercentB = colunas.reduce((sum, col) => sum + (resultsB[col]?.percentual || 0), 0);
                 const avgB = totalPercentB / colunas.length;
-
                 if (avgA !== avgB) {
                     return avgB - avgA;
                 }
-
                 return svcA.localeCompare(svcB);
             });
         }
 
         if (svcs.length === 0) {
-            ui.resultContainer.innerHTML = '<p>Nenhum SVC encontrado para gerar o relatório.</p>';
+            ui.resultContainer.innerHTML = '<p class="p-4 text-center">Nenhum SVC encontrado para gerar o relatório.</p>';
         } else {
             renderTable(svcs, colunas, results);
         }
     } catch (error) {
         console.error('Erro ao gerar relatório de dados operacionais:', error);
-        ui.resultContainer.innerHTML = `<p class="text-red-500">Falha ao gerar relatório: ${error.message}</p>`;
+        ui.resultContainer.innerHTML = `<p class="p-4 text-center text-red-500">Falha ao gerar relatório: ${error.message}</p>`;
     } finally {
         ui.loader.style.display = 'none';
     }
 }
 
-function injectCSS() {
-    if (document.getElementById('dados-op-style')) return;
-    const css = `
-            #dados-op-page .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-            #dados-op-page .legend-container { display: flex; gap: 1.5rem; font-size: 0.8rem; color: black; font-weight: bold; }
-            #dados-op-page .legend-item { display: flex; align-items: center; gap: 0.4rem; }
-            #dados-op-page .legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
-            #dados-op-page .legend-dot.status-ok { background-color: #d4edda; }
-            #dados-op-page .legend-dot.status-pendente { background-color: #fff3cd; }
-            #dados-op-page .legend-dot.status-nok { background-color: #f8d7da; }
-            #dados-op-page .legend-dot.status-na { background-color: #e9ecef; }
-            #dados-op-result .main-table td.status-ok { background-color: #d4edda !important; color: #155724 !important; }
-            #dados-op-result .main-table td.status-pendente { background-color: #fff3cd !important; color: #856404 !important; }
-            #dados-op-result .main-table td.status-nok { background-color: #f8d7da !important; color: #721c24 !important; }
-            #dados-op-result .main-table td.status-na { background-color: #e9ecef !important; color: #495057 !important; }
-            #dados-op-result .main-table td[data-svc] { cursor: pointer; }
-            .details-list { list-style: disc; padding-left: 20px; }
-            .details-list li { margin-bottom: 4px; }
-            #dados-op-result .table-container { max-height: calc(100vh - 250px); overflow: auto; }             #dados-op-result .main-table { width: 100%; border-collapse: collapse; }             #dados-op-result .main-table th, #dados-op-result .main-table td { text-align: center; padding: 8px 6px; font-size: 0.8rem; border: 1px solid #dee2e6; white-space: nowrap; }             #dados-op-result .main-table th:first-child, #dados-op-result .main-table td:first-child { text-align: left; font-weight: bold; position: sticky; left: 0; background-color: #f8f9fa; z-index: 1; }
-        `;
-    pageStyle = document.createElement('style');
-    pageStyle.id = 'dados-op-style';
-    pageStyle.textContent = css;
-    document.head.appendChild(pageStyle);
-}
-
-
 export function init() {
-    injectCSS();
     ui = {
         resultContainer: document.getElementById('dados-op-result'),
         loader: document.getElementById('dados-op-loader'),
@@ -260,12 +224,7 @@ export function init() {
     generateReport();
 }
 
-
 export function destroy() {
-    if (pageStyle) {
-        pageStyle.remove();
-        pageStyle = null;
-    }
     const modal = document.getElementById('dados-op-details-modal');
     if (modal) modal.remove();
 }

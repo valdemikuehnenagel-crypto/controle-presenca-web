@@ -1,36 +1,17 @@
 <div class="page-container" id="efetividade-page">
     <div class="efetividade-header">
-        <div class="filter-bar">
-            <div class="date-filters">
-                <div class="form-group">
-                    <label for="efet-start-date">Data Início:</label>
-                    <input type="date" id="efet-start-date">
-                </div>
-                <div class="form-group">
-                    <label for="efet-end-date">Data Fim:</label>
-                    <input type="date" id="efet-end-date">
-                </div>
-            </div>
+        <div class="filter-bar efetividade-filters">
             <div class="subtabs">
-                <button class="subtab-btn active" data-turno="GERAL">GERAL</button>
+                <button class="subtab-btn active" data-turno="GERAL">Geral</button>
                 <button class="subtab-btn" data-turno="T1">T1</button>
                 <button class="subtab-btn" data-turno="T2">T2</button>
                 <button class="subtab-btn" data-turno="T3">T3</button>
             </div>
+
+            <button id="efet-period-btn">Selecionar Período</button>
         </div>
-        <div class="action-bar">
-            <div class="legend-container">
-                <div class="legend-item"><span class="legend-dot status-ok"></span>OK = 100% Preenchido</div>
-                <div class="legend-item"><span class="legend-dot status-pendente"></span>PENDENTE = Preenchimento
-                    Parcial
-                </div>
-                <div class="legend-item"><span class="legend-dot status-nok"></span>NOK = Nenhum Preenchimento</div>
-            </div>
-            <div class="actions">
-                <button id="efet-generate-btn" class="btn-salvar">Gerar Relatório</button>
-            </div>
+
         </div>
-    </div>
 
     <div id="efet-loader" class="loading-overlay" style="display: none;">
         <div class="spinner"></div>

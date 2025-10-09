@@ -341,7 +341,10 @@ import {supabase} from '../supabaseClient.js';
                 display: 'auto',
                 anchor: 'end',
                 align: 'end',
-                font: {weight: 'bold'},
+                font: {
+                    weight: 'bold',
+                    size: 18
+                },
                 color: css(root(), '--hcidx-primary', '#003369'),
                 formatter: v => Math.round(v)
             },
@@ -356,7 +359,10 @@ import {supabase} from '../supabaseClient.js';
             legend: {display: true, position: 'bottom', labels: {boxWidth: 12, padding: 15}},
             datalabels: {
                 display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) > 5,
-                font: {weight: 'bold'},
+                font: {
+                    weight: 'bold',
+                    size: 19
+                },
                 color: '#fff',
                 formatter: (v) => `${Math.round(v)}%`
             },
