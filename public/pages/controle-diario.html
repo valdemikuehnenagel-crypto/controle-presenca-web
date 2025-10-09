@@ -1,48 +1,65 @@
 <section class="tab-panel active">
-  <div id="cd-loading"><div class="spinner" aria-label="Carregando"></div></div>
-  <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
-
-  <div class="cd-header single-line">
-    <div class="date-selector">
-      <label for="cd-data">Data:</label>
-      <input id="cd-data" type="date" />
+    <div id="cd-loading">
+        <div class="spinner" aria-label="Carregando"></div>
     </div>
-    <div class="cd-filters">
-      <input id="cd-search" type="search" placeholder="Pesquisar..." />
-      <select id="cd-filter-gestor"><option value="">Gestor</option></select>
-      <select id="cd-filter-cargo"><option value="">Cargo</option></select>
-      <select id="cd-filter-contrato"><option value="">Contrato</option></select>
-      <select id="cd-filter-svc"><option value="">SVC</option></select>
-      <select id="cd-filter-matriz"><option value="">Matriz</option></select>
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="cd-header single-line">
+        <div class="date-selector">
+            <label for="cd-data">Data:</label>
+            <input id="cd-data" type="date"/>
+        </div>
+        <div class="cd-filters">
+            <input id="cd-search" type="search" placeholder="Pesquisar..."/>
+            <select id="cd-filter-gestor">
+                <option value="">Gestor</option>
+            </select>
+            <select id="cd-filter-cargo">
+                <option value="">Cargo</option>
+            </select>
+            <select id="cd-filter-contrato">
+                <option value="">Contrato</option>
+            </select>
+            <select id="cd-filter-svc">
+                <option value="">SVC</option>
+            </select>
+            <select id="cd-filter-matriz">
+                <option value="">Matriz</option>
+            </select>
+        </div>
+        <div class="action-buttons">
+            <button id="cd-mark-all-present">Marcar Todos(P)</button>
+            <button id="cd-clear-all">Limpar</button>
+            <button id="cd-period-btn">Selecionar Período</button>
+            <button id="cd-export">Exportar</button>
+        </div>
     </div>
-    <div class="action-buttons">
-      <button id="cd-mark-all-present">Marcar Todos(P)</button>
-      <button id="cd-clear-all">Limpar</button>
-      <button id="cd-period-btn">Selecionar Período</button>
-      <button id="cd-export">Exportar</button>
+
+    <div class="cd-secondary-bar">
+        <div class="subtabs-root">
+            <button class="subtab-btn active" data-turno="GERAL">Geral</button>
+            <button class="subtab-btn" data-turno="T1">T1</button>
+            <button class="subtab-btn" data-turno="T2">T2</button>
+            <button class="subtab-btn" data-turno="T3">T3</button>
+        </div>
+        <div id="cd-summary" class="summary-display">—</div>
     </div>
-  </div>
-
-  <div class="cd-secondary-bar">
-      <div class="subtabs-root">
-          <button class="subtab-btn active" data-turno="GERAL">Geral</button>
-          <button class="subtab-btn" data-turno="T1">T1</button>
-          <button class="subtab-btn" data-turno="T2">T2</button>
-          <button class="subtab-btn" data-turno="T3">T3</button>
-      </div>
-      <div id="cd-summary" class="summary-display">—</div>
-  </div>
 
 
-  <div class="table-wrapper">
-    <table class="main-table">
-      <thead>
-        <tr>
-          <th class="nome-col">Nome</th>
-          <th>Ações</th>
-        </tr>
-      </thead>
-      <tbody id="cd-tbody"></tbody>
-    </table>
-  </div>
+    <div class="table-wrapper">
+        <table class="main-table">
+            <thead>
+            <tr>
+                <th class="nome-col">Nome</th>
+                <th>Ações</th>
+                <th>LDAP</th>
+                <th>Cargo</th>
+                <th>SVC</th>
+                <th>Gestor</th>
+                <th>DSR do dia</th>
+            </tr>
+            </thead>
+            <tbody id="cd-tbody"></tbody>
+        </table>
+    </div>
 </section>

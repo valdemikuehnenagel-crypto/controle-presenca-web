@@ -69,7 +69,6 @@ async function fetchAllWithPagination(queryBuilder) {
     return allData;
 }
 
-
 async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
     const variantes = [dia, NORM(dia)];
@@ -78,10 +77,9 @@ async function getColaboradoresElegiveis(turno, dateISO) {
     if (Array.isArray(matrizesPermitidas) && matrizesPermitidas.length === 0) {
         matrizesPermitidas = null;
     }
-
     let q = supabase
         .from('Colaboradores')
-        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão"')
+        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')
         .eq('Ativo', 'SIM');
 
     if (!turno || turno === 'GERAL') {
@@ -99,7 +97,6 @@ async function getColaboradoresElegiveis(turno, dateISO) {
     try {
         const cols = await fetchAllWithPagination(q);
 
-
         const {data: feriasHoje, error: feriasError} = await supabase
             .from('Ferias')
             .select('Nome')
@@ -112,7 +109,6 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
 
-
         const all = cols || [];
 
         const dsrList = all
@@ -124,24 +120,21 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
         const elegiveis = all
             .filter(c => {
-
                 const dataAdmissao = c['Data de admissão'];
                 if (dataAdmissao && dataAdmissao > dateISO) {
                     return false;
                 }
 
-
                 if (nomesEmFeriasHoje.has(c.Nome)) {
                     return false;
                 }
-
 
                 const dsr = (c.DSR || '').toString().toUpperCase();
                 const isDSR = variantes.includes(dsr) || variantes.includes(NORM(dsr));
 
                 return !isDSR;
             })
-            .sort((a, b) => collator.compare(a.Nome, b.Nome));
+            .sort((a, b) => collator.compare(a, b));
 
         return {elegiveis, dsrList};
 
@@ -188,8 +181,10 @@ async function fetchList(turno, dateISO) {
     const {elegiveis, dsrList} = await getColaboradoresElegiveis(turno, dateISO);
     const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));
 
+
     const list = elegiveis.map(c => ({
         Nome: c.Nome,
+        LDAP: c.LDAP || '',
         Cargo: c.Cargo || '',
         SVC: c.SVC || '',
         Gestor: c.Gestor || '',
@@ -201,7 +196,6 @@ async function fetchList(turno, dateISO) {
 
     return {list, meta: {dsrList}};
 }
-
 
 async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
@@ -286,24 +280,6 @@ async function deleteMarcacao({nome, dateISO}) {
 }
 
 
-function ensureExtendedHeader() {
-    const headerRow = document.querySelector('.main-table thead tr');
-    if (!headerRow) return;
-    const need = [{key: 'cargo', label: 'Cargo'}, {key: 'svc', label: 'SVC'}, {
-        key: 'gestor',
-        label: 'Gestor'
-    }, {key: 'dsr', label: 'DSR do dia'}];
-    need.forEach(({key, label}) => {
-        if (!headerRow.querySelector(`th[data-col="${key}"]`)) {
-            const th = document.createElement('th');
-            th.textContent = label;
-            th.setAttribute('data-col', key);
-            headerRow.appendChild(th);
-        }
-    });
-}
-
-
 function label(tipo) {
     switch (tipo) {
         case 'PRESENCA':
@@ -366,9 +342,23 @@ function applyMarkToRow(tr, tipo) {
 }
 
 
+
+
 function passFilters(x) {
     const f = state.filters;
-    if (f.search && !NORM(x.Nome).includes(NORM(f.search))) return false;
+
+
+    if (f.search) {
+        const searchTermNorm = NORM(f.search);
+        const nomeNorm = NORM(x.Nome);
+        const ldapNorm = NORM(x.LDAP);
+
+
+        if (!nomeNorm.includes(searchTermNorm) && !ldapNorm.includes(searchTermNorm)) {
+            return false;
+        }
+    }
+
     if (f.gestor && (x.Gestor || '') !== f.gestor) return false;
     if (f.cargo && (x.Cargo || '') !== f.cargo) return false;
     if (f.contrato && (x.Contrato || '') !== f.contrato) return false;
@@ -483,27 +473,32 @@ function fill(sel, values, placeholder) {
 }
 
 
+
+
 async function renderRows(list) {
-    ensureExtendedHeader();
+
+
     ui.tbody.innerHTML = '';
 
     const dsrNamesRaw = (state.meta?.dsrList || []).slice();
     if (!dsrNamesRaw.length && list.length === 0) {
-        ui.tbody.innerHTML = '<tr><td colspan="6">Nenhum colaborador previsto para hoje.</td></tr>';
+        ui.tbody.innerHTML = '<tr><td colspan="7">Nenhum colaborador previsto para hoje.</td></tr>';
         return;
     }
 
     let dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
 
     try {
-        const {data: info, error} = await supabase
-            .from('Colaboradores')
-            .select('Nome, Cargo, SVC, Gestor, Contrato, MATRIZ')
-            .in('Nome', dsrNamesRaw);
+        if (dsrNamesRaw.length > 0) {
+            const {data: info, error} = await supabase
+                .from('Colaboradores')
+                .select('Nome, Cargo, SVC, Gestor, Contrato, MATRIZ, LDAP')
+                .in('Nome', dsrNamesRaw);
 
-        if (!error && Array.isArray(info)) {
-            const byName = new Map(info.map(x => [x.Nome, x]));
-            dsrInfos = dsrNamesRaw.map(n => byName.get(n) || {Nome: n});
+            if (!error && Array.isArray(info)) {
+                const byName = new Map(info.map(x => [x.Nome, x]));
+                dsrInfos = dsrNamesRaw.map(n => byName.get(n) || {Nome: n});
+            }
         }
     } catch (_) { /* silencioso */
     }
@@ -527,6 +522,7 @@ async function renderRows(list) {
             tr.dataset.mark = item.Marcacao || 'NONE';
             tr.classList.add(`row-${(item.Marcacao || 'NONE').toLowerCase()}`);
 
+
             const tdNome = document.createElement('td');
             tdNome.className = 'nome-col';
             const ic = document.createElement('span');
@@ -541,9 +537,15 @@ async function renderRows(list) {
                 tdNome.append(' ', badge);
             }
 
+
             const tdAcoes = document.createElement('td');
             tdAcoes.className = 'status-actions';
             tdAcoes.innerHTML = btnsHTML(item);
+
+
+            const tdLDAP = document.createElement('td');
+            tdLDAP.textContent = item.LDAP || '—';
+
 
             const tdCargo = document.createElement('td');
             tdCargo.textContent = item.Cargo || '';
@@ -551,12 +553,14 @@ async function renderRows(list) {
             tdSVC.textContent = item.SVC || '';
             const tdGestor = document.createElement('td');
             tdGestor.textContent = item.Gestor || '';
-
             const tdDSR = document.createElement('td');
             tdDSR.textContent = dsrName;
 
-            tr.append(tdNome, tdAcoes, tdCargo, tdSVC, tdGestor, tdDSR);
+
+            tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
+
         } else {
+
             const dash = () => {
                 const td = document.createElement('td');
                 td.textContent = '—';
@@ -564,7 +568,9 @@ async function renderRows(list) {
             };
             const tdDSR = document.createElement('td');
             tdDSR.textContent = dsrName;
-            tr.append(dash(), dash(), dash(), dash(), dash(), tdDSR);
+
+
+            tr.append(dash(), dash(), dash(), dash(), dash(), dash(), tdDSR);
         }
 
         frag.appendChild(tr);
@@ -572,7 +578,6 @@ async function renderRows(list) {
 
     ui.tbody.replaceChildren(frag);
 }
-
 
 function computeSummary(list, meta) {
     const isConf = x => String(x.Cargo || '').toUpperCase() === 'CONFERENTE';
