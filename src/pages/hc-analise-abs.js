@@ -14,7 +14,7 @@ import {supabase} from '../supabaseClient.js';
             genero: null,
             contrato: null,
             faixaEtaria: null,
-            top5: null // <-- NOVO GRÁFICO ADICIONADO AO ESTADO
+            top5: null
         },
         matriz: '',
         svc: '',
@@ -368,24 +368,22 @@ import {supabase} from '../supabaseClient.js';
         cutout: '40%'
     });
 
-    // Arquivo: hc-analise-abs.js
 
     const top5BarOpts = () => {
         const opts = barLineOpts(() => {
-        }); // Reutiliza as opções base
+        });
 
-        // A linha 'opts.indexAxis = 'y';' foi REMOVIDA para que as barras fiquem em pé.
 
-        opts.scales.x.ticks = { // Lógica de ticks movida de 'y' para 'x'
+        opts.scales.x.ticks = {
             callback: function (value, index, ticks) {
                 const label = this.getLabelForValue(value);
-                // Trunca nomes longos para não quebrar o layout no eixo horizontal
+
                 return label.length > 10 ? label.substring(0, 10) + '...' : label;
             }
         };
         opts.plugins.datalabels.align = 'end';
         opts.plugins.datalabels.anchor = 'end';
-        opts.plugins.datalabels.formatter = v => v; // Mostra o número absoluto
+        opts.plugins.datalabels.formatter = v => v;
 
         return opts;
     };
@@ -422,7 +420,7 @@ import {supabase} from '../supabaseClient.js';
             options: barLineOpts((c, i) => handleChartClick(c, i, 'age'))
         });
 
-        // ***** NOVO: Criação do gráfico Top 5 *****
+
         state.charts.top5 = new Chart(document.getElementById('abs-top5-bar').getContext('2d'), {
             type: 'bar',
             options: top5BarOpts()
@@ -434,8 +432,7 @@ import {supabase} from '../supabaseClient.js';
         const totalAbs = dataToRender.length || 1;
         const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
 
-        // ... [código dos outros gráficos permanece igual] ...
-        // Gráfico de Visão Mensal
+
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -464,7 +461,7 @@ import {supabase} from '../supabaseClient.js';
             };
             ch.update();
         }
-        // Gráfico de Visão Semanal
+
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -481,7 +478,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-        // Gráfico de Dia da Semana
+
         {
             const counts = Array(7).fill(0);
             dataToRender.forEach(d => counts[parseDateMaybe(d.Data).getDay()]++);
@@ -494,7 +491,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-        // Gráfico de Gênero
+
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -519,7 +516,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-        // Gráfico de Contrato
+
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -539,7 +536,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-        // Gráfico de Faixa Etária
+
         {
             const counts = new Map(AGE_BUCKETS.map(k => [k, 0]));
             dataToRender.forEach(d => {
@@ -557,24 +554,24 @@ import {supabase} from '../supabaseClient.js';
             ch.update();
         }
 
-        // ***** NOVO: Lógica para o gráfico Top 5 Ofensores *****
+
         {
             const counts = new Map();
-            // Conta a ocorrência de cada nome
+
             dataToRender.forEach(d => {
                 const nome = d.colaborador.Nome;
                 counts.set(nome, (counts.get(nome) || 0) + 1);
             });
 
-            // Ordena do maior para o menor e pega os 5 primeiros
+
             const top5 = [...counts.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5);
 
             const ch = state.charts.top5;
-            ch.data.labels = top5.map(item => item[0]); // Nomes
+            ch.data.labels = top5.map(item => item[0]);
             ch.data.datasets = [{
-                data: top5.map(item => item[1]), // Contagem de ausências
+                data: top5.map(item => item[1]),
                 backgroundColor: pal[1]
             }];
             ch.update();

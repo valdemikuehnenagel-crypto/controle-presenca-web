@@ -59,7 +59,7 @@ async function fetchData(startDate, endDate, turno) {
 
     let colabQuery = supabase
         .from('Colaboradores')
-        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão"') // Removido 'Ferias' daqui, pois vamos buscar da tabela Ferias
+        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão"')
         .eq('Ativo', 'SIM');
 
     if (matrizesPermitidas && matrizesPermitidas.length) {
@@ -79,12 +79,12 @@ async function fetchData(startDate, endDate, turno) {
         .lte('Data', endDate);
     const preenchimentos = await fetchAllPages(preenchimentosQuery);
 
-    // ***** ALTERAÇÃO 1: Buscando os registros de Férias no período *****
+
     const feriasQuery = supabase
         .from('Ferias')
         .select('Nome, "Data Inicio", "Data Final"')
-        .lte('"Data Inicio"', endDate) // Férias que começaram antes do fim do período
-        .gte('"Data Final"', startDate); // Férias que terminaram depois do início do período
+        .lte('"Data Inicio"', endDate)
+        .gte('"Data Final"', startDate);
 
     const ferias = await fetchAllPages(feriasQuery);
 
@@ -94,7 +94,7 @@ async function fetchData(startDate, endDate, turno) {
 function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
     state.detailedResults.clear();
 
-    // Mapeia quais colaboradores estão de férias em cada dia
+
     const feriasPorDia = new Map();
     for (const registro of ferias) {
         if (registro.Nome && registro['Data Inicio'] && registro['Data Final']) {
@@ -130,21 +130,21 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
 
             const nomesEmFerias = feriasPorDia.get(date) || new Set();
 
-            // ***** ALTERAÇÃO 2: Lógica de elegibilidade agora verifica a lista de férias *****
+
             const elegiveis = colaboradoresSVC.filter(c => {
                 const nomeColaborador = (c.Nome || '').trim().toUpperCase();
                 const dataAdmissao = c['Data de admissão'];
 
                 if (!dataAdmissao || dataAdmissao > date) {
-                    return false; // Remove se não foi admitido ainda
+                    return false;
                 }
 
                 if (nomesEmFerias.has(nomeColaborador)) {
-                    return false; // Remove se estiver de férias no dia
+                    return false;
                 }
 
                 const isDSR = (c.DSR || '').toUpperCase() === weekdayPT(date);
-                return !isDSR; // Remove se for DSR
+                return !isDSR;
             });
 
             const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
@@ -251,7 +251,6 @@ function renderTable(svcs, dates, results) {
     }
 }
 
-// Arquivo: efetividade.js
 
 async function generateReport() {
     const startDate = ui.startDateInput.value;
@@ -266,10 +265,10 @@ async function generateReport() {
         const dates = listDates(startDate, endDate);
         if (dates.length > 31) throw new Error("O período selecionado não pode exceder 31 dias.");
 
-        // ***** ALTERAÇÃO 1: Capturando 'ferias' do retorno da função *****
+
         const {colaboradores, preenchimentos, ferias} = await fetchData(startDate, endDate, state.turnoAtual);
 
-        // ***** ALTERAÇÃO 2: Passando 'ferias' como argumento *****
+
         const {svcs, results} = processEfetividade(colaboradores, preenchimentos, dates, ferias);
 
         if (svcs.length > 0) {

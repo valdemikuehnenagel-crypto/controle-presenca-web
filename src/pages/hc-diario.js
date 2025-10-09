@@ -267,7 +267,7 @@ function sumRowsByDate(a, b, dates) {
     return out;
 }
 
-// Arquivo: hc-diario.js
+
 
 async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksByDate) {
     const rows = {};
@@ -277,17 +277,17 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
     const confTurno = byTurnFilterConf(turno);
 
     for (const d of datesISO) {
-        // 1. Determina o quadro de elegíveis PARA ESTE DIA, filtrando por admissão
+
         const auxElegiveisDoDia = auxTurno.filter(c => !c['Data de admissão'] || c['Data de admissão'] <= d);
         const confElegiveisDoDia = confTurno.filter(c => !c['Data de admissão'] || c['Data de admissão'] <= d);
 
         const setAux = new Set(auxElegiveisDoDia.map(c => c.Nome));
         const setConf = new Set(confElegiveisDoDia.map(c => c.Nome));
 
-        // 2. Inicia todos os contadores do dia
+
         let presAux = 0, presConf = 0, fal = 0, ate = 0, fe = 0, fer = 0;
 
-        // 3. Calcula as ausências PROGRAMADAS (DSR e Férias)
+
         const want = weekdayKey(d);
         const dsrAux = auxElegiveisDoDia.filter(c => norm(c.DSR || '').replace(/Ç|Á/g, a => ({'Ç':'C', 'Á':'A'})[a]) === want).length;
         const dsrConf = confElegiveisDoDia.filter(c => norm(c.DSR || '').replace(/Ç|Á/g, a => ({'Ç':'C', 'Á':'A'})[a]) === want).length;
@@ -297,7 +297,7 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
         for (const c of auxElegiveisDoDia) if (nomesEmFeriasHoje.has(c.Nome)) feriasAux++;
         for (const c of confElegiveisDoDia) if (nomesEmFeriasHoje.has(c.Nome)) feriasConf++;
 
-        // 4. Processa as marcações do dia (Presentes, Faltas, Atestados...)
+
         const nomesMarcados = new Set();
         const marks = marksByDate.get(d) || [];
         for (const m of marks) {
@@ -326,8 +326,8 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
             }
         }
 
-        // 5. Calcula os Presentes para quem NÃO teve marcação
-        // Um colaborador elegível que não foi marcado com nenhuma ausência e não está de DSR/Férias, é considerado presente.
+
+
         const naoMarcadosAux = auxElegiveisDoDia.filter(c =>
             !nomesMarcados.has(c.Nome) &&
             !nomesEmFeriasHoje.has(c.Nome) &&
@@ -340,11 +340,11 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
             norm(c.DSR || '').replace(/Ç|Á/g, a => ({'Ç':'C', 'Á':'A'})[a]) !== want
         ).length;
 
-        // O total de presentes é a soma dos marcados + os não marcados (que são considerados presentes por padrão)
+
         presAux += naoMarcadosAux;
         presConf += naoMarcadosConf;
 
-        // 6. Contabiliza Admissões e Desligamentos
+
         const adm = countAdmissoes(new Set([...setAux, ...setConf]), d);
         const deslig = (desligRows || []).reduce((acc, r) => {
              const iso = firstISOFrom(r, ['Data de Desligamento']);
@@ -354,7 +354,7 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
              return acc;
         }, 0);
 
-        // 7. Preenche as linhas da tabela
+
         rows['LOG I'][d] = presAux;
         rows['CONFERENTES'][d] = presConf;
         rows['DSR'][d] = dsrAux + dsrConf;
@@ -366,7 +366,7 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
         rows['ADMISSÃO'][d] = adm;
         rows['DESLIGAMENTOS'][d] = deslig;
 
-        // O TOTAL QUADRO é a soma de todas as partes
+
         rows['TOTAL QUADRO'][d] = presAux + presConf + dsrAux + dsrConf + feriasAux + feriasConf + fal + ate + fe + fer + adm - deslig;
     }
     return rows;

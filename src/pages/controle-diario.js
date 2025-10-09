@@ -69,7 +69,6 @@ async function fetchAllWithPagination(queryBuilder) {
     return allData;
 }
 
-// Arquivo: controle-diario.js
 
 async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
@@ -100,8 +99,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
     try {
         const cols = await fetchAllWithPagination(q);
 
-        // ***** NOVA LÓGICA ADICIONADA AQUI *****
-        // 1. Busca na tabela Férias quem está de férias NA DATA ESPECÍFICA (dateISO)
+
         const {data: feriasHoje, error: feriasError} = await supabase
             .from('Ferias')
             .select('Nome')
@@ -113,7 +111,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         }
 
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
-        // ***** FIM DA NOVA LÓGICA *****
+
 
         const all = cols || [];
 
@@ -126,23 +124,22 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
         const elegiveis = all
             .filter(c => {
-                // Filtro de data de admissão
+
                 const dataAdmissao = c['Data de admissão'];
                 if (dataAdmissao && dataAdmissao > dateISO) {
                     return false;
                 }
 
-                // ***** LÓGICA DE FÉRIAS CORRIGIDA *****
-                // 2. Verifica se o nome do colaborador está na lista de férias do dia
+
                 if (nomesEmFeriasHoje.has(c.Nome)) {
-                    return false; // Se estiver de férias, não é elegível
+                    return false;
                 }
 
-                // Filtro de DSR
+
                 const dsr = (c.DSR || '').toString().toUpperCase();
                 const isDSR = variantes.includes(dsr) || variantes.includes(NORM(dsr));
 
-                return !isDSR; // Retorna true se NÃO for DSR (e já passou pelos outros filtros)
+                return !isDSR;
             })
             .sort((a, b) => collator.compare(a.Nome, b.Nome));
 
@@ -368,7 +365,6 @@ function applyMarkToRow(tr, tipo) {
     });
 }
 
-// Arquivo: controle-diario.js
 
 function passFilters(x) {
     const f = state.filters;
@@ -379,8 +375,7 @@ function passFilters(x) {
     if (f.svc && (x.SVC || '') !== f.svc) return false;
     if (f.matriz && getMatriz(x) !== f.matriz) return false;
 
-    // ***** NOVA LÓGICA DO FILTRO DE PENDENTES *****
-    // Se o filtro de pendentes estiver ativo, esconde quem JÁ TEM marcação.
+
     if (state.isPendingFilterActive && x.Marcacao) {
         return false;
     }
@@ -578,20 +573,18 @@ async function renderRows(list) {
     ui.tbody.replaceChildren(frag);
 }
 
-// Arquivo: controle-diario.js
 
 function computeSummary(list, meta) {
     const isConf = x => String(x.Cargo || '').toUpperCase() === 'CONFERENTE';
 
-    // Filtramos os auxiliares para o HC Previsto, que é específico para eles
+
     const aux = list.filter(x => !isConf(x));
 
     const hcPrevisto = aux.length;
     const hcReal = aux.filter(x => x.Marcacao === 'PRESENCA').length;
     const confReal = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
 
-    // ***** ALTERAÇÃO 1: 'pend' agora usa a lista completa ('list') *****
-    // Isso garante que tanto auxiliares quanto conferentes pendentes sejam contados.
+
     const pend = list.filter(x => !x.Marcacao).length;
 
     const faltas = list.filter(x => x.Marcacao === 'FALTA').length;
@@ -612,7 +605,7 @@ function computeSummary(list, meta) {
 
     const mainSummaryHTML = `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` + `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` + `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | ` + `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
 
-    // ***** ALTERAÇÃO 2: Adicionando um ID para o botão e a classe 'active' se o filtro estiver ligado *****
+
     const activeClass = state.isPendingFilterActive ? 'active' : '';
     ui.summary.innerHTML = `
         <div id="cd-summary-pending-btn" class="summary-pending ${pendentesClass} ${activeClass}" title="Clique para filtrar pendentes">
@@ -1085,7 +1078,6 @@ function openPeriodModal() {
     });
 }
 
-// Arquivo: controle-diario.js
 
 function injectSummaryStyles() {
     const style = document.createElement('style');
@@ -1124,7 +1116,6 @@ function injectSummaryStyles() {
     document.head.appendChild(style);
 }
 
-// Arquivo: controle-diario.js
 
 export async function init() {
     const pad2 = (n) => String(n).padStart(2, '0');
@@ -1164,7 +1155,7 @@ export async function init() {
         colabMap: new Map(),
         filters: {search: '', gestor: '', cargo: '', contrato: '', svc: '', matriz: ''},
         period: {start: firstOfMonth, end: hoje},
-        isPendingFilterActive: false, // ***** NOVO ESTADO DO FILTRO *****
+        isPendingFilterActive: false,
     };
 
     if (!ui.date.value) ui.date.value = hoje;
@@ -1178,13 +1169,13 @@ export async function init() {
         });
     });
 
-    // ***** NOVO EVENTO DE CLIQUE PARA O FILTRO *****
+
     if (ui.summary) {
         ui.summary.addEventListener('click', (e) => {
             const pendingBtn = e.target.closest('#cd-summary-pending-btn');
             if (pendingBtn) {
-                state.isPendingFilterActive = !state.isPendingFilterActive; // Inverte o estado
-                refresh(); // Re-renderiza a tabela com o filtro aplicado/removido
+                state.isPendingFilterActive = !state.isPendingFilterActive;
+                refresh();
             }
         });
     }
