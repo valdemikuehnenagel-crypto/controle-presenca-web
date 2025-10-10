@@ -28,7 +28,7 @@ async function fetchAllWithPagination(queryBuilder) {
     const state = {
         mounted: false,
         loading: false,
-        charts: {idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null},
+        charts: {idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null, cargoSvc: null},
         matriz: '',
         svc: '',
         colabs: [],
@@ -38,10 +38,9 @@ async function fetchAllWithPagination(queryBuilder) {
             idade: new Set(),
             contrato: new Set(),
             contratoSvc: new Set(),
+            cargoSvc: new Set(),
         }
     };
-
-    const ONLY_AUX = true;
 
     const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const root = () => document.documentElement;
@@ -110,6 +109,13 @@ async function fetchAllWithPagination(queryBuilder) {
         return norm(raw).includes('KN') ? 'Efetivo' : 'Temporário';
     }
 
+    function mapCargoLabel(raw) {
+        const n = norm(raw);
+        if (n === 'AUXILIAR') return 'Auxiliar';
+        if (n === 'CONFERENTE') return 'Conferente';
+        return 'Outros';
+    }
+
     function mapDSR(raw) {
         const n = norm(raw);
         if (n.includes('SEG')) return 'SEG';
@@ -154,25 +160,21 @@ async function fetchAllWithPagination(queryBuilder) {
         if (!host || state.mounted) return;
         if (!host.querySelector('.hcidx-root')) {
             host.innerHTML = `
-        <div class="hcidx-root">
-          <div class="hcidx-toolbar">
-            <button id="hc-idx-clear-filters" class="btn-add">Limpar Filtros</button>
-          </div>
-          <div class="hcidx-grid">
-            <div class="hcidx-card"><h3>Idade — % por turno</h3><canvas id="ind-idade-bar"></canvas></div>
-            <div class="hcidx-card"><h3>Gênero — % por turno</h3><canvas id="ind-genero-bar"></canvas></div>
-            <div class="hcidx-card"><h3>DSR — distribuição %</h3><canvas id="ind-dsr-pie"></canvas></div>
-            <div class="hcidx-card"><h3>Contrato — % por turno</h3><canvas id="ind-contrato-bar"></canvas></div>
-            <div class="hcidx-card"><h3>Contrato — % por SVC</h3><canvas id="ind-contrato-svc-bar"></canvas></div>
-            <div class="hcidx-card">
-              <div class="hcidx-placeholder">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"></path></svg>
-                <span>Em Construção</span>
-              </div>
-            </div>
-          </div>
-          <div id="hcidx-busy" class="hcidx-loading" style="display:none;">Carregando…</div>
-        </div>`;
+                <div class="hcidx-root">
+                  <div class="hcidx-toolbar">
+                    <button id="hc-idx-clear-filters" class="btn-add">Limpar Filtros</button>
+                  </div>
+                  <div class="hcidx-grid">
+                    <div class="hcidx-card"><h3 class="hcidx-card-title">Idade — % por turno</h3><canvas id="ind-idade-bar"></canvas></div>
+                    <div class="hcidx-card"><h3 class="hcidx-card-title">Gênero — % por turno</h3><canvas id="ind-genero-bar"></canvas></div>
+                    <div class="hcidx-card"><h3 class="hcidx-card-title">DSR — distribuição %</h3><canvas id="ind-dsr-pie"></canvas></div>
+                    
+                    <div class="hcidx-card hcidx-card--full"><h3 class="hcidx-card-title">Contrato — % por turno</h3><canvas id="ind-contrato-bar"></canvas></div>
+                    <div class="hcidx-card hcidx-card--full"><h3 class="hcidx-card-title">Contrato — % por SVC</h3><canvas id="ind-contrato-svc-bar"></canvas></div>
+                    <div class="hcidx-card hcidx-card--full"><h3 class="hcidx-card-title">Cargo — % por SVC</h3><canvas id="ind-cargo-svc-bar"></canvas></div>
+                  </div>
+                  <div id="hcidx-busy" class="hcidx-loading" style="display:none;">Carregando…</div>
+                </div>`;
         }
         ensureCanvasWrappers();
         document.getElementById('hc-idx-clear-filters').addEventListener('click', clearAllFilters);
@@ -262,23 +264,14 @@ async function fetchAllWithPagination(queryBuilder) {
 
 
             state.colabs = rows.filter(c => {
-
                 if (norm(c?.Ativo || 'SIM') !== 'SIM') return false;
-
                 if (state.matriz && c?.MATRIZ !== state.matriz) return false;
                 if (state.svc && c?.SVC !== state.svc) return false;
-
-
-
                 return true;
             });
 
             ensureChartsCreated();
             updateChartsNow();
-
-            setTimeout(() => {
-                setResponsiveHeights();
-            }, 50);
 
         } catch (e) {
             console.error('Índice erro', e);
@@ -290,22 +283,28 @@ async function fetchAllWithPagination(queryBuilder) {
     }
 
     function splitByTurno(colabs) {
-        const t1 = colabs.filter(c => c.Escala === 'T1'), t2 = colabs.filter(c => c.Escala === 'T2'),
+        const t1 = colabs.filter(c => c.Escala === 'T1'),
+            t2 = colabs.filter(c => c.Escala === 'T2'),
             t3 = colabs.filter(c => c.Escala === 'T3');
         return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, [...t1, ...t2, ...t3]]};
     }
 
-    function onlyTopN(ctx, n) {
-        try {
-            const di = ctx?.dataIndex;
-            if (di == null) return false;
-            const vals = (ctx?.dataset?.data || []).map(v => +v || 0);
-            const current = +((ctx?.dataset?.data || [])[di] ?? 0);
-            const sorted = vals.slice().sort((a, b) => b - a);
-            const rank = sorted.findIndex(v => v === current);
-            return rank > -1 && rank < n && current > 0;
-        } catch (_) {
-            return false;
+    function setDynamicChartHeight(chart, labels) {
+        if (!chart || !chart.canvas || chart.options.indexAxis !== 'y') return;
+
+        const pixelsPerBar = 28;
+        const headerAndLegendHeight = 80;
+        const minHeight = 250;
+
+        const calculatedHeight = (labels.length * pixelsPerBar) + headerAndLegendHeight;
+        const finalHeight = Math.max(minHeight, calculatedHeight);
+
+        const wrapper = chart.canvas.parentElement;
+        if (wrapper && wrapper.style.height !== `${finalHeight}px`) {
+            wrapper.style.height = `${finalHeight}px`;
+            if (typeof chart.resize === 'function') {
+                setTimeout(() => chart.resize(), 50);
+            }
         }
     }
 
@@ -339,11 +338,31 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
 
-    function baseOpts(canvas, onClick) {
+    function baseOpts(canvas, onClick, axis = 'x') {
         const baseSize = Math.max(11, Math.min(14, Math.round((canvas?.parentElement?.clientWidth || 600) / 60)));
+        const isHorizontal = axis === 'y';
+
+        const valueScale = {
+            stacked: true,
+            grid: {display: false},
+            ticks: {callback: v => `${v}%`, font: {size: baseSize}},
+            min: 0,
+            max: 100,
+        };
+        const categoryScale = {
+            stacked: true,
+            grid: {display: false},
+            ticks: {maxRotation: 0, font: {size: baseSize}}
+        };
+
         return {
-            layout: {padding: {top: 20, left: 8, right: 8, bottom: 8}},
-            interaction: {mode: 'index', intersect: false},
+            indexAxis: axis,
+            layout: {padding: {top: 10, left: 8, right: 16, bottom: 8}},
+            interaction: {
+                mode: 'nearest',
+                axis: isHorizontal ? 'y' : 'x',
+                intersect: true,
+            },
             animation: {duration: 800, easing: 'easeOutQuart'},
             onClick: (e, elements, chart) => {
                 if (elements.length > 0 && onClick) onClick(chart, elements[0]);
@@ -351,23 +370,33 @@ async function fetchAllWithPagination(queryBuilder) {
             plugins: {
                 legend: baseLegendConfig('bottom', true),
                 datalabels: {
-                    display: (ctx) => onlyTopN(ctx, 4),
+                    display: (ctx) => {
+                        const value = ctx.dataset.data[ctx.dataIndex] || 0;
+                        return isHorizontal ? value > 5 : value > 10;
+                    },
                     clamp: true,
                     font: {size: baseSize, weight: 'bold'},
                     color: (ctx) => {
                         const bg = Array.isArray(ctx.dataset.backgroundColor) ? ctx.dataset.backgroundColor[ctx.dataIndex % ctx.dataset.backgroundColor.length] : ctx.dataset.backgroundColor;
                         return bestLabel(bg);
                     },
-                    formatter: (v) => `${Math.round(+v)}%`,
+                    formatter: (value, ctx) => {
+                        const percentage = Math.round(value);
+                        if (percentage <= 1) return '';
+                        const rawCount = ctx.dataset._rawCounts[ctx.dataIndex];
+                        return `${percentage}% (${rawCount})`;
+                    },
                     anchor: 'center',
                     align: 'center'
                 },
                 tooltip: {
                     displayColors: false,
-                    filter: (item) => (item.parsed?.y ?? item.parsed) > 0,
+                    filter: (item) => (item.parsed?.y ?? item.parsed?.x) > 0,
                     callbacks: {
-                        title: (items) => items?.[0]?.label ?? '', label: (ctx) => {
-                            const pct = Math.round(ctx.parsed?.y ?? ctx.parsed ?? 0);
+                        title: (items) => items?.[0]?.label ?? '',
+                        label: (ctx) => {
+                            const val = isHorizontal ? ctx.parsed?.x : ctx.parsed?.y;
+                            const pct = Math.round(val ?? 0);
                             const cnt = (ctx.dataset._rawCounts?.[ctx.dataIndex] ?? 0);
                             const ds = ctx.dataset?.label ? `${ctx.dataset.label}: ` : '';
                             return `${ds}${pct}% (${cnt})`
@@ -376,13 +405,8 @@ async function fetchAllWithPagination(queryBuilder) {
                 }
             },
             scales: {
-                x: {stacked: true, grid: {display: false}, ticks: {maxRotation: 0, font: {size: baseSize}}},
-                y: {
-                    stacked: true,
-                    grid: {display: false},
-                    ticks: {callback: v => `${v}%`, font: {size: baseSize}},
-                    suggestedMax: 100
-                }
+                x: isHorizontal ? valueScale : categoryScale,
+                y: isHorizontal ? categoryScale : valueScale,
             },
             elements: {bar: {borderSkipped: false, borderRadius: 4}}
         };
@@ -390,9 +414,9 @@ async function fetchAllWithPagination(queryBuilder) {
 
     function ensureChartsCreated() {
         if (state.charts.idade) return;
-        const createStacked = (id, onClick) => {
+        const createStacked = (id, onClick, axis = 'x') => {
             const canvas = document.getElementById(id);
-            const options = baseOpts(canvas, onClick);
+            const options = baseOpts(canvas, onClick, axis);
             options.plugins.legend.onClick = (e, legendItem) => {
                 if (onClick) onClick(null, {datasetIndex: legendItem.datasetIndex});
             };
@@ -409,14 +433,15 @@ async function fetchAllWithPagination(queryBuilder) {
             const canvas = document.getElementById(id);
             const baseSize = Math.max(11, Math.min(14, Math.round((canvas?.parentElement?.clientWidth || 600) / 50)));
             const options = {
-                layout: {padding: 6}, animation: {duration: 800, easing: 'easeOutQuart'},
+                layout: {padding: 6},
+                animation: {duration: 800, easing: 'easeOutQuart'},
                 onClick: (e, elements) => {
                     if (elements.length > 0) onClick(null, elements[0]);
                 },
                 plugins: {
                     legend: baseLegendConfig('bottom', true),
                     datalabels: {
-                        display: (ctx) => onlyTopN(ctx, 4),
+                        display: true,
                         formatter: (v) => `${Math.round(+v)}%`,
                         color: (ctx) => {
                             const bg = Array.isArray(ctx.dataset.backgroundColor) ? ctx.dataset.backgroundColor[ctx.dataIndex % ctx.dataset.backgroundColor.length] : ctx.dataset.backgroundColor;
@@ -428,7 +453,8 @@ async function fetchAllWithPagination(queryBuilder) {
                         clamp: true
                     },
                     tooltip: {
-                        displayColors: false, callbacks: {
+                        displayColors: false,
+                        callbacks: {
                             label: (ctx) => {
                                 const pct = Math.round(ctx.parsed ?? 0);
                                 const raw = (ctx.dataset._rawCounts || [])[ctx.dataIndex] ?? 0;
@@ -436,7 +462,8 @@ async function fetchAllWithPagination(queryBuilder) {
                             }
                         }
                     }
-                }, cutout: '40%'
+                },
+                cutout: '40%'
             };
             const chart = new Chart(canvas.getContext('2d'), {
                 type: 'doughnut',
@@ -449,13 +476,30 @@ async function fetchAllWithPagination(queryBuilder) {
         };
 
         state.charts.idade = createStacked('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element));
+
         if (state.charts.idade) {
-            state.charts.idade.options.plugins.datalabels.display = (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) >= 5;
+            const datalabelsOptions = state.charts.idade.options.plugins.datalabels;
+
+            datalabelsOptions.display = (ctx) => {
+                const value = ctx.dataset.data[ctx.dataIndex] || 0;
+                return value >= 5;
+            };
+
+            datalabelsOptions.formatter = (value, ctx) => {
+                const percentage = Math.round(value);
+                const rawCount = ctx.dataset._rawCounts[ctx.dataIndex];
+
+                if (percentage >= 20) {
+                    return `${percentage}% (${rawCount})`;
+                }
+                return `${percentage}%`;
+            };
         }
 
         state.charts.genero = createStacked('ind-genero-bar', (chart, element) => toggleFilter('genero', chart, element));
-        state.charts.contrato = createStacked('ind-contrato-bar', (chart, element) => toggleFilter('contrato', chart, element));
-        state.charts.contratoSvc = createStacked('ind-contrato-svc-bar', (chart, element) => toggleFilter('contratoSvc', chart, element));
+        state.charts.contrato = createStacked('ind-contrato-bar', (chart, element) => toggleFilter('contrato', chart, element), 'y');
+        state.charts.contratoSvc = createStacked('ind-contrato-svc-bar', (chart, element) => toggleFilter('contratoSvc', chart, element), 'y');
+        state.charts.cargoSvc = createStacked('ind-cargo-svc-bar', (chart, element) => toggleFilter('cargoSvc', chart, element), 'y');
         state.charts.dsr = createDSRPie('ind-dsr-pie', (chart, element) => toggleFilter('dsr', null, element));
     }
 
@@ -468,7 +512,8 @@ async function fetchAllWithPagination(queryBuilder) {
         } else {
             label = chart.data.datasets[element.datasetIndex].label;
         }
-        if (set.has(label)) set.delete(label); else set.add(label);
+        if (set.has(label)) set.delete(label);
+        else set.add(label);
         updateChartsNow();
     }
 
@@ -490,6 +535,9 @@ async function fetchAllWithPagination(queryBuilder) {
                     return false;
                 });
             }
+        }
+        if (state.interactive.cargoSvc.size > 0) {
+            out = out.filter(c => state.interactive.cargoSvc.has(mapCargoLabel(c.Cargo)));
         }
         return out;
     }
@@ -526,7 +574,7 @@ async function fetchAllWithPagination(queryBuilder) {
                 const ch = state.charts.idade;
                 ch.data.labels = labels;
                 ch.data.datasets = datasets;
-                ch.update();
+                ch.update('none');
             }
             {
                 const cats = [...new Set(state.colabs.map(c => mapGeneroLabel(c?.Genero)))].sort((a, b) => {
@@ -562,31 +610,7 @@ async function fetchAllWithPagination(queryBuilder) {
                 const ch = state.charts.genero;
                 ch.data.labels = labels;
                 ch.data.datasets = datasets;
-                ch.update();
-            }
-            {
-                const cats = ['Efetivo', 'Temporário'];
-                const counts = groups.map(g => {
-                    const m = new Map(cats.map(k => [k, 0]));
-                    g.forEach(c => {
-                        const k = mapContratoAgg(c?.Contrato);
-                        m.set(k, (m.get(k) || 0) + 1);
-                    });
-                    return m;
-                });
-                const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
-                const colors = [css(root(), '--hcidx-p-2', '#003369'), css(root(), '--hcidx-p-3', '#69D4FF')];
-                const datasets = cats.map((cat, i) => {
-                    const raw = counts.map(m => m.get(cat) || 0);
-                    const data = raw.map((v, x) => (v * 100) / totals[x]);
-                    const sel = state.interactive.contrato;
-                    const bg = sel.size === 0 || sel.has(cat) ? colors[i] : createOpacity(colors[i], 0.2);
-                    return {label: cat, data, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
-                });
-                const ch = state.charts.contrato;
-                ch.data.labels = labels;
-                ch.data.datasets = datasets;
-                ch.update();
+                ch.update('none');
             }
         }
         {
@@ -609,6 +633,32 @@ async function fetchAllWithPagination(queryBuilder) {
                 const b = pal[i % pal.length];
                 return (sel.size === 0 || sel.has(lbl)) ? b : createOpacity(b, 0.2);
             });
+            ch.update('none');
+        }
+        {
+            const {labels, groups} = splitByTurno(baseColabs);
+            const cats = ['Efetivo', 'Temporário'];
+            const counts = groups.map(g => {
+                const m = new Map(cats.map(k => [k, 0]));
+                g.forEach(c => {
+                    const k = mapContratoAgg(c?.Contrato);
+                    m.set(k, (m.get(k) || 0) + 1);
+                });
+                return m;
+            });
+            const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
+            const colors = [css(root(), '--hcidx-p-2', '#003369'), css(root(), '--hcidx-p-3', '#69D4FF')];
+            const datasets = cats.map((cat, i) => {
+                const raw = counts.map(m => m.get(cat) || 0);
+                const data = raw.map((v, x) => (v * 100) / totals[x]);
+                const sel = state.interactive.contrato;
+                const bg = sel.size === 0 || sel.has(cat) ? colors[i] : createOpacity(colors[i], 0.2);
+                return {label: cat, data, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
+            });
+            const ch = state.charts.contrato;
+            setDynamicChartHeight(ch, labels);
+            ch.data.labels = labels;
+            ch.data.datasets = datasets;
             ch.update();
         }
         {
@@ -631,7 +681,7 @@ async function fetchAllWithPagination(queryBuilder) {
                     total
                 };
             });
-            rows.sort((a, b) => b.pctEfetivo - a.pctEfetivo || b.total - a.total || a.svc.localeCompare(b.svc));
+            rows.sort((a, b) => b.total - a.total || a.svc.localeCompare(b.svc));
             const totalG = baseColabs.length || 1;
             const efetG = baseColabs.reduce((acc, c) => acc + (mapContratoAgg(c?.Contrato) === 'Efetivo' ? 1 : 0), 0);
             const lbls = rows.map(r => r.svc);
@@ -647,23 +697,87 @@ async function fetchAllWithPagination(queryBuilder) {
             const colors = [css(root(), '--hcidx-p-2', '#003369'), css(root(), '--hcidx-p-3', '#69D4FF')];
             const sel = state.interactive.contratoSvc;
             const ch = state.charts.contratoSvc;
+
+            setDynamicChartHeight(ch, lbls);
+
             ch.data.labels = lbls;
-            ch.data.datasets = [
-                {
-                    label: 'Efetivo',
-                    data: dsE,
-                    backgroundColor: sel.size === 0 || sel.has('Efetivo') ? colors[0] : createOpacity(colors[0], 0.2),
-                    _rawCounts: rawE,
-                    borderWidth: 0
-                },
-                {
-                    label: 'Temporário',
-                    data: dsT,
-                    backgroundColor: sel.size === 0 || sel.has('Temporário') ? colors[1] : createOpacity(colors[1], 0.2),
-                    _rawCounts: rawT,
-                    borderWidth: 0
-                }
-            ];
+            ch.data.datasets = [{
+                label: 'Efetivo',
+                data: dsE,
+                backgroundColor: sel.size === 0 || sel.has('Efetivo') ? colors[0] : createOpacity(colors[0], 0.2),
+                _rawCounts: rawE,
+                borderWidth: 0
+            }, {
+                label: 'Temporário',
+                data: dsT,
+                backgroundColor: sel.size === 0 || sel.has('Temporário') ? colors[1] : createOpacity(colors[1], 0.2),
+                _rawCounts: rawT,
+                borderWidth: 0
+            }];
+            ch.update();
+        }
+        {
+            const bySvc = new Map();
+            const relevantColabs = baseColabs.filter(c => ['AUXILIAR', 'CONFERENTE'].includes(norm(c?.Cargo)));
+
+            relevantColabs.forEach(c => {
+                const k = String(c?.SVC || 'N/D');
+                if (!bySvc.has(k)) bySvc.set(k, []);
+                bySvc.get(k).push(c);
+            });
+
+            const rows = [...bySvc.entries()].map(([svc, arr]) => {
+                const total = arr.length || 1;
+                let auxCount = 0;
+                arr.forEach(c => (norm(c?.Cargo) === 'AUXILIAR') ? auxCount++ : 0);
+                const confCount = total - auxCount;
+                return {
+                    svc,
+                    pctAux: (auxCount * 100) / total,
+                    pctConf: (confCount * 100) / total,
+                    rawAux: auxCount,
+                    rawConf: confCount,
+                    total
+                };
+            });
+            rows.sort((a, b) => b.total - a.total || a.svc.localeCompare(b.svc));
+
+            const totalG = relevantColabs.length || 1;
+            const auxG = relevantColabs.reduce((acc, c) => acc + (norm(c?.Cargo) === 'AUXILIAR' ? 1 : 0), 0);
+            const confG = totalG - auxG;
+
+            const lbls = rows.map(r => r.svc);
+            const dsAux = rows.map(r => r.pctAux);
+            const dsConf = rows.map(r => r.pctConf);
+            const rawAux = rows.map(r => r.rawAux);
+            const rawConf = rows.map(r => r.rawConf);
+
+            lbls.push('GERAL');
+            dsAux.push((auxG * 100) / totalG);
+            dsConf.push((confG * 100) / totalG);
+            rawAux.push(auxG);
+            rawConf.push(confG);
+
+            const colors = [css(root(), '--hcidx-p-2', '#003369'), css(root(), '--hcidx-p-3', '#69D4FF')];
+            const sel = state.interactive.cargoSvc;
+            const ch = state.charts.cargoSvc;
+
+            setDynamicChartHeight(ch, lbls);
+
+            ch.data.labels = lbls;
+            ch.data.datasets = [{
+                label: 'Auxiliar',
+                data: dsAux,
+                backgroundColor: sel.size === 0 || sel.has('Auxiliar') ? colors[0] : createOpacity(colors[0], 0.2),
+                _rawCounts: rawAux,
+                borderWidth: 0
+            }, {
+                label: 'Conferente',
+                data: dsConf,
+                backgroundColor: sel.size === 0 || sel.has('Conferente') ? colors[1] : createOpacity(colors[1], 0.2),
+                _rawCounts: rawConf,
+                borderWidth: 0
+            }];
             ch.update();
         }
     }
@@ -692,7 +806,7 @@ async function fetchAllWithPagination(queryBuilder) {
             window.removeEventListener('resize', setResponsiveHeights);
 
             state.mounted = false;
-            state.charts = {idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null};
+            state.charts = {idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null, cargoSvc: null};
         }
     };
 })();

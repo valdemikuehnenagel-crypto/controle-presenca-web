@@ -58,7 +58,11 @@ export function destroy() {
     console.log('Estado do HC Consolidado destruído, pronto para recarregar.');
 }
 
-
+/**
+ * Calcula os dados semanais para um grupo específico de colaboradores.
+ * @param {Array} arr - O array de colaboradores.
+ * @returns {{feriasConst: number, dsrByDay: object, presentesByDay: object}}
+ */
 function buildWeeklyRowsForCargo(arr) {
     const feriasConst = (arr || []).filter(c => norm(c.Ferias) === 'SIM').length;
 
@@ -78,53 +82,57 @@ function buildWeeklyRowsForCargo(arr) {
     return {feriasConst, dsrByDay, presentesByDay};
 }
 
-
-function composeTableDataForTurn(auxArr, confArr) {
-    const aux = buildWeeklyRowsForCargo(auxArr);
-    const conf = buildWeeklyRowsForCargo(confArr);
+/**
+ * Cria a estrutura de dados para a tabela de um único cargo e turno.
+ * @param {Array} cargoArr - O array de colaboradores do cargo/turno.
+ * @returns {Array<object>}
+ */
+function createTableDataForCargo(cargoArr) {
+    const {feriasConst, dsrByDay, presentesByDay} = buildWeeklyRowsForCargo(cargoArr);
 
     const totalQuadroByDay = {};
     WEEK_KEYS.forEach(k => {
         totalQuadroByDay[k] =
-            (aux.presentesByDay[k] || 0) +
-            (conf.presentesByDay[k] || 0) +
-            (aux.dsrByDay[k] || 0) +
-            (conf.dsrByDay[k] || 0) +
-            (aux.feriasConst || 0) +
-            (conf.feriasConst || 0);
+            (presentesByDay[k] || 0) +
+            (dsrByDay[k] || 0) +
+            (feriasConst || 0);
     });
-
-    const dsrTotal = {};
-    WEEK_KEYS.forEach(k => {
-        dsrTotal[k] = (aux.dsrByDay[k] || 0) + (conf.dsrByDay[k] || 0);
-    });
-
-    const feriasTotal = aux.feriasConst + conf.feriasConst;
 
     return [
         {label: 'TOTAL QUADRO', values: totalQuadroByDay},
-        {label: 'LOG I', values: aux.presentesByDay},
-        {label: 'CONFERENTE', values: conf.presentesByDay},
-        {label: 'DSR', values: dsrTotal},
-        {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = feriasTotal, a), {})},
+        {label: 'PRESENTES', values: presentesByDay},
+        {label: 'DSR', values: dsrByDay},
+        {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = feriasConst, a), {})},
     ];
 }
 
-
+/**
+ * Soma os valores de duas estruturas de dados de tabela.
+ * @param {Array<object>} a
+ * @param {Array<object>} b
+ * @returns {Array<object>}
+ */
 function sumRows(a, b) {
     const mb = new Map(b.map(r => [r.label, r]));
     return a.map(r => {
-        const rb = mb.get(r.label), vals = {};
+        const rb = mb.get(r.label),
+            vals = {};
         WEEK_KEYS.forEach(k => vals[k] = Number(r.values[k] || 0) + Number(rb?.values[k] || 0));
         return {label: r.label, values: vals};
     });
 }
 
+/**
+ * Gera o HTML de uma tabela a partir de um título e linhas de dados.
+ * @param {string} title - O título da tabela.
+ * @param {Array<object>} rows - As linhas de dados.
+ * @returns {string}
+ */
 function toTableHTML(title, rows) {
     const thead = `
         <thead>
             <tr>
-                <th class="align-left">${title}</th> 
+                <th class="align-left">${escapeHtml(title)}</th> 
                 ${WEEK_LABELS.map(l => `<th>${l}</th>`).join('')}
             </tr>
         </thead>`;
@@ -133,7 +141,7 @@ function toTableHTML(title, rows) {
         <tbody>
             ${rows.map(r => `
                 <tr class="${r.label === 'TOTAL QUADRO' ? 'hc-total-row' : ''}">
-                    <td class="align-left">${r.label}</td> 
+                    <td class="align-left">${escapeHtml(r.label)}</td> 
                     ${WEEK_KEYS.map(k => `<td>${r.values[k]}</td>`).join('')}
                 </tr>
             `).join('')}
@@ -142,7 +150,50 @@ function toTableHTML(title, rows) {
     return thead + tbody;
 }
 
+/**
+ * Compõe os dados para a tabela geral consolidada (soma de auxiliares e conferentes).
+ * @param {Array} auxData - Dados semanais dos auxiliares (ex: aux_geral).
+ * @param {Array} confData - Dados semanais dos conferentes (ex: conf_geral).
+ * @returns {Array<object>}
+ */
+function composeTotalTableData(auxData, confData) {
+    const totalRows = sumRows(auxData, confData);
 
+
+    const totalGeralRow = {
+        label: 'TOTAL GERAL',
+        values: {}
+    };
+    WEEK_KEYS.forEach(k => {
+        const auxTotal = auxData.find(r => r.label === 'TOTAL QUADRO')?.values[k] || 0;
+        const confTotal = confData.find(r => r.label === 'TOTAL QUADRO')?.values[k] || 0;
+        totalGeralRow.values[k] = auxTotal + confTotal;
+    });
+
+    return [
+        totalGeralRow,
+
+
+        sumRows(
+            auxData.find(r => r.label === 'PRESENTES') ? [auxData.find(r => r.label === 'PRESENTES')] : [],
+            confData.find(r => r.label === 'PRESENTES') ? [confData.find(r => r.label === 'PRESENTES')] : []
+        )[0] || {label: 'PRESENTES', values: WEEK_KEYS.reduce((a, d) => (a[d] = 0, a), {})},
+        sumRows(
+            auxData.find(r => r.label === 'DSR') ? [auxData.find(r => r.label === 'DSR')] : [],
+            confData.find(r => r.label === 'DSR') ? [confData.find(r => r.label === 'DSR')] : []
+        )[0] || {label: 'DSR', values: WEEK_KEYS.reduce((a, d) => (a[d] = 0, a), {})},
+        sumRows(
+            auxData.find(r => r.label === 'FÉRIAS') ? [auxData.find(r => r.label === 'FÉRIAS')] : [],
+            confData.find(r => r.label === 'FÉRIAS') ? [confData.find(r => r.label === 'FÉRIAS')] : []
+        )[0] || {label: 'FÉRIAS', values: WEEK_KEYS.reduce((a, d) => (a[d] = 0, a), {})},
+    ];
+}
+
+
+/**
+ * Renderiza todas as tabelas semanais, separadas por cargo e turno.
+ * @param {Array} all - Array com todos os colaboradores.
+ */
 function renderWeeklyTables(all) {
     const filtered = all.filter(c => {
         if (_filters.matriz && norm(c.MATRIZ) !== norm(_filters.matriz)) return false;
@@ -150,27 +201,52 @@ function renderWeeklyTables(all) {
         return true;
     });
 
+
     const aux = onlyActiveAux(filtered);
     const conf = onlyActiveConf(filtered);
+
 
     const byAux = splitByTurno(aux);
     const byConf = splitByTurno(conf);
 
-    const t1 = composeTableDataForTurn(byAux.T1, byConf.T1);
-    const t2 = composeTableDataForTurn(byAux.T2, byConf.T2);
-    const t3 = composeTableDataForTurn(byAux.T3, byConf.T3);
-    const geral = sumRows(sumRows(t1, t2), t3);
 
-    const t1El = document.getElementById('hc-t1');
-    const t2El = document.getElementById('hc-t2');
-    const t3El = document.getElementById('hc-t3');
-    const gEl = document.getElementById('hc-geral');
+    const aux_t1 = createTableDataForCargo(byAux.T1);
+    const aux_t2 = createTableDataForCargo(byAux.T2);
+    const aux_t3 = createTableDataForCargo(byAux.T3);
+    const aux_geral = sumRows(sumRows(aux_t1, aux_t2), aux_t3);
 
-    if (t1El) t1El.innerHTML = toTableHTML('TURNO 1', t1);
-    if (t2El) t2El.innerHTML = toTableHTML('TURNO 2', t2);
-    if (t3El) t3El.innerHTML = toTableHTML('TURNO 3', t3);
-    if (gEl) gEl.innerHTML = toTableHTML('QUADRO GERAL', geral);
+    const auxT1El = document.getElementById('hc-aux-t1');
+    const auxT2El = document.getElementById('hc-aux-t2');
+    const auxT3El = document.getElementById('hc-aux-t3');
+    const auxGeralEl = document.getElementById('hc-aux-geral');
+
+    if (auxT1El) auxT1El.innerHTML = toTableHTML('TURNO 1', aux_t1);
+    if (auxT2El) auxT2El.innerHTML = toTableHTML('TURNO 2', aux_t2);
+    if (auxT3El) auxT3El.innerHTML = toTableHTML('TURNO 3', aux_t3);
+    if (auxGeralEl) auxGeralEl.innerHTML = toTableHTML('QUADRO GERAL', aux_geral);
+
+
+    const conf_t1 = createTableDataForCargo(byConf.T1);
+    const conf_t2 = createTableDataForCargo(byConf.T2);
+    const conf_t3 = createTableDataForCargo(byConf.T3);
+    const conf_geral = sumRows(sumRows(conf_t1, conf_t2), conf_t3);
+
+    const confT1El = document.getElementById('hc-conf-t1');
+    const confT2El = document.getElementById('hc-conf-t2');
+    const confT3El = document.getElementById('hc-conf-t3');
+    const confGeralEl = document.getElementById('hc-conf-geral');
+
+    if (confT1El) confT1El.innerHTML = toTableHTML('TURNO 1', conf_t1);
+    if (confT2El) confT2El.innerHTML = toTableHTML('TURNO 2', conf_t2);
+    if (confT3El) confT3El.innerHTML = toTableHTML('TURNO 3', conf_t3);
+    if (confGeralEl) confGeralEl.innerHTML = toTableHTML('QUADRO GERAL', conf_geral);
+
+
+    const total_geral_consolidado = composeTotalTableData(aux_geral, conf_geral);
+    const totalGeralConsolidadoEl = document.getElementById('hc-total-geral-quadro');
+    if (totalGeralConsolidadoEl) totalGeralConsolidadoEl.innerHTML = toTableHTML('TOTAL GERAL', total_geral_consolidado);
 }
+
 
 function populateFilterSelects(colabs) {
     const selM = document.getElementById('hc-filter-matriz');
@@ -182,7 +258,8 @@ function populateFilterSelects(colabs) {
         _filters.svc = window.__HC_GLOBAL_FILTERS.svc || '';
     }
 
-    const prevM = _filters.matriz, prevS = _filters.svc;
+    const prevM = _filters.matriz,
+        prevS = _filters.svc;
     const matrizes = uniqueNonEmptySorted(colabs.map(c => c.MATRIZ));
     const svcs = uniqueNonEmptySorted(colabs.map(c => c.SVC));
 
@@ -785,8 +862,8 @@ async function fetchFerias() {
         const idx = new Map();
         (colabs || []).forEach(c => idx.set(String(c.Nome || ''), c));
 
-        _feriasState.rows = Array.isArray(feriasData)
-            ? feriasData.map(r => {
+        _feriasState.rows = Array.isArray(feriasData) ?
+            feriasData.map(r => {
                 const info = idx.get(String(r.Nome || '')) || {};
                 return {
                     ...r,
@@ -796,8 +873,8 @@ async function fetchFerias() {
                     Cargo: info.Cargo || '',
                     'Dias para Finalizar': r['Dias para Finalizar'] ?? r['Dias para finalizar'] ?? ''
                 };
-            })
-            : [];
+            }) :
+            [];
 
         _feriasState.loaded = true;
 
@@ -923,12 +1000,17 @@ function exportFerias() {
 
 export async function init() {
     try {
-        const t1 = document.getElementById('hc-t1');
-        const t2 = document.getElementById('hc-t2');
-        const t3 = document.getElementById('hc-t3');
-        const g = document.getElementById('hc-geral');
-        [t1, t2, t3, g].forEach(el =>
-            el && (el.innerHTML = `<tbody><tr><td>Carregando…</td>${WEEK_KEYS.map(() => '<td>—</td>').join('')}</tr></tbody>`));
+        const tableIds = [
+            'hc-aux-t1', 'hc-aux-t2', 'hc-aux-t3', 'hc-aux-geral',
+            'hc-conf-t1', 'hc-conf-t2', 'hc-conf-t3', 'hc-conf-geral',
+            'hc-total-geral-quadro'
+        ];
+        const loadingHTML = `<tbody><tr><td>Carregando…</td>${WEEK_KEYS.map(() => '<td>—</td>').join('')}</tr></tbody>`;
+
+        tableIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = loadingHTML;
+        });
 
         wireSubtabs();
         await buildHCWeekly();
@@ -942,7 +1024,7 @@ export async function init() {
 
     } catch (e) {
         console.error('HC Consolidado init erro:', e);
-        const gEl = document.getElementById('hc-geral');
+        const gEl = document.getElementById('hc-aux-geral');
         if (gEl) gEl.innerHTML =
             `<tbody><tr><td>Erro ao carregar</td>${WEEK_KEYS.map(() => '<td>—</td>').join('')}</tr></tbody>`;
     }

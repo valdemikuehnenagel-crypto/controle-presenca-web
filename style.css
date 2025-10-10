@@ -1727,14 +1727,13 @@ h3 {
 }
 
 /* =============================================== */
-/* Estilos para a Aba de Índice                    */
+/* Estilos para a Aba de Índice (FINAL)            */
 /* =============================================== */
 
 #hc-indice .hcidx-grid {
     display: grid;
     gap: 1.5rem;
     grid-template-columns: 1fr;
-    grid-auto-rows: 1fr;
 }
 
 @media (min-width: 1024px) {
@@ -1749,6 +1748,10 @@ h3 {
     }
 }
 
+#hc-indice .hcidx-card--full {
+    grid-column: 1 / -1;
+}
+
 #hc-indice .hcidx-card {
     display: flex;
     flex-direction: column;
@@ -1756,41 +1759,23 @@ h3 {
     padding: 1.25rem;
     border-radius: 16px;
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
+
 }
 
-#hc-indice .hcidx-card h3 {
+#hc-indice .hcidx-card-title {
     margin-top: 0;
     margin-bottom: 1rem;
     font-size: 1rem;
+    color: #003369;
+    flex-shrink: 0;
 }
 
 #hc-indice .hcidx-canvas-wrap {
     position: relative;
-    flex: 1 1 auto;
-    min-height: 0;
     width: 100%;
+    flex-grow: 1;
+
 }
-
-
-#hc-indice .hcidx-placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #99aab5;
-    font-size: 1.25rem;
-    font-weight: 600;
-    opacity: 0.8;
-}
-
-#hc-indice .hcidx-placeholder svg {
-    width: 64px;
-    height: 64px;
-    margin-bottom: 1rem;
-}
-
 
 /* =============================================== */
 /* Animação de Transição entre Abas                */

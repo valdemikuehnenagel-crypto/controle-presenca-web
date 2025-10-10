@@ -68,7 +68,8 @@
             min-width: 160px
         }
 
-        .hcdesl-toolbar input[type="search"], .hcf-toolbar input[type="search"] {
+        .hcdesl-toolbar input[type="search"],
+        .hcf-toolbar input[type="search"] {
             min-width: 260px;
             cursor: text
         }
@@ -92,7 +93,10 @@
         }
 
 
-        #hc-refresh, .hc-actions .btn-add, #hcdesl-export, #hcf-export {
+        #hc-refresh,
+        .hc-actions .btn-add,
+        #hcdesl-export,
+        #hcf-export {
             align-self: center;
             padding: 8px 14px;
             min-width: 130px;
@@ -107,7 +111,10 @@
             color: #fff
         }
 
-        #hc-refresh:hover, .hc-actions .btn-add:hover, #hcdesl-export:hover, #hcf-export:hover {
+        #hc-refresh:hover,
+        .hc-actions .btn-add:hover,
+        #hcdesl-export:hover,
+        #hcf-export:hover {
             background: #02B1EE;
             transform: translateY(-2px)
         }
@@ -125,13 +132,20 @@
             flex-direction: column
         }
 
+        /* NOVO TÍTULO */
+        .hc-cargo-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #003369;
+            margin: 10px 0 5px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e9eef7;
+        }
+
         .hc-grid {
             display: grid;
-            grid-template-columns:repeat(3, minmax(260px, 1fr));
+            grid-template-columns: repeat(3, minmax(260px, 1fr));
             gap: 12px;
-            flex: 1;
-            min-height: 0;
-            overflow: auto;
             padding: 2px
         }
 
@@ -144,10 +158,6 @@
             flex-direction: column;
             overflow: hidden;
             animation: fadeIn .2s ease-out both
-        }
-
-        .hc-card > h3 {
-            display: none !important
         }
 
         .hc-card--full {
@@ -175,7 +185,8 @@
             text-align: center
         }
 
-        .hc-table th, .hc-table td {
+        .hc-table th,
+        .hc-table td {
             text-align: center;
             padding: 6px 12px;
             border-bottom: 1px solid #f1f1f1;
@@ -187,7 +198,8 @@
             font-weight: 600
         }
 
-        .hc-table th:first-child, .hc-table td:first-child {
+        .hc-table th:first-child,
+        .hc-table td:first-child {
             white-space: normal;
             overflow: visible;
             text-overflow: clip;
@@ -217,7 +229,8 @@
         }
 
 
-        .hcdesl-toolbar, .hcf-toolbar {
+        .hcdesl-toolbar,
+        .hcf-toolbar {
             display: flex;
             gap: 8px;
             align-items: center;
@@ -225,14 +238,16 @@
             flex-wrap: wrap
         }
 
-        .hcdesl-left, .hcf-left {
+        .hcdesl-left,
+        .hcf-left {
             display: inline-flex;
             gap: 8px;
             align-items: center;
             flex-wrap: wrap
         }
 
-        .hcdesl-right, .hcf-right {
+        .hcdesl-right,
+        .hcf-right {
             margin-left: auto;
             display: inline-flex;
             align-items: center;
@@ -240,7 +255,8 @@
         }
 
 
-        .hcdesl-table-wrap, .hcf-table-wrap {
+        .hcdesl-table-wrap,
+        .hcf-table-wrap {
             flex: 1;
             min-height: 0;
             overflow: auto;
@@ -252,13 +268,13 @@
 
         @media (max-width: 1200px) {
             .hc-grid {
-                grid-template-columns:repeat(3, minmax(240px, 1fr))
+                grid-template-columns: repeat(3, minmax(240px, 1fr))
             }
         }
 
         @media (max-width: 820px) {
             .hc-grid {
-                grid-template-columns:repeat(2, minmax(240px, 1fr))
+                grid-template-columns: repeat(2, minmax(240px, 1fr))
             }
 
             .hc-card--full {
@@ -268,14 +284,15 @@
 
         @media (max-width: 560px) {
             .hc-grid {
-                grid-template-columns:1fr
+                grid-template-columns: 1fr
             }
 
             .hc-card--full {
                 grid-column: 1/-1
             }
 
-            .hcdesl-toolbar input[type="search"], .hcf-toolbar input[type="search"] {
+            .hcdesl-toolbar input[type="search"],
+            .hcf-toolbar input[type="search"] {
                 min-width: 180px
             }
         }
@@ -284,6 +301,7 @@
             from {
                 opacity: 0
             }
+
             to {
                 opacity: 1
             }
@@ -311,19 +329,44 @@
             </div>
         </div>
 
-        <div id="hc-semanal" class="hc-view active">
+        <div id="hc-semanal" class="hc-view active" style="overflow-y: auto; padding-right: 5px;">
+
+            <h4 class="hc-cargo-title">QUADRO DE AUXILIARES</h4>
             <div class="hc-grid">
-                <div class="hc-card"><h3>TURNO 1</h3>
-                    <table class="hc-table" id="hc-t1"></table>
+                <div class="hc-card">
+                    <table class="hc-table" id="hc-aux-t1"></table>
                 </div>
-                <div class="hc-card"><h3>TURNO 2</h3>
-                    <table class="hc-table" id="hc-t2"></table>
+                <div class="hc-card">
+                    <table class="hc-table" id="hc-aux-t2"></table>
                 </div>
-                <div class="hc-card"><h3>TURNO 3</h3>
-                    <table class="hc-table" id="hc-t3"></table>
+                <div class="hc-card">
+                    <table class="hc-table" id="hc-aux-t3"></table>
                 </div>
-                <div class="hc-card hc-card--full"><h3>QUADRO GERAL</h3>
-                    <table class="hc-table" id="hc-geral"></table>
+                <div class="hc-card hc-card--full">
+                    <table class="hc-table" id="hc-aux-geral"></table>
+                </div>
+            </div>
+
+            <h4 class="hc-cargo-title" style="margin-top: 24px;">QUADRO DE CONFERENTES</h4>
+            <div class="hc-grid">
+                <div class="hc-card">
+                    <table class="hc-table" id="hc-conf-t1"></table>
+                </div>
+                <div class="hc-card">
+                    <table class="hc-table" id="hc-conf-t2"></table>
+                </div>
+                <div class="hc-card">
+                    <table class="hc-table" id="hc-conf-t3"></table>
+                </div>
+                <div class="hc-card hc-card--full">
+                    <table class="hc-table" id="hc-conf-geral"></table>
+                </div>
+            </div>
+
+            <h4 class="hc-cargo-title" style="margin-top: 24px;">QUADRO GERAL CONSOLIDADO</h4>
+            <div class="hc-grid" style="padding-bottom: 10px;">
+                <div class="hc-card hc-card--full">
+                    <table class="hc-table" id="hc-total-geral-quadro"></table>
                 </div>
             </div>
         </div>
