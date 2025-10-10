@@ -2608,17 +2608,16 @@ h3 {
 /* == ESTILOS PARA A ABA DE EFETIVIDADE (HC DIÁRIO) == */
 /* ================================================= */
 
-/* --- Variáveis e Base da Página --- */
 #efetividade-page {
-    --d-primary: #003369; /* Cor primária (azul escuro) */
-    --d-accent: #02B1EE; /* Cor de destaque (azul claro) */
+    --d-primary: #003369;
+    --d-accent: #02B1EE;
     --d-surface: #fff;
     --d-border: #eceff5;
     --d-muted: #6b7280;
     --d-shadow: 0 6px 16px rgba(0, 0, 0, .08);
 }
 
-/* --- Estrutura e Cabeçalho --- */
+
 #efetividade-page .efetividade-header {
     margin-bottom: 1rem;
 }
@@ -2631,7 +2630,7 @@ h3 {
     padding: 4px 0;
 }
 
-/* --- Botões e Filtros --- */
+
 #efetividade-page .efetividade-filters button {
     padding: 8px 16px;
     border: none;
@@ -2643,7 +2642,7 @@ h3 {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* 1. Botão "Selecionar Período" agora é azul escuro */
+
 #efetividade-page #efet-period-btn {
     position: absolute;
     right: 0;
@@ -2652,7 +2651,7 @@ h3 {
 }
 
 #efetividade-page #efet-period-btn:hover {
-    background-color: var(--d-accent); /* Muda para azul claro no hover */
+    background-color: var(--d-accent);
     transform: translateY(-2px);
 }
 
@@ -2671,7 +2670,7 @@ h3 {
     transform: translateY(-2px);
 }
 
-/* 2. Botão de turno ativo agora é azul claro */
+
 #efetividade-page .subtabs button.active {
     background-color: var(--d-accent);
     color: #fff;
@@ -2679,7 +2678,7 @@ h3 {
     box-shadow: 0 6px 14px rgba(2, 177, 238, 0.25);
 }
 
-/* --- Contêiner e Tabela de Resultados --- */
+
 #efet-result .table-container {
     background: var(--d-surface);
     border: 1px solid var(--d-border);
@@ -2779,21 +2778,21 @@ h3 {
 /* ==   ESTILOS PARA A ABA DE DADOS OPERACIONAIS    == */
 /* ================================================= */
 
-/* --- Variáveis e Base da Página --- */
+
 #dados-op-page {
-  --d-primary: #003369; /* Cor primária (azul escuro) */
-  --d-accent:  #02B1EE; /* Cor de destaque (azul claro) */
-  --d-surface: #fff;    /* Cor de superfície (fundo) */
-  --d-border:  #eceff5; /* Cor de borda sutil */
-  --d-muted:   #6b7280; /* Cor de texto secundário */
-  --d-shadow:  0 6px 16px rgba(0, 0, 0, .08); /* Sombra padrão */
+  --d-primary: #003369;
+  --d-accent:  #02B1EE;
+  --d-surface: #fff;
+  --d-border:  #eceff5;
+  --d-muted:   #6b7280;
+  --d-shadow:  0 6px 16px rgba(0, 0, 0, .08);
 }
 
-/* --- Cabeçalho e Legenda --- */
+
 #dados-op-page .dados-op-header {
     margin-bottom: 1rem;
     display: flex;
-    justify-content: flex-start; /* Alinha a legenda à esquerda */
+    justify-content: flex-start;
     align-items: center;
 }
 
@@ -2822,7 +2821,7 @@ h3 {
 #dados-op-page .legend-dot.status-nok { background-color: #f8d7da; }
 
 
-/* --- Contêiner e Tabela de Resultados --- */
+
 #dados-op-result .table-container {
   background: var(--d-surface);
   border: 1px solid var(--d-border);
@@ -2875,14 +2874,12 @@ h3 {
     position: sticky;
     left: 0;
     z-index: 1;
-    min-width: 150px; /* Garante espaço para o nome do SVC */
+    min-width: 150px;
 }
 #dados-op-result .main-table th:first-child {
     z-index: 3;
 }
 
-
-/* --- Cores e Interatividade --- */
 #dados-op-result .main-table td.status-ok { background-color: #d4edda !important; color: #155724 !important; }
 #dados-op-result .main-table td.status-pendente { background-color: #fff3cd !important; color: #856404 !important; }
 #dados-op-result .main-table td.status-nok { background-color: #f8d7da !important; color: #721c24 !important; }

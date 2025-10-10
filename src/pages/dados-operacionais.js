@@ -28,12 +28,13 @@ async function fetchAllPages(query) {
     return allData;
 }
 
+
 async function fetchData() {
     const matrizesPermitidas = getMatrizesPermitidas();
 
     let colabQuery = supabase
         .from('Colaboradores')
-        .select('Nome, SVC, Contrato, "Data de admissão", LDAP, "ID GROOT", Gestor, MATRIZ, Cargo, Escala, DSR, Genero, CPF')
+        .select('Nome, SVC, "Data de admissão", LDAP, "ID GROOT", Gestor, MATRIZ, Cargo, Escala, DSR, Genero')
         .eq('Ativo', 'SIM');
 
     if (matrizesPermitidas && matrizesPermitidas.length) {
@@ -44,11 +45,12 @@ async function fetchData() {
     return {colaboradores};
 }
 
+
 function processDataQuality(colaboradores) {
     state.detailedResults.clear();
     const svcs = [...new Set(colaboradores.map(c => c.SVC).filter(Boolean))].sort();
 
-    const colunasParaVerificar = ['Contrato', 'Data de admissão', 'LDAP', 'ID GROOT', 'Gestor', 'Cargo', 'Escala', 'DSR', 'Genero', 'CPF'];
+    const colunasParaVerificar = ['ID GROOT', 'LDAP', 'Data de admissão', 'Gestor', 'Cargo', 'DSR', 'Escala', 'Genero'];
 
     const results = {};
 
@@ -60,6 +62,8 @@ function processDataQuality(colaboradores) {
 
         if (totalColabsSVC === 0) continue;
 
+        let percentualTotalSoma = 0;
+
         for (const coluna of colunasParaVerificar) {
             const pendentes = colaboradoresSVC.filter(c => {
                 const valor = c[coluna];
@@ -70,11 +74,14 @@ function processDataQuality(colaboradores) {
             const percentual = (preenchidosCount / totalColabsSVC) * 100;
 
             results[svc][coluna] = {percentual, pendentes};
+            percentualTotalSoma += percentual;
 
             if (!state.detailedResults.get(svc).has(coluna)) {
                 state.detailedResults.get(svc).set(coluna, {pendentes, total: totalColabsSVC});
             }
         }
+
+        results[svc].totalGeral = percentualTotalSoma / colunasParaVerificar.length;
     }
     return {svcs, results, colunas: colunasParaVerificar};
 }
@@ -84,6 +91,12 @@ function getStatusClass(percentual) {
     if (percentual > 0) return 'status-pendente';
     if (percentual === 0) return 'status-nok';
     return 'status-na';
+}
+
+function getTotalStatusClass(percentual) {
+    if (percentual === 100) return 'status-ok';
+    if (percentual >= 90) return 'status-pendente';
+    return 'status-nok';
 }
 
 function showDetailsModal(svc, coluna) {
@@ -116,7 +129,7 @@ function showDetailsModal(svc, coluna) {
                     ${contentHtml}
                 </div>
                 <div class="form-actions" style="justify-content:flex-end;">
-                    <button type="button" class="btn-cancelar" data-close-modal>Fechar</button>
+                    <button type="button" class="btn-cancelar" data-close-modal>Cancelar</button>
                 </div>
             </div>
         `;
@@ -127,42 +140,53 @@ function showDetailsModal(svc, coluna) {
     });
 }
 
+
 function renderTable(svcs, colunas, results) {
     if (!ui.resultContainer) return;
 
     const colunasDisplay = {
-        'Contrato': 'Contrato',
-        'Data de admissão': 'Admissão',
-        'LDAP': 'LDAP',
         'ID GROOT': 'ID GROOT',
+        'LDAP': 'LDAP',
+        'Data de admissão': 'Dt Admissão',
         'Gestor': 'Gestor',
         'Cargo': 'Cargo',
-        'Escala': 'Escala',
         'DSR': 'DSR',
+        'Escala': 'Escala',
         'Genero': 'Gênero',
-        'CPF': 'CPF'
     };
 
-    const headerHtml = `<tr><th>SVC</th>${colunas.map(col => `<th>${colunasDisplay[col] || col}</th>`).join('')}</tr>`;
+    const headerHtml = `<tr><th>SVC</th>${colunas.map(col => `<th>${colunasDisplay[col] || col}</th>`).join('')}<th>Total</th></tr>`;
 
-    const bodyHtml = svcs.map(svc => `
+    const bodyHtml = svcs.map(svc => {
+        const totalPercent = results[svc]?.totalGeral || 0;
+        const totalStatusClass = getTotalStatusClass(Math.round(totalPercent));
+
+        const totalCellHtml = `
+            <td class="${totalStatusClass}" style="font-weight: bold; font-size: 14px;">
+                ${totalPercent.toFixed(0)}%
+            </td>
+        `;
+
+        return `
             <tr>
                 <td>${svc}</td>
                 ${colunas.map(col => {
-        const data = results[svc]?.[col];
-        if (!data) return '<td class="status-na">N/A</td>';
+            const data = results[svc]?.[col];
+            if (!data) return '<td class="status-na">N/A</td>';
 
-        const percentual = data.percentual;
-        const statusClass = getStatusClass(percentual);
-        const podeClicar = percentual < 100 && data.pendentes.length > 0;
-        const title = podeClicar ? 'Duplo clique para ver os pendentes' : '100% preenchido';
+            const percentual = data.percentual;
+            const statusClass = getStatusClass(percentual);
+            const podeClicar = percentual < 100 && data.pendentes.length > 0;
+            const title = podeClicar ? 'Duplo clique para ver os pendentes' : '100% preenchido';
 
-        return `<td data-svc="${svc}" data-coluna="${col}" class="${statusClass}" title="${title}">
-                        ${percentual.toFixed(0)}%
-                    </td>`;
-    }).join('')}
+            return `<td data-svc="${svc}" data-coluna="${col}" class="${statusClass}" title="${title}">
+                                ${percentual.toFixed(0)}%
+                            </td>`;
+        }).join('')}
+                ${totalCellHtml} 
             </tr>
-        `).join('');
+        `;
+    }).join('');
 
     ui.resultContainer.innerHTML = `<div class="table-container"><table class="main-table"><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
 
@@ -185,20 +209,18 @@ async function generateReport() {
 
         if (svcs.length > 0) {
             svcs.sort((svcA, svcB) => {
-                const resultsA = results[svcA] || {};
-                const resultsB = results[svcB] || {};
-                const count100A = colunas.filter(col => (resultsA[col]?.percentual || 0) === 100).length;
-                const count100B = colunas.filter(col => (resultsB[col]?.percentual || 0) === 100).length;
-                if (count100A !== count100B) {
-                    return count100B - count100A;
-                }
-                const totalPercentA = colunas.reduce((sum, col) => sum + (resultsA[col]?.percentual || 0), 0);
-                const avgA = totalPercentA / colunas.length;
-                const totalPercentB = colunas.reduce((sum, col) => sum + (resultsB[col]?.percentual || 0), 0);
-                const avgB = totalPercentB / colunas.length;
+                const avgA = results[svcA]?.totalGeral || 0;
+                const avgB = results[svcB]?.totalGeral || 0;
                 if (avgA !== avgB) {
                     return avgB - avgA;
                 }
+
+                const count100A = colunas.filter(col => (results[svcA][col]?.percentual || 0) === 100).length;
+                const count100B = colunas.filter(col => (results[svcB][col]?.percentual || 0) === 100).length;
+                if (count100A !== count100B) {
+                    return count100B - count100A;
+                }
+
                 return svcA.localeCompare(svcB);
             });
         }
