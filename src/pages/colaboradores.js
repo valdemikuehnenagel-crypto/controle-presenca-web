@@ -33,6 +33,7 @@ let desligarColaborador = null;
 let feriasModal, feriasForm, feriasNomeEl, feriasInicioEl, feriasFinalEl, feriasCancelarBtn;
 let feriasColaborador = null;
 let isSubmittingFerias = false;
+let isSubmittingEdit = false;
 
 
 async function fetchAllWithPagination(queryBuilder) {
@@ -902,7 +903,7 @@ function hideEditModal() {
 }
 
 async function fillEditForm(colab) {
-    editOriginal = {Nome: colab.Nome, CPF: colab.CPF ?? null};
+    editOriginal = colab;
 
     await loadGestoresParaFormulario();
 
@@ -945,11 +946,9 @@ async function fillEditForm(colab) {
             editAfastarBtn.textContent = 'Remover Afastamento';
             editAfastarBtn.style.display = 'inline-block';
         } else {
-
             editAfastarBtn.style.display = 'none';
         }
     }
-
 }
 
 
@@ -975,54 +974,132 @@ async function validateEditDuplicates(payload) {
 
 async function onEditSubmit(e) {
     e.preventDefault();
+
+    if (isSubmittingEdit) {
+        console.warn("Submissão de edição já em andamento. Ignorando clique duplicado.");
+        return;
+    }
+    isSubmittingEdit = true;
+
+    if (!editOriginal) {
+        alert('Erro: Não há dados originais do colaborador. Por favor, feche e abra a janela de edição novamente.');
+        isSubmittingEdit = false;
+        return;
+    }
+
     const Nome = toUpperTrim(editInputs.Nome.value || '');
     if (!Nome) {
         alert('Informe o NOME.');
         editInputs.Nome.focus();
+        isSubmittingEdit = false;
         return;
     }
 
-    const CPF = normalizeCPF(editInputs.CPF.value || '');
-    const svc = nullIfEmpty(editSVC.value);
-    const matrizAuto = svc ? (state.serviceMatrizMap.get(String(svc).toUpperCase()) || null) : null;
-
-    const payload = {
-        Nome,
-        CPF,
-        Contrato: editInputs.Contrato.value || '',
-        Cargo: editInputs.Cargo.value || '',
-        Gestor: nullIfEmpty(editInputs.Gestor.value),
-        DSR: nullIfEmpty(editInputs.DSR.value),
-        Escala: nullIfEmpty(editInputs.Escala.value),
-        'FOLGA ESPECIAL': nullIfEmpty(editInputs['FOLGA ESPECIAL'].value),
-        LDAP: nullIfEmpty(editInputs.LDAP.value),
-        'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),
-        'Data de nascimento': editInputs['Data de nascimento'].value || null,
-        SVC: svc,
-        MATRIZ: matrizAuto
-    };
-
-    Object.keys(payload).forEach(k => {
-        if (typeof payload[k] === 'string' && k !== 'LDAP') payload[k] = toUpperTrim(payload[k]);
-    });
-
-    const dupMsg = await validateEditDuplicates(payload);
-    if (dupMsg) {
-        alert(dupMsg);
-        return;
+    if (editSalvarBtn) {
+        editSalvarBtn.disabled = true;
+        editSalvarBtn.textContent = 'Salvando...';
     }
 
-    const {error} = await supabase.from('Colaboradores').update(payload).eq('Nome', editOriginal.Nome);
-    if (error) {
-        alert(`Erro ao atualizar: ${error.message}`);
-        return;
-    }
+    try {
 
-    alert('Colaborador atualizado com sucesso!');
-    document.dispatchEvent(new CustomEvent('colaborador-edited', {
-        detail: {nomeAnterior: editOriginal.Nome, nomeAtual: payload.Nome}
-    }));
-    hideEditModal();
+        const nomeAnterior = editOriginal.Nome;
+
+        const CPF = normalizeCPF(editInputs.CPF.value || '');
+        const svc = nullIfEmpty(editSVC.value);
+        const matrizAuto = svc ? (state.serviceMatrizMap.get(String(svc).toUpperCase()) || null) : null;
+
+        const payload = {
+            Nome,
+            CPF,
+            Contrato: editInputs.Contrato.value || '',
+            Cargo: editInputs.Cargo.value || '',
+            Gestor: nullIfEmpty(editInputs.Gestor.value),
+            DSR: nullIfEmpty(editInputs.DSR.value),
+            Escala: nullIfEmpty(editInputs.Escala.value),
+            'FOLGA ESPECIAL': nullIfEmpty(editInputs['FOLGA ESPECIAL'].value),
+            LDAP: nullIfEmpty(editInputs.LDAP.value),
+            'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),
+            'Data de nascimento': editInputs['Data de nascimento'].value || null,
+            SVC: svc,
+            MATRIZ: matrizAuto
+        };
+
+        Object.keys(payload).forEach(k => {
+            if (typeof payload[k] === 'string' && k !== 'LDAP') payload[k] = toUpperTrim(payload[k]);
+        });
+
+        const dupMsg = await validateEditDuplicates(payload);
+        if (dupMsg) {
+            alert(dupMsg);
+            return;
+        }
+
+        const {error: updateError} = await supabase.from('Colaboradores').update(payload).eq('Nome', nomeAnterior);
+
+        if (updateError) {
+            alert(`Erro ao atualizar: ${updateError.message}`);
+            return;
+        }
+
+        const dsrAnterior = editOriginal.DSR || null;
+        const dsrAtual = payload.DSR || null;
+
+        if (dsrAnterior !== dsrAtual) {
+            console.log('DSR alterado. Registrando no log...');
+
+            const {data: maxRow, error: maxErr} = await supabase
+                .from('LogDSR')
+                .select('Numero')
+                .order('Numero', {ascending: false})
+                .limit(1);
+
+            if (maxErr) {
+                console.error('Falha ao buscar último número do LogDSR:', maxErr);
+            } else {
+                const nextNumero = (maxRow?.[0]?.Numero || 0) + 1;
+
+                const logEntry = {
+                    Numero: nextNumero,
+                    Name: payload.Nome,
+                    DsrAnterior: dsrAnterior,
+                    DsrAtual: dsrAtual,
+                    DataAlteracao: new Date().toISOString(),
+                    Escala: payload.Escala,
+                    Gestor: payload.Gestor,
+                    SVC: payload.SVC,
+                    MATRIZ: payload.MATRIZ,
+                };
+
+                const {error: logError} = await supabase.from('LogDSR').insert([logEntry]);
+
+                if (logError) {
+                    console.error('Falha ao inserir registro na tabela LogDSR:', logError);
+                    alert('Atenção: A alteração foi salva, mas ocorreu um erro ao registrar o histórico da mudança de DSR.');
+                } else {
+                    console.log('Log de DSR registrado com sucesso!', logEntry);
+                }
+            }
+        }
+
+        await fetchColaboradores();
+        alert('Colaborador atualizado com sucesso!');
+        hideEditModal();
+
+
+        document.dispatchEvent(new CustomEvent('colaborador-edited', {
+            detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
+        }));
+
+    } catch (err) {
+        console.error("Erro no processo de edição:", err);
+        alert("Ocorreu um erro inesperado. Verifique o console.");
+    } finally {
+        isSubmittingEdit = false;
+        if (editSalvarBtn) {
+            editSalvarBtn.disabled = false;
+            editSalvarBtn.textContent = 'Salvar Alterações';
+        }
+    }
 }
 
 async function onAfastarClick() {

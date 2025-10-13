@@ -8,6 +8,19 @@ const state = {
     period: {start: '', end: ''},
 };
 
+/**
+ * Normaliza uma string: remove acentos, converte para maiúsculas e remove espaços.
+ * Ex: 'Sábado ' -> 'SABADO'
+ */
+const normalizeString = (str) => {
+    if (!str) return '';
+    return str.toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toUpperCase()
+        .trim();
+};
+
 function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
     const css = `
@@ -134,8 +147,6 @@ function showDetailsModal(svc, date) {
     });
 }
 
-
-
 function showLoading(on = true) {
     if (ui.loader) ui.loader.style.display = on ? 'flex' : 'none';
 }
@@ -228,8 +239,11 @@ async function fetchAllPages(query) {
     return allData;
 }
 
+
 async function fetchData(startDate, endDate, turno) {
     const matrizesPermitidas = getMatrizesPermitidas();
+
+
     let colabQuery = supabase
         .from('Colaboradores')
         .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor')
@@ -242,24 +256,88 @@ async function fetchData(startDate, endDate, turno) {
     } else if (turno) {
         colabQuery = colabQuery.eq('Escala', turno);
     }
-    const colaboradores = await fetchAllPages(colabQuery);
+
+
     const preenchimentosQuery = supabase
         .from('ControleDiario')
         .select('Nome, Data')
         .gte('Data', startDate)
         .lte('Data', endDate);
-    const preenchimentos = await fetchAllPages(preenchimentosQuery);
+
+
     const feriasQuery = supabase
         .from('Ferias')
         .select('Nome, "Data Inicio", "Data Final"')
         .lte('"Data Inicio"', endDate)
         .gte('"Data Final"', startDate);
-    const ferias = await fetchAllPages(feriasQuery);
-    return {colaboradores, preenchimentos, ferias};
+
+
+    const dsrLogQuery = supabase
+        .from('LogDSR')
+        .select('*')
+
+        .lte('DataAlteracao', endDate);
+
+
+    const [colaboradores, preenchimentos, ferias, dsrLogs] = await Promise.all([
+        fetchAllPages(colabQuery),
+        fetchAllPages(preenchimentosQuery),
+        fetchAllPages(feriasQuery),
+        fetchAllPages(dsrLogQuery)
+    ]);
+
+
+    return {colaboradores, preenchimentos, ferias, dsrLogs};
 }
 
-function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
+
+function processEfetividade(colaboradores, preenchimentos, dates, ferias, dsrLogs) {
     state.detailedResults.clear();
+
+
+    const dsrHistoryMap = new Map();
+    for (const log of dsrLogs) {
+        const name = normalizeString(log.Name);
+        if (!dsrHistoryMap.has(name)) {
+            dsrHistoryMap.set(name, []);
+        }
+        dsrHistoryMap.get(name).push(log);
+    }
+
+    for (const history of dsrHistoryMap.values()) {
+        history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
+    }
+
+
+    function getDSRForDate(colaborador, date, historyMap) {
+        const name = normalizeString(colaborador.Nome);
+        const history = historyMap.get(name);
+
+
+        if (!history || history.length === 0) {
+            return colaborador.DSR;
+        }
+
+        let applicableDSR = null;
+
+
+        for (let i = history.length - 1; i >= 0; i--) {
+
+            if (history[i].DataAlteracao.slice(0, 10) <= date) {
+                applicableDSR = history[i].DsrAtual;
+                break;
+            }
+        }
+
+
+        if (applicableDSR === null) {
+            applicableDSR = history[0].DsrAnterior;
+        }
+
+        return applicableDSR;
+    }
+
+
     const feriasPorDia = new Map();
     for (const registro of ferias) {
         if (registro.Nome && registro['Data Inicio'] && registro['Data Final']) {
@@ -268,7 +346,7 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
                 if (!feriasPorDia.has(dia)) {
                     feriasPorDia.set(dia, new Set());
                 }
-                feriasPorDia.get(dia).add(registro.Nome.trim().toUpperCase());
+                feriasPorDia.get(dia).add(normalizeString(registro.Nome));
             }
         }
     }
@@ -277,7 +355,7 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
         if (!preenchidosPorData.has(p.Data)) {
             preenchidosPorData.set(p.Data, new Set());
         }
-        preenchidosPorData.get(p.Data).add((p.Nome || '').trim().toUpperCase());
+        preenchidosPorData.get(p.Data).add(normalizeString(p.Nome));
     }
     const svcs = [...new Set(colaboradores.map(c => c.SVC).filter(Boolean))].sort();
     const results = {};
@@ -290,16 +368,22 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
             let status = 'EMPTY';
             const nomesEmFerias = feriasPorDia.get(date) || new Set();
             const elegiveis = colaboradoresSVC.filter(c => {
-                const nomeColaborador = (c.Nome || '').trim().toUpperCase();
+                const nomeColaborador = normalizeString(c.Nome);
                 const dataAdmissao = c['Data de admissão'];
                 if (!dataAdmissao || dataAdmissao > date) return false;
                 if (nomesEmFerias.has(nomeColaborador)) return false;
-                const isDSR = (c.DSR || '').toUpperCase() === weekdayPT(date);
+
+
+                const historicalDSR = getDSRForDate(c, date, dsrHistoryMap);
+                const isDSR = normalizeString(historicalDSR) === normalizeString(weekdayPT(date));
+
                 return !isDSR;
             });
             const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
-            const pendentes = elegiveis.filter(c => !nomesPreenchidos.has((c.Nome || '').trim().toUpperCase()));
+            const pendentes = elegiveis.filter(c => !nomesPreenchidos.has(normalizeString(c.Nome)));
+
             state.detailedResults.get(svc).set(date, {elegiveis, pendentes});
+
             if (date <= todayISO) {
                 if (elegiveis.length === 0) status = 'N/A';
                 else if (pendentes.length === 0) status = 'OK';
@@ -311,6 +395,7 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias) {
     }
     return {svcs, results};
 }
+
 
 function getStatusClass(status) {
     switch (status) {
@@ -356,6 +441,7 @@ function renderTable(svcs, dates, results) {
     }
 }
 
+
 async function generateReport() {
     const startDate = state.period.start;
     const endDate = state.period.end;
@@ -368,8 +454,13 @@ async function generateReport() {
     try {
         const dates = listDates(startDate, endDate);
         if (dates.length > 31) throw new Error("O período selecionado não pode exceder 31 dias.");
-        const {colaboradores, preenchimentos, ferias} = await fetchData(startDate, endDate, state.turnoAtual);
-        const {svcs, results} = processEfetividade(colaboradores, preenchimentos, dates, ferias);
+
+
+        const {colaboradores, preenchimentos, ferias, dsrLogs} = await fetchData(startDate, endDate, state.turnoAtual);
+
+
+        const {svcs, results} = processEfetividade(colaboradores, preenchimentos, dates, ferias, dsrLogs);
+
         if (svcs.length > 0) {
             svcs.sort((svcA, svcB) => {
                 const statusesA = Object.values(results[svcA]);

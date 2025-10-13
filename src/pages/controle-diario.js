@@ -342,8 +342,6 @@ function applyMarkToRow(tr, tipo) {
 }
 
 
-
-
 function passFilters(x) {
     const f = state.filters;
 
@@ -471,8 +469,6 @@ function fill(sel, values, placeholder) {
     sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
     sel.value = values.includes(prev) ? prev : '';
 }
-
-
 
 
 async function renderRows(list) {
@@ -674,8 +670,13 @@ async function carregar(full = false) {
     }
 }
 
-
 async function onRowClick(ev) {
+
+    if (state.isProcessing) {
+        toast('Aguarde, processando marcação anterior...', 'info');
+        return;
+    }
+
     const btn = ev.target.closest('.cd-btn');
     if (!btn) return;
     const nome = btn.dataset.nome;
@@ -689,8 +690,10 @@ async function onRowClick(ev) {
         return toast('Já marcado hoje. Ajustes em Colaboradores → Reajuste de ponto.', 'info', 3500);
     }
 
+    state.isProcessing = true;
+    showLoading(true);
+
     try {
-        showLoading(true);
         const novoTipo = tipo === 'LIMPAR' ? null : tipo;
 
         if (novoTipo) {
@@ -700,10 +703,8 @@ async function onRowClick(ev) {
             await deleteMarcacao({nome, dateISO: dataISO});
         }
 
-
         applyMarkToRow(tr, novoTipo);
         toast(novoTipo ? 'Marcação registrada' : 'Marcação removida', 'success');
-
 
         const updateItem = (list) => {
             const item = list.find(x => x.Nome === nome);
@@ -714,13 +715,12 @@ async function onRowClick(ev) {
 
         computeSummary(state.filtered, state.meta);
 
-
     } catch (e) {
         console.error(e);
         toast('Falha ao registrar marcação', 'error');
-
         await carregar(true);
     } finally {
+        state.isProcessing = false;
         showLoading(false);
     }
 }
@@ -737,8 +737,13 @@ async function marcarTodosPresentes() {
 
     const nomes = pendTrs.map(tr => tr.dataset.nome);
 
+
+    ui.markAllBtn.disabled = true;
+    ui.clearAllBtn.disabled = true;
+    ui.markAllBtn.textContent = 'Marcando...';
+    showLoading(true);
+
     try {
-        showLoading(true);
 
         const {data: existentes, error: e1} = await supabase
             .from('ControleDiario')
@@ -747,73 +752,6 @@ async function marcarTodosPresentes() {
             .in('Nome', nomes);
         if (e1) throw e1;
 
-        const setExistentes = new Set((existentes || []).map(r => r.Nome));
-        const paraUpdate = nomes.filter(n => setExistentes.has(n));
-        const paraInsert = nomes.filter(n => !setExistentes.has(n));
-
-        if (paraUpdate.length) {
-            const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
-            const setOne = {...zeros, 'Presença': 1};
-            const {error: eUpd} = await supabase
-                .from('ControleDiario')
-                .update(setOne)
-                .eq('Data', dataISO)
-                .in('Nome', paraUpdate);
-            if (eUpd) throw eUpd;
-        }
-
-        let escMap = new Map();
-        if (paraInsert.length) {
-            const {data: cols, error: eCols} = await supabase
-                .from('Colaboradores')
-                .select('Nome, Escala')
-                .in('Nome', paraInsert);
-            if (eCols) throw eCols;
-            escMap = new Map((cols || []).map(c => [c.Nome, c.Escala || null]));
-
-            const {data: maxRow, error: eMax} = await supabase
-                .from('ControleDiario')
-                .select('Numero')
-                .order('Numero', {ascending: false})
-                .limit(1);
-            if (eMax) throw eMax;
-
-            let nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;
-            const rows = paraInsert.map((nome) => ({
-                Numero: nextNumero++,
-                Nome: nome,
-                Data: dataISO,
-                Turno: escMap.get(nome) || null,
-                'Presença': 1,
-                'Falta': 0,
-                'Atestado': 0,
-                'Folga Especial': 0,
-                'Suspensao': 0,
-                'Feriado': 0
-            }));
-
-            if (rows.length) {
-                const {error: eIns} = await supabase.from('ControleDiario').insert(rows);
-                if (eIns) throw eIns;
-            }
-        }
-
-        pendTrs.forEach(tr => applyMarkToRow(tr, 'PRESENCA'));
-        state.baseList = state.baseList.map(x => nomes.includes(x.Nome) ? {...x, Marcacao: 'PRESENCA'} : x);
-        state.filtered = applyFilters(state.baseList);
-        renderRows(state.filtered);
-        computeSummary(state.filtered, state.meta);
-
-        try {
-            if (window.absSyncBatch) {
-                const payload = nomes.map(n => ({
-                    Nome: n, Data: dataISO, Turno: escMap.get(n) || null, Falta: 0, Atestado: 0
-                }));
-                await window.absSyncBatch(payload);
-            }
-        } catch (e) {
-            console.warn('ABS sync (batch presentes) falhou:', e);
-        }
 
         toast('Marcação em massa concluída!', 'success');
     } catch (e) {
@@ -821,6 +759,10 @@ async function marcarTodosPresentes() {
         toast('Erro na marcação em massa', 'error');
         await carregar(true);
     } finally {
+
+        ui.markAllBtn.disabled = false;
+        ui.clearAllBtn.disabled = false;
+        ui.markAllBtn.textContent = 'Marcar Todos como Presente';
         showLoading(false);
     }
 }
@@ -838,8 +780,13 @@ async function limparTodas() {
 
     const nomes = marcadosTrs.map(tr => tr.dataset.nome);
 
+
+    ui.markAllBtn.disabled = true;
+    ui.clearAllBtn.disabled = true;
+    ui.clearAllBtn.textContent = 'Limpando...';
+    showLoading(true);
+
     try {
-        showLoading(true);
 
         const {error: eDel} = await supabase
             .from('ControleDiario')
@@ -848,22 +795,6 @@ async function limparTodas() {
             .in('Nome', nomes);
         if (eDel) throw eDel;
 
-        marcadosTrs.forEach(tr => applyMarkToRow(tr, null));
-        state.baseList = state.baseList.map(x => nomes.includes(x.Nome) ? {...x, Marcacao: null} : x);
-        state.filtered = applyFilters(state.baseList);
-        renderRows(state.filtered);
-        computeSummary(state.filtered, state.meta);
-
-        try {
-            if (window.absSyncBatch) {
-                const payload = nomes.map(n => ({
-                    Nome: n, Data: dataISO, Falta: 0, Atestado: 0
-                }));
-                await window.absSyncBatch(payload);
-            }
-        } catch (e) {
-            console.warn('ABS sync (batch limpar) falhou:', e);
-        }
 
         toast('Marcações limpas!', 'success');
     } catch (e) {
@@ -871,6 +802,10 @@ async function limparTodas() {
         toast('Erro ao limpar em massa', 'error');
         await carregar(true);
     } finally {
+
+        ui.markAllBtn.disabled = false;
+        ui.clearAllBtn.disabled = false;
+        ui.clearAllBtn.textContent = 'Limpar Marcações Visíveis';
         showLoading(false);
     }
 }
@@ -1161,6 +1096,8 @@ export async function init() {
         filters: {search: '', gestor: '', cargo: '', contrato: '', svc: '', matriz: ''},
         period: {start: firstOfMonth, end: hoje},
         isPendingFilterActive: false,
+        isProcessing: false,
+
     };
 
     if (!ui.date.value) ui.date.value = hoje;
