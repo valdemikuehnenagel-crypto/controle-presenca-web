@@ -2,11 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    const supabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_KEY
-    );
-
+    const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
 
     const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
@@ -16,17 +12,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginMsg = document.getElementById('loginMsg');
     const forgotPinBtn = document.getElementById('forgotPinBtn');
 
-
     const loginFormContent = document.getElementById('login-form-content');
     const welcomeBackContainer = document.getElementById('welcome-back-container');
     const welcomeAvatar = document.getElementById('welcome-avatar');
     const welcomeMessage = document.getElementById('welcome-message');
 
-
     if (showRegisterBtn) {
         showRegisterBtn.addEventListener('click', () => {
             container.classList.add('active');
-
             loadMatrizes();
             loadFuncoes();
         });
@@ -37,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
             container.classList.remove('active');
         });
     }
-
 
     async function verifyPin(pin) {
         loginMsg.classList.remove('info');
@@ -60,11 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         localStorage.setItem('userSession', JSON.stringify(data));
 
+        await logLoginHistory(data);
 
         if (loginFormContent) {
             loginFormContent.classList.add('fade-out-start');
         }
-
 
         if (welcomeBackContainer) {
             const fullName = data.Nome || 'Usuário';
@@ -74,18 +66,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 welcomeMessage.textContent = `Olá, ${firstName}!`;
             }
 
-
             if (welcomeAvatar && data.avatar_url) {
                 welcomeAvatar.src = data.avatar_url;
             }
-
 
             welcomeBackContainer.classList.remove('hidden');
             setTimeout(() => {
                 welcomeBackContainer.classList.add('visible');
             }, 10);
         }
-
 
         setTimeout(() => {
             window.location.href = '/dashboard.html';
@@ -115,7 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-
     if (forgotPinBtn) {
         forgotPinBtn.addEventListener('click', () => {
             loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com';
@@ -132,18 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const registerPin = document.getElementById('registerPin');
     const registerMsg = document.getElementById('registerMsg');
 
-
-    const funcoes = [
-        'JOVEM APRENDIZ',
-        'ESTAGIÁRIO',
-        'LÍDER',
-        'SHE',
-        'COORDENADOR',
-        'ANALISTA',
-        'SUPERVISOR',
-        'GERENTE',
-        'DIRETOR'
-    ];
+    const funcoes = ['JOVEM APRENDIZ', 'ESTAGIÁRIO', 'LÍDER', 'SHE', 'COORDENADOR', 'ANALISTA', 'SUPERVISOR', 'GERENTE', 'DIRETOR'];
 
     function loadFuncoes() {
         registerFuncao.innerHTML = '<option value="" disabled selected>Selecione a Função</option>';
@@ -157,20 +134,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadMatrizes() {
         registerMatriz.innerHTML = '<option value="" disabled selected>Carregando...</option>';
-
-        const {data, error} = await supabase
-            .from('Matrizes')
-            .select('MATRIZ');
-
+        const {data, error} = await supabase.from('Matrizes').select('MATRIZ');
         if (error) {
             registerMatriz.innerHTML = '<option value="" disabled selected>Erro ao carregar</option>';
             console.error('Erro ao buscar matrizes:', error);
             return;
         }
-
         const matrizesUnicas = Array.from(new Set(data.map(item => item.MATRIZ))).sort();
         registerMatriz.innerHTML = '<option value="" disabled selected>Selecione a Matriz</option>';
-
         matrizesUnicas.forEach(matriz => {
             const option = document.createElement('option');
             option.value = matriz;
@@ -199,17 +170,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const {error} = await supabase
-                .from('Logins')
-                .insert({
-                    PIN: userData.pin,
-                    Nome: userData.nome,
-                    Usuario: userData.email.toLowerCase(),
-                    Matriz: userData.matriz,
-                    Tipo: userData.funcao,
-                    Nivel: 'Usuario',
-                    Aprovacao: 'PENDENTE'
-                });
+            const {error} = await supabase.from('Logins').insert({
+                PIN: userData.pin,
+                Nome: userData.nome,
+                Usuario: userData.email.toLowerCase(),
+                Matriz: userData.matriz,
+                Tipo: userData.funcao,
+                Nivel: 'Usuario',
+                Aprovacao: 'PENDENTE'
+            });
 
             if (error) {
                 registerMsg.classList.add('error');
@@ -218,11 +187,45 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 registerMsg.textContent = 'Solicitação enviada! Aguarde a aprovação.';
                 registerForm.reset();
-
                 setTimeout(() => {
                     container.classList.remove('active');
                 }, 3000);
             }
         });
     }
+
+    // --- NOVA FUNÇÃO ---
+    // Pega a data/hora local e formata para o padrão do banco de dados
+    function getBrasiliaTimestamp() {
+        const date = new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    async function logLoginHistory(userData) {
+        try {
+            const {error} = await supabase
+                .from('LoginHistorico')
+                .insert({
+                    Nome: userData.Nome,
+                    Usuario: userData.Usuario,
+                    MATRIZ: userData.Matriz,
+                    SVC: userData.SVC,
+                    // AJUSTE: Utiliza a nova função para pegar a hora local formatada
+                    'Data Login': getBrasiliaTimestamp()
+                });
+
+            if (error) {
+                throw error;
+            }
+        } catch (error) {
+            console.error('Erro ao registrar histórico de login:', error.message);
+        }
+    }
+
 });

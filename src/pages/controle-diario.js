@@ -743,9 +743,9 @@ async function marcarTodosPresentes() {
     showLoading(true);
 
     try {
-        // --- INÍCIO DA CORREÇÃO ---
 
-        // 1. Busca o último 'Numero' usado na tabela para saber por onde começar a contagem.
+
+
         const {data: maxRow, error: maxErr} = await supabase
             .from('ControleDiario')
             .select('Numero')
@@ -754,10 +754,10 @@ async function marcarTodosPresentes() {
 
         if (maxErr) throw maxErr;
 
-        // 2. Define o próximo número sequencial.
+
         let nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;
 
-        // 3. Busca as informações adicionais dos colaboradores a serem marcados.
+
         const {data: colabsInfo, error: colabError} = await supabase
             .from('Colaboradores')
             .select('Nome, Escala')
@@ -767,11 +767,11 @@ async function marcarTodosPresentes() {
 
         const colabInfoMap = new Map(colabsInfo.map(c => [c.Nome, c]));
 
-        // 4. Prepara as linhas para o upsert, agora incluindo o 'Numero' sequencial.
+
         const rowsToUpsert = nomes.map(nome => {
             const info = colabInfoMap.get(nome) || {};
             const newRow = {
-                Numero: nextNumero, // <- AQUI está a correção principal.
+                Numero: nextNumero,
                 Nome: nome,
                 Data: dataISO,
                 Presença: 1,
@@ -782,20 +782,20 @@ async function marcarTodosPresentes() {
                 Feriado: 0,
                 Turno: info.Escala || state.turnoAtual,
             };
-            nextNumero++; // Incrementa o número para o próximo colaborador da lista.
+            nextNumero++;
             return newRow;
         });
 
-        // 5. Envia os dados para o Supabase. O 'upsert' vai inserir os novos registros.
+
         const {error} = await supabase
             .from('ControleDiario')
             .upsert(rowsToUpsert, {onConflict: 'Nome, Data'});
 
         if (error) throw error;
 
-        // --- FIM DA CORREÇÃO ---
 
-        // Atualiza a interface do usuário para refletir as mudanças
+
+
         pendTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, 'PRESENCA');

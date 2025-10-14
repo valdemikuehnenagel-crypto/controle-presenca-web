@@ -818,7 +818,7 @@ async function fetchAllWithPagination(queryBuilder) {
             }
             window.removeEventListener('resize', setResponsiveHeights);
 
-            // CORREÇÃO: Limpa as referências aos gráficos destruídos
+
             state.charts = {
                 idade: null,
                 genero: null,
