@@ -1,38 +1,56 @@
 <div id="hc-indice">
     <div class="hcidx-root">
         <div class="hcidx-toolbar">
-            <span class="hcidx-note">Os gráficos abaixo utilizam os filtros globais de Matriz/SVC (barra superior).</span>
+            <button id="hc-idx-clear-filters" class="btn-add">Limpar Filtros</button>
         </div>
 
         <div class="hcidx-grid">
             <div class="hcidx-card">
                 <h3>Idade — % por turno</h3>
-                <canvas id="ind-idade-bar"></canvas>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="ind-idade-bar"></canvas>
+                </div>
             </div>
 
             <div class="hcidx-card">
                 <h3>Gênero — % por turno</h3>
-                <canvas id="ind-genero-bar"></canvas>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="ind-genero-bar"></canvas>
+                </div>
             </div>
 
             <div class="hcidx-card hcidx-card--full">
                 <h3>DSR — distribuição %</h3>
-                <canvas id="ind-dsr-pie"></canvas>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="ind-dsr-pie"></canvas>
+                </div>
             </div>
 
             <div class="hcidx-card hcidx-card--full">
                 <h3>Contrato (Efetivo × Temp.) — % por turno</h3>
-                <canvas id="ind-contrato-bar"></canvas>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="ind-contrato-bar"></canvas>
+                </div>
             </div>
 
             <div class="hcidx-card hcidx-card--full">
-                <h3>Contrato (Efetivo × Temp.) — % por SVC (Barras Horizontais)</h3>
-                <canvas id="ind-contrato-svc-bar"></canvas>
+                <h3>Contrato (Efetivo × Temp.) — % por SVC</h3>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="ind-contrato-svc-bar"></canvas>
+                </div>
             </div>
 
             <div class="hcidx-card hcidx-card--full">
-                <h3>Cargo (Auxiliar × Conferente) — % por SVC (Barras Horizontais)</h3>
-                <canvas id="ind-cargo-svc-bar"></canvas>
+                <h3>Contrato (Auxiliar > 90 dias) — % por SVC</h3>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="ind-contrato-90d-svc-bar"></canvas>
+                </div>
+            </div>
+            <div class="hcidx-card hcidx-card--full">
+                <h3>Cargo (Auxiliar × Conferente) — % por SVC</h3>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="ind-cargo-svc-bar"></canvas>
+                </div>
             </div>
         </div>
 
