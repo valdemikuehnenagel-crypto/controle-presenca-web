@@ -636,11 +636,11 @@ async function fetchAllWithPagination(queryBuilder) {
             ch.update('none');
         }
         {
-            // *** ALTERAÇÃO AQUI ***
-            // 1. Filtra a lista de colaboradores para incluir apenas 'AUXILIAR'
+
+
             const colabsAuxiliares = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR');
 
-            // 2. Usa a lista filtrada ('colabsAuxiliares') para dividir por turno
+
             const {labels, groups} = splitByTurno(colabsAuxiliares);
 
             const cats = ['Efetivo', 'Temporário'];
