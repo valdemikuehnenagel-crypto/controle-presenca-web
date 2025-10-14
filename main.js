@@ -194,8 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- NOVA FUNÇÃO ---
-    // Pega a data/hora local e formata para o padrão do banco de dados
+
+
     function getBrasiliaTimestamp() {
         const date = new Date();
         const year = date.getFullYear();
@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     Usuario: userData.Usuario,
                     MATRIZ: userData.Matriz,
                     SVC: userData.SVC,
-                    // AJUSTE: Utiliza a nova função para pegar a hora local formatada
+
                     'Data Login': getBrasiliaTimestamp()
                 });
 
