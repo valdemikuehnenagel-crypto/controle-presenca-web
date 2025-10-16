@@ -826,6 +826,7 @@ async function limparTodas() {
     const marcadosTrs = Array.from(ui.tbody.querySelectorAll('tr'))
         .filter(tr => (tr.dataset.mark || 'NONE') !== 'NONE');
 
+
     if (!marcadosTrs.length) return toast('Não há marcações visíveis.', 'info');
     if (!confirm(`Limpar marcações de ${marcadosTrs.length} colaboradores visíveis?`)) return;
 

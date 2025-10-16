@@ -6,7 +6,8 @@ let state = {
     dadosFiltrados: [],
     filtrosAtivos: {},
     serviceMatrizMap: new Map(),
-    selectedNames: new Set()
+    selectedNames: new Set(),
+    contratosData: null
 };
 
 const ITENS_POR_PAGINA = 50;
@@ -138,6 +139,52 @@ function attachUppercaseHandlers() {
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
+}
+
+/**
+ * Busca os tipos de contrato da tabela 'Contratos' (apenas uma vez)
+ * e popula o elemento <select> fornecido com as opções.
+ * @param {HTMLSelectElement} selectElement - O elemento <select> a ser populado.
+ */
+async function populateContratoSelect(selectElement) {
+    if (!selectElement) return;
+
+
+    if (state.contratosData === null) {
+        try {
+            const {data, error} = await supabase
+                .from('Contratos')
+                .select('CONTRATO');
+
+            if (error) throw error;
+
+
+            const contratosUnicos = Array.from(new Set(data.map(item => item.CONTRATO).filter(Boolean)))
+                .sort((a, b) => a.localeCompare(b));
+            state.contratosData = contratosUnicos;
+        } catch (error) {
+            console.error('Erro ao buscar tipos de contrato:', error);
+            state.contratosData = [];
+            selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
+            return;
+        }
+    }
+
+
+    const valorAtual = selectElement.value;
+    selectElement.innerHTML = '<option value="">Selecione um Contrato...</option>';
+
+    state.contratosData.forEach(contrato => {
+        const option = document.createElement('option');
+        option.value = contrato;
+        option.textContent = contrato;
+        selectElement.appendChild(option);
+    });
+
+
+    if (state.contratosData.includes(valorAtual)) {
+        selectElement.value = valorAtual;
+    }
 }
 
 function attachUpperHandlersTo(form) {
@@ -905,6 +952,9 @@ function hideEditModal() {
 async function fillEditForm(colab) {
     editOriginal = colab;
 
+
+    await populateContratoSelect(editInputs.Contrato);
+
     await loadGestoresParaFormulario();
 
     const setVal = (el, v) => {
@@ -915,6 +965,7 @@ async function fillEditForm(colab) {
 
     setVal(editInputs.Nome, colab.Nome || '');
     setVal(editInputs.CPF, colab.CPF || '');
+
     setVal(editInputs.Contrato, colab.Contrato || '');
     setVal(editInputs.Cargo, colab.Cargo || '');
 
@@ -934,7 +985,6 @@ async function fillEditForm(colab) {
             editSVC.appendChild(opt);
         }
         editSVC.value = svc || '';
-
         populateGestorSelectForEdit(svc, colab.Gestor);
     }
 
@@ -950,7 +1000,6 @@ async function fillEditForm(colab) {
         }
     }
 }
-
 
 async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
@@ -975,14 +1024,11 @@ async function validateEditDuplicates(payload) {
 async function onEditSubmit(e) {
     e.preventDefault();
 
-    if (isSubmittingEdit) {
-        console.warn("Submissão de edição já em andamento. Ignorando clique duplicado.");
-        return;
-    }
+    if (isSubmittingEdit) return;
     isSubmittingEdit = true;
 
     if (!editOriginal) {
-        alert('Erro: Não há dados originais do colaborador. Por favor, feche e abra a janela de edição novamente.');
+        alert('Erro: Não há dados originais do colaborador.');
         isSubmittingEdit = false;
         return;
     }
@@ -1001,9 +1047,7 @@ async function onEditSubmit(e) {
     }
 
     try {
-
         const nomeAnterior = editOriginal.Nome;
-
         const CPF = normalizeCPF(editInputs.CPF.value || '');
         const svc = nullIfEmpty(editSVC.value);
         const matrizAuto = svc ? (state.serviceMatrizMap.get(String(svc).toUpperCase()) || null) : null;
@@ -1011,22 +1055,18 @@ async function onEditSubmit(e) {
         const payload = {
             Nome,
             CPF,
-            Contrato: editInputs.Contrato.value || '',
-            Cargo: editInputs.Cargo.value || '',
-            Gestor: nullIfEmpty(editInputs.Gestor.value),
-            DSR: nullIfEmpty(editInputs.DSR.value),
-            Escala: nullIfEmpty(editInputs.Escala.value),
-            'FOLGA ESPECIAL': nullIfEmpty(editInputs['FOLGA ESPECIAL'].value),
+            Contrato: toUpperTrim(editInputs.Contrato.value || ''),
+            Cargo: toUpperTrim(editInputs.Cargo.value || ''),
+            Gestor: toUpperTrim(nullIfEmpty(editInputs.Gestor.value)),
+            DSR: toUpperTrim(nullIfEmpty(editInputs.DSR.value)),
+            Escala: toUpperTrim(nullIfEmpty(editInputs.Escala.value)),
+            'FOLGA ESPECIAL': toUpperTrim(nullIfEmpty(editInputs['FOLGA ESPECIAL'].value)),
             LDAP: nullIfEmpty(editInputs.LDAP.value),
             'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),
             'Data de nascimento': editInputs['Data de nascimento'].value || null,
-            SVC: svc,
-            MATRIZ: matrizAuto
+            SVC: toUpperTrim(svc),
+            MATRIZ: toUpperTrim(matrizAuto)
         };
-
-        Object.keys(payload).forEach(k => {
-            if (typeof payload[k] === 'string' && k !== 'LDAP') payload[k] = toUpperTrim(payload[k]);
-        });
 
         const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
@@ -1034,30 +1074,33 @@ async function onEditSubmit(e) {
             return;
         }
 
-        const {error: updateError} = await supabase.from('Colaboradores').update(payload).eq('Nome', nomeAnterior);
 
-        if (updateError) {
-            alert(`Erro ao atualizar: ${updateError.message}`);
+        const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
+            nome_antigo: nomeAnterior,
+            novos_dados: payload
+        });
+
+        if (rpcError) {
+
+            console.error('Erro na transação de atualização:', rpcError);
+            alert(`Erro ao atualizar colaborador: ${rpcError.message}`);
             return;
         }
 
+
+
+
         const dsrAnterior = editOriginal.DSR || null;
         const dsrAtual = payload.DSR || null;
-
         if (dsrAnterior !== dsrAtual) {
+
             console.log('DSR alterado. Registrando no log...');
-
-            const {data: maxRow, error: maxErr} = await supabase
-                .from('LogDSR')
-                .select('Numero')
-                .order('Numero', {ascending: false})
-                .limit(1);
-
-            if (maxErr) {
-                console.error('Falha ao buscar último número do LogDSR:', maxErr);
-            } else {
+            const {
+                data: maxRow,
+                error: maxErr
+            } = await supabase.from('LogDSR').select('Numero').order('Numero', {ascending: false}).limit(1);
+            if (!maxErr) {
                 const nextNumero = (maxRow?.[0]?.Numero || 0) + 1;
-
                 const logEntry = {
                     Numero: nextNumero,
                     Name: payload.Nome,
@@ -1067,24 +1110,15 @@ async function onEditSubmit(e) {
                     Escala: payload.Escala,
                     Gestor: payload.Gestor,
                     SVC: payload.SVC,
-                    MATRIZ: payload.MATRIZ,
+                    MATRIZ: payload.MATRIZ
                 };
-
-                const {error: logError} = await supabase.from('LogDSR').insert([logEntry]);
-
-                if (logError) {
-                    console.error('Falha ao inserir registro na tabela LogDSR:', logError);
-                    alert('Atenção: A alteração foi salva, mas ocorreu um erro ao registrar o histórico da mudança de DSR.');
-                } else {
-                    console.log('Log de DSR registrado com sucesso!', logEntry);
-                }
+                await supabase.from('LogDSR').insert([logEntry]);
             }
         }
 
         await fetchColaboradores();
-        alert('Colaborador atualizado com sucesso!');
+        alert('Colaborador atualizado com sucesso em todas as tabelas!');
         hideEditModal();
-
 
         document.dispatchEvent(new CustomEvent('colaborador-edited', {
             detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
@@ -1930,17 +1964,11 @@ export function init() {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
             state.filtrosAtivos = {};
-
-
             state.selectedNames.clear();
-
-
             const todasAsLinhas = colaboradoresTbody.querySelectorAll('tr.selecionado');
             todasAsLinhas.forEach(linha => {
                 linha.classList.remove('selecionado');
             });
-
-
             applyFiltersAndSearch();
         });
     }
@@ -1957,15 +1985,23 @@ export function init() {
             updateDisplay();
         });
     }
+
+
     if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', async () => {
             await loadGestoresParaFormulario();
             loadSVCsParaFormulario();
+
+
+            await populateContratoSelect(document.getElementById('addContrato'));
+
             populateGestorSelect(null);
             attachUppercaseHandlers();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
         });
     }
+
+
     if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);

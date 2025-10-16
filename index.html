@@ -5,24 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Acesso ao Sistema | KN Conecta</title>
     <link rel="icon" href="/imagens/kn.ico" type="image/x-icon">
-    <style>
-        .select-container {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-        }
-
-        .select-container select {
-            flex: 1;
-        }
-    </style>
     <link rel="stylesheet" href="/login.css"/>
 </head>
 
 <body class="login-page">
 
 <div class="container" id="container">
-
     <div class="form-container sign-up">
         <form id="registerForm">
             <label for="registerAvatar" class="avatar-upload-label">
@@ -33,21 +21,21 @@
 
             <span class="form-subtitle"><strong>Use seu nome, email e crie um PIN para se registrar</strong></span>
 
-            <input id="registerName" type="text" placeholder="Nome Completo" required/>
-            <input id="registerEmail" type="email" placeholder="Email" required/>
+            <input id="registerName" type="text" placeholder="Nome Completo" required class="form-field"/>
+            <input id="registerEmail" type="email" placeholder="Email" required class="form-field"/>
 
             <div class="select-container">
-                <select id="registerMatriz" required>
-                    <option value="" disabled selected>Selecione a Matriz</option>
-                </select>
+                <button type="button" id="open-matriz-modal-btn">
+                    <span>Selecione a Matriz</span>
+                </button>
 
                 <select id="registerFuncao" required>
-                    <option value="" disabled selected>a Função</option>
+                    <option value="" disabled selected>Selecione a Função</option>
                 </select>
             </div>
 
             <input id="registerPin" type="password" placeholder="Crie um PIN de 6 dígitos" maxlength="6"
-                   inputmode="numeric" required/>
+                   inputmode="numeric" required class="form-field"/>
 
             <button id="registerBtn" type="submit">Criar e Enviar</button>
             <p id="registerMsg" class="message"></p>
@@ -59,23 +47,18 @@
             <div id="login-form-content" class="login-content">
                 <h1>Faça o seu login</h1>
                 <span>Use o seu PIN de 6 dígitos para entrar</span>
-
                 <input id="pinLogin" type="password" placeholder="Digite aqui" maxlength="6" inputmode="numeric"
-                       required
-                       class="pin-input"/>
-
+                       required class="pin-input"/>
                 <button id="loginBtn" type="submit">Entrar</button>
                 <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci meu pin</button>
                 <p id="loginMsg" class="message"></p>
             </div>
-
             <div id="welcome-back-container" class="welcome-back hidden">
                 <img id="welcome-avatar" src="/imagens/avatar.png" alt="Avatar">
                 <p id="welcome-message"></p>
             </div>
         </form>
     </div>
-
     <div class="toggle-container">
         <div class="toggle">
             <div class="toggle-panel toggle-left">
@@ -91,6 +74,18 @@
                 <button class="hidden" id="showRegisterBtn">Criar Conta</button>
             </div>
         </div>
+    </div>
+</div>
+
+<div id="matriz-modal-overlay" class="modal-overlay"></div>
+<div id="matriz-modal" class="modal">
+    <div class="modal-header">
+        <h2>Selecione as Matrizes</h2>
+        <button id="close-matriz-modal-btn" class="close-btn">&times;</button>
+    </div>
+    <div id="modal-matriz-list" class="modal-body"></div>
+    <div class="modal-footer">
+        <button id="confirm-matriz-selection-btn" class="btn-primary">OK</button>
     </div>
 </div>
 
