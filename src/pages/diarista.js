@@ -180,7 +180,7 @@ async function loadBaseDiaristas() {
     const sessMtz = getSessionMatriz();
     try {
         let q = supabase
-            .from('BaseDiaristas')
+            .from('BancoDiaristas') // <<-- CORREÇÃO AQUI
             .select('NOME, "ID GROOT", LDAP, MATRIZ')
             .not('NOME', 'is', null)
             .not('MATRIZ', 'is', null)
@@ -204,10 +204,115 @@ async function loadBaseDiaristas() {
             state.baseByMatriz.get(m).push(item);
         }
     } catch (e) {
-        console.error('Erro carregando BaseDiaristas:', e);
+        console.error('Erro carregando BancoDiaristas:', e); // Nome atualizado aqui também
         state.baseByMatriz.clear();
     } finally {
         state.baseLoaded = true;
+    }
+}
+
+function buildNomeSelect(index, selectedName = '') {
+    const list = getBaseListForCurrentMatriz();
+    const sel = document.createElement('select');
+    sel.className = 'f-nome-sel';
+    sel.id = `f-nome-${index}`;
+    sel.required = true;
+    const opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = 'Selecione o diarista...';
+    sel.appendChild(opt0);
+    const selectedNorm = normalizeNameForMatch(selectedName);
+    list.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.NOME;
+        o.textContent = p.NOME;
+        o.dataset.idgroot = p.IDGROOT || '';
+        o.dataset.ldap = p.LDAP || '';
+        if (selectedName && normalizeNameForMatch(p.NOME) === selectedNorm) {
+            o.selected = true;
+        }
+        sel.appendChild(o);
+    });
+    return sel;
+}
+
+function updateNameInputs(preserve = true) {
+    const raw = document.getElementById('f-quantidade').value;
+    const qty = Math.max(1, parseInt(raw, 10) || 1);
+    const box = document.getElementById('names-list');
+    let prevSelected = [];
+    if (preserve) {
+        prevSelected = Array.from(box.querySelectorAll('.f-nome-sel'))
+            .map(sel => String(sel.value || ''));
+    }
+    box.innerHTML = '';
+    const baseList = getBaseListForCurrentMatriz();
+    const hasBase = baseList.length > 0; // Isso deve ser 'true' após a correção
+    for (let i = 1; i <= qty; i++) {
+        const wrapNome = document.createElement('div');
+        wrapNome.className = 'form-group';
+        wrapNome.style.gridColumn = 'span 2';
+        const labelNome = document.createElement('label');
+        labelNome.setAttribute('for', `f-nome-${i}`);
+        labelNome.textContent = `Nome ${i}`;
+        wrapNome.appendChild(labelNome);
+        let nomeControl;
+
+        // Se 'hasBase' for true, ele cria o menu suspenso
+        if (hasBase) {
+            const selectedBefore = preserve ? (prevSelected[i - 1] || '') : '';
+            nomeControl = buildNomeSelect(i, selectedBefore);
+        } else {
+            // Se 'hasBase' for false (ex: tabela vazia ou erro), ele volta para o input de texto
+            nomeControl = document.createElement('input');
+            nomeControl.type = 'text';
+            nomeControl.id = `f-nome-${i}`;
+            nomeControl.className = 'f-nome';
+            nomeControl.placeholder = `Nome ${i}`;
+            nomeControl.required = true;
+            if (preserve) nomeControl.value = prevSelected[i - 1] || '';
+        }
+
+        wrapNome.appendChild(nomeControl);
+
+        const wrapId = document.createElement('div');
+        wrapId.className = 'form-group';
+        const labelId = document.createElement('label');
+        labelId.setAttribute('for', `f-groot-${i}`);
+        labelId.textContent = `ID GROOT ${i}`;
+
+        const idInput = document.createElement('input');
+        idInput.type = 'text';
+        idInput.id = `f-groot-${i}`;
+        idInput.className = 'f-groot';
+        idInput.placeholder = `ID ${i}`;
+
+        // Se 'hasBase' for true, o campo ID GROOT fica bloqueado
+        if (hasBase) {
+            idInput.readOnly = true;
+            idInput.style.background = '#f5f7fb';
+            idInput.style.cursor = 'not-allowed';
+        }
+
+        // Se o controle de nome for um <select>, ele adiciona o 'listener'
+        // para auto-preencher o ID GROOT
+        if (hasBase && nomeControl.tagName === 'SELECT') {
+            nomeControl.addEventListener('change', () => {
+                const opt = nomeControl.options[nomeControl.selectedIndex];
+                const idg = opt?.dataset?.idgroot || '';
+                idInput.value = idg;
+            });
+            // Auto-preenche o ID na primeira carga se já houver um nome selecionado
+            setTimeout(() => {
+                const opt = nomeControl.options[nomeControl.selectedIndex];
+                idInput.value = opt?.dataset?.idgroot || '';
+            }, 0);
+        }
+
+        wrapId.appendChild(labelId);
+        wrapId.appendChild(idInput);
+        box.appendChild(wrapNome);
+        box.appendChild(wrapId);
     }
 }
 
@@ -413,6 +518,20 @@ async function loadMatrizInfo() {
                 fltMtz.disabled = false;
             }
         }
+
+        // <-- INÍCIO DO AJUSTE: Popula também o dropdown de Matriz DENTRO do modal -->
+        const formMtz = document.getElementById('f-matriz');
+        if (formMtz) {
+            formMtz.querySelectorAll('option:not([value=""])').forEach(o => o.remove()); // Limpa opções antigas, exceto a "Selecione"
+            state.matrizesList.forEach(m => {
+                const o = document.createElement('option');
+                o.value = m;
+                o.textContent = m;
+                formMtz.appendChild(o);
+            });
+        }
+        // <-- FIM DO AJUSTE -->
+
     } catch (e) {
         console.error('Erro loadMatrizInfo:', e);
     }
@@ -559,15 +678,34 @@ function openModal() {
     const fSvc = document.getElementById('f-svc');
     const fMtz = document.getElementById('f-matriz');
     if (fSvc) fSvc.value = '';
+
+    // <-- INÍCIO DO AJUSTE: Lógica para auto-selecionar e bloquear a matriz do usuário -->
     const sessMtz = getSessionMatriz();
-    if (fMtz) fMtz.value = (sessMtz && sessMtz !== 'TODOS') ? sessMtz : '';
+    if (fMtz) {
+        if (sessMtz && sessMtz !== 'TODOS') {
+            // Se o usuário tem uma matriz específica...
+            fMtz.value = sessMtz; // Seleciona ela
+            fMtz.disabled = true;  // E bloqueia o campo
+        } else {
+            // Se o usuário é 'TODOS' (admin/etc)...
+            fMtz.value = '';       // Deixa "Selecione"
+            fMtz.disabled = false; // E permite que ele escolha
+        }
+    }
+    // <-- FIM DO AJUSTE -->
+
     document.getElementById('f-data').value = todayISO();
-    updateNameInputs(false);
+    updateNameInputs(false); // Agora isso vai rodar com a matriz já preenchida
     document.getElementById('diarista-modal').classList.remove('hidden');
 }
 
 function closeModal() {
     document.getElementById('diarista-modal').classList.add('hidden');
+
+    // <-- LINHA ADICIONADA -->
+    // Garante que o campo matriz seja reabilitado ao fechar
+    const fMtz = document.getElementById('f-matriz');
+    if (fMtz) fMtz.disabled = false;
 }
 
 function getBaseListForCurrentMatriz() {
@@ -575,97 +713,6 @@ function getBaseListForCurrentMatriz() {
     return state.baseByMatriz.get(mtz) || [];
 }
 
-function buildNomeSelect(index, selectedName = '') {
-    const list = getBaseListForCurrentMatriz();
-    const sel = document.createElement('select');
-    sel.className = 'f-nome-sel';
-    sel.id = `f-nome-${index}`;
-    sel.required = true;
-    const opt0 = document.createElement('option');
-    opt0.value = '';
-    opt0.textContent = 'Selecione o diarista...';
-    sel.appendChild(opt0);
-    const selectedNorm = normalizeNameForMatch(selectedName);
-    list.forEach(p => {
-        const o = document.createElement('option');
-        o.value = p.NOME;
-        o.textContent = p.NOME;
-        o.dataset.idgroot = p.IDGROOT || '';
-        o.dataset.ldap = p.LDAP || '';
-        if (selectedName && normalizeNameForMatch(p.NOME) === selectedNorm) {
-            o.selected = true;
-        }
-        sel.appendChild(o);
-    });
-    return sel;
-}
-
-function updateNameInputs(preserve = true) {
-    const raw = document.getElementById('f-quantidade').value;
-    const qty = Math.max(1, parseInt(raw, 10) || 1);
-    const box = document.getElementById('names-list');
-    let prevSelected = [];
-    if (preserve) {
-        prevSelected = Array.from(box.querySelectorAll('.f-nome-sel'))
-            .map(sel => String(sel.value || ''));
-    }
-    box.innerHTML = '';
-    const baseList = getBaseListForCurrentMatriz();
-    const hasBase = baseList.length > 0;
-    for (let i = 1; i <= qty; i++) {
-        const wrapNome = document.createElement('div');
-        wrapNome.className = 'form-group';
-        wrapNome.style.gridColumn = 'span 2';
-        const labelNome = document.createElement('label');
-        labelNome.setAttribute('for', `f-nome-${i}`);
-        labelNome.textContent = `Nome ${i}`;
-        wrapNome.appendChild(labelNome);
-        let nomeControl;
-        if (hasBase) {
-            const selectedBefore = preserve ? (prevSelected[i - 1] || '') : '';
-            nomeControl = buildNomeSelect(i, selectedBefore);
-        } else {
-            nomeControl = document.createElement('input');
-            nomeControl.type = 'text';
-            nomeControl.id = `f-nome-${i}`;
-            nomeControl.className = 'f-nome';
-            nomeControl.placeholder = `Nome ${i}`;
-            nomeControl.required = true;
-            if (preserve) nomeControl.value = prevSelected[i - 1] || '';
-        }
-        wrapNome.appendChild(nomeControl);
-        const wrapId = document.createElement('div');
-        wrapId.className = 'form-group';
-        const labelId = document.createElement('label');
-        labelId.setAttribute('for', `f-groot-${i}`);
-        labelId.textContent = `ID GROOT ${i}`;
-        const idInput = document.createElement('input');
-        idInput.type = 'text';
-        idInput.id = `f-groot-${i}`;
-        idInput.className = 'f-groot';
-        idInput.placeholder = `ID ${i}`;
-        if (hasBase) {
-            idInput.readOnly = true;
-            idInput.style.background = '#f5f7fb';
-            idInput.style.cursor = 'not-allowed';
-        }
-        if (hasBase && nomeControl.tagName === 'SELECT') {
-            nomeControl.addEventListener('change', () => {
-                const opt = nomeControl.options[nomeControl.selectedIndex];
-                const idg = opt?.dataset?.idgroot || '';
-                idInput.value = idg;
-            });
-            setTimeout(() => {
-                const opt = nomeControl.options[nomeControl.selectedIndex];
-                idInput.value = opt?.dataset?.idgroot || '';
-            }, 0);
-        }
-        wrapId.appendChild(labelId);
-        wrapId.appendChild(idInput);
-        box.appendChild(wrapNome);
-        box.appendChild(wrapId);
-    }
-}
 
 async function onSubmitForm(ev) {
     ev.preventDefault();
