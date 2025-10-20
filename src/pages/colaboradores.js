@@ -9,10 +9,8 @@ let state = {
     selectedNames: new Set(),
     contratosData: null
 };
-
 const ITENS_POR_PAGINA = 50;
 let itensVisiveis = ITENS_POR_PAGINA;
-
 let colaboradoresTbody,
     searchInput,
     filtrosSelect,
@@ -22,35 +20,33 @@ let colaboradoresTbody,
     contadorVisiveisEl,
     addColaboradorBtn,
     addForm;
-
 let editModal, editForm, editTitulo, editSVC, editMatriz, editExcluirBtn, editCancelarBtn, editSalvarBtn,
-    editDesligarBtn, editFeriasBtn, editHistoricoBtn, editAfastarBtn;
+    editDesligarBtn, editFeriasBtn, editHistoricoBtn, editAfastarBtn,
+    editEfetivarKnBtn;
+let efetivarKnModal, efetivarKnForm, efetivarKnNomeEl, efetivarKnDataEl, efetivarKnCancelarBtn;
 let editInputs = {};
 let editOriginal = null;
-
 let desligarModal, desligarForm, desligarNomeEl, desligarDataEl, desligarMotivoEl, desligarCancelarBtn;
 let desligarColaborador = null;
-
 let feriasModal, feriasForm, feriasNomeEl, feriasInicioEl, feriasFinalEl, feriasCancelarBtn;
 let feriasColaborador = null;
 let isSubmittingFerias = false;
 let isSubmittingEdit = false;
-
+let dsrModal, dsrCheckboxesContainer, dsrOkBtn, dsrCancelarBtn;
+let currentDsrInputTarget = null;
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
 
 async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
     let moreData = true;
-
     while (moreData) {
         const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
-
         if (error) {
             console.error("Erro na paginação:", error);
             throw error;
         }
-
         if (data && data.length > 0) {
             allData = allData.concat(data);
             page++;
@@ -60,7 +56,6 @@ async function fetchAllWithPagination(queryBuilder) {
     }
     return allData;
 }
-
 
 function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
@@ -90,23 +85,17 @@ function numberOrNull(v) {
 
 function toStartOfDay(dateish) {
     if (!dateish) return NaN;
-
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
-
         return new Date(y, m - 1, d).getTime();
     }
-
-
     if (typeof dateish === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateish)) {
         const [d, m, y] = dateish.split('/').map(Number);
         return new Date(y, m - 1, d).getTime();
     }
-
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
-
 
 function formatDateLocal(iso) {
     if (!iso) return '';
@@ -141,48 +130,18 @@ function attachUppercaseHandlers() {
     });
 }
 
-/**
- * Busca os tipos de contrato da tabela 'Contratos' (apenas uma vez)
- * e popula o elemento <select> fornecido com as opções.
- * @param {HTMLSelectElement} selectElement - O elemento <select> a ser populado.
- */
 async function populateContratoSelect(selectElement) {
     if (!selectElement) return;
-
-
-    if (state.contratosData === null) {
-        try {
-            const {data, error} = await supabase
-                .from('Contratos')
-                .select('CONTRATO');
-
-            if (error) throw error;
-
-
-            const contratosUnicos = Array.from(new Set(data.map(item => item.CONTRATO).filter(Boolean)))
-                .sort((a, b) => a.localeCompare(b));
-            state.contratosData = contratosUnicos;
-        } catch (error) {
-            console.error('Erro ao buscar tipos de contrato:', error);
-            state.contratosData = [];
-            selectElement.innerHTML = '<option value="">Erro ao carregar</option>';
-            return;
-        }
-    }
-
-
+    const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
     selectElement.innerHTML = '<option value="">Selecione um Contrato...</option>';
-
-    state.contratosData.forEach(contrato => {
+    CONTRATOS_PERMITIDOS.forEach(contrato => {
         const option = document.createElement('option');
         option.value = contrato;
         option.textContent = contrato;
         selectElement.appendChild(option);
     });
-
-
-    if (state.contratosData.includes(valorAtual)) {
+    if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
 }
@@ -212,19 +171,15 @@ function attachUpperHandlersTo(form) {
     });
 }
 
-
 function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
-
     gestorSelect.innerHTML = '';
-
     if (!selectedSvc) {
         gestorSelect.disabled = true;
         gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC...</option>';
         return;
     }
-
     const gestoresFiltrados = state.gestoresData
         .filter(gestor => {
             if (!gestor.SVC) return false;
@@ -232,13 +187,11 @@ function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
             return managerSVCs.includes(selectedSvc);
         })
         .sort((a, b) => a.NOME.localeCompare(b.NOME));
-
     if (gestoresFiltrados.length === 0) {
         gestorSelect.disabled = true;
         gestorSelect.innerHTML = '<option value="" disabled selected>Nenhum gestor para este SVC</option>';
         return;
     }
-
     gestorSelect.disabled = false;
     gestorSelect.innerHTML = '<option value="">Selecione um gestor...</option>';
     gestoresFiltrados.forEach(gestor => {
@@ -247,12 +200,10 @@ function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
 }
-
 
 function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
@@ -270,17 +221,14 @@ function toUpperObject(obj) {
             out[k] = nullIfEmpty(v);
             continue;
         }
-
-        if (k === 'DSR' && typeof v === 'string') {
-            let upperVal = toUpperTrim(v);
-            if (upperVal === 'SABADO') {
-                upperVal = 'SÁBADO';
-            }
-            out[k] = upperVal === '' ? null : upperVal;
+        if (k === 'DSR' && typeof v === 'string' && v) {
+            const days = v.split(',')
+                .map(day => toUpperTrim(day))
+                .map(day => (day === 'SABADO' ? 'SÁBADO' : day))
+                .filter(Boolean);
+            out[k] = days.length > 0 ? days.join(', ') : null;
             continue;
         }
-
-
         if (typeof v === 'string') {
             const up = toUpperTrim(v);
             out[k] = up === '' ? null : up;
@@ -295,54 +243,43 @@ function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
     colaboradoresTbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
-        colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">Nenhum colaborador encontrado.</td></tr>';
+        colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Nenhum colaborador encontrado.</td></tr>';
         return;
     }
-
     const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
-
-
-        if (colaborador.Ativo === 'AFAS') {
-            return `${nomeBase} (Afastado)`;
-        }
-
-
+        if (colaborador.Ativo === 'AFAS') return `${nomeBase} (Afastado)`;
         const diasRest = state?.feriasAtivasMap?.get?.(nomeBase);
         if (diasRest != null && !isNaN(diasRest)) {
-            if (diasRest === 0) {
-                return `${nomeBase} 🏖️ (Termina hoje)`;
-            }
+            if (diasRest === 0) return `${nomeBase} 🏖️ (Termina hoje)`;
             const sufixo = diasRest === 1 ? 'dia' : 'dias';
             return `${nomeBase} 🏖️ (Faltam ${diasRest} ${sufixo})`;
         }
-
-
         return nomeBase;
     };
-
     dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colaborador.Nome || '');
-
         const nomeCelula = formatarNomeColaborador(colaborador);
-
+        const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);
+        const admissaoKN = formatDateLocal(colaborador['Admissao KN']);
         tr.innerHTML = `
             <td class="nome-col">${nomeCelula}</td>
+            <td>${colaborador.DSR || ''}</td>
+            <td>${colaborador.Escala || ''}</td>
             <td>${colaborador.Contrato || ''}</td>
             <td>${colaborador.Cargo || ''}</td>
-            <td>${colaborador['Data de admissão'] ? new Date(colaborador['Data de admissão']).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : ''}</td>
-            <td>${colaborador.Escala || ''}</td>
-            <td>${colaborador.DSR || ''}</td>
-            <td>${colaborador.SVC || ''}</td>
-            <td>${colaborador.LDAP || ''}</td>
             <td>${colaborador['ID GROOT'] || ''}</td>
+            <td>${colaborador.LDAP || ''}</td>
+            <td>${colaborador.SVC || ''}</td>
+            <td>${colaborador.REGIAO || ''}</td>
+            <td>${admissaoOriginal}</td>
+            <td>${admissaoKN}</td>
             <td>${colaborador['FOLGA ESPECIAL'] || ''}</td>
         `;
         colaboradoresTbody.appendChild(tr);
     });
 }
-
 
 function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
@@ -354,8 +291,6 @@ function updateDisplay() {
 
 function populateFilters() {
     if (!filtrosSelect) return;
-
-
     const filtros = {
         Contrato: new Set(),
         Cargo: new Set(),
@@ -364,9 +299,9 @@ function populateFilters() {
         Gestor: new Set(),
         MATRIZ: new Set(),
         SVC: new Set(),
+        REGIAO: new Set(),
         'FOLGA ESPECIAL': new Set()
     };
-
     state.colaboradoresData.forEach((c) => {
         Object.keys(filtros).forEach((key) => {
             const v = c[key];
@@ -375,19 +310,13 @@ function populateFilters() {
             }
         });
     });
-
-
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
         if (!key || !(key in filtros)) return;
-
         const options = Array.from(filtros[key]).sort((a, b) =>
             a.localeCompare(b, 'pt-BR', {sensitivity: 'base'})
         );
-
-
         while (selectEl.options.length > 1) selectEl.remove(1);
-
         options.forEach((option) => {
             const optionEl = document.createElement('option');
             optionEl.value = option;
@@ -397,50 +326,40 @@ function populateFilters() {
     });
 }
 
-
 function applyFiltersAndSearch() {
-    const searchTerm = (searchInput?.value || '').toLowerCase();
-
-
+    const searchInputString = (searchInput?.value || '').trim();
+    const searchTerms = searchInputString
+        .split(',')
+        .map(term => term.trim().toLowerCase())
+        .filter(term => term.length > 0);
     state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
         for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
             if (!activeVal) continue;
-
-
             const colVal = String(colaborador?.[key] ?? '');
             if (colVal !== activeVal) return false;
         }
-
-        if (!searchTerm) return true;
-
-
-        return (
-            String(colaborador.Nome || '').toLowerCase().includes(searchTerm) ||
-            String(colaborador.CPF || '').toLowerCase().includes(searchTerm) ||
-            String(colaborador['ID GROOT'] || '').toLowerCase().includes(searchTerm) ||
-            String(colaborador.LDAP || '').toLowerCase().includes(searchTerm)
+        if (searchTerms.length === 0) {
+            return true;
+        }
+        return searchTerms.some(term =>
+            String(colaborador.Nome || '').toLowerCase().includes(term) ||
+            String(colaborador.CPF || '').toLowerCase().includes(term) ||
+            String(colaborador['ID GROOT'] || '').toLowerCase().includes(term) ||
+            String(colaborador.LDAP || '').toLowerCase().includes(term)
         );
     });
-
     itensVisiveis = ITENS_POR_PAGINA;
-
-
     repopulateFilterOptionsCascade();
-
     updateDisplay();
 }
 
 function repopulateFilterOptionsCascade() {
     if (!filtrosSelect || !filtrosSelect.length) return;
-
-
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
         if (!key) return;
-
-
         const searchTerm = (searchInput?.value || '').toLowerCase();
         const tempFiltrado = state.colaboradoresData.filter((c) => {
             for (const k in state.filtrosAtivos) {
@@ -451,10 +370,7 @@ function repopulateFilterOptionsCascade() {
                 const colVal = String(c?.[k] ?? '');
                 if (colVal !== activeVal) return false;
             }
-
             if (!searchTerm) return true;
-
-
             return (
                 String(c.Nome || '').toLowerCase().includes(searchTerm) ||
                 String(c.CPF || '').toLowerCase().includes(searchTerm) ||
@@ -462,19 +378,13 @@ function repopulateFilterOptionsCascade() {
                 String(c.LDAP || '').toLowerCase().includes(searchTerm)
             );
         });
-
-
         const valores = new Set();
         tempFiltrado.forEach((c) => {
             const v = c?.[key];
             if (v != null && v !== '') valores.add(String(v));
         });
-
         const selecionadoAntes = selectEl.value || '';
-
-
         while (selectEl.options.length > 1) selectEl.remove(1);
-
         Array.from(valores)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .forEach((optVal) => {
@@ -483,35 +393,27 @@ function repopulateFilterOptionsCascade() {
                 o.textContent = optVal;
                 selectEl.appendChild(o);
             });
-
-
         if (selecionadoAntes && valores.has(selecionadoAntes)) {
             selectEl.value = selecionadoAntes;
         } else {
-
             if (state.filtrosAtivos[key]) delete state.filtrosAtivos[key];
             selectEl.selectedIndex = 0;
         }
     });
 }
 
-
 async function fetchColaboradores() {
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">Carregando...</td></tr>';
     }
-
     const matrizesPermitidas = getMatrizesPermitidas();
-
     let query = supabase
         .from('Colaboradores')
         .select('*')
         .order('Nome');
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
-
     try {
         const data = await fetchAllWithPagination(query);
         state.colaboradoresData = data || [];
@@ -522,15 +424,12 @@ async function fetchColaboradores() {
         }
         return;
     }
-
     try {
         const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
-
         if (nomes.length > 0) {
             const {data: feriasAtivas, error: ferErr} = await supabase
                 .rpc('get_ferias_status_para_nomes', {nomes: nomes});
-
             if (ferErr) {
                 console.warn('Falha ao buscar férias ativas:', ferErr);
             } else {
@@ -544,7 +443,6 @@ async function fetchColaboradores() {
         console.warn('Erro ao montar feriasAtivasMap:', e);
         state.feriasAtivasMap = new Map();
     }
-
     populateFilters();
     applyFiltersAndSearch();
 }
@@ -554,54 +452,42 @@ async function gerarJanelaDeQRCodes() {
         alert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.');
         return;
     }
-
     const todosOsSelecionados = state.colaboradoresData.filter(colab =>
         state.selectedNames.has(colab.Nome)
     );
-
     const colaboradoresParaQR = todosOsSelecionados.filter(colab => colab['ID GROOT']);
-
     if (todosOsSelecionados.length > colaboradoresParaQR.length) {
         const faltantes = todosOsSelecionados.length - colaboradoresParaQR.length;
         const plural = faltantes > 1 ? 'colaboradores não possuem' : 'colaborador não possui';
         alert(`Aviso: ${todosOsSelecionados.length} colaboradores foram selecionados, mas ${faltantes} ${plural} ID GROOT e não puderam ser gerados.`);
     }
-
     if (colaboradoresParaQR.length === 0) {
         alert('Nenhum dos colaboradores selecionados possui um ID GROOT para gerar o QR Code.');
         return;
     }
-
     const {data: imageData, error: imageError} = await supabase
         .storage
         .from('cards')
         .getPublicUrl('QRCODE.png');
-
     if (imageError) {
         console.error('Erro ao buscar a imagem do card:', imageError);
         alert('Não foi possível carregar o template do card. Verifique o console de erros.');
         return;
     }
     const urlImagemCard = imageData.publicUrl;
-
     const printWindow = window.open('', '_blank');
-
     printWindow.document.write(`
         <html>
         <head>
             <title>QR Codes - Colaboradores</title>
             <script src="https://cdn.jsdelivr.net/npm/davidshimjs-qrcodejs@0.0.2/qrcode.min.js"><\/script>
             <style>
-                body { font-family: sans-serif; }
-                
-                .pagina {
+                body { font-family: sans-serif; }                .pagina {
                     display: grid;
                     grid-template-columns: 1fr 1fr 1fr;
                     gap: 5px;
                     page-break-after: always;
-                }
-
-                .card-item {
+                }                .card-item {
                     position: relative;
                     width: 240px;
                     height: 345px;
@@ -611,9 +497,7 @@ async function gerarJanelaDeQRCodes() {
                     overflow: hidden;
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
-                }
-                
-                .qr-code-area {
+                }                .qr-code-area {
                     position: absolute;
                     top: 75px;
                     left: 20px;
@@ -622,9 +506,7 @@ async function gerarJanelaDeQRCodes() {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                }
-                
-                .info-area {
+                }                .info-area {
                     position: absolute;
                     bottom: 1px;
                     left: 0;
@@ -638,9 +520,7 @@ async function gerarJanelaDeQRCodes() {
                     flex-direction: column;
                     justify-content: center;
                     align-items: center;
-                }
-                
-                .info-area .nome {
+                }                .info-area .nome {
                     display: block;
                     font-size: 11px;
                     line-height: 1.2;
@@ -649,9 +529,7 @@ async function gerarJanelaDeQRCodes() {
                 .info-area .id {
                     display: block;
                     font-size: 15px;
-                }
-
-                @media print {
+                }                @media print {
                     @page { size: A4; margin: 1cm; }
                     body { margin: 0; }
                     .pagina:last-of-type { page-break-after: auto; }
@@ -660,7 +538,6 @@ async function gerarJanelaDeQRCodes() {
         </head>
         <body>
     `);
-
     let htmlContent = '';
     const ITENS_POR_PAGINA_QR = 9;
     for (let i = 0; i < colaboradoresParaQR.length; i++) {
@@ -669,9 +546,7 @@ async function gerarJanelaDeQRCodes() {
             htmlContent += '<div class="pagina">';
         }
         const colaborador = colaboradoresParaQR[i];
-
         const idFormatado = String(colaborador['ID GROOT']).padStart(11, '0');
-
         htmlContent += `
             <div class="card-item">
                 <div class="qr-code-area">
@@ -686,7 +561,6 @@ async function gerarJanelaDeQRCodes() {
     }
     htmlContent += '</div>';
     printWindow.document.write(htmlContent);
-
     printWindow.document.write(`
         <script>
             const dados = ${JSON.stringify(colaboradoresParaQR)};
@@ -694,12 +568,7 @@ async function gerarJanelaDeQRCodes() {
                 for (let i = 0; i < dados.length; i++) {
                     const colaborador = dados[i];
                     const qrElement = document.getElementById('qrcode-' + i);
-                    if (qrElement) {
-
-                      
-                        const idParaQRCode = String(colaborador['ID GROOT']).padStart(11, '0');
-
-                        new QRCode(qrElement, {
+                    if (qrElement) {                        const idParaQRCode = String(colaborador['ID GROOT']).padStart(11, '0');                        new QRCode(qrElement, {
                             text: idParaQRCode,
                             width: 180,  
                             height: 180,
@@ -717,30 +586,22 @@ async function gerarJanelaDeQRCodes() {
 async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
-
     if (state.serviceMatrizMap.size > 0 && svcSelect.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
         if (matrizesPermitidasCheck === null) return;
     }
-
     const matrizesPermitidas = getMatrizesPermitidas();
-
     let query = supabase.from('Matrizes').select('SERVICE, MATRIZ');
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
-
     const {data, error} = await query;
-
     if (error) {
         console.error('Erro ao buscar mapa de serviço-matriz:', error);
         svcSelect.innerHTML = '<option value="" disabled selected>Erro ao carregar</option>';
         return;
     }
-
     state.serviceMatrizMap = new Map((data || []).map((item) => [String(item.SERVICE || '').toUpperCase(), item.MATRIZ || '']));
-
     svcSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC...</option>';
     (data || []).sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE))).forEach((item) => {
         const opt = document.createElement('option');
@@ -751,9 +612,7 @@ async function loadSVCsParaFormulario() {
 }
 
 async function loadGestoresParaFormulario() {
-
     if (state.gestoresData && state.gestoresData.length > 0) return;
-
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
         console.error('Erro ao buscar gestores:', error);
@@ -766,33 +625,24 @@ async function loadGestoresParaFormulario() {
 function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
-
     gestorSelect.innerHTML = '';
-
     if (!selectedSvc) {
         gestorSelect.disabled = true;
         gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC primeiro...</option>';
         return;
     }
-
-
     const gestoresFiltrados = state.gestoresData
         .filter(gestor => {
             if (!gestor.SVC) return false;
-
             const managerSVCs = gestor.SVC.split(',').map(s => s.trim());
-
             return managerSVCs.includes(selectedSvc);
         })
         .sort((a, b) => a.NOME.localeCompare(b.NOME));
-
-
     if (gestoresFiltrados.length === 0) {
         gestorSelect.disabled = true;
         gestorSelect.innerHTML = '<option value="" disabled selected>Nenhum gestor para este SVC</option>';
         return;
     }
-
     gestorSelect.disabled = false;
     gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um gestor...</option>';
     gestoresFiltrados.forEach(gestor => {
@@ -803,8 +653,24 @@ function populateGestorSelect(selectedSvc) {
     });
 }
 
+function isDSRValida(dsrStr) {
+    const raw = (dsrStr || '').toUpperCase().trim();
+    if (!raw) return false;
+    const dias = raw.split(',')
+        .map(d => d.trim())
+        .filter(Boolean);
+    if (dias.length === 0) return false;
+    const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
+    permitidos.add('SABADO');
+    return dias.every(d => permitidos.has(d));
+}
+
 async function handleAddSubmit(event) {
     event.preventDefault();
+    if (document.body.classList.contains('user-level-visitante')) {
+        alert('Ação não permitida. Você está em modo de visualização.');
+        return;
+    }
     attachUppercaseHandlers();
     const nomeRaw = document.getElementById('addNome')?.value || '';
     const cpfRaw = document.getElementById('addCPF')?.value || '';
@@ -850,7 +716,13 @@ async function handleAddSubmit(event) {
         document.getElementById('addGenero')?.focus();
         return;
     }
-
+    const dsrRaw = document.getElementById('addDSR')?.value || '';
+    const dsrVal = toUpperTrim(dsrRaw);
+    if (!isDSRValida(dsrVal)) {
+        alert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).');
+        document.getElementById('addDSRBtn')?.focus();
+        return;
+    }
     const newColaborador = toUpperObject({
         Nome: nomeUpper,
         CPF: cpf,
@@ -859,7 +731,7 @@ async function handleAddSubmit(event) {
         Contrato: document.getElementById('addContrato')?.value || '',
         Cargo: document.getElementById('addCargo')?.value || '',
         Gestor: document.getElementById('addGestor')?.value || '',
-        DSR: nullIfEmpty(document.getElementById('addDSR')?.value),
+        DSR: dsrVal,
         Escala: nullIfEmpty(document.getElementById('addEscala')?.value),
         'Data de admissão': document.getElementById('addDataAdmissao')?.value || null,
         SVC: nullIfEmpty(document.getElementById('addSVC')?.value),
@@ -873,56 +745,43 @@ async function handleAddSubmit(event) {
         'Total Atestados': 0,
         'Total Suspensões': 0
     });
-
     const {error} = await supabase.from('Colaboradores').insert([newColaborador]);
     if (error) {
         alert(`Erro ao adicionar colaborador: ${error.message}`);
         return;
     }
-
     alert('Colaborador adicionado com sucesso!');
-
     if (addForm) {
         addForm.reset();
+        const dsrBtn = document.getElementById('addDSRBtn');
+        if (dsrBtn) dsrBtn.querySelector('span').textContent = 'CLIQUE PARA SELECIONAR OS DIAS...';
     }
-
     const gestorSelect = document.getElementById('addGestor');
     if (gestorSelect) {
         gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC primeiro...</option>';
         gestorSelect.disabled = true;
     }
-
-
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     await fetchColaboradores();
 }
 
-
 async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
-
     if (state.serviceMatrizMap.size > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
         if (matrizesPermitidasCheck === null) return;
     }
-
     const matrizesPermitidas = getMatrizesPermitidas();
-
     let query = supabase.from('Matrizes').select('SERVICE, MATRIZ');
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
-
     const {data, error} = await query;
-
     if (error) {
         console.error(error);
         return;
     }
-
     state.serviceMatrizMap = new Map((data || []).map(i => [String(i.SERVICE || '').toUpperCase(), i.MATRIZ || '']));
-
     editSVC.innerHTML = '<option value="" disabled selected>Selecione...</option>';
     (data || []).sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE))).forEach(i => {
         const opt = document.createElement('option');
@@ -951,31 +810,27 @@ function hideEditModal() {
 
 async function fillEditForm(colab) {
     editOriginal = colab;
-
-
     await populateContratoSelect(editInputs.Contrato);
-
     await loadGestoresParaFormulario();
-
     const setVal = (el, v) => {
         if (el) el.value = v ?? '';
     };
-
     if (editTitulo) editTitulo.textContent = colab.Nome || 'Colaborador';
-
     setVal(editInputs.Nome, colab.Nome || '');
     setVal(editInputs.CPF, colab.CPF || '');
-
     setVal(editInputs.Contrato, colab.Contrato || '');
     setVal(editInputs.Cargo, colab.Cargo || '');
-
-    setVal(editInputs.DSR, colab.DSR || '');
+    const dsrValue = colab.DSR || '';
+    setVal(document.getElementById('editDSR'), dsrValue);
+    const editDsrBtn = document.getElementById('editDSRBtn');
+    if (editDsrBtn) {
+        editDsrBtn.value = dsrValue || '';
+    }
     setVal(editInputs.Escala, colab.Escala || '');
     setVal(editInputs['FOLGA ESPECIAL'], colab['FOLGA ESPECIAL'] || '');
     setVal(editInputs.LDAP, colab.LDAP ?? '');
     setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');
     setVal(editInputs['Data de nascimento'], colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : '');
-
     if (editSVC) {
         const svc = colab.SVC ? String(colab.SVC).toUpperCase() : '';
         if (svc && !Array.from(editSVC.options).some(o => o.value === svc)) {
@@ -987,7 +842,6 @@ async function fillEditForm(colab) {
         editSVC.value = svc || '';
         populateGestorSelectForEdit(svc, colab.Gestor);
     }
-
     if (editAfastarBtn) {
         if (colab.Ativo === 'SIM') {
             editAfastarBtn.textContent = 'Afastar Colaborador';
@@ -998,6 +852,70 @@ async function fillEditForm(colab) {
         } else {
             editAfastarBtn.style.display = 'none';
         }
+    }
+    if (editEfetivarKnBtn) {
+        if (colab.Contrato && colab.Contrato.toUpperCase() === 'KN') {
+            editEfetivarKnBtn.style.display = 'none';
+        } else {
+            editEfetivarKnBtn.style.display = 'inline-block';
+        }
+    }
+}
+
+function openEfetivarKnModal() {
+    if (!editOriginal || !efetivarKnModal) return;
+    efetivarKnNomeEl.value = editOriginal.Nome;
+    efetivarKnDataEl.value = new Date().toISOString().split('T')[0];
+    efetivarKnModal.classList.remove('hidden');
+}
+
+function closeEfetivarKnModal() {
+    if (efetivarKnModal) {
+        efetivarKnModal.classList.add('hidden');
+        efetivarKnForm.reset();
+    }
+}
+
+async function onEfetivarKnClick() {
+    if (!editOriginal) {
+        alert('Erro: Colaborador não carregado.');
+        return;
+    }
+    const confirmacao = confirm(`Tem certeza que deseja efetivar "${editOriginal.Nome}" como KN?`);
+    if (confirmacao) {
+        openEfetivarKnModal();
+    }
+}
+
+async function onEfetivarKnSubmit(e) {
+    e.preventDefault();
+    const dataEfetivacao = efetivarKnDataEl.value;
+    if (!dataEfetivacao) {
+        alert('Por favor, selecione a data de efetivação.');
+        return;
+    }
+    if (!editOriginal) {
+        alert('Erro crítico: Dados do colaborador original perdidos.');
+        return;
+    }
+    try {
+        const {error} = await supabase
+            .from('Colaboradores')
+            .update({
+                Contrato: 'KN',
+                'Admissao KN': dataEfetivacao
+            })
+            .eq('Nome', editOriginal.Nome);
+        if (error) {
+            throw error;
+        }
+        alert('Colaborador efetivado como KN com sucesso!');
+        closeEfetivarKnModal();
+        hideEditModal();
+        await fetchColaboradores();
+    } catch (error) {
+        console.error('Erro ao efetivar colaborador:', error);
+        alert(`Não foi possível efetivar o colaborador: ${error.message}`);
     }
 }
 
@@ -1023,16 +941,17 @@ async function validateEditDuplicates(payload) {
 
 async function onEditSubmit(e) {
     e.preventDefault();
-
+    if (document.body.classList.contains('user-level-visitante')) {
+        alert('Ação não permitida. Você está em modo de visualização.');
+        return;
+    }
     if (isSubmittingEdit) return;
     isSubmittingEdit = true;
-
     if (!editOriginal) {
         alert('Erro: Não há dados originais do colaborador.');
         isSubmittingEdit = false;
         return;
     }
-
     const Nome = toUpperTrim(editInputs.Nome.value || '');
     if (!Nome) {
         alert('Informe o NOME.');
@@ -1040,25 +959,29 @@ async function onEditSubmit(e) {
         isSubmittingEdit = false;
         return;
     }
-
     if (editSalvarBtn) {
         editSalvarBtn.disabled = true;
         editSalvarBtn.textContent = 'Salvando...';
     }
-
     try {
         const nomeAnterior = editOriginal.Nome;
         const CPF = normalizeCPF(editInputs.CPF.value || '');
         const svc = nullIfEmpty(editSVC.value);
         const matrizAuto = svc ? (state.serviceMatrizMap.get(String(svc).toUpperCase()) || null) : null;
-
+        const dsrRaw = document.getElementById('editDSR').value;
+        const dsrValue = toUpperTrim(nullIfEmpty(dsrRaw));
+        if (!isDSRValida(dsrValue)) {
+            alert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).');
+            document.getElementById('editDSRBtn')?.focus();
+            return;
+        }
         const payload = {
             Nome,
             CPF,
             Contrato: toUpperTrim(editInputs.Contrato.value || ''),
             Cargo: toUpperTrim(editInputs.Cargo.value || ''),
             Gestor: toUpperTrim(nullIfEmpty(editInputs.Gestor.value)),
-            DSR: toUpperTrim(nullIfEmpty(editInputs.DSR.value)),
+            DSR: dsrValue,
             Escala: toUpperTrim(nullIfEmpty(editInputs.Escala.value)),
             'FOLGA ESPECIAL': toUpperTrim(nullIfEmpty(editInputs['FOLGA ESPECIAL'].value)),
             LDAP: nullIfEmpty(editInputs.LDAP.value),
@@ -1067,39 +990,29 @@ async function onEditSubmit(e) {
             SVC: toUpperTrim(svc),
             MATRIZ: toUpperTrim(matrizAuto)
         };
-
         const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             alert(dupMsg);
             return;
         }
-
-
         const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
             nome_antigo: nomeAnterior,
             novos_dados: payload
         });
-
         if (rpcError) {
-
             console.error('Erro na transação de atualização:', rpcError);
             alert(`Erro ao atualizar colaborador: ${rpcError.message}`);
             return;
         }
-
-
-
-
         const dsrAnterior = editOriginal.DSR || null;
         const dsrAtual = payload.DSR || null;
         if (dsrAnterior !== dsrAtual) {
-
-            console.log('DSR alterado. Registrando no log...');
-            const {
-                data: maxRow,
-                error: maxErr
-            } = await supabase.from('LogDSR').select('Numero').order('Numero', {ascending: false}).limit(1);
-            if (!maxErr) {
+            try {
+                const {data: maxRow} = await supabase
+                    .from('LogDSR')
+                    .select('Numero')
+                    .order('Numero', {ascending: false})
+                    .limit(1);
                 const nextNumero = (maxRow?.[0]?.Numero || 0) + 1;
                 const logEntry = {
                     Numero: nextNumero,
@@ -1113,17 +1026,16 @@ async function onEditSubmit(e) {
                     MATRIZ: payload.MATRIZ
                 };
                 await supabase.from('LogDSR').insert([logEntry]);
+            } catch (e) {
+                console.warn('Falha ao registrar log de DSR:', e);
             }
         }
-
         await fetchColaboradores();
         alert('Colaborador atualizado com sucesso em todas as tabelas!');
         hideEditModal();
-
         document.dispatchEvent(new CustomEvent('colaborador-edited', {
             detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
         }));
-
     } catch (err) {
         console.error("Erro no processo de edição:", err);
         alert("Ocorreu um erro inesperado. Verifique o console.");
@@ -1141,27 +1053,21 @@ async function onAfastarClick() {
         alert('Erro: Colaborador não identificado.');
         return;
     }
-
     let colab;
     try {
-
         colab = await fetchColabByNome(editOriginal.Nome);
     } catch (fetchError) {
         console.error("Erro ao buscar colaborador para afastamento:", fetchError);
         alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
         return;
     }
-
-
     if (!colab) {
         alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
         return;
     }
-
     const currentStatus = colab.Ativo;
     let newStatus;
     let confirmationMessage;
-
     if (currentStatus === 'SIM') {
         newStatus = 'AFAS';
         confirmationMessage = 'Tem certeza que deseja afastar este colaborador? O status será alterado para "AFAS".';
@@ -1172,25 +1078,20 @@ async function onAfastarClick() {
         alert(`Ação não permitida para o status atual "${currentStatus}".`);
         return;
     }
-
     const ok = confirm(confirmationMessage);
     if (!ok) return;
-
     const {error} = await supabase
         .from('Colaboradores')
         .update({Ativo: newStatus})
         .eq('Nome', colab.Nome);
-
     if (error) {
         alert(`Erro ao atualizar o status: ${error.message}`);
         return;
     }
-
     alert('Status do colaborador atualizado com sucesso!');
     hideEditModal();
     await fetchColaboradores();
 }
-
 
 function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
@@ -1247,7 +1148,6 @@ async function onDesligarSubmit(e) {
         alert('Selecione o motivo.');
         return;
     }
-
     const periodoTrabalhado = calcularPeriodoTrabalhado(desligarColaborador['Data de admissão'], dataDesligamento);
     const desligadoData = {
         Nome: desligarColaborador.Nome || null,
@@ -1262,19 +1162,16 @@ async function onDesligarSubmit(e) {
         MATRIZ: desligarColaborador.MATRIZ || null,
         Motivo: motivo || null
     };
-
     const {error: insertError} = await supabase.from('Desligados').insert([desligadoData]);
     if (insertError) {
         alert(`Erro ao registrar em Desligados: ${insertError.message}`);
         return;
     }
-
     const {error: deleteError} = await supabase.from('Colaboradores').delete().eq('Nome', desligarColaborador.Nome);
     if (deleteError) {
         alert(`Erro ao remover de Colaboradores: ${deleteError.message}`);
         return;
     }
-
     alert('Colaborador desligado com sucesso!');
     closeDesligarModal();
     hideEditModal();
@@ -1292,14 +1189,10 @@ async function getActiveFerias(nome) {
 
 async function agendarFerias(info) {
     const {colaborador, dataInicio, dataFinal} = info;
-
-
     const {data: ativa} = await getActiveFerias(colaborador.Nome);
     if (ativa) {
         return {error: new Error('Este colaborador já está com férias "Em andamento". Finalize antes de iniciar novas férias.')};
     }
-
-
     const {data: lastFerias, error: numError} = await supabase
         .from('Ferias')
         .select('Numero')
@@ -1307,20 +1200,14 @@ async function agendarFerias(info) {
         .limit(1);
     if (numError) return {error: numError};
     const newNumero = (lastFerias && lastFerias.length > 0) ? (lastFerias[0].Numero + 1) : 1;
-
-
     const hoje = toStartOfDay(new Date());
     const inicio = toStartOfDay(dataInicio);
     const fim = toStartOfDay(dataFinal);
-
-
     const statusInicial = (hoje < inicio) ? 'A iniciar' : (hoje <= fim ? 'Em andamento' : 'Finalizado');
     const diasParaFinalizar = Math.max(0, Math.ceil((fim - hoje) / (1000 * 60 * 60 * 24)));
-
     const svcUp = (colaborador.SVC || '').toString().toUpperCase();
     let matriz = colaborador.MATRIZ || (state?.serviceMatrizMap?.get?.(svcUp) ?? null);
     if (!matriz && svcUp) {
-
         const {data: m, error: mErr} = await supabase
             .from('Matrizes')
             .select('MATRIZ')
@@ -1328,7 +1215,6 @@ async function agendarFerias(info) {
             .maybeSingle();
         if (!mErr && m) matriz = m.MATRIZ || null;
     }
-
     const feriasData = {
         Numero: newNumero,
         Nome: colaborador.Nome,
@@ -1340,15 +1226,11 @@ async function agendarFerias(info) {
         Status: statusInicial,
         'Dias para finalizar': diasParaFinalizar
     };
-
     const {error} = await supabase.from('Ferias').insert([feriasData]);
     if (error) return {error};
-
     await updateAllVacationStatuses();
-
     return {success: true};
 }
-
 
 async function finalizarFerias(nome) {
     const {data: ativa, error: e1} = await getActiveFerias(nome);
@@ -1452,7 +1334,6 @@ async function onFeriasSubmit(e) {
     }
 }
 
-
 const HIST = {
     nome: null,
     ano: new Date().getFullYear(),
@@ -1467,7 +1348,6 @@ const HIST = {
         fecharBtn: null,
     }
 };
-
 const HIST_MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const HIST_STATUS_TO_CLASS = {
     PRESENCA: 'st-presenca',
@@ -1487,11 +1367,9 @@ const HIST_STATUS_LABEL = {
     SUSPENSAO: 'Suspensão',
     DSR: 'DSR',
 };
-
 const pad2 = (n) => (n < 10 ? `0${n}` : `${n}`);
 const daysInMonth = (year, month0) => new Date(year, month0 + 1, 0).getDate();
 const firstWeekdayIndex = (year, month0) => {
-
     const d = new Date(year, month0, 1).getDay();
     return (d === 0) ? 6 : d - 1;
 };
@@ -1505,12 +1383,10 @@ function ensureHistoricoDomRefs() {
     HIST.els.yearSel = document.getElementById('hist-year');
     HIST.els.months = document.getElementById('months');
     HIST.els.fecharBtn = document.getElementById('historicoFecharBtn');
-
     if (!HIST.els.modal || !HIST.els.title || !HIST.els.yearSel || !HIST.els.months) {
         console.warn('Histórico: elementos do modal não encontrados.');
         return;
     }
-
     const start = 2023, end = 2030;
     HIST.els.yearSel.innerHTML = '';
     for (let y = start; y <= end; y++) {
@@ -1522,22 +1398,18 @@ function ensureHistoricoDomRefs() {
     const now = new Date().getFullYear();
     HIST.ano = Math.max(start, Math.min(end, now));
     HIST.els.yearSel.value = String(HIST.ano);
-
     HIST.els.yearSel.addEventListener('change', async () => {
         HIST.ano = parseInt(HIST.els.yearSel.value, 10);
         await loadHistoricoIntoModal();
     });
-
     HIST.els.fecharBtn?.addEventListener('click', () => {
         HIST.els.modal.classList.add('hidden');
     });
-
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && !HIST.els.modal.classList.contains('hidden')) {
             HIST.els.modal.classList.add('hidden');
         }
     });
-
     HIST.initialized = true;
 }
 
@@ -1549,61 +1421,48 @@ function putHistoricoTitle() {
 function renderHistoricoCalendar() {
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
-
     monthsEl.innerHTML = '';
-
     for (let m = 0; m < 12; m++) {
         const monthCard = document.createElement('div');
         monthCard.className = 'month-card';
-
         const title = document.createElement('div');
         title.className = 'month-title';
         title.textContent = HIST_MONTH_NAMES[m] + ' ' + HIST.ano;
         monthCard.appendChild(title);
-
         const dow = document.createElement('div');
         dow.className = 'dow';
-
         ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].forEach((ch) => {
             const el = document.createElement('div');
             el.textContent = ch;
             dow.appendChild(el);
         });
         monthCard.appendChild(dow);
-
         const days = document.createElement('div');
         days.className = 'days';
-
         const blanks = firstWeekdayIndex(HIST.ano, m);
         for (let b = 0; b < blanks; b++) {
             const blank = document.createElement('div');
             blank.className = 'day blank';
             days.appendChild(blank);
         }
-
         const total = daysInMonth(HIST.ano, m);
         for (let d = 1; d <= total; d++) {
             const cell = document.createElement('div');
             cell.className = 'day';
             cell.textContent = d;
-
             const iso = isoOf(HIST.ano, m, d);
             let mark = HIST.marks.get(iso);
-
             if (!mark && HIST.dsrDates && HIST.dsrDates.has(iso)) {
                 mark = 'DSR';
             }
-
             if (mark && HIST_STATUS_TO_CLASS[mark]) {
                 cell.classList.add(HIST_STATUS_TO_CLASS[mark]);
                 cell.title = `${iso} – ${HIST_STATUS_LABEL[mark]}`;
             } else {
                 cell.title = iso;
             }
-
             days.appendChild(cell);
         }
-
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
@@ -1611,38 +1470,36 @@ function renderHistoricoCalendar() {
 
 async function computeDsrDatesForYear(nome, ano) {
     try {
-
         const {data: colab, error} = await supabase
             .from('Colaboradores')
             .select('DSR')
             .eq('Nome', nome)
             .maybeSingle();
         if (error) throw error;
-
-        const dsr = String(colab?.DSR || '').toUpperCase();
-        if (!dsr) return new Set();
-
-        const mapIdx = {
+        const dsrString = String(colab?.DSR || '').toUpperCase();
+        if (!dsrString) return new Set();
+        const dsrDays = dsrString.split(',').map(d => d.trim());
+        const dayNameToIndex = {
+            'DOMINGO': 6,
             'SEGUNDA': 0,
-            'TERÇA': 1, 'TERCA': 1,
+            'TERÇA': 1,
             'QUARTA': 2,
             'QUINTA': 3,
             'SEXTA': 4,
-            'SABADO': 5, 'SÁBADO': 5,
-            'DOMINGO': 6,
+            'SÁBADO': 5,
+            'SABADO': 5
         };
-        const target = mapIdx[dsr] ?? null;
-        if (target == null) return new Set();
-
+        const targetIndexes = new Set(
+            dsrDays.map(day => dayNameToIndex[day]).filter(idx => idx != null)
+        );
+        if (targetIndexes.size === 0) return new Set();
         const out = new Set();
         const start = new Date(ano, 0, 1);
         const end = new Date(ano, 11, 31);
-
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-
             const jsDay = d.getDay();
-            const wk = (jsDay === 0) ? 6 : jsDay - 1;
-            if (wk === target) {
+            const myDayIndex = (jsDay === 0) ? 6 : jsDay - 1;
+            if (targetIndexes.has(myDayIndex)) {
                 out.add(`${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`);
             }
         }
@@ -1659,12 +1516,10 @@ async function loadHistoricoIntoModal() {
         HIST.els.months.innerHTML =
             '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
     }
-
     try {
         const y = Number.isInteger(HIST.ano) ? HIST.ano : (new Date()).getFullYear();
         const start = `${y}-01-01`;
         const end = `${y}-12-31`;
-
         const {data, error} = await supabase
             .from('ControleDiario')
             .select('Data, "Presença", Falta, Atestado, "Folga Especial", Feriado, Suspensao')
@@ -1672,7 +1527,6 @@ async function loadHistoricoIntoModal() {
             .gte('Data', start)
             .lte('Data', end)
             .order('Data', {ascending: true});
-
         if (error) {
             console.error('getHistoricoPresencas erro:', error);
             if (HIST.els.months) {
@@ -1681,25 +1535,19 @@ async function loadHistoricoIntoModal() {
             }
             return;
         }
-
         HIST.marks.clear();
-
         (data || []).forEach((r) => {
             const iso = r.Data;
             let status = null;
-
             if (isTrue(r['Presença'])) status = 'PRESENCA';
             else if (isTrue(r['Falta'])) status = 'FALTA';
             else if (isTrue(r['Atestado'])) status = 'ATESTADO';
             else if (isTrue(r['Folga Especial'])) status = 'F_ESPECIAL';
             else if (isTrue(r['Feriado'])) status = 'FERIADO';
             else if (isTrue(r['Suspensao'])) status = 'SUSPENSAO';
-
             if (status) HIST.marks.set(iso, status);
         });
-
         HIST.dsrDates = await computeDsrDatesForYear(HIST.nome, y);
-
         renderHistoricoCalendar();
     } catch (e) {
         console.error('Falha geral ao carregar histórico:', e);
@@ -1717,17 +1565,67 @@ async function openHistorico(nome) {
         return;
     }
     HIST.nome = nome || null;
-
     if (HIST.els.yearSel) {
         const now = new Date().getFullYear();
         if (!HIST.els.yearSel.value) HIST.els.yearSel.value = String(now);
         HIST.ano = parseInt(HIST.els.yearSel.value || now, 10) || now;
     }
-
     putHistoricoTitle();
     await loadHistoricoIntoModal();
-
     HIST.els.modal.classList.remove('hidden');
+}
+
+function wireDsrModal() {
+    dsrModal = document.getElementById('dsrModal');
+    dsrCheckboxesContainer = document.getElementById('dsrCheckboxesContainer');
+    dsrOkBtn = document.getElementById('dsrOkBtn');
+    dsrCancelarBtn = document.getElementById('dsrCancelarBtn');
+    if (!dsrModal || !dsrCheckboxesContainer || !dsrOkBtn || !dsrCancelarBtn) {
+        console.error('Elementos do modal de DSR não encontrados!');
+        return;
+    }
+    dsrCheckboxesContainer.innerHTML = '';
+    DIAS_DA_SEMANA.forEach(dia => {
+        const diaId = `dsr-${dia.toLowerCase().replace('-feira', '')}`;
+        const label = document.createElement('label');
+        label.className = 'flex items-center space-x-2 cursor-pointer';
+        label.innerHTML = `
+            <input type="checkbox" id="${diaId}" value="${dia}" class="form-checkbox h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+            <span class="text-gray-700">${dia.charAt(0).toUpperCase() + dia.slice(1).toLowerCase().replace('-feira', '')}</span>
+        `;
+        dsrCheckboxesContainer.appendChild(label);
+    });
+    dsrCancelarBtn.addEventListener('click', () => {
+        dsrModal.classList.add('hidden');
+        currentDsrInputTarget = null;
+    });
+    dsrOkBtn.addEventListener('click', () => {
+        if (!currentDsrInputTarget) return;
+        const selectedDays = [];
+        dsrCheckboxesContainer.querySelectorAll('input[type="checkbox"]:checked').forEach(checkbox => {
+            selectedDays.push(checkbox.value);
+        });
+        const finalValue = selectedDays.join(', ');
+        currentDsrInputTarget.value = finalValue;
+        const buttonId = currentDsrInputTarget.id.replace('DSR', 'DSRBtn');
+        const displayButton = document.getElementById(buttonId);
+        if (displayButton) {
+            displayButton.value = finalValue || '';
+        }
+        dsrModal.classList.add('hidden');
+        currentDsrInputTarget = null;
+    });
+}
+
+function openDsrModal(targetInput) {
+    if (!dsrModal) return;
+    currentDsrInputTarget = targetInput;
+    const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
+    const currentValueSet = new Set(currentValues);
+    dsrCheckboxesContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = currentValueSet.has(checkbox.value);
+    });
+    dsrModal.classList.remove('hidden');
 }
 
 function wireEdit() {
@@ -1742,36 +1640,34 @@ function wireEdit() {
     editFeriasBtn = document.getElementById('editFeriasBtn');
     editHistoricoBtn = document.getElementById('editHistoricoBtn');
     editAfastarBtn = document.getElementById('editAfastarBtn');
-
+    editEfetivarKnBtn = document.getElementById('editEfetivarKnBtn');
     editInputs = {
         Nome: document.getElementById('editNome'),
         CPF: document.getElementById('editCPF'),
         Contrato: document.getElementById('editContrato'),
         Cargo: document.getElementById('editCargo'),
-        Gestor: document.getElementById('editGestor'),
-        DSR: document.getElementById('editDSR'),
-        Escala: document.getElementById('editEscala'),
+        Gestor: document.getElementById('editGestor'), Escala: document.getElementById('editEscala'),
         'FOLGA ESPECIAL': document.getElementById('editFolgaEspecial'),
         LDAP: document.getElementById('editLDAP'),
         'ID GROOT': document.getElementById('editIdGroot'),
         'Data de nascimento': document.getElementById('editDataNascimento')
     };
-
     attachUpperHandlersTo(editForm);
-
-
     if (editSVC) {
         editSVC.addEventListener('change', () => {
-
             populateGestorSelectForEdit(editSVC.value);
         });
     }
-
-
+    const editDSRBtn = document.getElementById('editDSRBtn');
+    if (editDSRBtn) {
+        editDSRBtn.addEventListener('click', () => {
+            openDsrModal(document.getElementById('editDSR'));
+        });
+    }
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
     editAfastarBtn?.addEventListener('click', onAfastarClick);
-
+    editEfetivarKnBtn?.addEventListener('click', onEfetivarKnClick);
     editExcluirBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const ok = confirm('Tem certeza que deseja excluir este colaborador?');
@@ -1786,7 +1682,6 @@ function wireEdit() {
         hideEditModal();
         await fetchColaboradores();
     });
-
     editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
@@ -1796,7 +1691,6 @@ function wireEdit() {
         }
         openDesligarModalFromColab(colab);
     });
-
     editFeriasBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
@@ -1806,12 +1700,10 @@ function wireEdit() {
         }
         openFeriasModalFromColab(colab);
     });
-
     editHistoricoBtn?.addEventListener('click', () => {
         if (!editOriginal?.Nome) return;
         openHistorico(editOriginal.Nome);
     });
-
     document.addEventListener('open-edit-modal', async (evt) => {
         const nome = evt.detail?.nome;
         if (!nome) return;
@@ -1831,7 +1723,6 @@ function wireEdit() {
     });
 }
 
-
 function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');
     desligarForm = document.getElementById('desligarForm');
@@ -1839,7 +1730,6 @@ function wireDesligar() {
     desligarDataEl = document.getElementById('desligarData');
     desligarMotivoEl = document.getElementById('desligarMotivo');
     desligarCancelarBtn = document.getElementById('desligarCancelarBtn');
-
     desligarCancelarBtn?.addEventListener('click', closeDesligarModal);
     desligarForm?.addEventListener('submit', onDesligarSubmit);
 }
@@ -1851,7 +1741,6 @@ function wireFerias() {
     feriasInicioEl = document.getElementById('feriasDataInicio') || document.getElementById('data-inicio') || null;
     feriasFinalEl = document.getElementById('feriasDataFinal') || document.getElementById('data-final') || null;
     feriasCancelarBtn = document.getElementById('feriasCancelarBtn') || document.getElementById('cancelarBtn') || null;
-
     feriasCancelarBtn?.addEventListener('click', closeFeriasModal);
     feriasForm?.addEventListener('submit', onFeriasSubmit);
 }
@@ -1872,20 +1761,20 @@ function mapColabToExportRow(c) {
     const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
     return {
         'Nome': fmt(c.Nome),
-        'CPF': fmt(c.CPF),
-        'Data de nascimento': fmtDate(c['Data de nascimento']),
-        'Gênero': fmt(c.Genero),
-        'Contrato': fmt(c.Contrato),
-        'Cargo': fmt(c.Cargo),
-        'Gestor': fmt(c.Gestor),
         'DSR': fmt(c.DSR),
         'Escala': fmt(c.Escala),
-        'Data de admissão': fmtDate(c['Data de admissão']),
-        'SVC': fmt(c.SVC),
-        'MATRIZ': fmt(c.MATRIZ),
-        'LDAP': fmt(c.LDAP),
+        'Contrato': fmt(c.Contrato),
+        'Cargo': fmt(c.Cargo),
         'ID GROOT': c['ID GROOT'] ?? '',
-        'FOLGA ESPECIAL': fmt(c['FOLGA ESPECIAL']),
+        'LDAP': fmt(c.LDAP),
+        'SVC': fmt(c.SVC),
+        'REGIAO': fmt(c.REGIAO),
+        'Data de admissão': fmtDate(c['Data de admissão']),
+        'Admissao KN': fmtDate(c['Admissao KN']),
+        'FOLGA ESPECIAL': fmt(c['FOLGA ESPECIAL']), 'CPF': fmt(c.CPF),
+        'Data de nascimento': fmtDate(c['Data de nascimento']),
+        'Gênero': fmt(c.Genero),
+        'MATRIZ': fmt(c.MATRIZ),
         'Ativo': fmt(c.Ativo),
         'Férias': fmt(c.Ferias),
         'Total Presença': c['Total Presença'] ?? '',
@@ -1933,6 +1822,16 @@ export async function getFeriasRange(inicioISO, fimISO) {
     }
 }
 
+function wireEfetivarKn() {
+    efetivarKnModal = document.getElementById('efetivarKnModal');
+    efetivarKnForm = document.getElementById('efetivarKnForm');
+    efetivarKnNomeEl = document.getElementById('efetivarKnNome');
+    efetivarKnDataEl = document.getElementById('efetivarKnData');
+    efetivarKnCancelarBtn = document.getElementById('efetivarKnCancelarBtn');
+    efetivarKnForm?.addEventListener('submit', onEfetivarKnSubmit);
+    efetivarKnCancelarBtn?.addEventListener('click', closeEfetivarKnModal);
+}
+
 export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     searchInput = document.getElementById('search-input');
@@ -1943,9 +1842,7 @@ export function init() {
     mostrarMenosBtn = document.getElementById('mostrar-menos-btn');
     contadorVisiveisEl = document.getElementById('contador-visiveis');
     addForm = document.getElementById('addForm');
-
     fetchColaboradores();
-
     if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
     if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
@@ -1958,7 +1855,6 @@ export function init() {
             });
         });
     }
-
     if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
@@ -1972,7 +1868,6 @@ export function init() {
             applyFiltersAndSearch();
         });
     }
-
     if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
@@ -1985,23 +1880,19 @@ export function init() {
             updateDisplay();
         });
     }
-
-
     if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', async () => {
+            if (document.body.classList.contains('user-level-visitante')) {
+                return;
+            }
             await loadGestoresParaFormulario();
             loadSVCsParaFormulario();
-
-
             await populateContratoSelect(document.getElementById('addContrato'));
-
             populateGestorSelect(null);
             attachUppercaseHandlers();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
         });
     }
-
-
     if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
@@ -2013,16 +1904,19 @@ export function init() {
                 populateGestorSelect(svcSelect.value);
             });
         }
+        const addDSRBtn = document.getElementById('addDSRBtn');
+        if (addDSRBtn) {
+            addDSRBtn.addEventListener('click', () => {
+                openDsrModal(document.getElementById('addDSR'));
+            });
+        }
     }
-
     if (colaboradoresTbody) {
         colaboradoresTbody.addEventListener('click', (event) => {
             const tr = event.target.closest('tr');
             if (!tr) return;
-
             const nome = tr.dataset.nome;
             if (!nome) return;
-
             if (event.ctrlKey) {
                 if (state.selectedNames.has(nome)) {
                     state.selectedNames.delete(nome);
@@ -2042,10 +1936,12 @@ export function init() {
                     }
                 });
             } else {
+                if (document.body.classList.contains('user-level-visitante')) {
+                    return;
+                }
                 document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome}}));
             }
         });
-
         document.addEventListener('colaborador-edited', async () => {
             await fetchColaboradores();
         });
@@ -2053,7 +1949,6 @@ export function init() {
             await fetchColaboradores();
         });
     }
-
     const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
@@ -2076,13 +1971,13 @@ export function init() {
             }
         });
     }
-
     const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
     }
-
     wireEdit();
     wireDesligar();
     wireFerias();
+    wireEfetivarKn();
+    wireDsrModal();
 }

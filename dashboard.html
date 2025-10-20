@@ -29,10 +29,14 @@
         <button data-page="colaboradores" class="tab-btn active">Colaboradores</button>
         <button data-page="controle-diario" class="tab-btn">Controle Diário</button>
         <button data-page="hc-consolidado" class="tab-btn">HC Consolidado</button>
+        <button data-page="efetivacoes" class="tab-btn">Efetivações</button>
         <button data-page="diarista" class="tab-btn">Diarista</button>
         <button data-page="painel-gerencial" class="tab-btn">Painel Gerencial</button>
-        <button data-page="efetividade" class="tab-btn">Efetividade</button>
+        <button data-page="efetividade" class="tab-btn">Preenchimento</button>
         <button data-page="dados-operacionais" class="tab-btn">Dados Operacionais</button>
+        <button data-page="weekly-regional" class="tab-btn">Weekly Regional</button>
+
+        <button data-page="daily-regional" class="tab-btn">Daily Regional</button>
 
     </div>
 
@@ -190,19 +194,14 @@
                         <option value="" disabled selected>Selecione um SVC primeiro...</option>
                     </select>
                 </div>
+
                 <div class="form-group">
-                    <label for="addDSR">DSR</label>
-                    <select id="addDSR" required>
-                        <option value="" disabled selected>Selecione...</option>
-                        <option value="DOMINGO">DOMINGO</option>
-                        <option value="SEGUNDA">SEGUNDA</option>
-                        <option value="TERÇA">TERÇA</option>
-                        <option value="QUARTA">QUARTA</option>
-                        <option value="QUINTA">QUINTA</option>
-                        <option value="SEXTA">SEXTA</option>
-                        <option value="SABADO">SÁBADO</option>
-                    </select>
+                    <label for="addDSRBtn">DSR</label>
+                    <input type="hidden" id="addDSR">
+                    <input type="text" id="addDSRBtn" placeholder="CLIQUE PARA SELECIONAR AS DSR..." readonly
+                           style="cursor: pointer;">
                 </div>
+
                 <div class="form-group">
                     <label for="addEscala">Escala</label>
                     <select id="addEscala" required>
@@ -259,18 +258,14 @@
                         <option value="COORDENADOR">COORDENADOR</option>
                     </select>
                 </div>
+
                 <div class="form-group">
-                    <label for="editDSR">DSR</label>
-                    <select id="editDSR">
-                        <option value="DOMINGO">DOMINGO</option>
-                        <option value="SEGUNDA">SEGUNDA</option>
-                        <option value="TERÇA">TERÇA</option>
-                        <option value="QUARTA">QUARTA</option>
-                        <option value="QUINTA">QUINTA</option>
-                        <option value="SEXTA">SEXTA</option>
-                        <option value="SABADO">SÁBADO</option>
-                    </select>
+                    <label for="editDSRBtn">DSR</label>
+                    <input type="hidden" id="editDSR">
+                    <input type="text" id="editDSRBtn" placeholder="Clique para selecionar os dias..." readonly
+                           style="cursor: pointer;">
                 </div>
+
                 <div class="form-group">
                     <label for="editFolgaEspecial">Folga Especial</label>
                     <select id="editFolgaEspecial">
@@ -340,6 +335,9 @@
                 <div class="actions-left" style="display:flex;gap:8px;">
                     <button type="button" id="editHistoricoBtn" class="btn-cancelar"
                             style="background:#2563eb;color:#fff;">Histórico
+                    </button>
+                    <button type="button" id="editEfetivarKnBtn" class="btn-cancelar"
+                            style="background-color: #003369; color: #dbeafe;">Efetivar KN
                     </button>
                     <button type="button" id="editFeriasBtn" class="btn-cancelar"
                             style="background:#00a884;color:#fff;">Férias
@@ -681,6 +679,84 @@
             <div class="form-actions" style="justify-content:flex-end;margin-top:8px;">
                 <button type="button" id="historicoFecharBtn" class="btn-cancelar">Fechar</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<div id="efetivarKnModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-2xl">
+        <h3>Efetivar Colaborador</h3>
+        <form id="efetivarKnForm">
+            <div class="form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-group">
+                    <label for="efetivarKnNome">Colaborador</label>
+                    <input type="text" id="efetivarKnNome" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="efetivarKnData">Data de Efetivação (Admissão KN)</label>
+                    <input type="date" id="efetivarKnData" required>
+                </div>
+            </div>
+            <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" id="efetivarKnCancelarBtn" class="btn-cancelar">Cancelar</button>
+                <button type="submit" class="btn-salvar">Confirmar Efetivação</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="dsrModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-lg">
+        <h3>Selecione os Dias de DSR</h3>
+
+        <style>
+            .checkbox-container-dsr {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+                padding: 10px;
+                background-color: #f6f9ff;
+                border-radius: 10px;
+                border: 2px solid #e8ecf3;
+            }
+
+            .checkbox-container-dsr label {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+                padding: 8px;
+                border-radius: 8px;
+                transition: background-color 0.2s ease;
+            }
+
+            .checkbox-container-dsr label:hover {
+                background-color: #e8ecf3;
+            }
+
+            .checkbox-container-dsr input[type="checkbox"] {
+                width: 18px;
+                height: 18px;
+                accent-color: #003369;
+            }
+
+            .checkbox-container-dsr span {
+                font-size: 13px;
+                font-weight: 600;
+                color: #242c4c;
+            }
+        </style>
+
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label>Dias da semana</label>
+            <div id="dsrCheckboxesContainer" class="checkbox-container-dsr">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button id="dsrCancelarBtn" type="button" class="btn-cancelar">Cancelar</button>
+            <button id="dsrOkBtn" type="button" class="btn-salvar">OK</button>
         </div>
     </div>
 </div>

@@ -9,7 +9,6 @@ const state = {
     allMatrizes: [],
     selectedMatriz: '',
 };
-
 const normalizeString = (str) => {
     if (!str) return '';
     return str.toString()
@@ -22,19 +21,15 @@ const normalizeString = (str) => {
 async function exportModalAsPNG(fileName) {
     const modalContent = document.getElementById('efetividade-details-modal');
     if (!modalContent) return;
-
     const exportButton = document.getElementById('export-png-btn');
     const scrollableContent = modalContent.querySelector('.pop-scroll');
-
     const originalStyles = {
         maxHeight: scrollableContent.style.maxHeight,
         overflow: scrollableContent.style.overflow,
         height: scrollableContent.style.height,
         border: scrollableContent.style.border,
     };
-
     if (exportButton) exportButton.textContent = 'Exportando...';
-
     try {
         if (scrollableContent) {
             scrollableContent.style.maxHeight = 'none';
@@ -42,17 +37,14 @@ async function exportModalAsPNG(fileName) {
             scrollableContent.style.height = `${scrollableContent.scrollHeight}px`;
             scrollableContent.style.border = 'none';
         }
-
         const canvas = await html2canvas(modalContent, {
             scrollY: -window.scrollY,
             useCORS: true
         });
-
         const link = document.createElement('a');
         link.download = `${fileName}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
-
     } catch (error) {
         console.error('Erro ao exportar PNG:', error);
         alert('Ocorreu um erro ao tentar exportar a imagem.');
@@ -69,8 +61,6 @@ async function exportModalAsPNG(fileName) {
 
 function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
-
-
     const css = `
     /* =========================
        Layout da Barra de Filtros
@@ -80,53 +70,39 @@ function ensureEfetividadeModalStyles() {
         justify-content: space-between;
         align-items: center;
         width: 100%;
-    }
-
-    .efetividade-actions {
+    }    .efetividade-actions {
         display: flex;
         gap: 8px;
         align-items: center;
-    }
-
-    /* * ESTILO CORRIGIDO PARA O FILTRO DE MATRIZ
+    }    /* * ESTILO CORRIGIDO PARA O FILTRO DE MATRIZ
      * Agora com fundo branco, borda cinza e texto escuro para bater com o padrão.
     */
     #efet-matriz-filter {
         padding: 8px 12px;
-        padding-right: 2.5em; /* Espaço para a seta */
-        border: 1px solid #ddd;      /* Borda cinza claro */
-        border-radius: 20px;          /* Borda bem arredondada (pílula) */
-        background-color: #ffffff;    /* Fundo branco */
-        color: #333;                   /* Texto escuro */
+        padding-right: 2.5em; 
+        border: 1px solid #ddd;      
+        border-radius: 20px;          
+        background-color: #ffffff;    
+        color: #333;                   
         font-weight: 600;
         font-size: 12px;
         cursor: pointer;
         -webkit-appearance: none;
-        appearance: none;
-        /* Seta customizada agora com a cor PRETA */
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        appearance: none;        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
         background-repeat: no-repeat;
         background-position: right 0.7em top 50%;
         background-size: 0.65em auto;
         transition: background-color 0.2s;
     }
     #efet-matriz-filter:hover {
-        background-color: #f5f5f5; /* Efeito hover sutil */
-    }
-    
-    /* Garante que o botão de período mantenha o padrão original */
-    #efet-period-btn {
+        background-color: #f5f5f5; 
+    }    #efet-period-btn {
         border-radius: 20px !important;
-    }
-
-    /* Centraliza as abas de turno */
-    .subtabs {
+    }    .subtabs {
         flex-grow: 1;
         display: flex;
         justify-content: center;
-    }
-    
-    /* =========================
+    }    /* =========================
        Estilos do modal de detalhes (sem alteração)
        ========================= */
     #efetividade-details-modal {
@@ -289,33 +265,26 @@ async function fetchAllPages(query) {
 async function fetchData(startDate, endDate, turno) {
     const matrizesPermitidas = getMatrizesPermitidas();
     let colabQuery = supabase.from('Colaboradores').select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor').eq('Ativo', 'SIM');
-
     if (matrizesPermitidas && matrizesPermitidas.length) {
         colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
     }
-
-
     if (state.selectedMatriz) {
         colabQuery = colabQuery.eq('MATRIZ', state.selectedMatriz);
     }
-
     if (turno === 'GERAL' || turno === 'COORDENACAO') {
         colabQuery = colabQuery.in('Escala', ['T1', 'T2', 'T3']);
     } else if (turno && ['T1', 'T2', 'T3'].includes(turno)) {
         colabQuery = colabQuery.eq('Escala', turno);
     }
-
     const preenchimentosQuery = supabase.from('ControleDiario').select('Nome, Data').gte('Data', startDate).lte('Data', endDate);
     const feriasQuery = supabase.from('Ferias').select('Nome, "Data Inicio", "Data Final"').lte('"Data Inicio"', endDate).gte('"Data Final"', startDate);
     const dsrLogQuery = supabase.from('LogDSR').select('*').lte('DataAlteracao', endDate);
-
     const [colaboradores, preenchimentos, ferias, dsrLogs] = await Promise.all([
         fetchAllPages(colabQuery),
         fetchAllPages(preenchimentosQuery),
         fetchAllPages(feriasQuery),
         fetchAllPages(dsrLogQuery)
     ]);
-
     return {colaboradores, preenchimentos, ferias, dsrLogs};
 }
 
@@ -501,15 +470,11 @@ async function fetchAllMatrizes() {
     }
 }
 
-
 function populateMatrizFilter() {
     if (!ui.matrizFilterSelect) return;
-
-
     while (ui.matrizFilterSelect.options.length > 1) {
         ui.matrizFilterSelect.remove(1);
     }
-
     state.allMatrizes.forEach(matriz => {
         const option = document.createElement('option');
         option.value = matriz;
@@ -521,7 +486,6 @@ function populateMatrizFilter() {
 export async function init() {
     ui = {
         periodBtn: document.getElementById('efet-period-btn'),
-
         matrizFilterSelect: document.getElementById('efet-matriz-filter'),
         resultContainer: document.getElementById('efet-result'),
         loader: document.getElementById('efet-loader'),
@@ -534,18 +498,13 @@ export async function init() {
         state.period.start = firstDay;
         state.period.end = lastDay;
     }
-
-
     ui.periodBtn.addEventListener('click', openPeriodModal);
-
-
     if (ui.matrizFilterSelect) {
         ui.matrizFilterSelect.addEventListener('change', () => {
             state.selectedMatriz = ui.matrizFilterSelect.value;
             generateReport();
         });
     }
-
     ui.subtabButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             ui.subtabButtons.forEach(b => b.classList.remove('active'));
@@ -554,21 +513,15 @@ export async function init() {
             generateReport();
         });
     });
-
-
     await fetchAllMatrizes();
     populateMatrizFilter();
-
     updatePeriodLabel();
-
     generateReport();
 }
 
 export function destroy() {
     if (ui && ui.periodBtn) ui.periodBtn.removeEventListener('click', openPeriodModal);
-
     if (ui && ui.matrizFilterSelect) ui.matrizFilterSelect.removeEventListener('change', () => {
     });
-
     document.getElementById('efet-details-modal')?.remove();
 }

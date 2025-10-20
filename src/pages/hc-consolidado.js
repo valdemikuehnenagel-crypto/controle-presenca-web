@@ -3,49 +3,38 @@ import {supabase} from '../supabaseClient.js';
 import './hc-diario.js';
 import './relatorio-abs.js';
 import './hc-analise-abs.js';
-import './indice.js';
 
 const WEEK_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
 const WEEK_KEYS = ['DOMINGO', 'SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA', 'SABADO'];
-
 const norm = v => String(v ?? '').trim().toUpperCase();
 const normalizeWeekdayPT = s => norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');
-
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-
-
 const isActive = c => norm(c.Ativo || 'SIM') === 'SIM';
 const onlyActiveAux = a => (a || []).filter(c => isActive(c) && norm(c.Cargo) === 'AUXILIAR');
 const onlyActiveConf = a => (a || []).filter(c => isActive(c) && norm(c.Cargo) === 'CONFERENTE');
-
 const splitByTurno = a => ({
     T1: a.filter(c => norm(c.Escala) === 'T1'),
     T2: a.filter(c => norm(c.Escala) === 'T2'),
     T3: a.filter(c => norm(c.Escala) === 'T3'),
 });
-
 const uniqueNonEmptySorted = v =>
     Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
-
 const toISO = v => String(v || '').slice(0, 10);
 const fmtBR = iso => {
     if (!iso) return '';
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
     return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 };
-
 let _allColabsCache = [];
 const _filters = {matriz: '', svc: ''};
-
 const _deslState = {loaded: false, rows: [], search: '', escala: '', motivo: ''};
 const _feriasState = {loaded: false, rows: [], search: '', escala: '', status: ''};
 
 export function destroy() {
     const buildFns = [
-        window.buildHCIndice,
         window.buildHCAnaliseABS,
         window.buildHCRelatorio,
         window.buildHCDiario
@@ -65,31 +54,29 @@ export function destroy() {
  */
 function buildWeeklyRowsForCargo(arr) {
     const feriasConst = (arr || []).filter(c => norm(c.Ferias) === 'SIM').length;
-
     const dsrByDay = {};
     WEEK_KEYS.forEach(d => dsrByDay[d] = 0);
     (arr || []).forEach(c => {
-        const d = normalizeWeekdayPT(c.DSR);
-        if (WEEK_KEYS.includes(d)) dsrByDay[d]++;
+        const dsrString = c.DSR || '';
+        if (!dsrString) return;
+        const dsrDays = dsrString.split(',').map(day => day.trim());
+        dsrDays.forEach(singleDay => {
+            const d = normalizeWeekdayPT(singleDay);
+            if (WEEK_KEYS.includes(d)) {
+                dsrByDay[d]++;
+            }
+        });
     });
-
     const presentesByDay = {};
     const total = (arr || []).length;
     WEEK_KEYS.forEach(d => {
         presentesByDay[d] = Math.max(0, total - dsrByDay[d] - feriasConst);
     });
-
     return {feriasConst, dsrByDay, presentesByDay};
 }
 
-/**
- * Cria a estrutura de dados para a tabela de um único cargo e turno.
- * @param {Array} cargoArr - O array de colaboradores do cargo/turno.
- * @returns {Array<object>}
- */
 function createTableDataForCargo(cargoArr) {
     const {feriasConst, dsrByDay, presentesByDay} = buildWeeklyRowsForCargo(cargoArr);
-
     const totalQuadroByDay = {};
     WEEK_KEYS.forEach(k => {
         totalQuadroByDay[k] =
@@ -97,7 +84,6 @@ function createTableDataForCargo(cargoArr) {
             (dsrByDay[k] || 0) +
             (feriasConst || 0);
     });
-
     return [
         {label: 'TOTAL QUADRO', values: totalQuadroByDay},
         {label: 'PRESENTES', values: presentesByDay},
@@ -136,7 +122,6 @@ function toTableHTML(title, rows) {
                 ${WEEK_LABELS.map(l => `<th>${l}</th>`).join('')}
             </tr>
         </thead>`;
-
     const tbody = `
         <tbody>
             ${rows.map(r => `
@@ -146,7 +131,6 @@ function toTableHTML(title, rows) {
                 </tr>
             `).join('')}
         </tbody>`;
-
     return thead + tbody;
 }
 
@@ -158,8 +142,6 @@ function toTableHTML(title, rows) {
  */
 function composeTotalTableData(auxData, confData) {
     const totalRows = sumRows(auxData, confData);
-
-
     const totalGeralRow = {
         label: 'TOTAL GERAL',
         values: {}
@@ -169,12 +151,8 @@ function composeTotalTableData(auxData, confData) {
         const confTotal = confData.find(r => r.label === 'TOTAL QUADRO')?.values[k] || 0;
         totalGeralRow.values[k] = auxTotal + confTotal;
     });
-
     return [
-        totalGeralRow,
-
-
-        sumRows(
+        totalGeralRow, sumRows(
             auxData.find(r => r.label === 'PRESENTES') ? [auxData.find(r => r.label === 'PRESENTES')] : [],
             confData.find(r => r.label === 'PRESENTES') ? [confData.find(r => r.label === 'PRESENTES')] : []
         )[0] || {label: 'PRESENTES', values: WEEK_KEYS.reduce((a, d) => (a[d] = 0, a), {})},
@@ -189,7 +167,6 @@ function composeTotalTableData(auxData, confData) {
     ];
 }
 
-
 /**
  * Renderiza todas as tabelas semanais, separadas por cargo e turno.
  * @param {Array} all - Array com todos os colaboradores.
@@ -200,75 +177,55 @@ function renderWeeklyTables(all) {
         if (_filters.svc && norm(c.SVC) !== norm(_filters.svc)) return false;
         return true;
     });
-
-
     const aux = onlyActiveAux(filtered);
     const conf = onlyActiveConf(filtered);
-
-
     const byAux = splitByTurno(aux);
     const byConf = splitByTurno(conf);
-
-
     const aux_t1 = createTableDataForCargo(byAux.T1);
     const aux_t2 = createTableDataForCargo(byAux.T2);
     const aux_t3 = createTableDataForCargo(byAux.T3);
     const aux_geral = sumRows(sumRows(aux_t1, aux_t2), aux_t3);
-
     const auxT1El = document.getElementById('hc-aux-t1');
     const auxT2El = document.getElementById('hc-aux-t2');
     const auxT3El = document.getElementById('hc-aux-t3');
     const auxGeralEl = document.getElementById('hc-aux-geral');
-
     if (auxT1El) auxT1El.innerHTML = toTableHTML('TURNO 1', aux_t1);
     if (auxT2El) auxT2El.innerHTML = toTableHTML('TURNO 2', aux_t2);
     if (auxT3El) auxT3El.innerHTML = toTableHTML('TURNO 3', aux_t3);
     if (auxGeralEl) auxGeralEl.innerHTML = toTableHTML('QUADRO GERAL', aux_geral);
-
-
     const conf_t1 = createTableDataForCargo(byConf.T1);
     const conf_t2 = createTableDataForCargo(byConf.T2);
     const conf_t3 = createTableDataForCargo(byConf.T3);
     const conf_geral = sumRows(sumRows(conf_t1, conf_t2), conf_t3);
-
     const confT1El = document.getElementById('hc-conf-t1');
     const confT2El = document.getElementById('hc-conf-t2');
     const confT3El = document.getElementById('hc-conf-t3');
     const confGeralEl = document.getElementById('hc-conf-geral');
-
     if (confT1El) confT1El.innerHTML = toTableHTML('TURNO 1', conf_t1);
     if (confT2El) confT2El.innerHTML = toTableHTML('TURNO 2', conf_t2);
     if (confT3El) confT3El.innerHTML = toTableHTML('TURNO 3', conf_t3);
     if (confGeralEl) confGeralEl.innerHTML = toTableHTML('QUADRO GERAL', conf_geral);
-
-
     const total_geral_consolidado = composeTotalTableData(aux_geral, conf_geral);
     const totalGeralConsolidadoEl = document.getElementById('hc-total-geral-quadro');
     if (totalGeralConsolidadoEl) totalGeralConsolidadoEl.innerHTML = toTableHTML('TOTAL GERAL', total_geral_consolidado);
 }
 
-
 function populateFilterSelects(colabs) {
     const selM = document.getElementById('hc-filter-matriz');
     const selS = document.getElementById('hc-filter-svc');
     if (!selM || !selS) return;
-
     if (window.__HC_GLOBAL_FILTERS) {
         _filters.matriz = window.__HC_GLOBAL_FILTERS.matriz || '';
         _filters.svc = window.__HC_GLOBAL_FILTERS.svc || '';
     }
-
     const prevM = _filters.matriz,
         prevS = _filters.svc;
     const matrizes = uniqueNonEmptySorted(colabs.map(c => c.MATRIZ));
     const svcs = uniqueNonEmptySorted(colabs.map(c => c.SVC));
-
     selM.innerHTML = `<option value="">Matriz: Todos</option>` + matrizes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     selS.innerHTML = `<option value="">SVC: Todos</option>` + svcs.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-
     if (prevM) selM.value = prevM;
     if (prevS) selS.value = prevS;
-
     selM.onchange = () => {
         _filters.matriz = selM.value;
         persistFilters();
@@ -293,7 +250,6 @@ async function fetchAllWithPagination(queryBuilder) {
     let page = 0;
     const pageSize = 1000;
     let moreData = true;
-
     while (moreData) {
         const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
         if (error) throw error;
@@ -309,15 +265,12 @@ async function fetchAllWithPagination(queryBuilder) {
 
 async function buildHCWeekly() {
     const matrizesPermitidas = getMatrizesPermitidas();
-
     let query = supabase
         .from('Colaboradores')
         .select('Nome, SVC, Cargo, MATRIZ, Ativo, Ferias, Escala, DSR');
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
-
     try {
         const data = await fetchAllWithPagination(query);
         _allColabsCache = data || [];
@@ -333,7 +286,6 @@ async function ensureDiarioDOM() {
     const host = document.querySelector('#hc-diario');
     if (!host) return;
     if (host.querySelector('.hcd-root')) return;
-
     try {
         const r = await fetch('/pages/hc-diario.html', {cache: 'no-cache'});
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -360,9 +312,7 @@ async function ensureDiarioDOM() {
 async function ensureRelatorioABSDOM() {
     const host = document.querySelector('#hc-relatorio-abs');
     if (!host) return;
-
     if (host.querySelector('.abs-toolbar')) return;
-
     try {
         const r = await fetch('/pages/relatorio-abs.html', {cache: 'no-cache'});
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -415,50 +365,37 @@ function pushFiltersToSubtabs() {
 function wireSubtabs() {
     const host = document.querySelector('.hc-root');
     if (!host) return;
-
     const subButtons = host.querySelectorAll('.hc-subtab-btn');
     let isTransitioning = false;
-
     subButtons.forEach(btn => {
         btn.addEventListener('click', async () => {
             if (isTransitioning) return;
-
             const currentView = host.querySelector('.hc-view.active');
             const viewName = btn.dataset.view;
             const nextView = host.querySelector(`#hc-${viewName}`);
-
             if (currentView === nextView) return;
-
             isTransitioning = true;
             subButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-
             if (currentView) {
                 currentView.style.opacity = 0;
             }
-
             setTimeout(async () => {
                 if (currentView) {
                     currentView.classList.remove('active');
                     currentView.style.opacity = 1;
                 }
-
                 if (nextView) {
                     nextView.style.opacity = 0;
                     nextView.classList.add('active');
-
                     try {
-                        if (viewName !== 'indice' && typeof window.destroyHCIndice === 'function') window.destroyHCIndice();
                         if (viewName !== 'analise-abs' && typeof window.destroyHCAnaliseABS === 'function') window.destroyHCAnaliseABS();
-
                         if (viewName === 'diario') {
                             if (typeof window.buildHCDiario === 'function') await window.buildHCDiario();
                         } else if (viewName === 'relatorio-abs') {
                             if (typeof window.buildHCRelatorio === 'function') await window.buildHCRelatorio();
                         } else if (viewName === 'analise-abs') {
                             if (typeof window.buildHCAnaliseABS === 'function') await window.buildHCAnaliseABS();
-                        } else if (viewName === 'indice') {
-                            if (typeof window.buildHCIndice === 'function') await window.buildHCIndice();
                         } else if (viewName === 'desligamentos') {
                             ensureDesligamentosMounted();
                         } else if (viewName === 'ferias') {
@@ -468,23 +405,19 @@ function wireSubtabs() {
                     } catch (e) {
                         console.error('Erro ao trocar sub-aba:', e);
                     }
-
                     requestAnimationFrame(() => {
                         nextView.style.opacity = 1;
                     });
                 }
-
                 isTransitioning = false;
             }, 200);
         });
     });
-
     const refreshBtn = host.querySelector('#hc-refresh');
     refreshBtn?.addEventListener('click', async () => {
         try {
             await buildHCWeekly();
             const active = host.querySelector('.hc-view.active');
-
             if (active?.id === 'hc-diario') {
                 await ensureDiarioDOM();
                 if (typeof window.buildHCDiario === 'function') queueMicrotask(() => window.buildHCDiario());
@@ -493,14 +426,11 @@ function wireSubtabs() {
                 if (typeof window.buildHCRelatorio === 'function') queueMicrotask(() => window.buildHCRelatorio());
             } else if (active?.id === 'hc-analise-abs' && typeof window.buildHCAnaliseABS === 'function') {
                 queueMicrotask(() => window.buildHCAnaliseABS());
-            } else if (active?.id === 'hc-indice' && typeof window.buildHCIndice === 'function') {
-                queueMicrotask(() => window.buildHCIndice());
             } else if (active?.id === 'hc-desligamentos') {
                 fetchDesligados();
             } else if (active?.id === 'hc-ferias') {
                 fetchFerias();
             }
-
             window.dispatchEvent(new Event('hc-refresh'));
         } catch (e) {
             console.error('Refresh HC erro:', e);
@@ -511,10 +441,7 @@ function wireSubtabs() {
 function ensureDesligamentosMounted() {
     const host = document.getElementById('hc-desligamentos');
     if (!host || host.dataset.mounted === '1') return;
-
-
     if (typeof _deslState.cargo !== 'string') _deslState.cargo = '';
-
     host.innerHTML = `
     <div class="hcdesl-toolbar">
       <div class="hcdesl-left">
@@ -535,9 +462,7 @@ function ensureDesligamentosMounted() {
       <div class="hcdesl-right">
         <button id="hcdesl-export" class="btn-add">Exportar Dados</button>
       </div>
-    </div>
-
-    <div class="hcdesl-table-wrap">
+    </div>    <div class="hcdesl-table-wrap">
       <table class="hc-table">
         <thead>
           <tr>
@@ -559,7 +484,6 @@ function ensureDesligamentosMounted() {
     </div>
   `;
     host.dataset.mounted = '1';
-
     document.getElementById('hcdesl-search')?.addEventListener('input', (e) => {
         _deslState.search = e.target.value;
         renderDesligamentosTable();
@@ -577,7 +501,6 @@ function ensureDesligamentosMounted() {
         renderDesligamentosTable();
     });
     document.getElementById('hcdesl-export')?.addEventListener('click', () => exportDesligamentos());
-
     fetchDesligados();
 }
 
@@ -595,36 +518,28 @@ function getDeslFilters() {
 async function fetchDesligados() {
     const tbody = document.getElementById('hcdesl-tbody');
     if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
-
     try {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase
             .from('Desligados')
             .select('Nome, Contrato, Cargo, "Data de Admissão", "Data de Desligamento", "Período Trabalhado", Motivo, SVC, MATRIZ, Escala');
-
         if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
         }
-
         query = query.order('Data de Desligamento', {ascending: false});
-
         const {data, error} = await query;
         if (error) throw error;
-
         _deslState.rows = Array.isArray(data) ? data : [];
         _deslState.loaded = true;
-
         const motivos = Array.from(new Set(
             _deslState.rows.map(r => String(r.Motivo || '')).filter(Boolean)
         )).sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
-
         const elMotivo = document.getElementById('hcdesl-motivo');
         if (elMotivo) {
             const prev = _deslState.motivo;
             elMotivo.innerHTML = `<option value="">Motivo: Todos</option>` + motivos.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
             if (prev) elMotivo.value = prev;
         }
-
         renderDesligamentosTable();
     } catch (e) {
         console.error('Desligamentos: erro', e);
@@ -635,15 +550,12 @@ async function fetchDesligados() {
 function renderDesligamentosTable() {
     const tbody = document.getElementById('hcdesl-tbody');
     if (!tbody) return;
-
     if (!_deslState.loaded) {
         tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
         return;
     }
-
     const {search, escala, cargo, motivo, svc, matriz} = getDeslFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-
     const filtered = _deslState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
@@ -653,18 +565,15 @@ function renderDesligamentosTable() {
         if (svc && norm(r.SVC) !== norm(svc)) return false;
         return true;
     });
-
     if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="9" class="muted">Sem registros nos filtros aplicados.</td></tr>`;
         return;
     }
-
     const frag = document.createDocumentFragment();
     filtered.forEach(r => {
         const dtAdm = r['Data de Admissão'] ?? '';
         const dtDes = r['Data de Desligamento'] ?? '';
         const periodo = r['Período Trabalhado'] ?? '';
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
       <td class="cell-name">${escapeHtml(r.Nome || '')}</td>
@@ -684,7 +593,6 @@ function renderDesligamentosTable() {
 function getVisibleDesligadosRows() {
     const {search, escala, cargo, motivo, svc, matriz} = getDeslFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-
     const filtered = _deslState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
@@ -694,7 +602,6 @@ function getVisibleDesligadosRows() {
         if (svc && norm(r.SVC) !== norm(svc)) return false;
         return true;
     });
-
     return filtered.map(r => ({
         Nome: r.Nome || '',
         Contrato: r.Contrato || '',
@@ -736,10 +643,7 @@ function exportDesligamentos() {
 function ensureFeriasMounted() {
     const host = document.getElementById('hc-ferias');
     if (!host || host.dataset.mounted === '1') return;
-
-
     if (typeof _feriasState.cargo !== 'string') _feriasState.cargo = '';
-
     host.innerHTML = `
     <div class="hcf-toolbar">
       <div class="hcf-left">
@@ -760,9 +664,7 @@ function ensureFeriasMounted() {
       <div class="hcf-right">
         <button id="hcf-export" class="btn-add">Exportar Dados</button>
       </div>
-    </div>
-
-    <div class="hcf-table-wrap">
+    </div>    <div class="hcf-table-wrap">
       <table class="hc-table">
         <thead>
           <tr>
@@ -784,7 +686,6 @@ function ensureFeriasMounted() {
     </div>
   `;
     host.dataset.mounted = '1';
-
     document.getElementById('hcf-search')?.addEventListener('input', (e) => {
         _feriasState.search = e.target.value;
         renderFeriasTable();
@@ -802,11 +703,9 @@ function ensureFeriasMounted() {
         renderFeriasTable();
     });
     document.getElementById('hcf-export')?.addEventListener('click', () => exportFerias());
-
     window.addEventListener('hc-filters-changed', () => {
         if (_feriasState.loaded) renderFeriasTable();
     });
-
     fetchFerias();
 }
 
@@ -824,7 +723,6 @@ function getFeriasFilters() {
 function calcDiasParaFinalizar(row) {
     const provided = row['Dias para Finalizar'];
     if (provided != null && provided !== '') return provided;
-
     const df = row['Data Final'];
     const d = df ? new Date(df) : null;
     if (!d || isNaN(d)) return '';
@@ -838,30 +736,21 @@ function calcDiasParaFinalizar(row) {
 async function fetchFerias() {
     const tbody = document.getElementById('hcf-tbody');
     if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
-
     try {
         const matrizesPermitidas = getMatrizesPermitidas();
-
-
         let qFerias = supabase
             .from('Ferias')
             .select('"Numero", "Nome", "Escala", "SVC", "Data Inicio", "Data Final", "Status", "Dias para finalizar"')
             .order('Data Inicio', {ascending: false})
             .order('Data Final', {ascending: false});
-
         const {data: feriasData, error: feriasErr} = await qFerias;
         if (feriasErr) throw feriasErr;
-
-
         let qCol = supabase.from('Colaboradores').select('Nome, Cargo, MATRIZ, SVC, Escala');
         if (matrizesPermitidas !== null) qCol = qCol.in('MATRIZ', matrizesPermitidas);
-
         const {data: colabs, error: colErr} = await qCol;
         if (colErr) throw colErr;
-
         const idx = new Map();
         (colabs || []).forEach(c => idx.set(String(c.Nome || ''), c));
-
         _feriasState.rows = Array.isArray(feriasData) ?
             feriasData.map(r => {
                 const info = idx.get(String(r.Nome || '')) || {};
@@ -875,14 +764,10 @@ async function fetchFerias() {
                 };
             }) :
             [];
-
         _feriasState.loaded = true;
-
-
         const statusList = Array.from(new Set(
             _feriasState.rows.map(r => String(r.Status || '')).filter(Boolean)
         )).sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
-
         const elStatus = document.getElementById('hcf-status');
         if (elStatus) {
             const prev = _feriasState.status;
@@ -890,7 +775,6 @@ async function fetchFerias() {
                 statusList.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
             if (prev) elStatus.value = prev;
         }
-
         renderFeriasTable();
     } catch (e) {
         console.error('Férias: erro', e);
@@ -901,15 +785,12 @@ async function fetchFerias() {
 function renderFeriasTable() {
     const tbody = document.getElementById('hcf-tbody');
     if (!tbody) return;
-
     if (!_feriasState.loaded) {
         tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
         return;
     }
-
     const {search, escala, cargo, status, svc, matriz} = getFeriasFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-
     const filtered = _feriasState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || r.Escala) !== escala) return false;
@@ -919,18 +800,15 @@ function renderFeriasTable() {
         if (svc && norm(r.SVC) !== norm(svc)) return false;
         return true;
     });
-
     if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="9" class="muted">Sem registros nos filtros aplicados.</td></tr>`;
         return;
     }
-
     const frag = document.createDocumentFragment();
     filtered.forEach(r => {
         const di = r['Data Inicio'] ?? '';
         const df = r['Data Final'] ?? '';
         const dias = calcDiasParaFinalizar(r);
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
       <td class="cell-name">${escapeHtml(r.Nome || '')}</td>
@@ -950,7 +828,6 @@ function renderFeriasTable() {
 function getVisibleFeriasRows() {
     const {search, escala, cargo, status, svc, matriz} = getFeriasFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-
     const filtered = _feriasState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
@@ -960,7 +837,6 @@ function getVisibleFeriasRows() {
         if (svc && norm(r.SVC) !== norm(svc)) return false;
         return true;
     });
-
     return filtered.map(r => ({
         Nome: r.Nome || '',
         'Data Início': fmtBR(r['Data Inicio'] ?? ''),
@@ -1006,22 +882,18 @@ export async function init() {
             'hc-total-geral-quadro'
         ];
         const loadingHTML = `<tbody><tr><td>Carregando…</td>${WEEK_KEYS.map(() => '<td>—</td>').join('')}</tr></tbody>`;
-
         tableIds.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.innerHTML = loadingHTML;
         });
-
         wireSubtabs();
         await buildHCWeekly();
         await ensureDiarioDOM();
-
         window.addEventListener('hc-filters-changed', () => {
             const active = document.querySelector('.hc-view.active')?.id || '';
             if (active === 'hc-ferias' && _feriasState.loaded) renderFeriasTable();
             if (active === 'hc-desligamentos' && _deslState.loaded) renderDesligamentosTable();
         });
-
     } catch (e) {
         console.error('HC Consolidado init erro:', e);
         const gEl = document.getElementById('hc-aux-geral');

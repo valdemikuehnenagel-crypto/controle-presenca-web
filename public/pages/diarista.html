@@ -1,40 +1,29 @@
 <section class="diaristas-root">
     <div class="diaristas-toolbar">
         <div class="filters">
-            <label>Período
-                <input type="date" id="flt-start">
-            </label>
-            <span>—</span>
-            <label>
-                <input type="date" id="flt-end">
-            </label>
-
-            <label>SVC
-                <select id="flt-svc">
-                    <option value="">Todos</option>
-                </select>
-            </label>
-
-            <label>Matriz
-                <select id="flt-matriz">
-                    <option value="">Todas</option>
-                </select>
-            </label>
-
-            <label>Turno
-                <select id="flt-turno">
-                    <option value="">Todos</option>
-                    <option value="T1">T1</option>
-                    <option value="T2">T2</option>
-                    <option value="T3">T3</option>
-                </select>
-            </label>
+            <button id="btn-period-select" class="cd-period-btn">Selecionar Período</button>
+            <select id="flt-svc" title="Filtrar por SVC">
+                <option value="" disabled selected>SVC</option>
+                <option value="">Todos os SVCs</option>
+            </select>
+            <select id="flt-matriz" title="Filtrar por Matriz">
+                <option value="" disabled selected>Matriz</option>
+                <option value="">Todas as Matrizes</option>
+            </select>
+            <select id="flt-turno" title="Filtrar por Turno">
+                <option value="" disabled selected>Turno</option>
+                <option value="">Todos os Turnos</option>
+                <option value="T1">T1</option>
+                <option value="T2">T2</option>
+                <option value="T3">T3</option>
+            </select>
         </div>
 
-        <div class="spacer"></div>
-
-        <button id="btn-add-diarista" class="btn-add">Adicionar Diarista</button>
-        <button id="btn-export-xlsx" class="btn-export">Exportar Dados</button>
+        <div class="action-buttons">
+            <button id="btn-add-diarista" class="btn-add">Adicionar Diarista</button>
+            <button id="btn-gerenciar" class="btn-salvar">Gerenciar</button>
+            <button id="btn-export-xlsx" class="btn-export">Exportar Dados</button>
+        </div>
     </div>
 
     <div id="diaristas-kpi-top" style="margin-bottom:10px;">
@@ -129,24 +118,19 @@
     </div>
 </section>
 
-
 <div id="diarista-modal" class="diaristas-modal hidden">
     <div class="modal-card">
         <h3>Adicionar Diarista(s)</h3>
-
         <form id="diarista-form">
-
             <div class="form-grid">
                 <div class="form-group">
                     <label for="f-quantidade">Quantidade</label>
                     <input type="number" id="f-quantidade" min="1" value="1" required>
                 </div>
-
                 <div class="form-group">
                     <label for="f-empresa">Empresa</label>
                     <input type="text" id="f-empresa" placeholder="Ex.: TSI" required>
                 </div>
-
                 <div class="form-group">
                     <label for="f-solicitado">Solicitado por</label>
                     <select id="f-solicitado" required>
@@ -155,7 +139,6 @@
                         <option value="MELI">MELI</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="f-autorizado">Autorizado por</label>
                     <select id="f-autorizado" required>
@@ -164,7 +147,6 @@
                         <option value="LIDERANÇA MELI">Liderança MELI</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="f-turno">Turno</label>
                     <select id="f-turno" required>
@@ -174,31 +156,67 @@
                         <option value="T3">T3</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="f-svc">SVC</label>
                     <select id="f-svc" required>
                         <option value="">Selecione</option>
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label for="f-matriz">Matriz</label>
-                    <input type="text" id="f-matriz" placeholder="Preenchido automaticamente" readonly>
+                    <select id="f-matriz" required>
+                        <option value="" disabled selected>Selecione</option>
+                        <!-- as opções entram via JS (loadMatrizInfo) -->
+                    </select>
                 </div>
-
                 <div class="form-group">
                     <label for="f-data">Data</label>
                     <input type="date" id="f-data" required>
                 </div>
             </div>
-
-
             <div id="names-list" class="form-grid names-list"></div>
-
             <div class="form-actions">
                 <button type="button" id="btn-cancel-modal" class="btn-cancelar">Cancelar</button>
                 <button type="submit" class="btn-salvar">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div id="registrar-diarista-modal" class="diaristas-modal hidden">
+    <div class="modal-card">
+        <h3>Registrar Novo Diarista (Banco)</h3>
+        <form id="registrar-diarista-form">
+            <div class="form-grid">
+                <div class="form-group" style="grid-column: span 2;">
+                    <label for="reg-nome">Nome Completo</label>
+                    <input type="text" id="reg-nome" placeholder="Nome do diarista" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-id-groot">ID GROOT</label>
+                    <input type="text" id="reg-id-groot" placeholder="Opcional se LDAP preenchido">
+                </div>
+                <div class="form-group">
+                    <label for="reg-ldap">LDAP</label>
+                    <input type="text" id="reg-ldap" placeholder="Opcional se ID GROOT preenchido">
+                </div>
+                <div class="form-group">
+                    <label for="reg-matriz">Matriz</label>
+                    <select id="reg-matriz" required>
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="reg-svc">SVC</label>
+                    <input type="text" id="reg-svc" readonly style="background-color: #f3f4f6; cursor: not-allowed;">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label for="reg-regiao">Região</label>
+                    <input type="text" id="reg-regiao" readonly style="background-color: #f3f4f6; cursor: not-allowed;">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" id="reg-cancel-modal" class="btn-cancelar">Cancelar</button>
+                <button type="submit" class="btn-salvar">Registrar</button>
             </div>
         </form>
     </div>

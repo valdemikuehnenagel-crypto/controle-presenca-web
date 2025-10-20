@@ -2,16 +2,11 @@ const userInfoEl = document.getElementById('userInfo');
 const logoutBtn = document.getElementById('logoutBtn');
 const contentArea = document.getElementById('content-area');
 const tabButtons = document.querySelectorAll('.tab-btn');
-
-
 const addModal = document.getElementById('addModal');
 const cancelBtn = document.getElementById('cancelBtn');
-
 let currentModule = null;
 let isLoadingPage = false;
 let loadToken = 0;
-
-
 const pageModules = import.meta.glob('/src/pages/*.js');
 
 function checkSession() {
@@ -22,19 +17,25 @@ function checkSession() {
     }
     try {
         const user = JSON.parse(userDataString);
+        if (user?.Nivel) {
+            document.body.classList.remove('user-level-visitante', 'user-level-usuario', 'user-level-admin');
+            const nivel = user.Nivel.toUpperCase();
+            if (nivel === 'VISITANTE') {
+                document.body.classList.add('user-level-visitante');
+            } else if (nivel === 'USUARIO') {
+                document.body.classList.add('user-level-usuario');
+            } else {
+                document.body.classList.add(`user-level-${user.Nivel.toLowerCase()}`);
+            }
+        }
         const userAvatarEl = document.getElementById('userAvatar');
-
         if (userInfoEl) {
             const currentHour = new Date().getHours();
-            const greeting =
-                currentHour >= 5 && currentHour < 12 ? 'Bom dia' :
-                    currentHour >= 12 && currentHour < 18 ? 'Boa tarde' : 'Boa noite';
-
+            const greeting = currentHour >= 5 && currentHour < 12 ? 'Bom dia' : currentHour >= 12 && currentHour < 18 ? 'Boa tarde' : 'Boa noite';
             const fullName = user?.Nome || 'Usuário';
             const firstName = fullName.split(' ')[0];
             userInfoEl.textContent = `${greeting}, ${firstName}!`;
         }
-
         try {
             if (userAvatarEl) {
                 if (user?.avatar_url) {
@@ -54,7 +55,6 @@ function checkSession() {
     }
 }
 
-
 function setLoading(on) {
     isLoadingPage = !!on;
     if (!contentArea) return;
@@ -65,10 +65,8 @@ function setLoading(on) {
 
 async function loadPage(pageName) {
     if (!pageName || isLoadingPage) return;
-
     isLoadingPage = true;
     const myToken = ++loadToken;
-
     if (contentArea) contentArea.classList.add('fade-out');
     await new Promise(resolve => setTimeout(resolve, 250));
     if (myToken !== loadToken) {
@@ -76,7 +74,6 @@ async function loadPage(pageName) {
         if (contentArea) contentArea.classList.remove('fade-out');
         return;
     }
-
     try {
         if (currentModule && typeof currentModule.destroy === 'function') {
             await currentModule.destroy();
@@ -87,27 +84,18 @@ async function loadPage(pageName) {
     } catch (e) {
         console.warn('Falha ao destruir módulo anterior:', e);
     }
-
     try {
         const response = await fetch(`/pages/${pageName}.html`, {cache: 'no-cache'});
         if (!response.ok) throw new Error(`HTML da página ${pageName} não encontrado (HTTP ${response.status}).`);
         const html = await response.text();
-
         if (myToken !== loadToken) return;
-
         if (contentArea) contentArea.innerHTML = html;
-
-
         const key = `/src/pages/${pageName}.js`;
         const loader = pageModules[key];
         if (!loader) throw new Error(`Script da página não encontrado no build: ${key}`);
-
         const module = await loader();
         if (myToken !== loadToken) return;
-
         currentModule = module;
-
-
         if (currentModule && typeof currentModule.init === 'function') {
             await currentModule.init();
         }
@@ -130,9 +118,7 @@ function showAddModal() {
 
 function hideAddModal() {
     if (addModal) addModal.classList.add('hidden');
-
 }
-
 
 tabButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -143,22 +129,16 @@ tabButtons.forEach((button) => {
         loadPage(page);
     });
 });
-
-
 if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     });
 }
-
-
 document.addEventListener('open-add-modal', showAddModal);
-
 if (cancelBtn) {
     cancelBtn.addEventListener('click', hideAddModal);
 }
-
 document.addEventListener('colaborador-added', () => {
     hideAddModal();
     const isColaboradoresAtivo = document.querySelector('[data-page="colaboradores"].active');
@@ -166,10 +146,7 @@ document.addEventListener('colaborador-added', () => {
         currentModule.init();
     }
 });
-
-
 checkSession();
-
 const defaultTabBtn = document.querySelector('[data-page="colaboradores"]');
 if (defaultTabBtn) defaultTabBtn.classList.add('active');
 loadPage('colaboradores');

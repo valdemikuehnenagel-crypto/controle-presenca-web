@@ -3,7 +3,6 @@ import {supabase} from '../supabaseClient.js';
 
 (function () {
     const HOST_SEL = '#hc-analise-abs';
-
     const state = {
         mounted: false,
         loading: false,
@@ -23,11 +22,9 @@ import {supabase} from '../supabaseClient.js';
         absenteeismData: [],
         interactiveFilters: {week: null, gender: null, contract: null, dow: null, age: null}
     };
-
     const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const root = () => document.documentElement;
     const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
-
     const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
     const DOW_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -111,20 +108,16 @@ import {supabase} from '../supabaseClient.js';
     function setupPeriodFilter(host) {
         const toolbar = host.querySelector('.abs-toolbar');
         if (!toolbar || toolbar.querySelector('#abs-period-btn')) return;
-
         const btn = document.createElement('button');
         btn.id = 'abs-period-btn';
         btn.textContent = 'Selecionar Período';
         toolbar.appendChild(btn);
-
         btn.onclick = () => {
             const toISO = d => d.toISOString().split('T')[0];
             const endDefault = new Date();
             const startDefault = new Date(endDefault.getFullYear(), endDefault.getMonth() - 2, 1);
-
             const curStart = state.inicioISO || toISO(startDefault);
             const curEnd = state.fimISO || toISO(endDefault);
-
             const overlay = document.createElement('div');
             overlay.id = 'abs-period-overlay';
             overlay.innerHTML = `<div>
@@ -139,7 +132,6 @@ import {supabase} from '../supabaseClient.js';
                     </div>
                 </div>`;
             document.body.appendChild(overlay);
-
             const close = () => overlay.remove();
             overlay.addEventListener('click', e => {
                 if (e.target === overlay) close();
@@ -149,7 +141,6 @@ import {supabase} from '../supabaseClient.js';
                 const startVal = overlay.querySelector('#abs-period-start').value;
                 const endVal = overlay.querySelector('#abs-period-end').value;
                 if (!startVal || !endVal) return alert('Selecione as duas datas.');
-
                 state.inicioISO = startVal;
                 state.fimISO = endVal;
                 refresh();
@@ -239,7 +230,6 @@ import {supabase} from '../supabaseClient.js';
         let page = 0;
         const pageSize = 1000;
         let moreData = true;
-
         while (moreData) {
             const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
             if (error) throw error;
@@ -257,11 +247,9 @@ import {supabase} from '../supabaseClient.js';
         if (state.loading) return;
         state.loading = true;
         showBusy(true);
-
         try {
             ensureMounted();
             await ensureChartLib();
-
             const toISO = d => d.toISOString().split('T')[0];
             let startDate, endDate;
             if (state.inicioISO && state.fimISO) {
@@ -275,15 +263,12 @@ import {supabase} from '../supabaseClient.js';
                 state.inicioISO = startDate;
                 state.fimISO = endDate;
             }
-
             const matrizesPermitidas = getMatrizesPermitidas();
             let colabQuery = supabase.from('Colaboradores').select('Nome, Genero, Contrato, "Data de nascimento"').eq('Ativo', 'SIM');
             if (matrizesPermitidas) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
             if (state.matriz) colabQuery = colabQuery.eq('MATRIZ', state.matriz);
             if (state.svc) colabQuery = colabQuery.eq('SVC', state.svc);
-
             const colabs = await fetchAllWithPagination(colabQuery);
-
             if (!colabs || colabs.length === 0) {
                 state.absenteeismData = [];
                 ensureChartsCreated();
@@ -292,28 +277,22 @@ import {supabase} from '../supabaseClient.js';
                 showBusy(false);
                 return;
             }
-
             const colabMap = new Map();
             colabs.forEach(c => colabMap.set(norm(c.Nome), c));
-
             const {data: diario, error: diarioError} = await supabase
                 .rpc('get_abs_para_analise', {
                     nomes: colabs.map(c => c.Nome),
                     data_inicio: startDate,
                     data_fim: endDate
                 });
-
             if (diarioError) throw diarioError;
-
             state.absenteeismData = diario.map(record => ({
                 ...record,
                 colaborador: colabMap.get(norm(record.Nome)) || {}
             })).filter(d => d.colaborador && d.colaborador.Nome);
-
             ensureChartsCreated();
             state.interactiveFilters = {week: null, gender: null, contract: null, dow: null, age: null};
             applyFiltersAndUpdate();
-
         } catch (e) {
             console.error('Análise ABS erro', e);
             alert('Falha ao carregar Análise de Absenteísmo. Veja o console.');
@@ -373,31 +352,23 @@ import {supabase} from '../supabaseClient.js';
         },
         cutout: '40%'
     });
-
-
     const top5BarOpts = () => {
         const opts = barLineOpts(() => {
         });
-
-
         opts.scales.x.ticks = {
             callback: function (value, index, ticks) {
                 const label = this.getLabelForValue(value);
-
                 return label.length > 10 ? label.substring(0, 10) + '...' : label;
             }
         };
         opts.plugins.datalabels.align = 'end';
         opts.plugins.datalabels.anchor = 'end';
         opts.plugins.datalabels.formatter = v => v;
-
         return opts;
     };
 
-
     function ensureChartsCreated() {
         if (state.charts.totalPorMes) return;
-
         state.charts.totalPorMes = new Chart(document.getElementById('abs-mes-line').getContext('2d'), {
             type: 'line',
             options: {
@@ -425,8 +396,6 @@ import {supabase} from '../supabaseClient.js';
             type: 'bar',
             options: barLineOpts((c, i) => handleChartClick(c, i, 'age'))
         });
-
-
         state.charts.top5 = new Chart(document.getElementById('abs-top5-bar').getContext('2d'), {
             type: 'bar',
             options: top5BarOpts()
@@ -437,8 +406,6 @@ import {supabase} from '../supabaseClient.js';
         const pal = palette();
         const totalAbs = dataToRender.length || 1;
         const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
-
-
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -467,7 +434,6 @@ import {supabase} from '../supabaseClient.js';
             };
             ch.update();
         }
-
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -484,7 +450,6 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-
         {
             const counts = Array(7).fill(0);
             dataToRender.forEach(d => counts[parseDateMaybe(d.Data).getDay()]++);
@@ -497,7 +462,6 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -522,7 +486,6 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-
         {
             const counts = new Map();
             dataToRender.forEach(d => {
@@ -542,7 +505,6 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-
         {
             const counts = new Map(AGE_BUCKETS.map(k => [k, 0]));
             dataToRender.forEach(d => {
@@ -559,21 +521,15 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-
-
         {
             const counts = new Map();
-
             dataToRender.forEach(d => {
                 const nome = d.colaborador.Nome;
                 counts.set(nome, (counts.get(nome) || 0) + 1);
             });
-
-
             const top5 = [...counts.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5);
-
             const ch = state.charts.top5;
             ch.data.labels = top5.map(item => item[0]);
             ch.data.datasets = [{
@@ -601,14 +557,12 @@ import {supabase} from '../supabaseClient.js';
         refresh();
     };
     window.buildHCAnaliseABS.resetState = resetState;
-
     window.destroyHCAnaliseABS = function () {
         if (state.mounted) {
             console.log('Destruindo estado da Análise ABS.');
             Object.values(state.charts).forEach(chart => {
                 if (chart) chart.destroy()
             });
-
             state.mounted = false;
             state.charts = {
                 totalPorWeek: null,

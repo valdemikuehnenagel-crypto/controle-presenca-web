@@ -1,25 +1,17 @@
-import { createClient } from '@supabase/supabase-js';
+import {createClient} from '@supabase/supabase-js';
 
 document.addEventListener('DOMContentLoaded', () => {
-
     const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
-
-    // --- Seletores do DOM ---
     const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
     const showLoginBtn = document.getElementById('showLoginBtn');
-
-    // --- Formulário de Registro ---
     const registerForm = document.getElementById('registerForm');
     const registerName = document.getElementById('registerName');
     const registerEmail = document.getElementById('registerEmail');
     const registerFuncao = document.getElementById('registerFuncao');
     const registerPin = document.getElementById('registerPin');
     const registerMsg = document.getElementById('registerMsg');
-
-    // --- LÓGICA DO MODAL DE MATRIZES ---
-    let selectedMatrizesState = []; // Armazena as matrizes selecionadas
-
+    let selectedMatrizesState = [];
     const matrizModal = document.getElementById('matriz-modal');
     const modalOverlay = document.getElementById('matriz-modal-overlay');
     const openModalBtn = document.getElementById('open-matriz-modal-btn');
@@ -28,13 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalMatrizList = document.getElementById('modal-matriz-list');
 
     function openModal() {
-        if(matrizModal) matrizModal.classList.add('show');
-        if(modalOverlay) modalOverlay.classList.add('show');
+        if (matrizModal) matrizModal.classList.add('show');
+        if (modalOverlay) modalOverlay.classList.add('show');
     }
 
     function closeModal() {
-        if(matrizModal) matrizModal.classList.remove('show');
-        if(modalOverlay) modalOverlay.classList.remove('show');
+        if (matrizModal) matrizModal.classList.remove('show');
+        if (modalOverlay) modalOverlay.classList.remove('show');
     }
 
     function updateMainButtonText() {
@@ -50,11 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if(openModalBtn) openModalBtn.addEventListener('click', openModal);
-    if(closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-    if(modalOverlay) modalOverlay.addEventListener('click', closeModal);
-
-    if(confirmSelectionBtn) {
+    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+    if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+    if (modalOverlay) modalOverlay.addEventListener('click', closeModal);
+    if (confirmSelectionBtn) {
         confirmSelectionBtn.addEventListener('click', () => {
             const checkedBoxes = modalMatrizList.querySelectorAll('input[type="checkbox"]:checked');
             selectedMatrizesState = Array.from(checkedBoxes).map(cb => cb.value);
@@ -62,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
             closeModal();
         });
     }
-
     if (showRegisterBtn) {
         showRegisterBtn.addEventListener('click', () => {
             container.classList.add('active');
@@ -76,12 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Lógica de Login e Funções Auxiliares (sem alterações) ---
     async function verifyPin(pin) {
         const loginMsg = document.getElementById('loginMsg');
         loginMsg.classList.remove('info');
         loginMsg.textContent = 'Verificando...';
-        const { data, error } = await supabase.from('Logins').select('*').eq('PIN', pin).single();
+        const {data, error} = await supabase.from('Logins').select('*').eq('PIN', pin).single();
         if (error || !data) {
             loginMsg.textContent = 'PIN inválido ou erro na conexão.';
             return;
@@ -94,7 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await logLoginHistory(data);
         const loginFormContent = document.getElementById('login-form-content');
         if (loginFormContent) loginFormContent.classList.add('fade-out-start');
-
         const welcomeBackContainer = document.getElementById('welcome-back-container');
         if (welcomeBackContainer) {
             const welcomeMessage = document.getElementById('welcome-message');
@@ -106,17 +94,34 @@ document.addEventListener('DOMContentLoaded', () => {
             welcomeBackContainer.classList.remove('hidden');
             setTimeout(() => welcomeBackContainer.classList.add('visible'), 10);
         }
-        setTimeout(() => { window.location.href = '/dashboard.html'; }, 2800);
+        setTimeout(() => {
+            window.location.href = '/dashboard.html';
+        }, 2800);
     }
+
     const loginForm = document.getElementById('loginForm');
     const pinLogin = document.getElementById('pinLogin');
     const forgotPinBtn = document.getElementById('forgotPinBtn');
-    if (loginForm) { loginForm.addEventListener('submit', (e) => { e.preventDefault(); verifyPin(pinLogin.value); }); }
-    if (pinLogin) { pinLogin.addEventListener('input', () => { if (pinLogin.value.length === 6) verifyPin(pinLogin.value); }); }
-    if (forgotPinBtn) { forgotPinBtn.addEventListener('click', () => { const loginMsg = document.getElementById('loginMsg'); loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com'; loginMsg.classList.add('info'); }); }
+    if (loginForm) {
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            verifyPin(pinLogin.value);
+        });
+    }
+    if (pinLogin) {
+        pinLogin.addEventListener('input', () => {
+            if (pinLogin.value.length === 6) verifyPin(pinLogin.value);
+        });
+    }
+    if (forgotPinBtn) {
+        forgotPinBtn.addEventListener('click', () => {
+            const loginMsg = document.getElementById('loginMsg');
+            loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com';
+            loginMsg.classList.add('info');
+        });
+    }
+    const funcoes = ['ANALISTA', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];
 
-    // --- Lógica do Formulário de Registro ---
-    const funcoes = ['JOVEM APRENDIZ', 'ESTAGIÁRIO', 'LÍDER', 'SHE', 'COORDENADOR', 'ANALISTA', 'SUPERVISOR', 'GERENTE', 'DIRETOR'];
     function loadFuncoes() {
         if (!registerFuncao) return;
         registerFuncao.innerHTML = '<option value="" disabled selected>Selecione a Função</option>';
@@ -131,26 +136,38 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadMatrizes() {
         if (!modalMatrizList) return;
         modalMatrizList.innerHTML = '<div class="custom-option">Carregando...</div>';
-        const { data, error } = await supabase.from('Matrizes').select('MATRIZ');
+        const {data, error} = await supabase.from('Matrizes').select('MATRIZ');
         if (error) {
-            modalMatrizList.innerHTML = '<div class="custom-option">Erro ao carregar.</div>'; return;
+            modalMatrizList.innerHTML = '<div class="custom-option">Erro ao carregar.</div>';
+            return;
         }
         modalMatrizList.innerHTML = '';
         const matrizesUnicas = Array.from(new Set(data.map(item => item.MATRIZ))).sort();
         const createOption = (value, id) => {
-            const optionDiv = document.createElement('div'); optionDiv.classList.add('custom-option');
-            const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.id = id; checkbox.value = value;
-            const label = document.createElement('label'); label.htmlFor = id; label.textContent = value;
-            optionDiv.appendChild(checkbox); optionDiv.appendChild(label); modalMatrizList.appendChild(optionDiv);
+            const optionDiv = document.createElement('div');
+            optionDiv.classList.add('custom-option');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = id;
+            checkbox.value = value;
+            const label = document.createElement('label');
+            label.htmlFor = id;
+            label.textContent = value;
+            optionDiv.appendChild(checkbox);
+            optionDiv.appendChild(label);
+            modalMatrizList.appendChild(optionDiv);
             return checkbox;
         };
         const todosCheckbox = createOption('TODOS', 'modal-matriz-checkbox-todos');
         const individualCheckboxes = matrizesUnicas.map(m => createOption(m, `modal-matriz-${m.replace(/\s+/g, '-')}`));
         modalMatrizList.addEventListener('change', (e) => {
             if (e.target.type === 'checkbox') {
-                if (e.target === todosCheckbox) { individualCheckboxes.forEach(cb => cb.checked = todosCheckbox.checked);
-                } else { if (!e.target.checked) todosCheckbox.checked = false;
-                    const allChecked = individualCheckboxes.every(cb => cb.checked); todosCheckbox.checked = allChecked;
+                if (e.target === todosCheckbox) {
+                    individualCheckboxes.forEach(cb => cb.checked = todosCheckbox.checked);
+                } else {
+                    if (!e.target.checked) todosCheckbox.checked = false;
+                    const allChecked = individualCheckboxes.every(cb => cb.checked);
+                    todosCheckbox.checked = allChecked;
                 }
             }
         });
@@ -161,38 +178,42 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
             registerMsg.textContent = 'Enviando...';
             registerMsg.classList.remove('error');
-
             let matrizValue = '';
-            if (selectedMatrizesState.includes('TODOS')) { matrizValue = 'TODOS';
-            } else { matrizValue = selectedMatrizesState.join(', '); }
-
+            if (selectedMatrizesState.includes('TODOS')) {
+                matrizValue = 'TODOS';
+            } else {
+                matrizValue = selectedMatrizesState.join(', ');
+            }
             const userData = {
                 nome: registerName.value, email: registerEmail.value, matriz: matrizValue,
                 funcao: registerFuncao.value, pin: registerPin.value,
             };
-
             if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao || !/^\d{6}$/.test(userData.pin)) {
                 registerMsg.textContent = 'Todos os campos são obrigatórios.';
-                registerMsg.classList.add('error'); return;
+                registerMsg.classList.add('error');
+                return;
             }
-
-            // CORREÇÃO: Adicionando a verificação de PIN existente que faltava
-            const { data: pinExists, error: pinError } = await supabase.from('Logins').select('PIN').eq('PIN', userData.pin).single();
-            if (pinError && pinError.code !== 'PGRST116') { // Ignora erro "no rows found"
+            const {
+                data: pinExists,
+                error: pinError
+            } = await supabase.from('Logins').select('PIN').eq('PIN', userData.pin).single();
+            if (pinError && pinError.code !== 'PGRST116') {
                 registerMsg.textContent = 'Erro ao verificar PIN.';
-                registerMsg.classList.add('error'); return;
+                registerMsg.classList.add('error');
+                return;
             }
             if (pinExists) {
                 registerMsg.textContent = 'PIN já existente, tente outro!';
-                registerMsg.classList.add('error'); return;
+                registerMsg.classList.add('error');
+                return;
             }
-
-            // Se o PIN não existe, prossegue com a inserção
-            const { error: insertError } = await supabase.from('Logins').insert({
+            const nivelParaSalvar = (userData.funcao === 'MELI') ? 'VISITANTE' : 'Usuario';
+            const {error: insertError} = await supabase.from('Logins').insert({
                 PIN: userData.pin, Nome: userData.nome, Usuario: userData.email.toLowerCase(),
-                Matriz: userData.matriz, Tipo: userData.funcao, Nivel: 'Usuario', Aprovacao: 'PENDENTE'
+                Matriz: userData.matriz, Tipo: userData.funcao,
+                Nivel: nivelParaSalvar,
+                Aprovacao: 'PENDENTE'
             });
-
             if (insertError) {
                 registerMsg.textContent = 'Erro ao registrar. Este Email já pode estar em uso.';
                 registerMsg.classList.add('error');
@@ -201,22 +222,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 registerForm.reset();
                 selectedMatrizesState = [];
                 updateMainButtonText();
-                setTimeout(() => { container.classList.remove('active'); }, 3000);
+                setTimeout(() => {
+                    container.classList.remove('active');
+                }, 3000);
             }
         });
     }
 
-    // Funções de timestamp e log de histórico
     function getBrasiliaTimestamp() {
         const date = new Date();
-        const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0'); const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0'); const seconds = String(date.getSeconds()).padStart(2, '0');
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     }
+
     async function logLoginHistory(userData) {
         try {
-            const { error } = await supabase.from('LoginHistorico').insert({
+            const {error} = await supabase.from('LoginHistorico').insert({
                 Nome: userData.Nome, Usuario: userData.Usuario, MATRIZ: userData.Matriz,
                 SVC: userData.SVC, 'Data Login': getBrasiliaTimestamp()
             });

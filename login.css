@@ -385,52 +385,52 @@ form#registerForm > span:first-of-type {
     text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
-/* ====================================================== */
-/* == CÓDIGO CORRIGIDO PARA O FORMULÁRIO E MODAL == */
-/* ====================================================== */
 
-/* 1. Define o layout dos seletores lado a lado */
+
+
+
+
 .select-container {
     display: flex;
     gap: 10px;
     width: 100%;
-    margin: 8px 0; /* Adiciona o mesmo espaçamento dos outros inputs */
+    margin: 8px 0;
 }
 
-/* 2. ESTILO DEFINITIVO para o botão de Matriz e o select de Função */
-/* Esta regra força ambos a terem a aparência de um campo de formulário padrão */
+
+
 #open-matriz-modal-btn,
 #registerFuncao {
-    flex: 1; /* Faz com que dividam o espaço igualmente */
+    flex: 1;
 
-    /* Anula o estilo azul do botão global e aplica o estilo cinza */
+
     background: #eee;
     border: 1px solid #e0e0e0;
     padding: 10px 15px;
-    margin: 0; /* Remove a margem individual para o container cuidar disso */
+    margin: 0;
     font-size: 13px;
     border-radius: 8px;
     width: 100%;
     outline: none;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
 
-    /* Anula a formatação de texto do botão global */
+
     color: #6d6d6d;
     font-weight: normal;
     text-transform: none;
     letter-spacing: normal;
     font-family: 'DM Sans', sans-serif;
 
-    /* Alinhamento e cursor */
+
     text-align: left;
     cursor: pointer;
 
-    /* Remove a aparência padrão do select para consistência */
+
     appearance: none;
     -webkit-appearance: none;
 }
 
-/* 3. Adiciona a setinha de volta ao botão */
+
 #open-matriz-modal-btn {
     display: flex;
     justify-content: space-between;
@@ -441,13 +441,13 @@ form#registerForm > span:first-of-type {
     font-size: 10px;
 }
 
-/* 4. Garante que o texto selecionado tenha a cor correta */
+
 #open-matriz-modal-btn span,
 #registerFuncao option {
-    color: #333; /* Cor do texto normal */
+    color: #333;
 }
 
-/* 5. ESTILOS DO MODAL (Estes já estavam corretos) */
+
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.6); z-index: 1000; }
 .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #fff; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 1001; width: 90%; max-width: 400px; }
 .modal.show, .modal-overlay.show { display: block; }

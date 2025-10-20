@@ -3,19 +3,16 @@ import {supabase} from '../supabaseClient.js';
 
 const HOST_SEL = '#hc-diario';
 const PARTIAL_URL = '/pages/hc-diario.html';
-
 const ROWS_ORDER = [
     'TOTAL QUADRO', 'LOG I', 'CONFERENTES', 'DSR', 'INJUSTIFICADO', 'JUSTIFICADO',
     'FOLGA ESPECIAL', 'FERIADO', 'ADMISSÃO', 'DESLIGAMENTOS', 'FÉRIAS'
 ];
-
 let _mounted = false;
 let _building = false;
 let _buildToken = 0;
 let _needsRebuild = false;
 let _colabs = [];
 const _filters = {matriz: '', svc: '', inicioISO: '', fimISO: ''};
-
 const FALLBACK_HTML = `
 <div class="hcd-root">
   <div class="hcd-bar">
@@ -31,7 +28,6 @@ const FALLBACK_HTML = `
     <div class="hcd-card hcd-card--full"><table class="hcd-table" id="hcd-geral"></table></div>
   </div>
 </div>`;
-
 const pad2 = n => (n < 10 ? `0${n}` : `${n}`);
 const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const firstDayOfMonth = d => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -109,7 +105,6 @@ function firstISOFrom(row, keys) {
     return '';
 }
 
-
 async function fetchAllWithPagination(queryBuilder, pageSize = 1000) {
     let all = [], page = 0, more = true;
     while (more) {
@@ -128,17 +123,14 @@ async function fetchAllWithPagination(queryBuilder, pageSize = 1000) {
 
 async function fetchColabs() {
     const matrizesPermitidas = getMatrizesPermitidas();
-
     let query = supabase
         .from('Colaboradores')
         .select('Nome, Cargo, MATRIZ, SVC, Escala, DSR, Ativo, "Data de admissão"');
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
     if (_filters.matriz) query = query.eq('MATRIZ', _filters.matriz);
     if (_filters.svc) query = query.eq('SVC', _filters.svc);
-
     _colabs = await fetchAllWithPagination(query);
 }
 
@@ -146,10 +138,8 @@ async function fetchControleDiario(startISO, endISO) {
     const pageSize = 1000;
     let from = 0;
     const all = [];
-
     while (true) {
         const to = from + pageSize - 1;
-
         const {data, error} = await supabase
             .from('ControleDiario')
             .select('*')
@@ -157,18 +147,13 @@ async function fetchControleDiario(startISO, endISO) {
             .lte('Data', endISO)
             .order('Data', {ascending: true})
             .range(from, to);
-
         if (error) throw error;
-
         const rows = Array.isArray(data) ? data : [];
         all.push(...rows);
-
         if (rows.length < pageSize) break;
-
         from += pageSize;
         if (from > 200000) break;
     }
-
     return all;
 }
 
@@ -176,32 +161,27 @@ async function fetchFeriasRange(startISO, endISO) {
     if (!_colabs.length) await fetchColabs();
     const nomesPermitidos = _colabs.map(c => c.Nome);
     if (!nomesPermitidos.length) return [];
-
     const {data, error} = await supabase
         .rpc('get_ferias_no_intervalo', {
             nomes: nomesPermitidos,
             data_inicio: startISO,
             data_fim: endISO
         });
-
     if (error) throw error;
     return Array.isArray(data) ? data : [];
 }
 
 async function fetchDesligadosRange(startISO, endISO) {
     const matrizesPermitidas = getMatrizesPermitidas();
-
     let query = supabase
         .from('Desligados')
         .select('*')
         .gte('Data de Desligamento', startISO)
         .lte('Data de Desligamento', endISO)
         .order('Data de Desligamento', {ascending: true});
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
-
     const {data, error} = await query;
     if (error) throw error;
     return Array.isArray(data) ? data : [];
@@ -267,94 +247,93 @@ function sumRowsByDate(a, b, dates) {
     return out;
 }
 
-
-
 async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksByDate) {
     const rows = {};
     ROWS_ORDER.forEach(k => rows[k] = {});
-
     const auxTurno = byTurnFilterAux(turno);
     const confTurno = byTurnFilterConf(turno);
-
     for (const d of datesISO) {
-
         const auxElegiveisDoDia = auxTurno.filter(c => !c['Data de admissão'] || c['Data de admissão'] <= d);
         const confElegiveisDoDia = confTurno.filter(c => !c['Data de admissão'] || c['Data de admissão'] <= d);
-
         const setAux = new Set(auxElegiveisDoDia.map(c => c.Nome));
         const setConf = new Set(confElegiveisDoDia.map(c => c.Nome));
-
-
         let presAux = 0, presConf = 0, fal = 0, ate = 0, fe = 0, fer = 0;
-
-
         const want = weekdayKey(d);
-        const dsrAux = auxElegiveisDoDia.filter(c => norm(c.DSR || '').replace(/Ç|Á/g, a => ({'Ç':'C', 'Á':'A'})[a]) === want).length;
-        const dsrConf = confElegiveisDoDia.filter(c => norm(c.DSR || '').replace(/Ç|Á/g, a => ({'Ç':'C', 'Á':'A'})[a]) === want).length;
-
+        const dsrAux = auxElegiveisDoDia.filter(c => {
+            const dsrDays = (c.DSR || '').split(',').map(day => weekdayKey(day.trim()));
+            return dsrDays.includes(want);
+        }).length;
+        const dsrConf = confElegiveisDoDia.filter(c => {
+            const dsrDays = (c.DSR || '').split(',').map(day => weekdayKey(day.trim()));
+            return dsrDays.includes(want);
+        }).length;
         const nomesEmFeriasHoje = feriasPorDia.get(d) || new Set();
         let feriasAux = 0, feriasConf = 0;
         for (const c of auxElegiveisDoDia) if (nomesEmFeriasHoje.has(c.Nome)) feriasAux++;
         for (const c of confElegiveisDoDia) if (nomesEmFeriasHoje.has(c.Nome)) feriasConf++;
-
-
         const nomesMarcados = new Set();
         const marks = marksByDate.get(d) || [];
         for (const m of marks) {
             const nome = m.Nome;
             if (!setAux.has(nome) && !setConf.has(nome)) continue;
-
             nomesMarcados.add(nome);
             const tipo = canonicalMark(m);
-
             if (setAux.has(nome)) {
                 switch (tipo) {
-                    case 'PRESENCA': presAux++; break;
-                    case 'FALTA': fal++; break;
-                    case 'ATESTADO': ate++; break;
-                    case 'F_ESPECIAL': fe++; break;
-                    case 'FERIADO': fer++; break;
+                    case 'PRESENCA':
+                        presAux++;
+                        break;
+                    case 'FALTA':
+                        fal++;
+                        break;
+                    case 'ATESTADO':
+                        ate++;
+                        break;
+                    case 'F_ESPECIAL':
+                        fe++;
+                        break;
+                    case 'FERIADO':
+                        fer++;
+                        break;
                 }
             } else if (setConf.has(nome)) {
-                 switch (tipo) {
-                    case 'PRESENCA': presConf++; break;
-                    case 'FALTA': fal++; break;
-                    case 'ATESTADO': ate++; break;
-                    case 'F_ESPECIAL': fe++; break;
-                    case 'FERIADO': fer++; break;
+                switch (tipo) {
+                    case 'PRESENCA':
+                        presConf++;
+                        break;
+                    case 'FALTA':
+                        fal++;
+                        break;
+                    case 'ATESTADO':
+                        ate++;
+                        break;
+                    case 'F_ESPECIAL':
+                        fe++;
+                        break;
+                    case 'FERIADO':
+                        fer++;
+                        break;
                 }
             }
         }
-
-
-
-        const naoMarcadosAux = auxElegiveisDoDia.filter(c =>
-            !nomesMarcados.has(c.Nome) &&
-            !nomesEmFeriasHoje.has(c.Nome) &&
-            norm(c.DSR || '').replace(/Ç|Á/g, a => ({'Ç':'C', 'Á':'A'})[a]) !== want
-        ).length;
-
-        const naoMarcadosConf = confElegiveisDoDia.filter(c =>
-            !nomesMarcados.has(c.Nome) &&
-            !nomesEmFeriasHoje.has(c.Nome) &&
-            norm(c.DSR || '').replace(/Ç|Á/g, a => ({'Ç':'C', 'Á':'A'})[a]) !== want
-        ).length;
-
-
+        const naoMarcadosAux = auxElegiveisDoDia.filter(c => {
+            const isDSR = (c.DSR || '').split(',').map(day => weekdayKey(day.trim())).includes(want);
+            return !nomesMarcados.has(c.Nome) && !nomesEmFeriasHoje.has(c.Nome) && !isDSR;
+        }).length;
+        const naoMarcadosConf = confElegiveisDoDia.filter(c => {
+            const isDSR = (c.DSR || '').split(',').map(day => weekdayKey(day.trim())).includes(want);
+            return !nomesMarcados.has(c.Nome) && !nomesEmFeriasHoje.has(c.Nome) && !isDSR;
+        }).length;
         presAux += naoMarcadosAux;
         presConf += naoMarcadosConf;
-
-
         const adm = countAdmissoes(new Set([...setAux, ...setConf]), d);
         const deslig = (desligRows || []).reduce((acc, r) => {
-             const iso = firstISOFrom(r, ['Data de Desligamento']);
-             if (iso === d && (setAux.has(r.Nome) || setConf.has(r.Nome))) {
-                 return acc + 1;
-             }
-             return acc;
+            const iso = firstISOFrom(r, ['Data de Desligamento']);
+            if (iso === d && (setAux.has(r.Nome) || setConf.has(r.Nome))) {
+                return acc + 1;
+            }
+            return acc;
         }, 0);
-
-
         rows['LOG I'][d] = presAux;
         rows['CONFERENTES'][d] = presConf;
         rows['DSR'][d] = dsrAux + dsrConf;
@@ -365,13 +344,10 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
         rows['FERIADO'][d] = fer;
         rows['ADMISSÃO'][d] = adm;
         rows['DESLIGAMENTOS'][d] = deslig;
-
-
         rows['TOTAL QUADRO'][d] = presAux + presConf + dsrAux + dsrConf + feriasAux + feriasConf + fal + ate + fe + fer + adm - deslig;
     }
     return rows;
 }
-
 
 export async function buildHCDiario() {
     if (_building) {
@@ -380,13 +356,11 @@ export async function buildHCDiario() {
     }
     const myToken = ++_buildToken;
     _building = true;
-
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         _building = false;
         return;
     }
-
     try {
         if (
             !host.querySelector('#hcd-period-btn') ||
@@ -394,57 +368,43 @@ export async function buildHCDiario() {
         ) {
             setDefaultMonthRange(host);
         }
-
         const prevGlobalM = _filters.matriz;
         const prevGlobalS = _filters.svc;
         if (window.__HC_GLOBAL_FILTERS) {
             _filters.matriz = window.__HC_GLOBAL_FILTERS.matriz || '';
             _filters.svc = window.__HC_GLOBAL_FILTERS.svc || '';
         }
-
         const startEl = host.querySelector('#hcd-start');
         const endEl = host.querySelector('#hcd-end');
-
         let inicioISO = startEl?.value || _filters.inicioISO;
         let fimISO = endEl?.value || _filters.fimISO;
-
         [inicioISO, fimISO] = clampEndToToday(inicioISO, fimISO);
-
         if (startEl && startEl.value !== inicioISO) startEl.value = inicioISO;
         if (endEl && endEl.value !== fimISO) endEl.value = fimISO;
-
         const selM = document.querySelector('#hc-filter-matriz');
         const selS = document.querySelector('#hc-filter-svc');
-
         const prevM = _filters.matriz;
         const prevS = _filters.svc;
-
         if (selM) _filters.matriz = selM.value || '';
         if (selS) _filters.svc = selS.value || '';
-
         if (!inicioISO || !fimISO) {
             _building = false;
             return;
         }
-
         const dates = eachDateISO(inicioISO, fimISO);
-
         const t1El = host.querySelector('#hcd-t1');
         const t2El = host.querySelector('#hcd-t2');
         const t3El = host.querySelector('#hcd-t3');
         const gEl = host.querySelector('#hcd-geral');
-
         if (t1El) emptyTable(t1El, 'TURNO 1');
         if (t2El) emptyTable(t2El, 'TURNO 2');
         if (t3El) emptyTable(t3El, 'TURNO 3');
         if (gEl) emptyTable(gEl, 'QUADRO GERAL');
-
         const filtrosMudaram =
             prevM !== _filters.matriz ||
             prevS !== _filters.svc ||
             prevGlobalM !== _filters.matriz ||
             prevGlobalS !== _filters.svc;
-
         if (!_colabs.length || filtrosMudaram) {
             try {
                 await fetchColabs();
@@ -453,24 +413,18 @@ export async function buildHCDiario() {
             }
             if (myToken !== _buildToken) return;
         }
-
         const [cdRows, feriasRows, desligRows] = await Promise.all([
             fetchControleDiario(inicioISO, fimISO).catch(() => []),
             fetchFeriasRange(inicioISO, fimISO).catch(() => []),
             fetchDesligadosRange(inicioISO, fimISO).catch(() => [])
         ]);
-
         if (myToken !== _buildToken) return;
-
-
         const marksByDate = new Map();
         for (const d of dates) marksByDate.set(d, []);
         for (const r of cdRows) {
             const iso = parseAnyToISO(r?.Data);
             if (iso && marksByDate.has(iso)) marksByDate.get(iso).push(r);
         }
-
-
         const feriasPorDia = new Map();
         for (const f of feriasRows) {
             const nome = f.Nome;
@@ -485,19 +439,16 @@ export async function buildHCDiario() {
                 }
             }
         }
-
         const [r1, r2, r3] = await Promise.all([
             buildTurnoRows('T1', dates, feriasPorDia, desligRows, marksByDate),
             buildTurnoRows('T2', dates, feriasPorDia, desligRows, marksByDate),
             buildTurnoRows('T3', dates, feriasPorDia, desligRows, marksByDate)
         ]);
         const g = sumRowsByDate(sumRowsByDate(r1, r2, dates), r3, dates);
-
         if (t1El) t1El.innerHTML = tableFromRows('TURNO 1', dates, r1);
         if (t2El) t2El.innerHTML = tableFromRows('TURNO 2', dates, r2);
         if (t3El) t3El.innerHTML = tableFromRows('TURNO 3', dates, r3);
         if (gEl) gEl.innerHTML = tableFromRows('QUADRO GERAL', dates, g);
-
     } catch (e) {
         console.error('HC Diário build:', e);
     } finally {
@@ -511,10 +462,8 @@ export async function buildHCDiario() {
 
 function setDefaultMonthRange(host) {
     if (!host) return;
-
     let startEl = host.querySelector('#hcd-start');
     let endEl = host.querySelector('#hcd-end');
-
     if (!startEl || !endEl) {
         const bar = host.querySelector('.hcd-bar .hcd-filters') || (() => {
             const hcdBar = document.createElement('div');
@@ -538,21 +487,15 @@ function setDefaultMonthRange(host) {
             bar.appendChild(endEl);
         }
     }
-
     const now = new Date();
     const sDef = toISODate(firstDayOfMonth(now));
     const eDef = toISODate(now);
-
     if (!parseAnyToISO(startEl.value)) startEl.value = sDef;
     if (!parseAnyToISO(endEl.value)) endEl.value = eDef;
-
     _filters.inicioISO = startEl.value.slice(0, 10);
     _filters.fimISO = endEl.value.slice(0, 10);
-
-
     startEl.style.display = 'none';
     endEl.style.display = 'none';
-
     let bar = host.querySelector('.hcd-bar .hcd-filters');
     if (!bar) {
         const hcdBar = document.createElement('div');
@@ -563,7 +506,6 @@ function setDefaultMonthRange(host) {
         host.querySelector('.hcd-root')?.insertAdjacentElement('afterbegin', hcdBar);
         bar = hcdFilters;
     }
-
     let btn = host.querySelector('#hcd-period-btn');
     if (!btn) {
         btn = document.createElement('button');
@@ -572,11 +514,9 @@ function setDefaultMonthRange(host) {
         btn.textContent = 'Selecionar período';
         bar.appendChild(btn);
     }
-
     btn.onclick = () => {
         const curStart = _filters.inicioISO || startEl.value || sDef;
         const curEnd = _filters.fimISO || endEl.value || eDef;
-
         const overlay = document.createElement('div');
         overlay.id = 'cd-period-overlay';
         overlay.innerHTML = `
@@ -599,19 +539,15 @@ function setDefaultMonthRange(host) {
       </div>
     `;
         document.body.appendChild(overlay);
-
         const elStart = overlay.querySelector('#hcd-period-start');
         const elEnd = overlay.querySelector('#hcd-period-end');
         const btnCancel = overlay.querySelector('#cd-period-cancel');
         const btnApply = overlay.querySelector('#cd-period-apply');
-
         const close = () => overlay.remove();
-
         overlay.addEventListener('click', (ev) => {
             if (ev.target === overlay) close();
         });
         btnCancel.onclick = close;
-
         btnApply.onclick = () => {
             let sVal = (elStart?.value || '').slice(0, 10);
             let eVal = (elEnd?.value || '').slice(0, 10);
@@ -619,20 +555,16 @@ function setDefaultMonthRange(host) {
                 alert('Selecione as duas datas.');
                 return;
             }
-
             const todayISO = toISODate(new Date());
             if (eVal > todayISO) eVal = todayISO;
-
             _filters.inicioISO = sVal;
             _filters.fimISO = eVal;
             startEl.value = sVal;
             endEl.value = eVal;
-
             buildHCDiario();
             close();
         };
     };
-
     startEl.onchange = () => {
         _filters.inicioISO = startEl.value.slice(0, 10);
         if (_filters.inicioISO && _filters.fimISO) buildHCDiario();
@@ -646,7 +578,6 @@ function setDefaultMonthRange(host) {
 async function ensureHCDiarioMountedOnce() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
-
     if (!_mounted) {
         let html = '';
         try {
@@ -658,9 +589,7 @@ async function ensureHCDiarioMountedOnce() {
         }
         host.innerHTML = html;
         _mounted = true;
-
         host.querySelector('#hcd-refresh')?.remove();
-
         try {
             await fetchColabs();
         } catch {
@@ -678,7 +607,6 @@ async function ensureHCDiarioMountedOnce() {
             }
         }
     }
-
     setDefaultMonthRange(host);
     await buildHCDiario();
 }
@@ -687,12 +615,10 @@ window.addEventListener('hc-filters-changed', async (ev) => {
     const f = ev?.detail || {};
     _filters.matriz = f.matriz || '';
     _filters.svc = f.svc || '';
-
     if (_building) {
         _needsRebuild = true;
         return;
     }
-
     if (!_mounted) {
         await ensureHCDiarioMountedOnce();
     } else {
@@ -704,11 +630,9 @@ window.addEventListener('hc-filters-changed', async (ev) => {
         buildHCDiario();
     }
 });
-
 ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'colaborador-added', 'hc-refresh']
     .forEach(evt => window.addEventListener(evt, () => {
         if (_mounted) buildHCDiario();
     }));
-
 window.ensureHCDiarioMountedOnce = ensureHCDiarioMountedOnce;
 window.buildHCDiario = buildHCDiario;

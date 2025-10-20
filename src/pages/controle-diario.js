@@ -3,10 +3,8 @@ import {getMatrizesPermitidas} from '../session.js';
 
 let state;
 let ui;
-
 const collator = new Intl.Collator('pt-BR', {sensitivity: 'base'});
 const NORM = (s) => (s || '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-
 const pick = (o, ...keys) => {
     for (const k of keys) {
         const v = o && o[k];
@@ -54,11 +52,9 @@ async function fetchAllWithPagination(queryBuilder) {
     let page = 0;
     const pageSize = 1000;
     let moreData = true;
-
     while (moreData) {
         const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
         if (error) throw error;
-
         if (data && data.length > 0) {
             allData = allData.concat(data);
             page++;
@@ -71,8 +67,6 @@ async function fetchAllWithPagination(queryBuilder) {
 
 async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
-    const variantes = [dia, NORM(dia)];
-
     let matrizesPermitidas = getMatrizesPermitidas();
     if (Array.isArray(matrizesPermitidas) && matrizesPermitidas.length === 0) {
         matrizesPermitidas = null;
@@ -81,80 +75,119 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         .from('Colaboradores')
         .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')
         .eq('Ativo', 'SIM');
-
     if (!turno || turno === 'GERAL') {
         q = q.in('Escala', ['T1', 'T2', 'T3']);
     } else {
         q = q.eq('Escala', turno);
     }
-
     if (matrizesPermitidas && matrizesPermitidas.length) {
         q = q.in('MATRIZ', matrizesPermitidas);
     }
-
     q = q.order('Nome', {ascending: true});
-
     try {
         const cols = await fetchAllWithPagination(q);
-
+        const all = cols || [];
+        const nomesColabs = all.map(c => c.Nome);
         const {data: feriasHoje, error: feriasError} = await supabase
             .from('Ferias')
             .select('Nome')
             .lte('"Data Inicio"', dateISO)
             .gte('"Data Final"', dateISO);
-
         if (feriasError) {
             console.warn("Erro ao buscar férias do dia:", feriasError);
         }
-
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
-
-        const all = cols || [];
-
+        let dsrLogs = [];
+        const chunkSize = 200;
+        if (nomesColabs.length > 0) {
+            const promises = [];
+            for (let i = 0; i < nomesColabs.length; i += chunkSize) {
+                const chunk = nomesColabs.slice(i, i + chunkSize);
+                promises.push(
+                    supabase
+                        .from('LogDSR')
+                        .select('Name, DsrAnterior, DsrAtual, DataAlteracao')
+                        .in('Name', chunk)
+                );
+            }
+            try {
+                const results = await Promise.all(promises);
+                for (const {data, error} of results) {
+                    if (error) {
+                        throw error;
+                    }
+                    if (data) {
+                        dsrLogs = dsrLogs.concat(data);
+                    }
+                }
+            } catch (dsrError) {
+                console.warn("Erro ao buscar histórico de DSR (em chunks):", dsrError);
+            }
+        }
+        const dsrHistoryMap = new Map();
+        for (const log of dsrLogs) {
+            const nameNorm = NORM(log.Name);
+            if (!dsrHistoryMap.has(nameNorm)) {
+                dsrHistoryMap.set(nameNorm, []);
+            }
+            dsrHistoryMap.get(nameNorm).push(log);
+        }
+        for (const history of dsrHistoryMap.values()) {
+            history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
+        }
+        const getDSRForDate = (colaborador) => {
+            const nameNorm = NORM(colaborador.Nome);
+            const history = dsrHistoryMap.get(nameNorm);
+            if (!history || history.length === 0) {
+                return colaborador.DSR;
+            }
+            let applicableDSR = null;
+            for (let i = history.length - 1; i >= 0; i--) {
+                if (history[i].DataAlteracao.slice(0, 10) <= dateISO) {
+                    applicableDSR = history[i].DsrAtual;
+                    break;
+                }
+            }
+            if (applicableDSR === null) {
+                applicableDSR = history[0].DsrAnterior;
+            }
+            return applicableDSR;
+        };
+        const checkDSR = (colaborador) => {
+            const historicalDSR = getDSRForDate(colaborador);
+            const colaboradorDSRs = (historicalDSR || '').toString().toUpperCase().split(',').map(d => d.trim());
+            return colaboradorDSRs.includes(dia);
+        };
         const dsrList = all
-            .filter(c => {
-                const dsr = (c.DSR || '').toString().toUpperCase();
-                return variantes.includes(dsr) || variantes.includes(NORM(dsr));
-            })
+            .filter(c => checkDSR(c))
             .map(c => c.Nome);
-
         const elegiveis = all
             .filter(c => {
                 const dataAdmissao = c['Data de admissão'];
                 if (dataAdmissao && dataAdmissao > dateISO) {
                     return false;
                 }
-
                 if (nomesEmFeriasHoje.has(c.Nome)) {
                     return false;
                 }
-
-                const dsr = (c.DSR || '').toString().toUpperCase();
-                const isDSR = variantes.includes(dsr) || variantes.includes(NORM(dsr));
-
+                const isDSR = checkDSR(c);
                 return !isDSR;
             })
             .sort((a, b) => collator.compare(a, b));
-
         return {elegiveis, dsrList};
-
     } catch (error) {
         console.error("Erro ao buscar colaboradores elegíveis com paginação:", error);
         throw error;
     }
 }
 
-
 async function getMarksFor(dateISO, nomes) {
     if (!nomes.length) return new Map();
-
     const {data, error} = await supabase
         .rpc('get_marcas_para_nomes', {
             nomes: nomes, data_consulta: dateISO
         });
-
     if (error) throw error;
-
     const map = new Map();
     (data || []).forEach(m => {
         let tipo = null;
@@ -177,11 +210,8 @@ async function fetchList(turno, dateISO) {
         });
         return {list: Array.from(byName.values()), meta: {dsrList: Array.from(dsrSet)}};
     }
-
     const {elegiveis, dsrList} = await getColaboradoresElegiveis(turno, dateISO);
     const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));
-
-
     const list = elegiveis.map(c => ({
         Nome: c.Nome,
         LDAP: c.LDAP || '',
@@ -193,7 +223,6 @@ async function fetchList(turno, dateISO) {
         Escala: c.Escala || '',
         Marcacao: markMap.get(c.Nome) || null
     }));
-
     return {list, meta: {dsrList}};
 }
 
@@ -201,17 +230,13 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
     const setOne = {...zeros};
     if (tipo === 'PRESENCA') setOne['Presença'] = 1; else if (tipo === 'FALTA') setOne['Falta'] = 1; else if (tipo === 'ATESTADO') setOne['Atestado'] = 1; else if (tipo === 'F_ESPECIAL') setOne['Folga Especial'] = 1; else if (tipo === 'FERIADO') setOne['Feriado'] = 1; else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1; else throw new Error('Tipo inválido.');
-
-
     const {data: colabInfo, error: colabErr} = await supabase
         .from('Colaboradores')
         .select('Escala, SVC, MATRIZ')
         .eq('Nome', nome)
         .single();
     if (colabErr) throw colabErr;
-
     const turnoToUse = turno || colabInfo.Escala || null;
-
     const {data: existing, error: findErr} = await supabase
         .from('ControleDiario')
         .select('Numero')
@@ -219,7 +244,6 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         .eq('Data', dateISO)
         .limit(1);
     if (findErr) throw findErr;
-
     if (existing && existing.length > 0) {
         const {error: updErr} = await supabase
             .from('ControleDiario')
@@ -239,20 +263,25 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         const {error: insErr} = await supabase.from('ControleDiario').insert(row);
         if (insErr) throw insErr;
     }
-
     try {
         if (window.absSyncForRow) {
-
             console.log('Enviando para absSyncForRow:', {
-                Nome: nome, Data: dateISO, Falta: setOne['Falta'] || 0, Atestado: setOne['Atestado'] || 0,
-
-                Escala: turnoToUse, SVC: colabInfo.SVC, MATRIZ: colabInfo.MATRIZ
+                Nome: nome,
+                Data: dateISO,
+                Falta: setOne['Falta'] || 0,
+                Atestado: setOne['Atestado'] || 0,
+                Escala: turnoToUse,
+                SVC: colabInfo.SVC,
+                MATRIZ: colabInfo.MATRIZ
             });
-
             await window.absSyncForRow({
-                Nome: nome, Data: dateISO, Falta: setOne['Falta'] || 0, Atestado: setOne['Atestado'] || 0,
-
-                Escala: turnoToUse, SVC: colabInfo.SVC, MATRIZ: colabInfo.MATRIZ
+                Nome: nome,
+                Data: dateISO,
+                Falta: setOne['Falta'] || 0,
+                Atestado: setOne['Atestado'] || 0,
+                Escala: turnoToUse,
+                SVC: colabInfo.SVC,
+                MATRIZ: colabInfo.MATRIZ
             });
         }
     } catch (e) {
@@ -267,7 +296,6 @@ async function deleteMarcacao({nome, dateISO}) {
         .eq('Nome', nome)
         .eq('Data', dateISO);
     if (error) throw error;
-
     try {
         if (window.absSyncForRow) {
             await window.absSyncForRow({
@@ -278,7 +306,6 @@ async function deleteMarcacao({nome, dateISO}) {
         console.warn('ABS sync (delete) falhou:', e);
     }
 }
-
 
 function label(tipo) {
     switch (tipo) {
@@ -341,36 +368,26 @@ function applyMarkToRow(tr, tipo) {
     });
 }
 
-
 function passFilters(x) {
     const f = state.filters;
-
-
     if (f.search) {
         const searchTermNorm = NORM(f.search);
         const nomeNorm = NORM(x.Nome);
         const ldapNorm = NORM(x.LDAP);
-
-
         if (!nomeNorm.includes(searchTermNorm) && !ldapNorm.includes(searchTermNorm)) {
             return false;
         }
     }
-
     if (f.gestor && (x.Gestor || '') !== f.gestor) return false;
     if (f.cargo && (x.Cargo || '') !== f.cargo) return false;
     if (f.contrato && (x.Contrato || '') !== f.contrato) return false;
     if (f.svc && (x.SVC || '') !== f.svc) return false;
     if (f.matriz && getMatriz(x) !== f.matriz) return false;
-
-
     if (state.isPendingFilterActive && x.Marcacao) {
         return false;
     }
-
     return true;
 }
-
 
 function applyFilters(list) {
     return list.filter(passFilters).sort((a, b) => collator.compare(a.Nome, b.Nome));
@@ -379,20 +396,16 @@ function applyFilters(list) {
 function passFiltersExcept(x, exceptKey) {
     const f = state.filters;
     if (f.search && !NORM(x.Nome).includes(NORM(f.search))) return false;
-
     if (exceptKey !== 'gestor' && f.gestor && (x.Gestor || '') !== f.gestor) return false;
     if (exceptKey !== 'cargo' && f.cargo && (x.Cargo || '') !== f.cargo) return false;
     if (exceptKey !== 'contrato' && f.contrato && (x.Contrato || '') !== f.contrato) return false;
     if (exceptKey !== 'svc' && f.svc && (x.SVC || '') !== f.svc) return false;
     if (exceptKey !== 'matriz' && f.matriz && getMatriz(x) !== f.matriz) return false;
-
     return true;
 }
 
 function recomputeOptionsFor(key) {
-
     const base = state.baseList.filter((x) => passFiltersExcept(x, key));
-
     let values = [];
     switch (key) {
         case 'gestor':
@@ -418,11 +431,7 @@ function recomputeOptionsFor(key) {
 
 function fillPreserving(sel, values, placeholder, current, onInvalid) {
     if (!sel) return;
-
-
     sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
-
-
     if (current && values.includes(current)) {
         sel.value = current;
     } else {
@@ -436,7 +445,6 @@ function fillPreserving(sel, values, placeholder, current, onInvalid) {
  * aplicando todos os demais filtros + busca (comportamento em cascata).
  */
 function repopulateFilterOptionsCascade() {
-
     const cur = {
         gestor: state.filters.gestor,
         cargo: state.filters.cargo,
@@ -444,8 +452,6 @@ function repopulateFilterOptionsCascade() {
         svc: state.filters.svc,
         matriz: state.filters.matriz,
     };
-
-
     const opts = {
         gestor: recomputeOptionsFor('gestor'),
         cargo: recomputeOptionsFor('cargo'),
@@ -453,15 +459,12 @@ function repopulateFilterOptionsCascade() {
         svc: recomputeOptionsFor('svc'),
         matriz: recomputeOptionsFor('matriz'),
     };
-
-
     fillPreserving(ui.selGestor, opts.gestor, 'Gestor', cur.gestor, () => (state.filters.gestor = ''));
     fillPreserving(ui.selCargo, opts.cargo, 'Cargo', cur.cargo, () => (state.filters.cargo = ''));
     fillPreserving(ui.selContrato, opts.contrato, 'Contrato', cur.contrato, () => (state.filters.contrato = ''));
     fillPreserving(ui.selSVC, opts.svc, 'SVC', cur.svc, () => (state.filters.svc = ''));
     fillPreserving(ui.selMatriz, opts.matriz, 'Matriz', cur.matriz, () => (state.filters.matriz = ''));
 }
-
 
 function fill(sel, values, placeholder) {
     if (!sel) return;
@@ -470,55 +473,41 @@ function fill(sel, values, placeholder) {
     sel.value = values.includes(prev) ? prev : '';
 }
 
-
 async function renderRows(list) {
-
-
     ui.tbody.innerHTML = '';
-
     const dsrNamesRaw = (state.meta?.dsrList || []).slice();
     if (!dsrNamesRaw.length && list.length === 0) {
         ui.tbody.innerHTML = '<tr><td colspan="7">Nenhum colaborador previsto para hoje.</td></tr>';
         return;
     }
-
     let dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
-
     try {
         if (dsrNamesRaw.length > 0) {
             const {data: info, error} = await supabase
                 .from('Colaboradores')
                 .select('Nome, Cargo, SVC, Gestor, Contrato, MATRIZ, LDAP')
                 .in('Nome', dsrNamesRaw);
-
             if (!error && Array.isArray(info)) {
                 const byName = new Map(info.map(x => [x.Nome, x]));
                 dsrInfos = dsrNamesRaw.map(n => byName.get(n) || {Nome: n});
             }
         }
-    } catch (_) { /* silencioso */
+    } catch (_) {
     }
-
     const dsrFiltered = dsrInfos
         .filter(passFilters)
         .map(x => x.Nome)
         .sort((a, b) => collator.compare(a, b));
-
     const maxLen = Math.max(list.length, dsrFiltered.length);
     const frag = document.createDocumentFragment();
-
     for (let i = 0; i < maxLen; i++) {
         const item = list[i] || null;
         const dsrName = dsrFiltered[i] || '—';
-
         const tr = document.createElement('tr');
-
         if (item) {
             tr.dataset.nome = item.Nome;
             tr.dataset.mark = item.Marcacao || 'NONE';
             tr.classList.add(`row-${(item.Marcacao || 'NONE').toLowerCase()}`);
-
-
             const tdNome = document.createElement('td');
             tdNome.className = 'nome-col';
             const ic = document.createElement('span');
@@ -532,17 +521,11 @@ async function renderRows(list) {
                 badge.textContent = label(item.Marcacao);
                 tdNome.append(' ', badge);
             }
-
-
             const tdAcoes = document.createElement('td');
             tdAcoes.className = 'status-actions';
             tdAcoes.innerHTML = btnsHTML(item);
-
-
             const tdLDAP = document.createElement('td');
             tdLDAP.textContent = item.LDAP || '—';
-
-
             const tdCargo = document.createElement('td');
             tdCargo.textContent = item.Cargo || '';
             const tdSVC = document.createElement('td');
@@ -551,12 +534,8 @@ async function renderRows(list) {
             tdGestor.textContent = item.Gestor || '';
             const tdDSR = document.createElement('td');
             tdDSR.textContent = dsrName;
-
-
             tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
-
         } else {
-
             const dash = () => {
                 const td = document.createElement('td');
                 td.textContent = '—';
@@ -564,49 +543,33 @@ async function renderRows(list) {
             };
             const tdDSR = document.createElement('td');
             tdDSR.textContent = dsrName;
-
-
             tr.append(dash(), dash(), dash(), dash(), dash(), dash(), tdDSR);
         }
-
         frag.appendChild(tr);
     }
-
     ui.tbody.replaceChildren(frag);
 }
 
 function computeSummary(list, meta) {
     const isConf = x => String(x.Cargo || '').toUpperCase() === 'CONFERENTE';
-
-
     const aux = list.filter(x => !isConf(x));
-
     const hcPrevisto = aux.length;
     const hcReal = aux.filter(x => x.Marcacao === 'PRESENCA').length;
     const confReal = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
-
-
     const pend = list.filter(x => !x.Marcacao).length;
-
     const faltas = list.filter(x => x.Marcacao === 'FALTA').length;
     const atest = list.filter(x => x.Marcacao === 'ATESTADO').length;
     const fesp = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
     const fer = list.filter(x => x.Marcacao === 'FERIADO').length;
     const susp = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
-
     const quadroTotal = hcReal + confReal;
-
     let dsrCount = 0;
     if (meta?.dsrList?.length) {
         const dsrColabs = meta.dsrList.map(nome => state.baseList.find(c => c.Nome === nome) || state.colabMap.get(nome) || {Nome: nome});
         dsrCount = dsrColabs.filter(passFilters).length;
     }
-
     const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
-
     const mainSummaryHTML = `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` + `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` + `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | ` + `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
-
-
     const activeClass = state.isPendingFilterActive ? 'active' : '';
     ui.summary.innerHTML = `
         <div id="cd-summary-pending-btn" class="summary-pending ${pendentesClass} ${activeClass}" title="Clique para filtrar pendentes">
@@ -618,48 +581,30 @@ function computeSummary(list, meta) {
     `;
 }
 
-
 async function carregar(full = false) {
     const dateISO = ui.date.value;
     if (!dateISO) return;
     if (full) ui.summary.textContent = 'Carregando…';
-
     try {
         showLoading(true);
-
-
         const {elegiveis, dsrList} = await getColaboradoresElegiveis(state.turnoAtual, dateISO);
-
         state.colabMap.clear();
         const todosColabs = [...elegiveis];
         const nomesDSR = new Set(dsrList);
         const nomesElegiveis = new Set(elegiveis.map(c => c.Nome));
-
         nomesDSR.forEach(nome => {
             if (!nomesElegiveis.has(nome)) {
-
-
                 todosColabs.push({Nome: nome, DSR: weekdayPT(dateISO)});
             }
         });
         todosColabs.forEach(c => state.colabMap.set(c.Nome, c));
-
         const markMap = await getMarksFor(dateISO, elegiveis.map(c => c.Nome));
-
         state.baseList = elegiveis.map(c => ({
-            ...c,
-
-            Matriz: getMatriz(c), Marcacao: markMap.get(c.Nome) || null
+            ...c, Matriz: getMatriz(c), Marcacao: markMap.get(c.Nome) || null
         }));
-
-
         state.meta = {dsrList};
-
-
         repopulateFilterOptionsCascade();
-
         refresh();
-
     } catch (e) {
         console.error(e);
         toast('Erro ao carregar dados', 'error');
@@ -671,12 +616,13 @@ async function carregar(full = false) {
 }
 
 async function onRowClick(ev) {
-
+    if (document.body.classList.contains('user-level-visitante')) {
+        return;
+    }
     if (state.isProcessing) {
         toast('Aguarde, processando marcação anterior...', 'info');
         return;
     }
-
     const btn = ev.target.closest('.cd-btn');
     if (!btn) return;
     const nome = btn.dataset.nome;
@@ -684,37 +630,29 @@ async function onRowClick(ev) {
     const tr = btn.closest('tr');
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
-
     const marcadoHoje = (tr?.dataset?.mark || 'NONE') !== 'NONE';
     if (marcadoHoje && tipo !== 'LIMPAR') {
         return toast('Já marcado hoje. Ajustes em Colaboradores → Reajuste de ponto.', 'info', 3500);
     }
-
     state.isProcessing = true;
     showLoading(true);
-
     try {
         const novoTipo = tipo === 'LIMPAR' ? null : tipo;
-
         if (novoTipo) {
             const turno = state.turnoAtual === 'GERAL' ? null : state.turnoAtual;
             await upsertMarcacao({nome, turno, dateISO: dataISO, tipo: novoTipo});
         } else {
             await deleteMarcacao({nome, dateISO: dataISO});
         }
-
         applyMarkToRow(tr, novoTipo);
         toast(novoTipo ? 'Marcação registrada' : 'Marcação removida', 'success');
-
         const updateItem = (list) => {
             const item = list.find(x => x.Nome === nome);
             if (item) item.Marcacao = novoTipo;
         };
         updateItem(state.baseList);
         updateItem(state.filtered);
-
         computeSummary(state.filtered, state.meta);
-
     } catch (e) {
         console.error(e);
         toast('Falha ao registrar marcação', 'error');
@@ -728,46 +666,29 @@ async function onRowClick(ev) {
 async function marcarTodosPresentes() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
-
     const pendTrs = Array.from(ui.tbody.querySelectorAll('tr'))
         .filter(tr => tr.dataset.nome && (tr.dataset.mark || 'NONE') === 'NONE');
-
     if (!pendTrs.length) return toast('Não há colaboradores pendentes visíveis para marcar.', 'info');
     if (!confirm(`Marcar ${pendTrs.length} colaboradores visíveis como "Presente"?`)) return;
-
     const nomes = pendTrs.map(tr => tr.dataset.nome);
-
     ui.markAllBtn.disabled = true;
     ui.clearAllBtn.disabled = true;
     ui.markAllBtn.textContent = 'Marcando...';
     showLoading(true);
-
     try {
-
-
-
         const {data: maxRow, error: maxErr} = await supabase
             .from('ControleDiario')
             .select('Numero')
             .order('Numero', {ascending: false})
             .limit(1);
-
         if (maxErr) throw maxErr;
-
-
         let nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;
-
-
         const {data: colabsInfo, error: colabError} = await supabase
             .from('Colaboradores')
             .select('Nome, Escala')
             .in('Nome', nomes);
-
         if (colabError) throw colabError;
-
         const colabInfoMap = new Map(colabsInfo.map(c => [c.Nome, c]));
-
-
         const rowsToUpsert = nomes.map(nome => {
             const info = colabInfoMap.get(nome) || {};
             const newRow = {
@@ -785,28 +706,18 @@ async function marcarTodosPresentes() {
             nextNumero++;
             return newRow;
         });
-
-
         const {error} = await supabase
             .from('ControleDiario')
             .upsert(rowsToUpsert, {onConflict: 'Nome, Data'});
-
         if (error) throw error;
-
-
-
-
         pendTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, 'PRESENCA');
             const item = state.baseList.find(x => x.Nome === nome);
             if (item) item.Marcacao = 'PRESENCA';
         });
-
         refresh();
-
         toast(`${nomes.length} colaboradores marcados como "Presente"!`, 'success');
-
     } catch (e) {
         console.error('Erro na marcação em massa:', e);
         toast('Erro na marcação em massa. A página será recarregada.', 'error');
@@ -822,46 +733,34 @@ async function marcarTodosPresentes() {
 async function limparTodas() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
-
     const marcadosTrs = Array.from(ui.tbody.querySelectorAll('tr'))
         .filter(tr => (tr.dataset.mark || 'NONE') !== 'NONE');
-
-
     if (!marcadosTrs.length) return toast('Não há marcações visíveis.', 'info');
     if (!confirm(`Limpar marcações de ${marcadosTrs.length} colaboradores visíveis?`)) return;
-
     const nomes = marcadosTrs.map(tr => tr.dataset.nome);
-
-
     ui.markAllBtn.disabled = true;
     ui.clearAllBtn.disabled = true;
     ui.clearAllBtn.textContent = 'Limpando...';
     showLoading(true);
-
     try {
-
         const {error: eDel} = await supabase
             .from('ControleDiario')
             .delete()
             .eq('Data', dataISO)
             .in('Nome', nomes);
         if (eDel) throw eDel;
-
-
         toast('Marcações limpas!', 'success');
     } catch (e) {
         console.error(e);
         toast('Erro ao limpar em massa', 'error');
         await carregar(true);
     } finally {
-
         ui.markAllBtn.disabled = false;
         ui.clearAllBtn.disabled = false;
         ui.clearAllBtn.textContent = 'Limpar Marcações Visíveis';
         showLoading(false);
     }
 }
-
 
 function listDates(aISO, bISO) {
     let a = new Date(aISO), b = new Date(bISO);
@@ -903,31 +802,18 @@ function autoColWidths(headers, rows) {
 async function exportXLSX() {
     const {start, end} = state.period;
     if (!start || !end) return toast('Selecione o período.', 'info');
-
     if (!confirm(`Exportar dados filtrados (${start} → ${end}) em XLSX?`)) return;
-
     try {
         showLoading(true);
         ui.exportBtn.disabled = true;
         ui.exportBtn.textContent = 'Exportando…';
-
         await ensureXLSX();
-
-
         const HEADERS = ['Nome', 'Cargo', 'Presença', 'Falta', 'Atestado', 'Folga Especial', 'Suspensao', 'Feriado', 'Data', 'Turno', 'SVC', 'Gestor', 'Contrato', 'Matriz'];
-
         const rows = [];
-
-
         for (const dateISO of listDates(start, end)) {
             const {list} = await fetchList(state.turnoAtual, dateISO);
-
-
             const filtered = applyFilters(list);
-
-
             filtered.sort((a, b) => collator.compare(a.Nome, b.Nome));
-
             for (const x of filtered) {
                 const pres = x.Marcacao === 'PRESENCA' ? 1 : 0;
                 const fal = x.Marcacao === 'FALTA' ? 1 : 0;
@@ -935,7 +821,6 @@ async function exportXLSX() {
                 const fe = x.Marcacao === 'F_ESPECIAL' ? 1 : 0;
                 const sus = x.Marcacao === 'SUSPENSAO' ? 1 : 0;
                 const fer = x.Marcacao === 'FERIADO' ? 1 : 0;
-
                 rows.push({
                     'Nome': x.Nome || '',
                     'Cargo': x.Cargo || '',
@@ -954,25 +839,17 @@ async function exportXLSX() {
                 });
             }
         }
-
         if (rows.length === 0) {
             toast('Nada para exportar com os filtros atuais.', 'info');
             return;
         }
-
-
         const wb = window.XLSX.utils.book_new();
         const ws = window.XLSX.utils.json_to_sheet(rows, {header: HEADERS});
-
-
         ws['!cols'] = autoColWidths(HEADERS, rows);
-
         window.XLSX.utils.book_append_sheet(wb, ws, 'Controle Diário');
-
         const slugTurno = state.turnoAtual === 'GERAL' ? 'GERAL' : state.turnoAtual;
         const fileName = `controle-diario_filtrado_${slugTurno}_${start}_a_${end}.xlsx`;
         window.XLSX.writeFile(wb, fileName);
-
         toast('Exportação concluída', 'success');
     } catch (e) {
         console.error(e);
@@ -984,14 +861,12 @@ async function exportXLSX() {
     }
 }
 
-
 function formatDateBR(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
     return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
 function updatePeriodLabel() {
-
     ui.periodBtn.textContent = 'Selecionar Período';
 }
 
@@ -1019,7 +894,6 @@ function openPeriodModal() {
     h3.style.margin = '0 0 12px 0';
     const grid = document.createElement('div');
     Object.assign(grid.style, {display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px'});
-
     const l1 = document.createElement('label');
     l1.textContent = 'Início';
     l1.style.display = 'block';
@@ -1034,13 +908,11 @@ function openPeriodModal() {
     i2.type = 'date';
     i2.value = state.period.end || '';
     i2.style.width = '100%';
-
     const left = document.createElement('div');
     left.append(l1, i1);
     const right = document.createElement('div');
     right.append(l2, i2);
     grid.append(left, right);
-
     const actions = document.createElement('div');
     actions.style.display = 'flex';
     actions.style.justifyContent = 'flex-end';
@@ -1052,11 +924,9 @@ function openPeriodModal() {
     ok.textContent = 'Aplicar';
     ok.className = 'btn-salvar';
     actions.append(cancel, ok);
-
     modal.append(h3, grid, actions);
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
-
     cancel.addEventListener('click', () => document.body.removeChild(overlay));
     ok.addEventListener('click', () => {
         if (!i1.value || !i2.value) return toast('Selecione as duas datas.', 'info');
@@ -1070,7 +940,6 @@ function openPeriodModal() {
     });
 }
 
-
 function injectSummaryStyles() {
     const style = document.createElement('style');
     style.textContent = `
@@ -1080,41 +949,30 @@ function injectSummaryStyles() {
             align-items: center;
             gap: 4px;
             margin-bottom: 1rem;
-        }
-
-        .summary-pending {
+        }        .summary-pending {
             font-size: 1.2em;
             font-weight: bold;
             padding: 4px 8px;
             border-radius: 6px;
             color: #fff;
             transition: all 0.2s ease;
-            cursor: pointer; /* <-- Adicionado cursor de clique */
-        }
-        
-        /* ***** NOVOS ESTILOS ***** */
-        .summary-pending:hover {
-            transform: scale(1.05); /* Efeito ao passar o mouse */
+            cursor: pointer; 
+        }        .summary-pending:hover {
+            transform: scale(1.05); 
         }
         .summary-pending.active {
-            box-shadow: inset 0 2px 6px rgba(0,0,0,0.4); /* Efeito de botão pressionado */
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.4); 
             transform: translateY(1px);
-        }
-        /* ***** FIM DOS NOVOS ESTILOS ***** */
-        
-        .summary-pending.status-orange { background-color: #f59e0b; }
+        }        .summary-pending.status-orange { background-color: #f59e0b; }
         .summary-pending.status-green { background-color: #10b981; }
     `;
     document.head.appendChild(style);
 }
 
-
 export async function init() {
     const pad2 = (n) => String(n).padStart(2, '0');
     const localISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-
     injectSummaryStyles();
-
     ui = {
         tbody: document.getElementById('cd-tbody'),
         dsrTable: document.getElementById('cd-dsr-table'),
@@ -1131,14 +989,12 @@ export async function init() {
         selSVC: document.getElementById('cd-filter-svc'),
         selMatriz: document.getElementById('cd-filter-matriz'),
     };
-
     const hoje = localISO(new Date());
     const firstOfMonth = (() => {
         const d = new Date();
         d.setDate(1);
         return localISO(d);
     })();
-
     state = {
         turnoAtual: 'GERAL',
         baseList: [],
@@ -1149,11 +1005,8 @@ export async function init() {
         period: {start: firstOfMonth, end: hoje},
         isPendingFilterActive: false,
         isProcessing: false,
-
     };
-
     if (!ui.date.value) ui.date.value = hoje;
-
     document.querySelectorAll('.subtab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
@@ -1162,8 +1015,6 @@ export async function init() {
             carregar(true);
         });
     });
-
-
     if (ui.summary) {
         ui.summary.addEventListener('click', (e) => {
             const pendingBtn = e.target.closest('#cd-summary-pending-btn');
@@ -1173,14 +1024,12 @@ export async function init() {
             }
         });
     }
-
     ui.tbody.addEventListener('click', onRowClick);
     ui.markAllBtn?.addEventListener('click', marcarTodosPresentes);
     ui.clearAllBtn?.addEventListener('click', limparTodas);
     ui.exportBtn?.addEventListener('click', exportXLSX);
     ui.periodBtn?.addEventListener('click', openPeriodModal);
     ui.date?.addEventListener('change', () => carregar(true));
-
     ui.search.addEventListener('input', () => {
         state.filters.search = ui.search.value;
         refresh();
@@ -1205,24 +1054,16 @@ export async function init() {
         state.filters.matriz = ui.selMatriz.value;
         refresh();
     });
-
     updatePeriodLabel();
     await carregar(true);
 }
 
-
 function refresh() {
-
     state.filtered = applyFilters(state.baseList);
-
-
     repopulateFilterOptionsCascade();
-
-
     renderRows(state.filtered);
     computeSummary(state.filtered, state.meta);
 }
-
 
 export function destroy() {
 }

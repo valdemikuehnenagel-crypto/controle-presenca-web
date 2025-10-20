@@ -6,8 +6,6 @@ let state = {
     svcMap: new Map(),
     usuarioEmEdicao: null,
 };
-
-
 let registrarMatrizBtn, registrarGestorBtn;
 let matrizModal, matrizForm;
 let gestorModal, gestorForm, gestorNomeInput, gestorMatrizesCheckboxContainer, gestorServicesVinculadosDisplay;
@@ -24,55 +22,44 @@ function getUsuarioDaSessao() {
     }
 }
 
-
 function populateFilters() {
     const aprovacoes = [...new Set(state.loginsData.map(u => u.Aprovacao).filter(Boolean))].sort();
     const tipos = [...new Set(state.loginsData.map(u => u.Tipo).filter(Boolean))].sort();
     const matrizes = [...new Set(state.matrizesData.map(m => m.MATRIZ).filter(Boolean))].sort();
     const svcs = [...new Set(state.matrizesData.map(m => m.SERVICE).filter(Boolean))].sort();
-
     aprovacoes.forEach(val => filterAprovacao.add(new Option(val, val)));
     tipos.forEach(val => filterTipo.add(new Option(val, val)));
     matrizes.forEach(val => filterMatriz.add(new Option(val, val)));
     svcs.forEach(val => filterSvc.add(new Option(val, val)));
 }
 
-
 function applyFilters() {
     const filtroAprovacao = filterAprovacao.value;
     const filtroTipo = filterTipo.value;
     const filtroMatriz = filterMatriz.value;
     const filtroSvc = filterSvc.value;
-
     const filteredLogins = state.loginsData.filter(user => {
         if (filtroAprovacao && user.Aprovacao !== filtroAprovacao) return false;
         if (filtroTipo && user.Tipo !== filtroTipo) return false;
-
         const userMatrizes = (user.Matriz || '').split(',').map(m => m.trim());
         if (filtroMatriz && user.Matriz !== 'TODOS' && !userMatrizes.includes(filtroMatriz)) return false;
-
         if (filtroSvc) {
             if (user.Matriz === 'TODOS') return true;
             const userSvcs = new Set(userMatrizes.map(m => state.svcMap.get(m)).filter(Boolean));
             if (!userSvcs.has(filtroSvc)) return false;
         }
-
         return true;
     });
-
     renderTable(filteredLogins);
 }
-
 
 function renderTable(logins) {
     const tbody = document.getElementById('relatorio-logins-tbody');
     if (!tbody) return;
-
     if (!logins || logins.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align: center;">Nenhum usuário encontrado com os filtros aplicados.</td></tr>`;
         return;
     }
-
     tbody.innerHTML = logins.map(row => {
         const aprovacaoStatus = row.Aprovacao === 'SIM' ? '<span class="status-ativo">Ativo</span>' : `<span class="status-pendente">${row.Aprovacao || 'Pendente'}</span>`;
         let svc = 'N/D';
@@ -87,7 +74,6 @@ function renderTable(logins) {
         const matrizDisplay = matrizDoUsuario || 'N/D';
         return `<tr class="cursor-pointer hover:bg-gray-100" data-usuario="${row.Usuario}"><td>${row.Nome || 'N/D'}</td><td>${aprovacaoStatus}</td><td>${row.Tipo || 'N/D'}</td><td>${matrizDisplay}</td><td>${svc}</td></tr>`;
     }).join('');
-
     tbody.querySelectorAll('tr').forEach(tr => {
         tr.addEventListener('click', () => {
             const usuario = tr.dataset.usuario;
@@ -96,35 +82,27 @@ function renderTable(logins) {
     });
 }
 
-
 async function fetchAndRenderData() {
     const tbody = document.getElementById('relatorio-logins-tbody');
     if (!tbody) return;
     tbody.innerHTML = `<tr><td colspan="5" style="text-align: center;">Carregando relatório...</td></tr>`;
-
     const [loginsResponse, matrizesResponse] = await Promise.all([
         supabase.from('Logins').select('Usuario, Nome, Aprovacao, Tipo, Matriz').order('Nome', {ascending: true}),
         supabase.from('Matrizes').select('MATRIZ, SERVICE')
     ]);
-
     const {data: logins, error: loginsError} = loginsResponse;
     const {data: matrizes, error: matrizesError} = matrizesResponse;
-
     if (loginsError || matrizesError) {
         console.error('Erro ao buscar dados para o relatório:', loginsError || matrizesError);
         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500">Erro ao carregar relatório.</td></tr>`;
         return;
     }
-
-
     state.loginsData = logins || [];
     state.matrizesData = matrizes || [];
     state.svcMap = new Map(matrizes.map(item => [item.MATRIZ, item.SERVICE]));
-
     populateFilters();
     applyFilters();
 }
-
 
 async function handleRegistrarMatriz(event) {
     event.preventDefault();
@@ -291,17 +269,13 @@ function atualizarServicesVinculados() {
 
 export async function init() {
     const usuarioLogado = getUsuarioDaSessao();
-
     if (usuarioLogado?.Nivel !== 'Administrador') {
-
         const container = document.querySelector('#tab-painel-gerencial');
         if (container) {
             container.innerHTML = `<div class="acesso-negado"><h3>Acesso Bloqueado</h3><p>Apenas usuários com nível "Administrador" podem acessar esta página.</p></div>`;
         }
         return;
     }
-
-
     registrarMatrizBtn = document.getElementById('btnAbrirModalMatriz');
     registrarGestorBtn = document.getElementById('btnAbrirModalGestor');
     matrizModal = document.getElementById('matrizModal');
@@ -314,20 +288,15 @@ export async function init() {
     editUserModal = document.getElementById('editUserModal');
     editUserForm = document.getElementById('editUserForm');
     btnExcluirUsuario = document.getElementById('btnExcluirUsuario');
-
-
     filterAprovacao = document.getElementById('filter-aprovacao');
     filterTipo = document.getElementById('filter-tipo');
     filterMatriz = document.getElementById('filter-matriz');
     filterSvc = document.getElementById('filter-svc');
     limparFiltrosBtn = document.getElementById('limpar-filtros-gerencial');
-
     if (!registrarMatrizBtn || !gestorModal || !editUserModal) {
         console.error("Painel Gerencial: Elementos essenciais não encontrados.");
         return;
     }
-
-
     registrarMatrizBtn.addEventListener('click', () => {
         matrizForm.reset();
         matrizModal.classList.remove('hidden');
@@ -348,8 +317,6 @@ export async function init() {
             document.getElementById(modalId)?.classList.add('hidden');
         });
     });
-
-
     filterAprovacao.addEventListener('change', applyFilters);
     filterTipo.addEventListener('change', applyFilters);
     filterMatriz.addEventListener('change', applyFilters);
@@ -361,7 +328,5 @@ export async function init() {
         filterSvc.value = '';
         applyFilters();
     });
-
-
     await fetchAndRenderData();
 }
