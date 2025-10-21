@@ -402,6 +402,17 @@ function repopulateFilterOptionsCascade() {
     });
 }
 
+function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+    const svc = (svcVal || '').toString().toUpperCase().trim();
+    const matriz = (matrizVal || '').toString().toUpperCase().trim();
+    state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
+    state.matrizRegiaoMap = state.matrizRegiaoMap || new Map();
+    const bySvc = svc ? (state.serviceRegiaoMap.get(svc) || null) : null;
+    if (bySvc) return toUpperTrim(bySvc);
+    const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
+    return byMatriz ? toUpperTrim(byMatriz) : null;
+}
+
 async function fetchColaboradores() {
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">Carregando...</td></tr>';
@@ -591,7 +602,7 @@ async function loadSVCsParaFormulario() {
         if (matrizesPermitidasCheck === null) return;
     }
     const matrizesPermitidas = getMatrizesPermitidas();
-    let query = supabase.from('Matrizes').select('SERVICE, MATRIZ');
+    let query = supabase.from('Matrizes').select('SERVICE, MATRIZ, REGIAO');
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
@@ -601,14 +612,18 @@ async function loadSVCsParaFormulario() {
         svcSelect.innerHTML = '<option value="" disabled selected>Erro ao carregar</option>';
         return;
     }
-    state.serviceMatrizMap = new Map((data || []).map((item) => [String(item.SERVICE || '').toUpperCase(), item.MATRIZ || '']));
+    state.serviceMatrizMap = new Map((data || []).map(item => [String(item.SERVICE || '').toUpperCase(), item.MATRIZ || '']));
+    state.serviceRegiaoMap = new Map((data || []).map(item => [String(item.SERVICE || '').toUpperCase(), item.REGIAO || '']));
+    state.matrizRegiaoMap = new Map((data || []).map(item => [String(item.MATRIZ || '').toUpperCase(), item.REGIAO || '']));
     svcSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC...</option>';
-    (data || []).sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE))).forEach((item) => {
-        const opt = document.createElement('option');
-        opt.value = String(item.SERVICE || '').toUpperCase();
-        opt.textContent = String(item.SERVICE || '').toUpperCase();
-        svcSelect.appendChild(opt);
-    });
+    (data || [])
+        .sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE)))
+        .forEach((item) => {
+            const opt = document.createElement('option');
+            opt.value = String(item.SERVICE || '').toUpperCase();
+            opt.textContent = String(item.SERVICE || '').toUpperCase();
+            svcSelect.appendChild(opt);
+        });
 }
 
 async function loadGestoresParaFormulario() {
@@ -681,10 +696,10 @@ async function handleAddSubmit(event) {
         document.getElementById('addNome')?.focus();
         return;
     }
-    const {count: nomeCount, error: nomeErr} = await supabase.from('Colaboradores').select('Nome', {
-        count: 'exact',
-        head: true
-    }).ilike('Nome', nomeUpper);
+    const {count: nomeCount, error: nomeErr} = await supabase
+        .from('Colaboradores')
+        .select('Nome', {count: 'exact', head: true})
+        .ilike('Nome', nomeUpper);
     if (nomeErr) {
         alert(`Erro ao validar nome: ${nomeErr.message}`);
         return;
@@ -695,10 +710,10 @@ async function handleAddSubmit(event) {
         return;
     }
     if (cpf) {
-        const {count: cpfCount, error: cpfErr} = await supabase.from('Colaboradores').select('CPF', {
-            count: 'exact',
-            head: true
-        }).eq('CPF', cpf);
+        const {count: cpfCount, error: cpfErr} = await supabase
+            .from('Colaboradores')
+            .select('CPF', {count: 'exact', head: true})
+            .eq('CPF', cpf);
         if (cpfErr) {
             alert(`Erro ao validar CPF: ${cpfErr.message}`);
             return;
@@ -723,6 +738,10 @@ async function handleAddSubmit(event) {
         document.getElementById('addDSRBtn')?.focus();
         return;
     }
+    const svcSelecionado = nullIfEmpty(document.getElementById('addSVC')?.value);
+    const matrizSelecionada = nullIfEmpty(document.getElementById('addMatriz')?.value)
+        || (svcSelecionado ? (state.serviceMatrizMap.get(String(svcSelecionado).toUpperCase()) || null) : null);
+    const regiaoAuto = computeRegiaoFromSvcMatriz(svcSelecionado, matrizSelecionada);
     const newColaborador = toUpperObject({
         Nome: nomeUpper,
         CPF: cpf,
@@ -734,8 +753,9 @@ async function handleAddSubmit(event) {
         DSR: dsrVal,
         Escala: nullIfEmpty(document.getElementById('addEscala')?.value),
         'Data de admissão': document.getElementById('addDataAdmissao')?.value || null,
-        SVC: nullIfEmpty(document.getElementById('addSVC')?.value),
-        MATRIZ: nullIfEmpty(document.getElementById('addMatriz')?.value),
+        SVC: nullIfEmpty(svcSelecionado),
+        MATRIZ: nullIfEmpty(matrizSelecionada),
+        REGIAO: nullIfEmpty(regiaoAuto),
         LDAP: nullIfEmpty(document.getElementById('addLDAP')?.value),
         'ID GROOT': numberOrNull(document.getElementById('addIdGroot')?.value),
         Ativo: 'SIM',
@@ -772,7 +792,7 @@ async function loadServiceMatrizForEdit() {
         if (matrizesPermitidasCheck === null) return;
     }
     const matrizesPermitidas = getMatrizesPermitidas();
-    let query = supabase.from('Matrizes').select('SERVICE, MATRIZ');
+    let query = supabase.from('Matrizes').select('SERVICE, MATRIZ, REGIAO');
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
@@ -782,14 +802,18 @@ async function loadServiceMatrizForEdit() {
         return;
     }
     state.serviceMatrizMap = new Map((data || []).map(i => [String(i.SERVICE || '').toUpperCase(), i.MATRIZ || '']));
+    state.serviceRegiaoMap = new Map((data || []).map(i => [String(i.SERVICE || '').toUpperCase(), i.REGIAO || '']));
+    state.matrizRegiaoMap = new Map((data || []).map(i => [String(i.MATRIZ || '').toUpperCase(), i.REGIAO || '']));
     editSVC.innerHTML = '<option value="" disabled selected>Selecione...</option>';
-    (data || []).sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE))).forEach(i => {
-        const opt = document.createElement('option');
-        const svc = String(i.SERVICE || '').toUpperCase();
-        opt.value = svc;
-        opt.textContent = svc;
-        editSVC.appendChild(opt);
-    });
+    (data || [])
+        .sort((a, b) => String(a.SERVICE).localeCompare(String(b.SERVICE)))
+        .forEach(i => {
+            const opt = document.createElement('option');
+            const svc = String(i.SERVICE || '').toUpperCase();
+            opt.value = svc;
+            opt.textContent = svc;
+            editSVC.appendChild(opt);
+        });
 }
 
 async function fetchColabByNome(nome) {
@@ -823,14 +847,14 @@ async function fillEditForm(colab) {
     const dsrValue = colab.DSR || '';
     setVal(document.getElementById('editDSR'), dsrValue);
     const editDsrBtn = document.getElementById('editDSRBtn');
-    if (editDsrBtn) {
-        editDsrBtn.value = dsrValue || '';
-    }
+    if (editDsrBtn) editDsrBtn.value = dsrValue || '';
     setVal(editInputs.Escala, colab.Escala || '');
     setVal(editInputs['FOLGA ESPECIAL'], colab['FOLGA ESPECIAL'] || '');
     setVal(editInputs.LDAP, colab.LDAP ?? '');
     setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');
     setVal(editInputs['Data de nascimento'], colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : '');
+    editMatriz = document.getElementById('editMatriz');
+    const editRegiao = document.getElementById('editRegiao');
     if (editSVC) {
         const svc = colab.SVC ? String(colab.SVC).toUpperCase() : '';
         if (svc && !Array.from(editSVC.options).some(o => o.value === svc)) {
@@ -840,6 +864,10 @@ async function fillEditForm(colab) {
             editSVC.appendChild(opt);
         }
         editSVC.value = svc || '';
+        const matrizUi = colab.MATRIZ || (svc ? (state.serviceMatrizMap.get(svc) || '') : '');
+        if (editMatriz) editMatriz.value = matrizUi || '';
+        const regUi = computeRegiaoFromSvcMatriz(svc, matrizUi) || colab.REGIAO || '';
+        if (editRegiao) editRegiao.value = regUi || '';
         populateGestorSelectForEdit(svc, colab.Gestor);
     }
     if (editAfastarBtn) {
@@ -975,6 +1003,10 @@ async function onEditSubmit(e) {
             document.getElementById('editDSRBtn')?.focus();
             return;
         }
+        const regiaoInputEl = document.getElementById('editRegiao');
+        const regiaoFromInput = toUpperTrim(nullIfEmpty(regiaoInputEl?.value));
+        const regiaoAuto = computeRegiaoFromSvcMatriz(svc, matrizAuto);
+        const regiaoFinal = toUpperTrim(nullIfEmpty(regiaoAuto)) || regiaoFromInput || null;
         const payload = {
             Nome,
             CPF,
@@ -988,7 +1020,8 @@ async function onEditSubmit(e) {
             'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),
             'Data de nascimento': editInputs['Data de nascimento'].value || null,
             SVC: toUpperTrim(svc),
-            MATRIZ: toUpperTrim(matrizAuto)
+            MATRIZ: toUpperTrim(matrizAuto),
+            REGIAO: regiaoFinal
         };
         const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
@@ -1641,12 +1674,15 @@ function wireEdit() {
     editHistoricoBtn = document.getElementById('editHistoricoBtn');
     editAfastarBtn = document.getElementById('editAfastarBtn');
     editEfetivarKnBtn = document.getElementById('editEfetivarKnBtn');
+    editMatriz = document.getElementById('editMatriz');
+    const editRegiao = document.getElementById('editRegiao');
     editInputs = {
         Nome: document.getElementById('editNome'),
         CPF: document.getElementById('editCPF'),
         Contrato: document.getElementById('editContrato'),
         Cargo: document.getElementById('editCargo'),
-        Gestor: document.getElementById('editGestor'), Escala: document.getElementById('editEscala'),
+        Gestor: document.getElementById('editGestor'),
+        Escala: document.getElementById('editEscala'),
         'FOLGA ESPECIAL': document.getElementById('editFolgaEspecial'),
         LDAP: document.getElementById('editLDAP'),
         'ID GROOT': document.getElementById('editIdGroot'),
@@ -1655,6 +1691,11 @@ function wireEdit() {
     attachUpperHandlersTo(editForm);
     if (editSVC) {
         editSVC.addEventListener('change', () => {
+            const svc = (editSVC.value || '').toString().toUpperCase();
+            const matrizAuto = svc ? (state.serviceMatrizMap.get(svc) || '') : '';
+            if (editMatriz) editMatriz.value = matrizAuto || '';
+            const regAuto = computeRegiaoFromSvcMatriz(svc, matrizAuto) || '';
+            if (editRegiao) editRegiao.value = regAuto || '';
             populateGestorSelectForEdit(editSVC.value);
         });
     }

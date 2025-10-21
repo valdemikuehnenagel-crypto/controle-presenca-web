@@ -462,10 +462,10 @@ function createStackedBar(canvasId, onClick, axis = 'x') {
 }
 
 function splitByTurno(colabs) {
-    const t1 = colabs.filter(c => c.Escala === 'T1'),
-        t2 = colabs.filter(c => c.Escala === 'T2'),
-        t3 = colabs.filter(c => c.Escala === 'T3');
-    return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, [...t1, ...t2, ...t3]]};
+    const t1 = colabs.filter(c => c.Escala === 'T1');
+    const t2 = colabs.filter(c => c.Escala === 'T2');
+    const t3 = colabs.filter(c => c.Escala === 'T3');
+    return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, colabs]};
 }
 
 function splitByRegiao(colabs) {
@@ -712,7 +712,10 @@ function updateChartsNow() {
         const datasets = cats.map((cat, i) => {
             const raw = counts.map(m => m.get(cat) || 0);
             const data = raw.map((v, x) => (v * 100) / totals[x]);
-            return {label: cat, data, backgroundColor: colors[i], _rawCounts: raw, borderWidth: 0};
+            const sel = state.interactive.contrato;
+            const base = colors[i];
+            const bg = sel.size === 0 || sel.has(cat) ? base : createOpacity(base, 0.2);
+            return {label: cat, data, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
         });
         const ch = state.charts.contrato;
         if (ch) {
@@ -859,7 +862,7 @@ function updateChartsNow() {
         }
     }
     {
-        const colabsAuxNaoKN = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR' && !norm(c?.Contrato).includes('KN'));
+        const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
         const bySvc = new Map();
         colabsAuxNaoKN.forEach(c => {
             const k = String(c?.SVC || 'N/D');
@@ -1034,7 +1037,7 @@ function updateRegionalChartsNow() {
         }
     }
     {
-        const colabsAuxNaoKN = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR' && !norm(c?.Contrato).includes('KN'));
+        const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
         const {labels, groups} = splitByRegiao(colabsAuxNaoKN);
         const rows = groups.map(arr => {
             const counts = {b30: 0, b60: 0, b90: 0, bMais90: 0};
@@ -1092,7 +1095,17 @@ export async function init() {
         ensureMounted();
         wireSubtabs();
     }
-    await refresh();
+    const activeSubtabBtn = host.querySelector('.efet-subtab-btn.active') || host.querySelector('.efet-subtab-btn');
+    if (activeSubtabBtn) {
+        const viewName = activeSubtabBtn.dataset.view;
+        const view = host.querySelector(`#${viewName}`);
+        host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
+        if (view) view.classList.add('active');
+        activeSubtabBtn.classList.add('active');
+        await refresh();
+    } else {
+        await refresh();
+    }
 }
 
 export function destroy() {
@@ -1105,22 +1118,17 @@ export function destroy() {
         }
         window.removeEventListener('resize', setResponsiveHeights);
         state.charts = {
-            idade: null,
-            genero: null,
-            dsr: null,
-            contrato: null,
-            contratoSvc: null,
-            cargoSvc: null,
-            auxPrazoSvc: null,
-            idadeRegiao: null,
-            generoRegiao: null,
-            contratoRegiao: null,
-            auxPrazoRegiao: null
+            idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null,
+            cargoSvc: null, auxPrazoSvc: null, idadeRegiao: null, generoRegiao: null,
+            contratoRegiao: null, auxPrazoRegiao: null
         };
         _filtersPopulated = false;
         state.matriz = '';
         state.svc = '';
         state.regiao = '';
+        state.colabs = [];
+        Object.values(state.interactive).forEach(set => set.clear());
         state.mounted = false;
+        state.loading = false;
     }
 }
