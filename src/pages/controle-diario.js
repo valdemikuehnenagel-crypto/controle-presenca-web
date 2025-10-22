@@ -14,6 +14,35 @@ const pick = (o, ...keys) => {
 };
 const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();
 
+
+const CACHE_DURATION_MS = 5 * 60 * 1000;
+
+const cachedDailyData = new Map();
+
+const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;
+
+function getFromCache(turno, dateISO) {
+    const k = cacheKey(turno, dateISO);
+    const hit = cachedDailyData.get(k);
+    if (!hit) return null;
+    if (Date.now() - hit.ts > CACHE_DURATION_MS) {
+        cachedDailyData.delete(k);
+        return null;
+    }
+    return hit.data;
+}
+
+function setCache(turno, dateISO, data) {
+    cachedDailyData.set(cacheKey(turno, dateISO), {ts: Date.now(), data});
+}
+
+
+function invalidateCacheForDate(dateISO) {
+    ['T1', 'T2', 'T3', 'GERAL'].forEach(t => {
+        cachedDailyData.delete(cacheKey(t, dateISO));
+    });
+}
+
 function showLoading(on = true) {
     const el = document.getElementById('cd-loading');
     if (!el) return;
@@ -88,6 +117,8 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         const cols = await fetchAllWithPagination(q);
         const all = cols || [];
         const nomesColabs = all.map(c => c.Nome);
+
+
         const {data: feriasHoje, error: feriasError} = await supabase
             .from('Ferias')
             .select('Nome')
@@ -97,6 +128,8 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             console.warn("Erro ao buscar férias do dia:", feriasError);
         }
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
+
+
         let dsrLogs = [];
         const chunkSize = 200;
         if (nomesColabs.length > 0) {
@@ -113,17 +146,15 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             try {
                 const results = await Promise.all(promises);
                 for (const {data, error} of results) {
-                    if (error) {
-                        throw error;
-                    }
-                    if (data) {
-                        dsrLogs = dsrLogs.concat(data);
-                    }
+                    if (error) throw error;
+                    if (data) dsrLogs = dsrLogs.concat(data);
                 }
             } catch (dsrError) {
                 console.warn("Erro ao buscar histórico de DSR (em chunks):", dsrError);
             }
         }
+
+
         const dsrHistoryMap = new Map();
         for (const log of dsrLogs) {
             const nameNorm = NORM(log.Name);
@@ -135,6 +166,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         for (const history of dsrHistoryMap.values()) {
             history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
         }
+
         const getDSRForDate = (colaborador) => {
             const nameNorm = NORM(colaborador.Nome);
             const history = dsrHistoryMap.get(nameNorm);
@@ -148,32 +180,30 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                     break;
                 }
             }
-            if (applicableDSR === null) {
-                applicableDSR = history[0].DsrAnterior;
-            }
+            if (applicableDSR === null) applicableDSR = history[0].DsrAnterior;
             return applicableDSR;
         };
+
         const checkDSR = (colaborador) => {
             const historicalDSR = getDSRForDate(colaborador);
             const colaboradorDSRs = (historicalDSR || '').toString().toUpperCase().split(',').map(d => d.trim());
             return colaboradorDSRs.includes(dia);
         };
+
         const dsrList = all
             .filter(c => checkDSR(c))
             .map(c => c.Nome);
+
         const elegiveis = all
             .filter(c => {
                 const dataAdmissao = c['Data de admissão'];
-                if (dataAdmissao && dataAdmissao > dateISO) {
-                    return false;
-                }
-                if (nomesEmFeriasHoje.has(c.Nome)) {
-                    return false;
-                }
+                if (dataAdmissao && dataAdmissao > dateISO) return false;
+                if (nomesEmFeriasHoje.has(c.Nome)) return false;
                 const isDSR = checkDSR(c);
                 return !isDSR;
             })
             .sort((a, b) => collator.compare(a, b));
+
         return {elegiveis, dsrList};
     } catch (error) {
         console.error("Erro ao buscar colaboradores elegíveis com paginação:", error);
@@ -184,20 +214,29 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 async function getMarksFor(dateISO, nomes) {
     if (!nomes.length) return new Map();
     const {data, error} = await supabase
-        .rpc('get_marcas_para_nomes', {
-            nomes: nomes, data_consulta: dateISO
-        });
+        .rpc('get_marcas_para_nomes', {nomes: nomes, data_consulta: dateISO});
     if (error) throw error;
     const map = new Map();
     (data || []).forEach(m => {
         let tipo = null;
-        if (m['Presença']) tipo = 'PRESENCA'; else if (m['Falta']) tipo = 'FALTA'; else if (m['Atestado']) tipo = 'ATESTADO'; else if (m['Folga Especial']) tipo = 'F_ESPECIAL'; else if (m['Feriado']) tipo = 'FERIADO'; else if (m['Suspensao']) tipo = 'SUSPENSAO';
+        if (m['Presença']) tipo = 'PRESENCA';
+        else if (m['Falta']) tipo = 'FALTA';
+        else if (m['Atestado']) tipo = 'ATESTADO';
+        else if (m['Folga Especial']) tipo = 'F_ESPECIAL';
+        else if (m['Feriado']) tipo = 'FERIADO';
+        else if (m['Suspensao']) tipo = 'SUSPENSAO';
         map.set(m.Nome, tipo);
     });
     return map;
 }
 
+
 async function fetchList(turno, dateISO) {
+
+    const cacheHit = getFromCache(turno, dateISO);
+    if (cacheHit) return cacheHit;
+
+
     if (turno === 'GERAL') {
         const parts = await Promise.all(['T1', 'T2', 'T3'].map(t => fetchList(t, dateISO)));
         const byName = new Map();
@@ -208,10 +247,15 @@ async function fetchList(turno, dateISO) {
             });
             (p.meta.dsrList || []).forEach(n => dsrSet.add(n));
         });
-        return {list: Array.from(byName.values()), meta: {dsrList: Array.from(dsrSet)}};
+        const combined = {list: Array.from(byName.values()), meta: {dsrList: Array.from(dsrSet)}};
+        setCache('GERAL', dateISO, combined);
+        return combined;
     }
+
+
     const {elegiveis, dsrList} = await getColaboradoresElegiveis(turno, dateISO);
     const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));
+
     const list = elegiveis.map(c => ({
         Nome: c.Nome,
         LDAP: c.LDAP || '',
@@ -223,20 +267,32 @@ async function fetchList(turno, dateISO) {
         Escala: c.Escala || '',
         Marcacao: markMap.get(c.Nome) || null
     }));
-    return {list, meta: {dsrList}};
+
+    const packed = {list, meta: {dsrList}};
+    setCache(turno, dateISO, packed);
+    return packed;
 }
 
 async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
     const setOne = {...zeros};
-    if (tipo === 'PRESENCA') setOne['Presença'] = 1; else if (tipo === 'FALTA') setOne['Falta'] = 1; else if (tipo === 'ATESTADO') setOne['Atestado'] = 1; else if (tipo === 'F_ESPECIAL') setOne['Folga Especial'] = 1; else if (tipo === 'FERIADO') setOne['Feriado'] = 1; else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1; else throw new Error('Tipo inválido.');
+    if (tipo === 'PRESENCA') setOne['Presença'] = 1;
+    else if (tipo === 'FALTA') setOne['Falta'] = 1;
+    else if (tipo === 'ATESTADO') setOne['Atestado'] = 1;
+    else if (tipo === 'F_ESPECIAL') setOne['Folga Especial'] = 1;
+    else if (tipo === 'FERIADO') setOne['Feriado'] = 1;
+    else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1;
+    else throw new Error('Tipo inválido.');
+
     const {data: colabInfo, error: colabErr} = await supabase
         .from('Colaboradores')
         .select('Escala, SVC, MATRIZ')
         .eq('Nome', nome)
         .single();
     if (colabErr) throw colabErr;
+
     const turnoToUse = turno || colabInfo.Escala || null;
+
     const {data: existing, error: findErr} = await supabase
         .from('ControleDiario')
         .select('Numero')
@@ -244,6 +300,7 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         .eq('Data', dateISO)
         .limit(1);
     if (findErr) throw findErr;
+
     if (existing && existing.length > 0) {
         const {error: updErr} = await supabase
             .from('ControleDiario')
@@ -263,17 +320,9 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         const {error: insErr} = await supabase.from('ControleDiario').insert(row);
         if (insErr) throw insErr;
     }
+
     try {
         if (window.absSyncForRow) {
-            console.log('Enviando para absSyncForRow:', {
-                Nome: nome,
-                Data: dateISO,
-                Falta: setOne['Falta'] || 0,
-                Atestado: setOne['Atestado'] || 0,
-                Escala: turnoToUse,
-                SVC: colabInfo.SVC,
-                MATRIZ: colabInfo.MATRIZ
-            });
             await window.absSyncForRow({
                 Nome: nome,
                 Data: dateISO,
@@ -298,9 +347,7 @@ async function deleteMarcacao({nome, dateISO}) {
     if (error) throw error;
     try {
         if (window.absSyncForRow) {
-            await window.absSyncForRow({
-                Nome: nome, Data: dateISO, Falta: 0, Atestado: 0
-            });
+            await window.absSyncForRow({Nome: nome, Data: dateISO, Falta: 0, Atestado: 0});
         }
     } catch (e) {
         console.warn('ABS sync (delete) falhou:', e);
@@ -327,19 +374,15 @@ function label(tipo) {
 }
 
 function btnsHTML(item) {
-    const tipos = [{label: 'P', tipo: 'PRESENCA', className: 'status-p'}, {
-        label: 'F',
-        tipo: 'FALTA',
-        className: 'status-f'
-    }, {label: 'A', tipo: 'ATESTADO', className: 'status-a'}, {
-        label: 'F.E',
-        tipo: 'F_ESPECIAL',
-        className: 'status-fe'
-    }, {label: 'S', tipo: 'SUSPENSAO', className: 'status-s'}, {
-        label: 'F.D',
-        tipo: 'FERIADO',
-        className: 'status-fd'
-    }, {label: 'X', tipo: 'LIMPAR', className: 'status-x'},];
+    const tipos = [
+        {label: 'P', tipo: 'PRESENCA', className: 'status-p'},
+        {label: 'F', tipo: 'FALTA', className: 'status-f'},
+        {label: 'A', tipo: 'ATESTADO', className: 'status-a'},
+        {label: 'F.E', tipo: 'F_ESPECIAL', className: 'status-fe'},
+        {label: 'S', tipo: 'SUSPENSAO', className: 'status-s'},
+        {label: 'F.D', tipo: 'FERIADO', className: 'status-fd'},
+        {label: 'X', tipo: 'LIMPAR', className: 'status-x'},
+    ];
     return tipos.map(b => {
         const on = item.Marcacao === b.tipo ? ' active' : '';
         return `<button class="cd-btn ${b.className}${on}" data-tipo="${b.tipo}" data-nome="${item.Nome}">${b.label}</button>`;
@@ -383,9 +426,7 @@ function passFilters(x) {
     if (f.contrato && (x.Contrato || '') !== f.contrato) return false;
     if (f.svc && (x.SVC || '') !== f.svc) return false;
     if (f.matriz && getMatriz(x) !== f.matriz) return false;
-    if (state.isPendingFilterActive && x.Marcacao) {
-        return false;
-    }
+    if (state.isPendingFilterActive && x.Marcacao) return false;
     return true;
 }
 
@@ -440,10 +481,7 @@ function fillPreserving(sel, values, placeholder, current, onInvalid) {
     }
 }
 
-/**
- * Atualiza TODAS as combos com base no estado atual dos filtros,
- * aplicando todos os demais filtros + busca (comportamento em cascata).
- */
+
 function repopulateFilterOptionsCascade() {
     const cur = {
         gestor: state.filters.gestor,
@@ -478,36 +516,47 @@ async function renderRows(list) {
     const dsrNamesRaw = (state.meta?.dsrList || []).slice();
     if (!dsrNamesRaw.length && list.length === 0) {
         ui.tbody.innerHTML = '<tr><td colspan="7">Nenhum colaborador previsto para hoje.</td></tr>';
+
+        state.dsrInfoList = [];
         return;
     }
-    let dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
+
+    let dsrInfos = dsrNamesRaw.map(n => ({ Nome: n }));
     try {
         if (dsrNamesRaw.length > 0) {
-            const {data: info, error} = await supabase
+            const { data: info, error } = await supabase
                 .from('Colaboradores')
                 .select('Nome, Cargo, SVC, Gestor, Contrato, MATRIZ, LDAP')
                 .in('Nome', dsrNamesRaw);
             if (!error && Array.isArray(info)) {
                 const byName = new Map(info.map(x => [x.Nome, x]));
-                dsrInfos = dsrNamesRaw.map(n => byName.get(n) || {Nome: n});
+                dsrInfos = dsrNamesRaw.map(n => byName.get(n) || { Nome: n });
             }
         }
-    } catch (_) {
-    }
+    } catch (_) {  }
+
+
+    state.dsrInfoList = dsrInfos;
+
+
     const dsrFiltered = dsrInfos
         .filter(passFilters)
         .map(x => x.Nome)
         .sort((a, b) => collator.compare(a, b));
+
     const maxLen = Math.max(list.length, dsrFiltered.length);
     const frag = document.createDocumentFragment();
+
     for (let i = 0; i < maxLen; i++) {
         const item = list[i] || null;
         const dsrName = dsrFiltered[i] || '—';
         const tr = document.createElement('tr');
+
         if (item) {
             tr.dataset.nome = item.Nome;
             tr.dataset.mark = item.Marcacao || 'NONE';
             tr.classList.add(`row-${(item.Marcacao || 'NONE').toLowerCase()}`);
+
             const tdNome = document.createElement('td');
             tdNome.className = 'nome-col';
             const ic = document.createElement('span');
@@ -521,21 +570,29 @@ async function renderRows(list) {
                 badge.textContent = label(item.Marcacao);
                 tdNome.append(' ', badge);
             }
+
             const tdAcoes = document.createElement('td');
             tdAcoes.className = 'status-actions';
             tdAcoes.innerHTML = btnsHTML(item);
+
             const tdLDAP = document.createElement('td');
             tdLDAP.textContent = item.LDAP || '—';
+
             const tdCargo = document.createElement('td');
             tdCargo.textContent = item.Cargo || '';
+
             const tdSVC = document.createElement('td');
             tdSVC.textContent = item.SVC || '';
+
             const tdGestor = document.createElement('td');
             tdGestor.textContent = item.Gestor || '';
+
             const tdDSR = document.createElement('td');
             tdDSR.textContent = dsrName;
+
             tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
         } else {
+
             const dash = () => {
                 const td = document.createElement('td');
                 td.textContent = '—';
@@ -547,29 +604,60 @@ async function renderRows(list) {
         }
         frag.appendChild(tr);
     }
+
     ui.tbody.replaceChildren(frag);
 }
 
+
 function computeSummary(list, meta) {
     const isConf = x => String(x.Cargo || '').toUpperCase() === 'CONFERENTE';
-    const aux = list.filter(x => !isConf(x));
-    const hcPrevisto = aux.length;
-    const hcReal = aux.filter(x => x.Marcacao === 'PRESENCA').length;
-    const confReal = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
-    const pend = list.filter(x => !x.Marcacao).length;
+
+
+    const hcPrevisto = list.filter(x => !isConf(x)).length;
+    const hcReal     = list.filter(x => !isConf(x) && x.Marcacao === 'PRESENCA').length;
+
+
+    const confReal   = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
+
+
+    const pend  = list.filter(x => !x.Marcacao).length;
     const faltas = list.filter(x => x.Marcacao === 'FALTA').length;
-    const atest = list.filter(x => x.Marcacao === 'ATESTADO').length;
-    const fesp = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
-    const fer = list.filter(x => x.Marcacao === 'FERIADO').length;
-    const susp = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
+    const atest  = list.filter(x => x.Marcacao === 'ATESTADO').length;
+    const fesp   = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
+    const fer    = list.filter(x => x.Marcacao === 'FERIADO').length;
+    const susp   = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
+
     const quadroTotal = hcReal + confReal;
+
+
+
     let dsrCount = 0;
-    if (meta?.dsrList?.length) {
-        const dsrColabs = meta.dsrList.map(nome => state.baseList.find(c => c.Nome === nome) || state.colabMap.get(nome) || {Nome: nome});
-        dsrCount = dsrColabs.filter(passFilters).length;
+    let dsrPS = 0;
+    const dsrInfo = Array.isArray(state.dsrInfoList) ? state.dsrInfoList : [];
+
+    if (dsrInfo.length) {
+        const dsrFiltrados = dsrInfo.filter(passFilters);
+        dsrCount = dsrFiltrados.length;
+        dsrPS    = dsrFiltrados.filter(isConf).length;
+    } else if (meta?.dsrList?.length) {
+
+        const dsrColabs = meta.dsrList.map(nome =>
+            state.baseList.find(c => c.Nome === nome) ||
+            state.colabMap.get(nome) ||
+            { Nome: nome }
+        );
+        const dsrFiltrados = dsrColabs.filter(passFilters);
+        dsrCount = dsrFiltrados.length;
+        dsrPS    = dsrFiltrados.filter(isConf).length;
     }
+
     const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
-    const mainSummaryHTML = `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` + `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` + `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | ` + `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
+    const mainSummaryHTML =
+        `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` +
+        `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` +
+        `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | DSR PS: ${dsrPS} | ` +
+        `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
+
     const activeClass = state.isPendingFilterActive ? 'active' : '';
     ui.summary.innerHTML = `
         <div id="cd-summary-pending-btn" class="summary-pending ${pendentesClass} ${activeClass}" title="Clique para filtrar pendentes">
@@ -581,28 +669,22 @@ function computeSummary(list, meta) {
     `;
 }
 
+
+
 async function carregar(full = false) {
     const dateISO = ui.date.value;
     if (!dateISO) return;
     if (full) ui.summary.textContent = 'Carregando…';
     try {
         showLoading(true);
-        const {elegiveis, dsrList} = await getColaboradoresElegiveis(state.turnoAtual, dateISO);
+        const {list, meta} = await fetchList(state.turnoAtual, dateISO);
+
         state.colabMap.clear();
-        const todosColabs = [...elegiveis];
-        const nomesDSR = new Set(dsrList);
-        const nomesElegiveis = new Set(elegiveis.map(c => c.Nome));
-        nomesDSR.forEach(nome => {
-            if (!nomesElegiveis.has(nome)) {
-                todosColabs.push({Nome: nome, DSR: weekdayPT(dateISO)});
-            }
-        });
-        todosColabs.forEach(c => state.colabMap.set(c.Nome, c));
-        const markMap = await getMarksFor(dateISO, elegiveis.map(c => c.Nome));
-        state.baseList = elegiveis.map(c => ({
-            ...c, Matriz: getMatriz(c), Marcacao: markMap.get(c.Nome) || null
-        }));
-        state.meta = {dsrList};
+        list.forEach(c => state.colabMap.set(c.Nome, c));
+
+        state.baseList = list.map(c => ({...c, Matriz: getMatriz(c)}));
+        state.meta = meta;
+
         repopulateFilterOptionsCascade();
         refresh();
     } catch (e) {
@@ -644,8 +726,13 @@ async function onRowClick(ev) {
         } else {
             await deleteMarcacao({nome, dateISO: dataISO});
         }
+
         applyMarkToRow(tr, novoTipo);
         toast(novoTipo ? 'Marcação registrada' : 'Marcação removida', 'success');
+
+
+        invalidateCacheForDate(dataISO);
+
         const updateItem = (list) => {
             const item = list.find(x => x.Nome === nome);
             if (item) item.Marcacao = novoTipo;
@@ -683,12 +770,14 @@ async function marcarTodosPresentes() {
             .limit(1);
         if (maxErr) throw maxErr;
         let nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;
+
         const {data: colabsInfo, error: colabError} = await supabase
             .from('Colaboradores')
             .select('Nome, Escala')
             .in('Nome', nomes);
         if (colabError) throw colabError;
         const colabInfoMap = new Map(colabsInfo.map(c => [c.Nome, c]));
+
         const rowsToUpsert = nomes.map(nome => {
             const info = colabInfoMap.get(nome) || {};
             const newRow = {
@@ -706,16 +795,23 @@ async function marcarTodosPresentes() {
             nextNumero++;
             return newRow;
         });
+
         const {error} = await supabase
             .from('ControleDiario')
             .upsert(rowsToUpsert, {onConflict: 'Nome, Data'});
         if (error) throw error;
+
+
         pendTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, 'PRESENCA');
             const item = state.baseList.find(x => x.Nome === nome);
             if (item) item.Marcacao = 'PRESENCA';
         });
+
+
+        invalidateCacheForDate(dataISO);
+
         refresh();
         toast(`${nomes.length} colaboradores marcados como "Presente"!`, 'success');
     } catch (e) {
@@ -749,6 +845,19 @@ async function limparTodas() {
             .eq('Data', dataISO)
             .in('Nome', nomes);
         if (eDel) throw eDel;
+
+
+        marcadosTrs.forEach(tr => {
+            const nome = tr.dataset.nome;
+            applyMarkToRow(tr, null);
+            const item = state.baseList.find(x => x.Nome === nome);
+            if (item) item.Marcacao = null;
+        });
+
+
+        invalidateCacheForDate(dataISO);
+
+        refresh();
         toast('Marcações limpas!', 'success');
     } catch (e) {
         console.error(e);
@@ -795,10 +904,7 @@ function autoColWidths(headers, rows) {
     });
 }
 
-/**
- * Exporta o Controle Diário como XLSX respeitando *todos* os filtros atuais.
- * Cada linha do Excel = (colaborador filtrado) x (dia no período selecionado).
- */
+
 async function exportXLSX() {
     const {start, end} = state.period;
     if (!start || !end) return toast('Selecione o período.', 'info');
@@ -808,8 +914,10 @@ async function exportXLSX() {
         ui.exportBtn.disabled = true;
         ui.exportBtn.textContent = 'Exportando…';
         await ensureXLSX();
+
         const HEADERS = ['Nome', 'Cargo', 'Presença', 'Falta', 'Atestado', 'Folga Especial', 'Suspensao', 'Feriado', 'Data', 'Turno', 'SVC', 'Gestor', 'Contrato', 'Matriz'];
         const rows = [];
+
         for (const dateISO of listDates(start, end)) {
             const {list} = await fetchList(state.turnoAtual, dateISO);
             const filtered = applyFilters(list);
@@ -839,10 +947,12 @@ async function exportXLSX() {
                 });
             }
         }
+
         if (rows.length === 0) {
             toast('Nada para exportar com os filtros atuais.', 'info');
             return;
         }
+
         const wb = window.XLSX.utils.book_new();
         const ws = window.XLSX.utils.json_to_sheet(rows, {header: HEADERS});
         ws['!cols'] = autoColWidths(HEADERS, rows);
@@ -949,21 +1059,24 @@ function injectSummaryStyles() {
             align-items: center;
             gap: 4px;
             margin-bottom: 1rem;
-        }        .summary-pending {
+        }
+        .summary-pending {
             font-size: 1.2em;
             font-weight: bold;
             padding: 4px 8px;
             border-radius: 6px;
             color: #fff;
             transition: all 0.2s ease;
-            cursor: pointer; 
-        }        .summary-pending:hover {
-            transform: scale(1.05); 
+            cursor: pointer;
+        }
+        .summary-pending:hover {
+            transform: scale(1.05);
         }
         .summary-pending.active {
-            box-shadow: inset 0 2px 6px rgba(0,0,0,0.4); 
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
             transform: translateY(1px);
-        }        .summary-pending.status-orange { background-color: #f59e0b; }
+        }
+        .summary-pending.status-orange { background-color: #f59e0b; }
         .summary-pending.status-green { background-color: #10b981; }
     `;
     document.head.appendChild(style);
@@ -1005,8 +1118,10 @@ export async function init() {
         period: {start: firstOfMonth, end: hoje},
         isPendingFilterActive: false,
         isProcessing: false,
+        dsrInfoList: [],
     };
     if (!ui.date.value) ui.date.value = hoje;
+
     document.querySelectorAll('.subtab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
@@ -1015,6 +1130,7 @@ export async function init() {
             carregar(true);
         });
     });
+
     if (ui.summary) {
         ui.summary.addEventListener('click', (e) => {
             const pendingBtn = e.target.closest('#cd-summary-pending-btn');
@@ -1024,6 +1140,7 @@ export async function init() {
             }
         });
     }
+
     ui.tbody.addEventListener('click', onRowClick);
     ui.markAllBtn?.addEventListener('click', marcarTodosPresentes);
     ui.clearAllBtn?.addEventListener('click', limparTodas);
@@ -1054,6 +1171,7 @@ export async function init() {
         state.filters.matriz = ui.selMatriz.value;
         refresh();
     });
+
     updatePeriodLabel();
     await carregar(true);
 }

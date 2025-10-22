@@ -97,13 +97,25 @@ import {supabase} from '../supabaseClient.js';
 
     var _colabIdx = null;
 
+
     async function getColabIndex() {
+
         if (_colabIdx) return _colabIdx;
+
+
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase.from('Colaboradores').select('Nome, SVC, MATRIZ, Escala, Cargo');
+
         if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
+
+
+        if (state.matriz) query = query.eq('MATRIZ', state.matriz);
+        if (state.svc) query = query.eq('SVC', state.svc);
+
+
         const {data, error} = await query;
         if (error) throw error;
+
         var rows = Array.isArray(data) ? data : [];
         var map = new Map();
         for (var i = 0; i < rows.length; i++) {
@@ -115,36 +127,87 @@ import {supabase} from '../supabaseClient.js';
                 Cargo: (c.Cargo == null ? null : c.Cargo)
             });
         }
+
         _colabIdx = map;
         return _colabIdx;
     }
 
-    window.addEventListener('hc-filters-changed', function (ev) {
-        var f = ev && ev.detail ? ev.detail : {};
-        if (typeof f.matriz === 'string') state.matriz = f.matriz;
-        if (typeof f.svc === 'string') state.svc = f.svc;
-        state.paging.offset = 0;
-        if (isActiveView()) fetchAndRender(); else state.dirty = true;
-    });
-    window.addEventListener('hc-refresh', function () {
+
+
+
+    function scheduleRefresh(invalidateColabsCache = false) {
+        if (invalidateColabsCache) {
+            _colabIdx = null;
+        }
+
         if (!state.mounted) {
             state.dirty = true;
             return;
         }
-        if (isActiveView()) fetchAndRender(); else state.dirty = true;
+
+
+        if (isActiveView()) {
+            fetchAndRender();
+        } else {
+            state.dirty = true;
+        }
+    }
+
+
+
+
+    window.addEventListener('hc-filters-changed', function (ev) {
+        var f = ev && ev.detail ? ev.detail : {};
+
+        var mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
+        var mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
+
+        if (mudouMatriz) state.matriz = f.matriz;
+        if (mudouSvc) state.svc = f.svc;
+
+
+        if (mudouMatriz || mudouSvc) {
+            state.paging.offset = 0;
+            scheduleRefresh(true);
+        }
     });
+
+
+
+
+    ['hc-refresh', 'controle-diario-saved', 'cd-saved', 'cd-bulk-saved'].forEach(function (evt) {
+        window.addEventListener(evt, function () {
+            scheduleRefresh(false);
+        });
+    });
+
+
+    ['colaborador-added'].forEach(function (evt) {
+        window.addEventListener(evt, function () {
+            scheduleRefresh(true);
+        });
+    });
+
+
     window.addEventListener('hc-activated', function (ev) {
         if (ev && ev.detail && ev.detail.view === 'relatorio-abs') {
             ensureMounted(true);
-            fetchAndRender();
+
             state.dirty = false;
         }
     });
+
+
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible' && isActiveView() && state.mounted) {
-            fetchAndRender();
+
+            if (state.dirty) {
+                fetchAndRender();
+            }
         }
     });
+
+
 
     function watchActivation() {
         var host = document.querySelector(HOST_SEL);
@@ -230,15 +293,7 @@ import {supabase} from '../supabaseClient.js';
         });
         var tbody = document.getElementById('abs-tbody');
         if (tbody) {
-            tbody.addEventListener('click', function (ev) {
-                var tr = ev.target && ev.target.closest ? ev.target.closest('tr.abs-row') : null;
-                if (!tr) return;
-                var idx = parseInt(tr.getAttribute('data-idx'), 10);
-                var row = (state.rows || [])[idx];
-                if (row) openEditModal(row);
-            });
-            tbody.addEventListener('keydown', function (ev) {
-                if (ev.key !== 'Enter') return;
+            tbody.addEventListener('dblclick', function (ev) {
                 var tr = ev.target && ev.target.closest ? ev.target.closest('tr.abs-row') : null;
                 if (!tr) return;
                 var idx = parseInt(tr.getAttribute('data-idx'), 10);
@@ -271,14 +326,17 @@ import {supabase} from '../supabaseClient.js';
     async function fetchAndRender() {
         var tbody = document.getElementById('abs-tbody');
         if (!tbody) {
-            requestAnimationFrame(fetchAndRender);
+
             return;
         }
         tbody.innerHTML = '<tr><td colspan="9" class="muted">Carregando…</td></tr>';
         var startISO = toISO(state.periodo.start);
         var endISO = toISO(state.periodo.end);
         try {
+
             const colabIndex = await getColabIndex();
+
+
             let query = supabase
                 .from('ControleDiario')
                 .select('Numero, Nome, Data, Turno, Falta, Atestado, Entrevista, Acao, Observacao, CID, TipoAtestado')
@@ -290,7 +348,9 @@ import {supabase} from '../supabaseClient.js';
             }
             const {data: controleRows, error} = await query;
             if (error) throw error;
+
             var transformedRows = (controleRows || []).map(function (row) {
+
                 const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
                 return {
                     Numero: row.Numero,
@@ -308,17 +368,26 @@ import {supabase} from '../supabaseClient.js';
                     Cargo: colabInfo.Cargo || null
                 };
             });
+
             var filteredRows = transformedRows.filter(function (r) {
                 var cargo = norm(r.Cargo);
                 if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
                 if (state.cargo && cargo !== norm(state.cargo)) return false;
+
+
+
+
+
                 if (state.svc && norm(r.SVC) !== norm(state.svc)) return false;
                 if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
+
                 return true;
             });
+
             filteredRows.sort(function (a, b) {
                 return (b.Data || '').localeCompare(a.Data || '');
             });
+
             state.rows = filteredRows;
             state.dirty = false;
             renderRows();
@@ -554,7 +623,14 @@ import {supabase} from '../supabaseClient.js';
                     .update(updatePayload)
                     .eq('Numero', row.Numero);
                 if (error) throw error;
-                await fetchAndRender();
+
+
+                window.dispatchEvent(new CustomEvent('controle-diario-saved', {
+                    detail: {id: row.Numero}
+                }));
+
+
+
                 document.body.removeChild(overlay);
             } catch (e) {
                 console.error('Falha ao atualizar registro no ControleDiario:', e);
@@ -681,11 +757,14 @@ import {supabase} from '../supabaseClient.js';
         ensureMounted(true);
         fetchAndRender();
     };
+
+
     window.hcRelatorioApplyFilters = function (f) {
         f = f || {};
         state.matriz = f.matriz || '';
         state.svc = f.svc || '';
         state.paging.offset = 0;
-        fetchAndRender();
+        scheduleRefresh(true);
     };
+
 })();

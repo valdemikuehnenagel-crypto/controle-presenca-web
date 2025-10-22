@@ -29,6 +29,9 @@ import {supabase} from '../supabaseClient.js';
     const DOW_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
+
+    let _colabCache = null;
+
     function parseDateMaybe(s) {
         if (!s) return null;
         const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(String(s).trim());
@@ -79,9 +82,53 @@ import {supabase} from '../supabaseClient.js';
         return `W${String(weekNo).padStart(2, '0')}`;
     }
 
+
+    async function getColaboradoresCache() {
+
+        if (_colabCache) {
+            return _colabCache;
+        }
+
+
+        const matrizesPermitidas = getMatrizesPermitidas();
+        let colabQuery = supabase.from('Colaboradores').select('Nome, Genero, Contrato, "Data de nascimento"').eq('Ativo', 'SIM');
+
+        if (matrizesPermitidas) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
+
+
+        if (state.matriz) colabQuery = colabQuery.eq('MATRIZ', state.matriz);
+        if (state.svc) colabQuery = colabQuery.eq('SVC', state.svc);
+
+        const colabs = await fetchAllWithPagination(colabQuery);
+
+        const colabMap = new Map();
+        if (colabs && colabs.length > 0) {
+            colabs.forEach(c => colabMap.set(norm(c.Nome), c));
+        }
+
+        _colabCache = {list: colabs || [], map: colabMap};
+        return _colabCache;
+    }
+
+
+
     function palette() {
         return ['#02B1EE', '#003369', '#69D4FF', '#2677C7', '#A9E7FF', '#225B9E', '#7FB8EB', '#99CCFF'];
     }
+
+
+    function scheduleRefresh(invalidateCache = false) {
+        if (invalidateCache) {
+            _colabCache = null;
+        }
+
+
+        if (state.mounted) {
+            refresh();
+        }
+    }
+
+
 
     function handleChartClick(chart, clickedIndex, filterType) {
         const clickedLabel = chart.data.labels[clickedIndex];
@@ -121,16 +168,16 @@ import {supabase} from '../supabaseClient.js';
             const overlay = document.createElement('div');
             overlay.id = 'abs-period-overlay';
             overlay.innerHTML = `<div>
-                    <h3>Selecionar Período</h3>
-                    <div class="dates-grid">
-                      <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
-                      <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
-                    </div>
-                    <div class="form-actions">
-                      <button id="abs-period-cancel" class="btn">Cancelar</button>
-                      <button id="abs-period-apply" class="btn-add">Aplicar</button>
-                    </div>
-                </div>`;
+                        <h3>Selecionar Período</h3>
+                        <div class="dates-grid">
+                            <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
+                            <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
+                        </div>
+                        <div class="form-actions">
+                            <button id="abs-period-cancel" class="btn">Cancelar</button>
+                            <button id="abs-period-apply" class="btn-add">Aplicar</button>
+                        </div>
+                    </div>`;
             document.body.appendChild(overlay);
             const close = () => overlay.remove();
             overlay.addEventListener('click', e => {
@@ -154,25 +201,25 @@ import {supabase} from '../supabaseClient.js';
         const host = document.querySelector(HOST_SEL);
         if (!host.querySelector('.hcabs-root')) {
             host.innerHTML = `<div class="hcabs-root">
-              <div class="abs-toolbar"></div>
-              <div class="hcabs-grid">
-                <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
-                <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
-                <div class="hcabs-card hcabs-card--full">
-                  <div class="hcabs-doughnut-container">
-                    <div class="hcabs-doughnut-item"><h3>Dia da Semana (%)</h3><canvas id="abs-dow-doughnut"></canvas></div>
-                    <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
-                    <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
-                  </div>
-                </div>
-                <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
-                <div class="hcabs-card">
-                    <h3>Top 5 Ofensores</h3>
-                    <canvas id="abs-top5-bar"></canvas>
-                </div>
-              </div>
-              <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
-            </div>`;
+                    <div class="abs-toolbar"></div>
+                    <div class="hcabs-grid">
+                        <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
+                        <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
+                        <div class="hcabs-card hcabs-card--full">
+                            <div class="hcabs-doughnut-container">
+                                <div class="hcabs-doughnut-item"><h3>Dia da Semana (%)</h3><canvas id="abs-dow-doughnut"></canvas></div>
+                                <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
+                                <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
+                            </div>
+                        </div>
+                        <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
+                        <div class="hcabs-card">
+                            <h3>Top 5 Ofensores</h3>
+                            <canvas id="abs-top5-bar"></canvas>
+                        </div>
+                    </div>
+                    <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
+                </div>`;
         }
         ensureCanvasWrappers();
         setupPeriodFilter(host);
@@ -213,12 +260,35 @@ import {supabase} from '../supabaseClient.js';
         });
     }
 
+
     window.addEventListener('hc-filters-changed', (ev) => {
         const f = ev?.detail || {};
-        if (typeof f.matriz === 'string') state.matriz = f.matriz;
-        if (typeof f.svc === 'string') state.svc = f.svc;
-        if (state.mounted) refresh();
+        const mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
+        const mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
+
+        if (mudouMatriz) state.matriz = f.matriz;
+        if (mudouSvc) state.svc = f.svc;
+
+        if (mudouMatriz || mudouSvc) {
+            scheduleRefresh(true);
+        }
     });
+
+
+    ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'hc-refresh'].forEach(evt =>
+        window.addEventListener(evt, () => {
+            scheduleRefresh(false);
+        })
+    );
+
+
+    ['colaborador-added'].forEach(evt =>
+        window.addEventListener(evt, () => {
+            scheduleRefresh(true);
+        })
+    );
+
+
 
     function showBusy(f) {
         const el = document.getElementById('hcabs-busy');
@@ -263,12 +333,13 @@ import {supabase} from '../supabaseClient.js';
                 state.inicioISO = startDate;
                 state.fimISO = endDate;
             }
-            const matrizesPermitidas = getMatrizesPermitidas();
-            let colabQuery = supabase.from('Colaboradores').select('Nome, Genero, Contrato, "Data de nascimento"').eq('Ativo', 'SIM');
-            if (matrizesPermitidas) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
-            if (state.matriz) colabQuery = colabQuery.eq('MATRIZ', state.matriz);
-            if (state.svc) colabQuery = colabQuery.eq('SVC', state.svc);
-            const colabs = await fetchAllWithPagination(colabQuery);
+
+
+            const cache = await getColaboradoresCache();
+            const colabs = cache.list;
+            const colabMap = cache.map;
+
+
             if (!colabs || colabs.length === 0) {
                 state.absenteeismData = [];
                 ensureChartsCreated();
@@ -277,8 +348,8 @@ import {supabase} from '../supabaseClient.js';
                 showBusy(false);
                 return;
             }
-            const colabMap = new Map();
-            colabs.forEach(c => colabMap.set(norm(c.Nome), c));
+
+
             const {data: diario, error: diarioError} = await supabase
                 .rpc('get_abs_para_analise', {
                     nomes: colabs.map(c => c.Nome),
@@ -286,10 +357,13 @@ import {supabase} from '../supabaseClient.js';
                     data_fim: endDate
                 });
             if (diarioError) throw diarioError;
+
+
             state.absenteeismData = diario.map(record => ({
                 ...record,
                 colaborador: colabMap.get(norm(record.Nome)) || {}
             })).filter(d => d.colaborador && d.colaborador.Nome);
+
             ensureChartsCreated();
             state.interactiveFilters = {week: null, gender: null, contract: null, dow: null, age: null};
             applyFiltersAndUpdate();

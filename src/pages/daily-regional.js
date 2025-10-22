@@ -10,9 +10,7 @@ function simplifyKpiName(kpiName) {
     if (lowerKpi.includes('volume delivered')) return 'Volume Delivered';
     if (lowerKpi.includes('t & a')) return 'T & A';
     return kpiName;
-}
-
-function formatValue(value, kpiName) {
+}function formatValue(value, kpiName) {
     if (value === null || value === undefined || value === '-' || isNaN(Number(value))) {
         if (typeof value === 'string' && value.includes('%')) return value;
         return '-';
@@ -43,9 +41,7 @@ function formatValue(value, kpiName) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(numberValue);
-}
-
-function getDeltaClass(delta, kpiName) {
+}function getDeltaClass(delta, kpiName) {
     if (delta === null || isNaN(delta) || Number(delta) === 0) return 'delta-neutral';
     const simplifiedKpi = simplifyKpiName(kpiName).toLowerCase();
     const increaseIsBadMap = {
@@ -67,9 +63,7 @@ function getDeltaClass(delta, kpiName) {
             : (isBadIncrease ? 'delta-positive' : 'delta-negative');
     }
     return delta > 0 ? 'delta-positive' : 'delta-negative';
-}
-
-function getResultadoClass(kpiName, value, meta) {
+}function getResultadoClass(kpiName, value, meta) {
     if (value === null || isNaN(Number(value))) {
         return '';
     }
@@ -101,26 +95,20 @@ function getResultadoClass(kpiName, value, meta) {
         default:
             return '';
     }
-}
-
-const filterState = {
+}const filterState = {
     macro: '',
     service: '',
     gerente: '',
     day: '',
 };
-let DATA_MODEL = null;
-
-function formatDateLabel(dateKey) {
+let DATA_MODEL = null;function formatDateLabel(dateKey) {
     try {
         const [y, m, d] = dateKey.split('-');
         return `${d}/${m}/${y}`;
     } catch {
         return dateKey;
     }
-}
-
-function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToMacro, months}) {
+}function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToMacro, months}) {
     const headerEl = document.getElementById('dr-header');
     const filtersEl = document.getElementById('dr-filters');
     if (!headerEl || !filtersEl) return;
@@ -184,9 +172,7 @@ function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToM
             applyFiltersAndRender();
         });
     }
-}
-
-function applyFiltersAndRender() {
+}function applyFiltersAndRender() {
     if (!DATA_MODEL) return;
     const {
         days, kpis, codigosByKpi, data,
@@ -345,9 +331,7 @@ function applyFiltersAndRender() {
         }
     }
     container.innerHTML = tableHTML;
-}
-
-async function fetchAndRenderDailyRegionalData() {
+}async function fetchAndRenderDailyRegionalData() {
     const container = document.getElementById('daily-regional-table-container');
     const loadingIndicator = document.getElementById('daily-regional-loading');
     if (!container) return;
@@ -394,13 +378,9 @@ async function fetchAndRenderDailyRegionalData() {
     } finally {
         if (loadingIndicator) loadingIndicator.style.display = 'none';
     }
-}
-
-export function init() {
+}export function init() {
     fetchAndRenderDailyRegionalData();
-}
-
-export function destroy() {
+}export function destroy() {
     const c = document.getElementById('daily-regional-table-container');
     if (c) c.innerHTML = '';
 }
