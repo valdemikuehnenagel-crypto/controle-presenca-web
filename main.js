@@ -1,6 +1,4 @@
-import {createClient} from '@supabase/supabase-js';
-
-document.addEventListener('DOMContentLoaded', () => {
+import {createClient} from '@supabase/supabase-js';document.addEventListener('DOMContentLoaded', () => {
     const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
     const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
@@ -17,19 +15,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const openModalBtn = document.getElementById('open-matriz-modal-btn');
     const closeModalBtn = document.getElementById('close-matriz-modal-btn');
     const confirmSelectionBtn = document.getElementById('confirm-matriz-selection-btn');
-    const modalMatrizList = document.getElementById('modal-matriz-list');
-
-    function openModal() {
+    const modalMatrizList = document.getElementById('modal-matriz-list');    function openModal() {
         if (matrizModal) matrizModal.classList.add('show');
         if (modalOverlay) modalOverlay.classList.add('show');
-    }
-
-    function closeModal() {
+    }    function closeModal() {
         if (matrizModal) matrizModal.classList.remove('show');
         if (modalOverlay) modalOverlay.classList.remove('show');
-    }
-
-    function updateMainButtonText() {
+    }    function updateMainButtonText() {
         const triggerSpan = openModalBtn.querySelector('span');
         if (selectedMatrizesState.includes('TODOS')) {
             triggerSpan.textContent = 'TODOS';
@@ -40,9 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             triggerSpan.textContent = `${selectedMatrizesState.length} matrizes selecionadas`;
         }
-    }
-
-    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+    }    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
     if (modalOverlay) modalOverlay.addEventListener('click', closeModal);
     if (confirmSelectionBtn) {
@@ -64,9 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoginBtn.addEventListener('click', () => {
             container.classList.remove('active');
         });
-    }
-
-    async function verifyPin(pin) {
+    }    async function verifyPin(pin) {
         const loginMsg = document.getElementById('loginMsg');
         loginMsg.classList.remove('info');
         loginMsg.textContent = 'Verificando...';
@@ -97,9 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             window.location.href = '/dashboard.html';
         }, 2800);
-    }
-
-    const loginForm = document.getElementById('loginForm');
+    }    const loginForm = document.getElementById('loginForm');
     const pinLogin = document.getElementById('pinLogin');
     const forgotPinBtn = document.getElementById('forgotPinBtn');
     if (loginForm) {
@@ -120,9 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginMsg.classList.add('info');
         });
     }
-    const funcoes = ['ANALISTA', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];
-
-    function loadFuncoes() {
+    const funcoes = ['ANALISTA', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];    function loadFuncoes() {
         if (!registerFuncao) return;
         registerFuncao.innerHTML = '<option value="" disabled selected>Selecione a Função</option>';
         funcoes.forEach(funcao => {
@@ -131,9 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             option.textContent = funcao;
             registerFuncao.appendChild(option);
         });
-    }
-
-    async function loadMatrizes() {
+    }    async function loadMatrizes() {
         if (!modalMatrizList) return;
         modalMatrizList.innerHTML = '<div class="custom-option">Carregando...</div>';
         const {data, error} = await supabase.from('Matrizes').select('MATRIZ');
@@ -171,9 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-    }
-
-    if (registerForm) {
+    }    if (registerForm) {
         registerForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             registerMsg.textContent = 'Enviando...';
@@ -227,9 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 3000);
             }
         });
-    }
-
-    function getBrasiliaTimestamp() {
+    }    function getBrasiliaTimestamp() {
         const date = new Date();
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -238,9 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const minutes = String(date.getMinutes()).padStart(2, '0');
         const seconds = String(date.getSeconds()).padStart(2, '0');
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    }
-
-    async function logLoginHistory(userData) {
+    }    async function logLoginHistory(userData) {
         try {
             const {error} = await supabase.from('LoginHistorico').insert({
                 Nome: userData.Nome, Usuario: userData.Usuario, MATRIZ: userData.Matriz,

@@ -98,11 +98,128 @@ export function destroy() {
 /* =========================
  * Núcleo – Weekly
  * ========================= */
+
 /**
  * Calcula os dados semanais para um grupo específico de colaboradores.
  * @param {Array} arr
  * @returns {{feriasConst: number, dsrByDay: object, presentesByDay: object}}
  */
+/**
+ * Calcula o período trabalhado com base nas datas de admissão e desligamento.
+ * @param {string | null} dtAdmISO - Data de admissão (ex: '2024-12-13')
+ * @param {string | null} dtDesISO - Data de desligamento (ex: '2025-05-07')
+ * @returns {string} - String formatada (ex: "4 MESES", "1 ANO E 2 MESES", "8 DIAS", "0", "")
+ */
+
+function calcularPeriodoTrabalhado(dtAdmISO, dtDesISO) {
+
+    if (!dtAdmISO) {
+        return '';
+    }
+
+
+    const dtAdm = new Date(dtAdmISO + 'T00:00:00Z');
+    const dtDes = new Date(dtDesISO + 'T00:00:00Z');
+
+    if (isNaN(dtAdm.getTime()) || isNaN(dtDes.getTime())) {
+        return '';
+    }
+
+
+    if (dtAdm.getTime() === dtDes.getTime()) {
+        return '0';
+    }
+
+    const diffTime = dtDes.getTime() - dtAdm.getTime();
+
+
+    if (diffTime < 0) {
+        return '';
+    }
+
+
+    const diffDays = Math.round(diffTime / 86400000);
+
+
+    let anos = dtDes.getUTCFullYear() - dtAdm.getUTCFullYear();
+    let meses = dtDes.getUTCMonth() - dtAdm.getUTCMonth();
+    let dias = dtDes.getUTCDate() - dtAdm.getUTCDate();
+
+    if (dias < 0) {
+        meses--;
+
+        const prevMonthLastDay = new Date(dtDes.getUTCFullYear(), dtDes.getUTCMonth(), 0).getUTCDate();
+        dias += prevMonthLastDay;
+    }
+
+    if (meses < 0) {
+        anos--;
+        meses += 12;
+    }
+
+
+    if (dias >= 15) {
+        meses++;
+        if (meses === 12) {
+            anos++;
+            meses = 0;
+        }
+    }
+
+
+    if (diffDays < 30) {
+        return `${diffDays} ${diffDays === 1 ? 'DIA' : 'DIAS'}`;
+    }
+
+
+    const parts = [];
+    if (anos > 0) {
+        parts.push(`${anos} ${anos === 1 ? 'ANO' : 'ANOS'}`);
+    }
+    if (meses > 0) {
+        parts.push(`${meses} ${meses === 1 ? 'MES' : 'MESES'}`);
+    }
+
+    if (parts.length > 0) {
+        return parts.join(' E ');
+    } else {
+
+
+        if (diffDays >= 30 && anos === 0 && meses === 0) {
+
+            return '1 MES';
+        }
+
+
+
+        return '0';
+    }
+}
+
+function formatPeriodoTrabalhado(v) {
+    const s0 = String(v || '').trim();
+    if (!s0) return '';
+
+
+    const s = s0.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase();
+
+    const rules = [
+        {re: /(\d+)\s*DIA\(S\)/g, one: 'DIA', many: 'DIAS'},
+        {re: /(\d+)\s*MES\(ES\)/g, one: 'MES', many: 'MESES'},
+        {re: /(\d+)\s*ANO\(S\)/g, one: 'ANO', many: 'ANOS'},
+    ];
+
+    let out = s;
+    for (const {re, one, many} of rules) {
+        out = out.replace(re, (_, nStr) => {
+            const n = parseInt(nStr, 10);
+            return `${n} ${n === 1 ? one : many}`;
+        });
+    }
+    return out.replace(/\s+/g, ' ').trim();
+}
+
+
 function buildWeeklyRowsForCargo(arr) {
     const feriasConst = (arr || []).filter(c => norm(c.Ferias) === 'SIM').length;
 
@@ -702,7 +819,12 @@ function renderDesligamentosTable() {
     filtered.forEach(r => {
         const dtAdm = r['Data de Admissão'] ?? '';
         const dtDes = r['Data de Desligamento'] ?? '';
-        const periodo = r['Período Trabalhado'] ?? '';
+
+
+
+        const periodo = calcularPeriodoTrabalhado(dtAdm, dtDes);
+
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
       <td class="cell-name">${escapeHtml(r.Nome || '')}</td>
@@ -739,7 +861,11 @@ function getVisibleDesligadosRows() {
         Cargo: r.Cargo || '',
         'Data de Admissão': fmtBR(r['Data de Admissão'] ?? ''),
         'Data de Desligamento': fmtBR(r['Data de Desligamento'] ?? ''),
-        'Período Trabalhado': r['Período Trabalhado'] ?? '',
+
+
+        'Período Trabalhado': calcularPeriodoTrabalhado(r['Data de Admissão'] ?? '', r['Data de Desligamento'] ?? ''),
+
+
         Motivo: r.Motivo || '',
         SVC: r.SVC || '',
         MATRIZ: r.MATRIZ || '',

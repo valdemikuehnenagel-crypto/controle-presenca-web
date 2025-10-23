@@ -1,4 +1,3 @@
-
 import {getMatrizesPermitidas} from '../session.js';
 import {supabase} from '../supabaseClient.js';
 
@@ -6,7 +5,7 @@ import {supabase} from '../supabaseClient.js';
 const HOST_SEL = '#hc-diario';
 const PARTIAL_URL = '/pages/hc-diario.html';
 const ROWS_ORDER = [
-    'TOTAL QUADRO', 'LOG I', 'CONFERENTES', 'DSR',
+    'TOTAL QUADRO', 'LOG I', 'CONFERENTES', 'DSR', 'DSR PS',
     'INJUSTIFICADO', 'JUSTIFICADO', 'FOLGA ESPECIAL',
     'FERIADO', 'ADMISSÃO', 'DESLIGAMENTOS', 'FÉRIAS'
 ];
@@ -198,11 +197,15 @@ async function fetchDesligadosRange(startISO, endISO) {
     const matrizesPermitidas = getMatrizesPermitidas();
     let query = supabase
         .from('Desligados')
-        .select('*')
+        .select('Nome, "Data de Desligamento", Escala, SVC, MATRIZ')
         .gte('Data de Desligamento', startISO)
         .lte('Data de Desligamento', endISO)
         .order('Data de Desligamento', {ascending: true});
+
     if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
+    if (_filters.matriz) query = query.eq('MATRIZ', _filters.matriz);
+    if (_filters.svc) query = query.eq('SVC', _filters.svc);
+
     const {data, error} = await query;
     if (error) throw error;
     return Array.isArray(data) ? data : [];
@@ -337,19 +340,28 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
         }
 
 
-
-
         const adm = countAdmissoes(new Set([...setAux, ...setConf]), d);
         const deslig = (desligRows || []).reduce((acc, r) => {
             const iso = firstISOFrom(r, ['Data de Desligamento']);
-            if (iso === d && (setAux.has(r.Nome) || setConf.has(r.Nome))) return acc + 1;
-            return acc;
+            if (iso !== d) return acc;
+
+            const rTurno = norm(r.Escala || '');
+            const thisTurno = norm(turno);
+
+
+            if (rTurno && rTurno !== thisTurno) return acc;
+
+
+            if (!rTurno && !(setAux.has(r.Nome) || setConf.has(r.Nome))) return acc;
+
+            return acc + 1;
         }, 0);
 
 
         rows['LOG I'][d] = presAux;
         rows['CONFERENTES'][d] = presConf;
-        rows['DSR'][d] = dsrAux + dsrConf;
+        rows['DSR'][d] = dsrAux;
+        rows['DSR PS'][d] = dsrConf;
         rows['FÉRIAS'][d] = feriasAux + feriasConf;
         rows['INJUSTIFICADO'][d] = fal;
         rows['JUSTIFICADO'][d] = ate;
@@ -364,7 +376,6 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
 
     return rows;
 }
-
 
 
 export async function buildHCDiario() {

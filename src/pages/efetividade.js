@@ -139,28 +139,42 @@ function showDetailsModal(groupKey, date) {
     if (oldModal) oldModal.remove();
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-[99] efetividade-modal-overlay';
+    const dayOfWeek = weekdayPT(date);
     const dateFormatted = `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
     let contentHtml = '';
     if (details.pendentes.length === 0) {
         contentHtml = '<p style="text-align:center; padding: 2rem 0;">Nenhum colaborador pendente encontrado.</p>';
     } else {
         contentHtml = `
-            <table>
-                <thead> <tr> <th>Nome</th> <th>Gestor</th> <th>Turno</th> </tr> </thead>
-                <tbody>
-                    ${details.pendentes.map(p => `<tr> <td>${p.Nome || 'N/D'}</td> <td>${p.Gestor || 'N/D'}</td> <td>${p.Escala || 'N/D'}</td> </tr>`).join('')}
-                </tbody>
-            </table>`;
+            <table>
+                <thead> 
+                  <tr> 
+                    <th>Nome</th> 
+                    <th>Gestor</th> 
+                    <th>Turno</th> 
+                    <th>DSR</th> 
+                  </tr> 
+                </thead>
+                <tbody>
+                    ${details.pendentes.map(p => `
+                        <tr> 
+                            <td>${p.Nome || 'N/D'}</td> 
+                            <td>${p.Gestor || 'N/D'}</td> 
+                            <td>${p.Escala || 'N/D'}</td> 
+                            <td>${p.DSR_do_dia || 'N/D'}</td> 
+                        </tr>`).join('')}
+                </tbody>
+            </table>`;
     }
     const titlePrefix = state.turnoAtual === 'COORDENACAO' ? 'Pendentes de' : 'Pendentes em';
-    const modalTitle = `${titlePrefix} ${groupKey} - ${dateFormatted}`;
+    const modalTitle = `${titlePrefix} ${groupKey} - ${dateFormatted} (${dayOfWeek})`;
     overlay.innerHTML = `
-        <div id="efetividade-details-modal">
-            <h3 class="pop-title">${modalTitle}</h3> <button class="pop-close" data-close-modal>×</button>
-            <div class="pop-summary"> Elegíveis: <strong>${details.elegiveis.length}</strong> | Pendentes: <strong>${details.pendentes.length}</strong> </div>
-            <div class="pop-scroll">${contentHtml}</div>
-            <div class="pop-actions"> <button id="export-png-btn" class="btn-export">Exportar PNG</button> </div>
-        </div>`;
+        <div id="efetividade-details-modal">
+            <h3 class="pop-title">${modalTitle}</h3> <button class="pop-close" data-close-modal>×</button>
+            <div class="pop-summary"> Elegíveis: <strong>${details.elegiveis.length}</strong> | Pendentes: <strong>${details.pendentes.length}</strong> </div>
+            <div class="pop-scroll">${contentHtml}</div>
+            <div class="pop-actions"> <button id="export-png-btn" class="btn-export">Exportar PNG</button> </div>
+        </div>`;
     document.body.appendChild(overlay);
     const closeModal = () => {
         const modalEl = overlay.querySelector('#efetividade-details-modal');
@@ -289,97 +303,114 @@ async function fetchData(startDate, endDate, turno) {
 }
 
 function processEfetividade(colaboradores, preenchimentos, dates, ferias, dsrLogs, groupBy) {
-    state.detailedResults.clear();
-    const dsrHistoryMap = new Map();
-    for (const log of dsrLogs) {
-        const name = normalizeString(log.Name);
-        if (!dsrHistoryMap.has(name)) {
-            dsrHistoryMap.set(name, []);
-        }
-        dsrHistoryMap.get(name).push(log);
-    }
-    for (const history of dsrHistoryMap.values()) {
-        history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-    }
+    state.detailedResults.clear();
+    const dsrHistoryMap = new Map();
+    for (const log of dsrLogs) {
+        const name = normalizeString(log.Name);
+        if (!dsrHistoryMap.has(name)) {
+            dsrHistoryMap.set(name, []);
+        }
+        dsrHistoryMap.get(name).push(log);
+    }
+    for (const history of dsrHistoryMap.values()) {
+        history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
+    }
 
-    function getDSRForDate(colaborador, date, historyMap) {
-        const name = normalizeString(colaborador.Nome);
-        const history = historyMap.get(name);
-        if (!history || history.length === 0) {
-            return colaborador.DSR;
-        }
-        let applicableDSR = null;
-        for (let i = history.length - 1; i >= 0; i--) {
-            if (history[i].DataAlteracao.slice(0, 10) <= date) {
-                applicableDSR = history[i].DsrAtual;
-                break;
-            }
-        }
-        if (applicableDSR === null) {
-            applicableDSR = history[0].DsrAnterior;
-        }
-        return applicableDSR;
-    }
+    function getDSRForDate(colaborador, date, historyMap) {
+        const name = normalizeString(colaborador.Nome);
+        const history = historyMap.get(name);
+        if (!history || history.length === 0) {
+            return colaborador.DSR;
+        }
+        let applicableDSR = null;
+        for (let i = history.length - 1; i >= 0; i--) {
+            if (history[i].DataAlteracao.slice(0, 10) <= date) {
+                applicableDSR = history[i].DsrAtual;
+                break;
+            }
+        }
+        if (applicableDSR === null) {
+            applicableDSR = history[0].DsrAnterior;
+        }
+        return applicableDSR;
+    }
 
-    const feriasPorDia = new Map();
-    for (const registro of ferias) {
-        if (registro.Nome && registro['Data Inicio'] && registro['Data Final']) {
-            const periodoFerias = listDates(registro['Data Inicio'], registro['Data Final']);
-            for (const dia of periodoFerias) {
-                if (!feriasPorDia.has(dia)) {
-                    feriasPorDia.set(dia, new Set());
-                }
-                feriasPorDia.get(dia).add(normalizeString(registro.Nome));
-            }
-        }
-    }
-    const preenchidosPorData = new Map();
-    for (const p of preenchimentos) {
-        if (!preenchidosPorData.has(p.Data)) {
-            preenchidosPorData.set(p.Data, new Set());
-        }
-        preenchidosPorData.get(p.Data).add(normalizeString(p.Nome));
-    }
-    const groupKeys = [...new Set(colaboradores.map(c => c[groupBy]).filter(Boolean))].sort();
-    const results = {};
-    const todayISO = new Date().toISOString().slice(0, 10);
-    for (const key of groupKeys) {
-        results[key] = {};
-        state.detailedResults.set(key, new Map());
-        const colaboradoresDoGrupo = colaboradores.filter(c => c[groupBy] === key);
-        for (const date of dates) {
-            let status = 'EMPTY';
-            const nomesEmFerias = feriasPorDia.get(date) || new Set();
-            const elegiveis = colaboradoresDoGrupo.filter(c => {
-                const nomeColaborador = normalizeString(c.Nome);
-                const dataAdmissao = c['Data de admissão'];
-                if (!dataAdmissao || dataAdmissao > date) return false;
-                if (nomesEmFerias.has(nomeColaborador)) return false;
-                const historicalDSR = getDSRForDate(c, date, dsrHistoryMap);
+    const feriasPorDia = new Map();
+    for (const registro of ferias) {
+        if (registro.Nome && registro['Data Inicio'] && registro['Data Final']) {
+            const periodoFerias = listDates(registro['Data Inicio'], registro['Data Final']);
+            for (const dia of periodoFerias) {
+                if (!feriasPorDia.has(dia)) {
+                    feriasPorDia.set(dia, new Set());
+                }
+                feriasPorDia.get(dia).add(normalizeString(registro.Nome));
+            }
+        }
+    }
+    const preenchidosPorData = new Map();
+    for (const p of preenchimentos) {
+        if (!preenchidosPorData.has(p.Data)) {
+            preenchidosPorData.set(p.Data, new Set());
+        }
+        preenchidosPorData.get(p.Data).add(normalizeString(p.Nome));
+    }
+    const groupKeys = [...new Set(colaboradores.map(c => c[groupBy]).filter(Boolean))].sort();
+    const results = {};
 
-                // --- INÍCIO DA CORREÇÃO ---
-                // Lógica antiga (errada para múltiplos DSRs):
-                // const isDSR = normalizeString(historicalDSR) === normalizeString(weekdayPT(date));
-               
-                // Lógica nova (correta):
-                const isDSR = normalizeString(historicalDSR).includes(normalizeString(weekdayPT(date)));
-                // --- FIM DA CORREÇÃO ---
+    // ================== ALTERAÇÃO AQUI ==================
+    // Precisamos da data LOCAL, não da data UTC.
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0'); // getMonth() é 0-indexado (Janeiro = 0)
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayISO = `${year}-${month}-${day}`;
+    // A linha antiga era:
+    // const todayISO = new Date().toISOString().slice(0, 10);
+    // ================== FIM DA ALTERAÇÃO ==================
 
-                return !isDSR;
-            });
-            const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
-            const pendentes = elegiveis.filter(c => !nomesPreenchidos.has(normalizeString(c.Nome)));
-            state.detailedResults.get(key).set(date, {elegiveis, pendentes});
-            if (date <= todayISO) {
-                if (elegiveis.length === 0) status = 'N/A';
-                else if (pendentes.length === 0) status = 'OK';
-                else if (pendentes.length < elegiveis.length) status = 'PENDENTE';
-                else status = 'NOK';
-            }
-            results[key][date] = status;
-        }
-    }
-    return {groupKeys, results};
+    for (const key of groupKeys) {
+        results[key] = {};
+        state.detailedResults.set(key, new Map());
+        const colaboradoresDoGrupo = colaboradores.filter(c => c[groupBy] === key);
+        for (const date of dates) {
+            let status = 'EMPTY';
+            const nomesEmFerias = feriasPorDia.get(date) || new Set();
+
+            const elegiveis = colaboradoresDoGrupo.reduce((acc, c) => {
+                const nomeColaborador = normalizeString(c.Nome);
+                const dataAdmissao = c['Data de admissão'];
+
+                if (!dataAdmissao || dataAdmissao > date) return acc;
+                if (nomesEmFerias.has(nomeColaborador)) return acc;
+
+                const historicalDSR = getDSRForDate(c, date, dsrHistoryMap);
+                const isDSR = normalizeString(historicalDSR).includes(normalizeString(weekdayPT(date)));
+
+                if (!isDSR) {
+                    acc.push({
+                        ...c,
+                        DSR_do_dia: historicalDSR
+                    });
+                }
+                return acc;
+            }, []);
+
+            const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
+            const pendentes = elegiveis.filter(c => !nomesPreenchidos.has(normalizeString(c.Nome)));
+
+            state.detailedResults.get(key).set(date, {elegiveis, pendentes});
+
+            // Agora 'todayISO' estará correto (ex: '2025-10-22')
+            if (date <= todayISO) {
+                if (elegiveis.length === 0) status = 'N/A';
+                else if (pendentes.length === 0) status = 'OK';
+                else if (pendentes.length < elegiveis.length) status = 'PENDENTE';
+                else status = 'NOK';
+            }
+            results[key][date] = status;
+        }
+    }
+    return {groupKeys, results};
 }
 
 function getStatusClass(status) {
