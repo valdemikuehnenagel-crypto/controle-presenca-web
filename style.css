@@ -39,6 +39,8 @@ body {
     gap: 8px;
     margin-bottom: 10px;
     flex-shrink: 0;
+    overflow-x: auto;   /* ADICIONE ISSO */
+    padding-bottom: 5px; /* ADICIONE ISSO */
 }
 
 .tab-btn {

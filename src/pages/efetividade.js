@@ -357,16 +357,11 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias, dsrLog
     const groupKeys = [...new Set(colaboradores.map(c => c[groupBy]).filter(Boolean))].sort();
     const results = {};
 
-    // ================== ALTERAÇÃO AQUI ==================
-    // Precisamos da data LOCAL, não da data UTC.
     const today = new Date();
     const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0'); // getMonth() é 0-indexado (Janeiro = 0)
+    const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const todayISO = `${year}-${month}-${day}`;
-    // A linha antiga era:
-    // const todayISO = new Date().toISOString().slice(0, 10);
-    // ================== FIM DA ALTERAÇÃO ==================
 
     for (const key of groupKeys) {
         results[key] = {};
@@ -400,11 +395,12 @@ function processEfetividade(colaboradores, preenchimentos, dates, ferias, dsrLog
 
             state.detailedResults.get(key).set(date, {elegiveis, pendentes});
 
-            // Agora 'todayISO' estará correto (ex: '2025-10-22')
             if (date <= todayISO) {
                 if (elegiveis.length === 0) status = 'N/A';
                 else if (pendentes.length === 0) status = 'OK';
-                else if (pendentes.length < elegiveis.length) status = 'PENDENTE';
+                // ================== ALTERAÇÃO AQUI ==================
+                else if (pendentes.length < elegiveis.length) status = 'PEN'; // Antes: 'PENDENTE'
+                // ================== FIM DA ALTERAÇÃO ==================
                 else status = 'NOK';
             }
             results[key][date] = status;
@@ -417,7 +413,9 @@ function getStatusClass(status) {
     switch (status) {
         case 'OK':
             return 'status-ok';
-        case 'PENDENTE':
+        // ================== ALTERAÇÃO AQUI ==================
+        case 'PEN': // Antes: 'PENDENTE'
+                    // ================== FIM DA ALTERAÇÃO ==================
             return 'status-pendente';
         case 'NOK':
             return 'status-nok';
@@ -438,7 +436,9 @@ function renderTable(groupKeys, dates, results, groupHeader) {
         const status = results[key]?.[date] || 'N/A';
         const statusClass = getStatusClass(status);
         const statusText = status === 'EMPTY' ? '' : status;
-        const title = status === 'PENDENTE' || status === 'NOK' ? 'Duplo clique para ver detalhes' : status;
+        // ================== ALTERAÇÃO AQUI ==================
+        const title = status === 'PEN' || status === 'NOK' ? 'Duplo clique para ver detalhes' : status; // Antes: 'PENDENTE'
+        // ================== FIM DA ALTERAÇÃO ==================
         return `<td data-group-key="${key}" data-date="${date}" class="${statusClass}" title="${title}">${statusText}</td>`;
     }).join('')} </tr>`).join('');
     ui.resultContainer.innerHTML = `<div class="table-container"><table class="main-table"><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
@@ -479,8 +479,10 @@ async function generateReport() {
                 const nokCountA = statusesA.filter(s => s === 'NOK').length;
                 const nokCountB = statusesB.filter(s => s === 'NOK').length;
                 if (nokCountA !== nokCountB) return nokCountA - nokCountB;
-                const pendenteCountA = statusesA.filter(s => s === 'PENDENTE').length;
-                const pendenteCountB = statusesB.filter(s => s === 'PENDENTE').length;
+                // ================== ALTERAÇÃO AQUI (2 LINHAS) ==================
+                const pendenteCountA = statusesA.filter(s => s === 'PEN').length; // Antes: 'PENDENTE'
+                const pendenteCountB = statusesB.filter(s => s === 'PEN').length; // Antes: 'PENDENTE'
+                // ================== FIM DA ALTERAÇÃO ==================
                 if (pendenteCountA !== pendenteCountB) return pendenteCountA - pendenteCountB;
                 return keyA.localeCompare(keyB);
             });
