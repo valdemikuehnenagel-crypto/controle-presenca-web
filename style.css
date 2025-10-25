@@ -3132,256 +3132,244 @@ h3 {
 }
 
 :root {
-    --wr-header-1-h: 38px;
-    --wr-header-2-h: 34px;
-    --wr-header-bg: #003369;
-    --wr-header-fg: #ffffff;
-    --wr-border: #e0e4e9;
-    --wr-cell-border: #d6d9df;
-    --wr-meta-bg: #f2f2f2;
-    --wr-sep-bg: #f0f3f7;
-    --wr-max-h: 70vh;
+  --wr-header-1-h: 38px;
+  --wr-header-2-h: 34px;
+  --wr-header-bg: #003369;
+  --wr-header-fg: #ffffff;
+  --wr-border: #e0e4e9;
+  --wr-cell-border: #d6d9df;
+  --wr-meta-bg: #f2f2f2;
+  --wr-sep-bg: #f0f3f7;
+  --wr-max-h: 70vh;
+  /* Larguras das colunas fixas - AJUSTE AQUI SE NECESSÁRIO */
+  --kpi-col-w: 40px; /* Exemplo: Aumentado para 40px */
+  --service-col-w: 110px;
 }
 
 html, body {
-    height: 100%;
-    min-height: 0;
+  height: 100%;
+  min-height: 0;
 }
 
 #tab-weekly-regional {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
 #tab-weekly-regional > h2 {
-    margin: 0;
-    color: var(--wr-header-bg);
-    font-weight: 700;
-    font-size: 18px;
+  margin: 0;
+  color: var(--wr-header-bg);
+  font-weight: 700;
+  font-size: 18px;
 }
 
 .weekly-loading {
-    display: flex;
-    justify-content: center;
-    padding: 20px;
-    font-weight: bold;
-    color: var(--wr-header-bg);
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  font-weight: bold;
+  color: var(--wr-header-bg);
 }
 
 #wr-header .cd-filters select {
-    max-width: 160px;
+  max-width: 160px;
 }
 
 #wr-header .action-buttons #wr-clear-all {
-    padding: 8px 14px;
-    border: none;
-    border-radius: 24px;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, .08);
-    color: #fff;
-    background: #6c757d;
-    transition: all .2s ease;
-    white-space: nowrap;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .08);
+  color: #fff;
+  background: #6c757d;
+  transition: all .2s ease;
+  white-space: nowrap;
 }
 
 #wr-header .action-buttons #wr-clear-all:hover {
-    transform: translateY(-1px);
+  transform: translateY(-1px);
 }
 
 .table-frame {
-    border: 1px solid var(--wr-border);
-    border-radius: 14px;
-    overflow: hidden;
-    height: 100%;
-    max-height: var(--wr-max-h);
-    margin-top: 12px;
+  border: 1px solid var(--wr-border);
+  border-radius: 14px;
+  overflow: hidden;
+  height: 100%;
+  max-height: var(--wr-max-h);
+  margin-top: 12px;
 }
 
 .table-sticky-wrapper {
-    position: relative;
-    height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: auto;
-    scrollbar-gutter: stable both-edges;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  /* *** MUDANÇA 1: Aumentar padding e ativar scrollbar-gutter *** */
+  padding-right: 30px; /* Aumentado de 18px */
+  padding-bottom: 12px; /* Espaço para scrollbar horizontal */
+  scrollbar-gutter: stable; /* Reservar espaço para scrollbar vertical */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* *** MUDANÇA 2: ::after com margem maior *** */
+.table-sticky-wrapper > .weekly-regional-table::after {
+  content: ""; display: inline-block;
+  width: 1px; height: 1px;
+  margin-right: 25px; /* Aumentado de 16px */
 }
 
 .table-sticky-wrapper::-webkit-scrollbar:vertical {
-    width: 0px;
+  width: 0px; /* Mantido escondido, mas 'stable' reserva espaço */
 }
 
 .table-sticky-wrapper::-webkit-scrollbar:horizontal {
-    height: 12px;
+  height: 12px;
 }
 
 .table-sticky-wrapper::-webkit-scrollbar-thumb {
-    background: #adb5bd;
-    border-radius: 6px;
+  background: #adb5bd;
+  border-radius: 6px;
 }
 
 .table-sticky-wrapper::-webkit-scrollbar-track {
-    background: #f1f1f1;
+  background: #f1f1f1;
 }
 
 .weekly-regional-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 12px;
-    min-width: 1200px;
+  width: 100%;
+  border-collapse: separate; /* Mantido como original */
+  border-spacing: 0;
+  font-size: 12px;
+  min-width: 1200px;
 }
 
 .weekly-regional-table th,
 .weekly-regional-table td {
-    border: 1px solid var(--wr-cell-border);
-    padding: 6px 8px;
-    text-align: center;
-    white-space: nowrap;
-    background: #fff;
-    vertical-align: middle;
+  border: 1px solid var(--wr-cell-border);
+  padding: 6px 8px;
+  text-align: center;
+  white-space: nowrap;
+  background: #fff; /* Garantir fundo opaco */
+  vertical-align: middle;
 }
 
 .weekly-regional-table thead th {
-    position: sticky;
-    z-index: 5;
-    background: var(--wr-header-bg);
-    color: var(--wr-header-fg);
-    font-weight: 700;
+  position: sticky;
+  z-index: 5; /* Nível base para cabeçalhos que rolam */
+  background: var(--wr-header-bg);
+  color: var(--wr-header-fg);
+  font-weight: 700;
 }
 
 .weekly-regional-table thead tr.header-row-1 th {
-    top: 0;
-    height: var(--wr-header-1-h);
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
+  top: 0;
+  height: var(--wr-header-1-h);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .weekly-regional-table thead tr.header-row-1 th:first-child {
-    border-top-left-radius: 14px;
+  border-top-left-radius: 14px;
 }
 
 .weekly-regional-table thead tr.header-row-1 th:last-child {
-    border-top-right-radius: 14px;
+  border-top-right-radius: 14px;
 }
 
 .weekly-regional-table thead tr.header-row-2 th {
-    top: var(--wr-header-1-h);
-    height: var(--wr-header-2-h);
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
+  top: var(--wr-header-1-h);
+  height: var(--wr-header-2-h);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .weekly-regional-table th:nth-child(1),
 .weekly-regional-table th:nth-child(2),
 .weekly-regional-table td:nth-child(1),
 .weekly-regional-table td:nth-child(2) {
-    text-align: center;
+  text-align: center;
 }
 
+/* --- Estilos específicos das colunas fixas --- */
 .weekly-regional-table td.sticky-kpi {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    transform: rotate(180deg);
-    font-weight: 700;
-    padding: 8px 4px;
-    width: 28px;
-    min-width: 28px;
-    max-width: 28px;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-weight: 700;
+  padding: 8px 4px;
+  width: var(--kpi-col-w); /* Largura explícita */
+  min-width: var(--kpi-col-w);
+  max-width: var(--kpi-col-w);
 }
 
 .weekly-regional-table td.sticky-codigo {
-    font-weight: 600;
-    width: 110px;
-    min-width: 110px;
+  font-weight: 600;
+  width: var(--service-col-w); /* Largura explícita */
+  min-width: var(--service-col-w);
+  max-width: var(--service-col-w); /* Adicionado para consistência */
 }
 
-.weekly-regional-table td.res {
-    background: #ffffff;
-}
+/* --- Estilos Células Corpo --- */
+.weekly-regional-table td.res { background: #ffffff; }
+.weekly-regional-table td.meta { background: var(--wr-meta-bg); }
+.weekly-regional-table td.delta { background: #ffffff; }
+.weekly-regional-table td.delta.delta-positive { color: #155724; background: #d4edda; font-weight: 700; }
+.weekly-regional-table td.delta.delta-negative { color: #721c24; background: #f8d7da; font-weight: 700; }
+.weekly-regional-table td.delta.delta-neutral { color: #6c757d; background: #e9ecef; font-weight: 600; }
+.weekly-regional-table tr.kpi-separator td { border: none; height: 10px; background-color: var(--wr-sep-bg) !important; padding: 0; border-top: 1px solid #d8dfea; }
 
-.weekly-regional-table td.meta {
-    background: var(--wr-meta-bg);
-}
+/* =========================================== */
+/* --- SEÇÃO STICKY (COLUNAS FIXAS) CORRIGIDA --- */
+/* =========================================== */
 
-.weekly-regional-table td.delta {
-    background: #ffffff;
-}
-
-.weekly-regional-table td.delta.delta-positive {
-    color: #155724;
-    background: #d4edda;
-    font-weight: 700;
-}
-
-.weekly-regional-table td.delta.delta-negative {
-    color: #721c24;
-    background: #f8d7da;
-    font-weight: 700;
-}
-
-.weekly-regional-table td.delta.delta-neutral {
-    color: #6c757d;
-    background: #e9ecef;
-    font-weight: 600;
-}
-
-.weekly-regional-table tr.kpi-separator td {
-    border: none;
-    height: 10px;
-    background-color: var(--wr-sep-bg) !important;
-    padding: 0;
-    border-top: 1px solid #d8dfea;
-}
-
-:root {
-    --kpi-col-w: 28px;
-    --service-col-w: 110px;
-}
-
+/* 1. Canto Superior Esquerdo (Camada mais alta) */
 .weekly-regional-table thead tr.header-row-1 th:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 8;
+  position: sticky;
+  left: 0;
+  z-index: 10;
 }
 
+/* 2. Cabeçalhos "Week" e "Service" (Camada intermediária-alta) */
 .weekly-regional-table thead tr.header-row-2 th.col-kpi {
-    position: sticky;
-    left: 0;
-    z-index: 9;
-    min-width: var(--kpi-col-w);
+  position: sticky;
+  left: 0;
+  z-index: 9;
+  background: var(--wr-header-bg); /* Garantir fundo */
+  min-width: var(--kpi-col-w);
+  width: var(--kpi-col-w);
+  max-width: var(--kpi-col-w);
 }
 
 .weekly-regional-table thead tr.header-row-2 th.col-service {
-    position: sticky;
-    left: calc(var(--kpi-col-w));
-    z-index: 9;
-    min-width: var(--service-col-w);
+  position: sticky;
+  left: var(--kpi-col-w);
+  z-index: 9;
+  background: var(--wr-header-bg); /* Garantir fundo */
+  min-width: var(--service-col-w);
+  width: var(--service-col-w);
+  max-width: var(--service-col-w);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.15); /* Sombra original */
 }
 
+/* 3. Células do Corpo "Week" e "Service" (Camada intermediária-baixa) */
 .weekly-regional-table td.sticky-kpi {
-    position: sticky;
-    left: 0;
-    z-index: 3;
-    background: #fff;
-    min-width: var(--kpi-col-w);
+  position: sticky;
+  left: 0;
+  z-index: 7;
+  background: #fff; /* Fundo já estava ok */
 }
 
 .weekly-regional-table td.sticky-codigo {
-    position: sticky;
-    left: calc(var(--kpi-col-w));
-    z-index: 3;
-    background: #fff;
-    min-width: var(--service-col-w);
-}
-
-.weekly-regional-table td.sticky-codigo {
-    box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
-}
-
-.weekly-regional-table thead tr.header-row-2 th.col-service {
-    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.15);
+  position: sticky;
+  left: var(--kpi-col-w);
+  z-index: 7;
+  background: #fff; /* Fundo já estava ok */
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06); /* Sombra original */
 }
 
 :root {
@@ -3584,7 +3572,7 @@ html, body {
 }
 
 :root {
-    --kpi-col-w: 28px;
+    --kpi-col-w: 45px;
     --service-col-w: 110px;
 }
 
@@ -3686,4 +3674,49 @@ html, body {
 .text-red {
     color: #D32F2F !important;
     font-weight: 600;
+}
+
+/* Estilos ATUALIZADOS para os filtros arredondados do Painel Gerencial */
+.gerencial-filter-select {
+    padding: 8px 12px; /* Padding do exemplo */
+    padding-right: 2.5em; /* Espaço para a seta (mantido) */
+    border: 1px solid #ddd; /* Borda cinza do exemplo */
+    border-radius: 20px; /* Bordas arredondadas do exemplo */
+    background: #fff; /* Fundo branco do exemplo */
+    font-weight: 700; /* Peso da fonte do exemplo */
+    font-size: 12px; /* Tamanho da fonte do exemplo */
+    color: #4B4F56; /* Cor do texto primária (azul escuro) */
+    cursor: pointer;
+    /* Adiciona a aparência padrão e a seta */
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23003369' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); /* Cor da seta ajustada */
+    background-repeat: no-repeat;
+    background-position: right 0.7em top 50%;
+    background-size: 0.65em auto;
+    /* Transições */
+    transition: transform .08s ease, box-shadow .25s, border-color .25s;
+    min-width: 150px; /* Largura mínima (ajuste se necessário) */
+}
+
+/* Efeito hover (copiado do exemplo) */
+.gerencial-filter-select:hover {
+    transform: translateY(-1px);
+    /* Opcional: background-color: #f8f9fa; */
+}
+
+/* Efeito focus (copiado do exemplo) */
+.gerencial-filter-select:focus {
+    outline: none;
+    border-color: #02B1EE; /* Cor da borda azul clara ao focar */
+    box-shadow: 0 0 0 4px rgba(2, 177, 238, .2); /* Sombra azul clara ao focar */
+}
+
+/* Garante que o botão Limpar Filtros também fique arredondado */
+.top-controls .btn-cancelar {
+    padding: 8px 14px;
+    border-radius: 20px; /* Mesmo arredondamento dos selects */
+    font-size: 12px;
+    font-weight: 700;
+    /* Mantenha outras propriedades de .btn-cancelar */
 }

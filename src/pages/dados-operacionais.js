@@ -303,7 +303,49 @@ export function init() {
         loader: document.getElementById('dados-op-loader'),
     };
 
+    // --- INÍCIO DA CORREÇÃO ---
 
+    // 1. Pega a sessão do localStorage
+    const sessionString = localStorage.getItem('userSession');
+    let userNivel = null;
+
+    if (sessionString) {
+        try {
+            const userData = JSON.parse(sessionString);
+            // Pega o Nivel, garante que é uma string, e bota em minúsculas
+            userNivel = (userData?.Nivel || '').toLowerCase();
+        } catch (e) {
+            console.error('Erro ao ler userSession:', e);
+        }
+    }
+
+    // 2. Compara com 'administrador' (minúsculas)
+    if (userNivel !== 'administrador') {
+        console.warn(`Acesso ao Painel Gerencial bloqueado. Nível detectado: [${userNivel || 'Nenhum'}]`);
+
+        // 3. Mostra a mensagem de erro no container principal da página
+        if (ui.resultContainer) {
+            ui.resultContainer.innerHTML = `
+                <div style="padding: 2rem; text-align: center;">
+                    <h2 style="color: #dc3545; font-size: 1.5rem;">Acesso Bloqueado</h2>
+                    <p style="font-size: 1.1rem; margin-top: 0.5rem;">
+                        Apenas usuários com nível "Administrador" podem acessar esta página.
+                    </p>
+                    <p style="color: #6c757d; margin-top: 1rem;">
+                        (Nível detectado: <strong>${userNivel ? userNivel.charAt(0).toUpperCase() + userNivel.slice(1) : 'Nenhum'}</strong>)
+                    </p>
+                </div>
+            `;
+        }
+        if (ui.loader) ui.loader.style.display = 'none'; // Esconde o loader
+
+        // 4. Para a execução da página
+        return;
+    }
+
+    // --- FIM DA CORREÇÃO ---
+
+    // Se chegou aqui, o usuário é Admin. Continua o carregamento normal.
     const evts = ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed', 'dadosop-invalidate'];
     const matrizesPermitidas = getMatrizesPermitidas();
     const key = keyFromMatrizes(matrizesPermitidas);

@@ -7,9 +7,7 @@ const cancelBtn = document.getElementById('cancelBtn');
 let currentModule = null;
 let isLoadingPage = false;
 let loadToken = 0;
-const pageModules = import.meta.glob('/src/pages/*.js');
-
-function checkSession() {
+const pageModules = import.meta.glob('/src/pages/*.js');function checkSession() {
     const userDataString = localStorage.getItem('userSession');
     if (!userDataString) {
         window.location.href = '/index.html';
@@ -53,17 +51,13 @@ function checkSession() {
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     }
-}
-
-function setLoading(on) {
+}function setLoading(on) {
     isLoadingPage = !!on;
     if (!contentArea) return;
     if (on) {
         contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
     }
-}
-
-async function loadPage(pageName) {
+}async function loadPage(pageName) {
     if (!pageName || isLoadingPage) return;
     isLoadingPage = true;
     const myToken = ++loadToken;
@@ -110,17 +104,11 @@ async function loadPage(pageName) {
             if (contentArea) contentArea.classList.remove('fade-out');
         }
     }
-}
-
-function showAddModal() {
+}function showAddModal() {
     if (addModal) addModal.classList.remove('hidden');
-}
-
-function hideAddModal() {
+}function hideAddModal() {
     if (addModal) addModal.classList.add('hidden');
-}
-
-tabButtons.forEach((button) => {
+}tabButtons.forEach((button) => {
     button.addEventListener('click', () => {
         if (isLoadingPage) return;
         tabButtons.forEach((btn) => btn.classList.remove('active'));

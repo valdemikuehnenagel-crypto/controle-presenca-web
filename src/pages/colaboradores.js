@@ -1,21 +1,25 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let state = {
-  colaboradoresData: [],
-  dadosFiltrados: [],
-  filtrosAtivos: {},
-  serviceMatrizMap: new Map(),
-  serviceRegiaoMap: new Map(),
-  matrizRegiaoMap: new Map(),
-  selectedNames: new Set(),
-  contratosData: null,
-  isUserAdmin: false,
-  gestoresData: [],
-  matrizesData: [],
-  feriasAtivasMap: new Map()
-};let cachedColaboradores = null;
+import {getMatrizesPermitidas} from '../session.js';
+
+let state = {
+    colaboradoresData: [],
+    dadosFiltrados: [],
+    filtrosAtivos: {},
+    serviceMatrizMap: new Map(),
+    serviceRegiaoMap: new Map(),
+    matrizRegiaoMap: new Map(),
+    selectedNames: new Set(),
+    contratosData: null,
+    isUserAdmin: false,
+    gestoresData: [],
+    matrizesData: [],
+    feriasAtivasMap: new Map()
+};
+let cachedColaboradores = null;
 let cachedFeriasStatus = null;
 let lastFetchTimestamp = 0;
-const CACHE_DURATION_MS = 5 * 60 * 1000;const ITENS_POR_PAGINA = 200;
+const CACHE_DURATION_MS = 5 * 60 * 1000;
+const ITENS_POR_PAGINA = 200;
 let itensVisiveis = ITENS_POR_PAGINA;
 let colaboradoresTbody,
     searchInput,
@@ -40,12 +44,16 @@ let isSubmittingFerias = false;
 let isSubmittingEdit = false;
 let dsrModal, dsrCheckboxesContainer, dsrOkBtn, dsrCancelarBtn;
 let currentDsrInputTarget = null;
-const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];function invalidateColaboradoresCache() {
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
+
+function invalidateColaboradoresCache() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
     console.log("Cache de colaboradores e férias invalidado.");
-}function checkUserAdminStatus() {
+}
+
+function checkUserAdminStatus() {
     const sessionString = localStorage.getItem('userSession');
     if (!sessionString) {
         console.warn('Sessão do usuário não encontrada. Permissões de admin não concedidas.');
@@ -65,7 +73,73 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
     }
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+
+function promptForDate(title, defaultDate) {
+    return new Promise((resolve) => {
+        // Overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';
+
+        // Modal
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white; padding:20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width: 300px;';
+
+        // Título
+        const titleEl = document.createElement('h3');
+        titleEl.textContent = title;
+        titleEl.style.cssText = 'margin-top:0; margin-bottom:15px; font-size:18px; color: #333;';
+
+        // Input de Data (Calendário)
+        const inputEl = document.createElement('input');
+        inputEl.type = 'date';
+        inputEl.value = defaultDate;
+        inputEl.style.cssText = 'width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing: border-box;';
+
+        // Botões de Ação
+        const actionsEl = document.createElement('div');
+        actionsEl.style.cssText = 'margin-top:20px; display:flex; justify-content:flex-end; gap:10px;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Cancelar';
+        // Tenta usar as classes de botão existentes no seu projeto
+        cancelBtn.className = 'btn-cancelar';
+
+        const okBtn = document.createElement('button');
+        okBtn.type = 'button';
+        okBtn.textContent = 'Confirmar';
+        // Tenta usar as classes de botão existentes no seu projeto
+        okBtn.className = 'btn-salvar';
+
+        actionsEl.append(cancelBtn, okBtn);
+        modal.append(titleEl, inputEl, actionsEl);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Função para fechar o modal
+        const close = (value) => {
+            document.body.removeChild(overlay);
+            resolve(value);
+        };
+
+        // Event Listeners
+        okBtn.onclick = () => {
+            if (!inputEl.value) {
+                alert('Por favor, selecione uma data.');
+                return;
+            }
+            close(inputEl.value);
+        };
+        cancelBtn.onclick = () => close(null);
+        overlay.onclick = (e) => {
+            if (e.target === overlay) close(null); // Fecha se clicar fora
+        };
+    });
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -84,23 +158,35 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return allData;
-}function normalizeCPF(raw) {
+}
+
+function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
-}function toUpperNoTrim(str) {
+}
+
+function toUpperNoTrim(str) {
     return typeof str === 'string' ? str.toUpperCase() : str;
-}function toUpperTrim(str) {
+}
+
+function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}function nullIfEmpty(v) {
+}
+
+function nullIfEmpty(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s === '' ? null : s;
-}function numberOrNull(v) {
+}
+
+function numberOrNull(v) {
     const s = nullIfEmpty(v);
     if (s === null) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
-}function toStartOfDay(dateish) {
+}
+
+function toStartOfDay(dateish) {
     if (!dateish) return NaN;
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
@@ -112,11 +198,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}function formatDateLocal(iso) {
+}
+
+function formatDateLocal(iso) {
     if (!iso) return '';
     const [y, m, d] = String(iso).split('-');
     return `${d}/${m}/${y}`;
-}function attachUppercaseHandlers() {
+}
+
+function attachUppercaseHandlers() {
     if (!addForm || addForm.dataset.upperBound === '1') return;
     addForm.dataset.upperBound = '1';
     const uppercaseOnInput = (el) => {
@@ -141,7 +231,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}async function populateContratoSelect(selectElement) {
+}
+
+async function populateContratoSelect(selectElement) {
     if (!selectElement) return;
     const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
@@ -155,7 +247,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
-}function attachUpperHandlersTo(form) {
+}
+
+function attachUpperHandlersTo(form) {
     if (!form || form.dataset.upperBound === '1') return;
     form.dataset.upperBound = '1';
     const textInputs = form.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="tel"], input:not([type]), textarea');
@@ -178,7 +272,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     form.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+}
+
+function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -210,7 +306,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
-}function toUpperObject(obj) {
+}
+
+function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
@@ -242,7 +340,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return out;
-}function renderTable(dataToRender) {
+}
+
+function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
     colaboradoresTbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
@@ -282,13 +382,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         `;
         colaboradoresTbody.appendChild(tr);
     });
-}function updateDisplay() {
+}
+
+function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
     renderTable(dataSlice);
     if (mostrarMenosBtn) mostrarMenosBtn.classList.toggle('hidden', itensVisiveis <= ITENS_POR_PAGINA);
     if (mostrarMaisBtn) mostrarMaisBtn.classList.toggle('hidden', itensVisiveis >= state.dadosFiltrados.length);
     if (contadorVisiveisEl) contadorVisiveisEl.textContent = `${dataSlice.length} de ${state.dadosFiltrados.length} colaboradores visíveis`;
-}function populateFilters() {
+}
+
+function populateFilters() {
     if (!filtrosSelect) return;
     const filtros = {
         Contrato: new Set(), Cargo: new Set(), Escala: new Set(), DSR: new Set(),
@@ -317,7 +421,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             selectEl.appendChild(optionEl);
         });
     });
-}function applyFiltersAndSearch() {
+}
+
+function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
@@ -344,7 +450,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
     updateDisplay();
-}function repopulateFilterOptionsCascade() {
+}
+
+function repopulateFilterOptionsCascade() {
     if (!filtrosSelect || !filtrosSelect.length) return;
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
@@ -389,7 +497,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             selectEl.selectedIndex = 0;
         }
     });
-}function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+}
+
+function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
     state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
@@ -398,10 +508,14 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (bySvc) return toUpperTrim(bySvc);
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
-}async function fetchColaboradores() {
-    const now = Date.now();    if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
+}
+
+async function fetchColaboradores() {
+    const now = Date.now();
+    if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
         console.log("Usando cache de colaboradores.");
-        state.colaboradoresData = cachedColaboradores;        if (cachedFeriasStatus) {
+        state.colaboradoresData = cachedColaboradores;
+        if (cachedFeriasStatus) {
             state.feriasAtivasMap = cachedFeriasStatus;
             console.log("Usando cache de status de férias.");
         } else {
@@ -428,10 +542,12 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         populateFilters();
         applyFiltersAndSearch();
         return;
-    }    console.log("Buscando dados frescos do banco (Colaboradores e Férias)...");
+    }
+    console.log("Buscando dados frescos do banco (Colaboradores e Férias)...");
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando...</td></tr>';
-    }    try {
+    }
+    try {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase
             .from('Colaboradores')
@@ -439,8 +555,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             .order('Nome');
         if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
-        }        const data = await fetchAllWithPagination(query);
-        state.colaboradoresData = data || [];        const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
+        }
+        const data = await fetchAllWithPagination(query);
+        state.colaboradoresData = data || [];
+        const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
         if (nomes.length > 0) {
             const {data: feriasAtivas, error: ferErr} = await supabase
@@ -450,10 +568,13 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 const dias = Number(f['Dias para finalizar']);
                 state.feriasAtivasMap.set(f.Nome, Number.isFinite(dias) ? dias : null);
             });
-        }        cachedColaboradores = state.colaboradoresData;
+        }
+        cachedColaboradores = state.colaboradoresData;
         cachedFeriasStatus = state.feriasAtivasMap;
-        lastFetchTimestamp = Date.now();        populateFilters();
-        applyFiltersAndSearch();    } catch (error) {
+        lastFetchTimestamp = Date.now();
+        populateFilters();
+        applyFiltersAndSearch();
+    } catch (error) {
         console.error('Erro ao carregar colaboradores/férias:', error);
         if (colaboradoresTbody) {
             colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4 text-red-500">Erro ao carregar dados.</td></tr>';
@@ -462,7 +583,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         cachedFeriasStatus = null;
         lastFetchTimestamp = 0;
     }
-}async function gerarJanelaDeQRCodes() {
+}
+
+async function gerarJanelaDeQRCodes() {
     if (state.selectedNames.size === 0) {
         alert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.');
         return;
@@ -549,13 +672,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
-}async function loadSVCsParaFormulario() {
+}
+
+async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
     if (state.matrizesData.length > 0 && svcSelect.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
         if (matrizesPermitidasCheck === null) return;
-    }    if (state.matrizesData.length === 0) {
+    }
+    if (state.matrizesData.length === 0) {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase.from('Matrizes').select('SERVICE, MATRIZ, REGIAO');
         if (matrizesPermitidas !== null) {
@@ -571,7 +697,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         state.serviceMatrizMap = new Map((state.matrizesData).map(item => [String(item.SERVICE || '').toUpperCase(), item.MATRIZ || '']));
         state.serviceRegiaoMap = new Map((state.matrizesData).map(item => [String(item.SERVICE || '').toUpperCase(), item.REGIAO || '']));
         state.matrizRegiaoMap = new Map((state.matrizesData).map(item => [String(item.MATRIZ || '').toUpperCase(), item.REGIAO || '']));
-    }    svcSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC...</option>';
+    }
+    svcSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC...</option>';
     const uniqueSvcs = [...new Set(state.matrizesData.map(item => String(item.SERVICE || '').toUpperCase()))].sort();
     uniqueSvcs.forEach((svc) => {
         const opt = document.createElement('option');
@@ -579,15 +706,20 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         svcSelect.appendChild(opt);
     });
-}async function loadGestoresParaFormulario() {
-    if (state.gestoresData.length > 0) return;    const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
+}
+
+async function loadGestoresParaFormulario() {
+    if (state.gestoresData.length > 0) return;
+    const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
         console.error('Erro ao buscar gestores:', error);
         state.gestoresData = [];
         return;
     }
     state.gestoresData = data || [];
-}function populateGestorSelect(selectedSvc) {
+}
+
+function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -616,7 +748,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-}function isDSRValida(dsrStr) {
+}
+
+function isDSRValida(dsrStr) {
     const raw = (dsrStr || '').toUpperCase().trim();
     if (!raw) return false;
     const dias = raw.split(',').map(d => d.trim()).filter(Boolean);
@@ -624,7 +758,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
     permitidos.add('SABADO');
     return dias.every(d => permitidos.has(d));
-}async function handleAddSubmit(event) {
+}
+
+async function handleAddSubmit(event) {
     event.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         alert('Ação não permitida. Você está em modo de visualização.');
@@ -728,12 +864,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}async function loadServiceMatrizForEdit() {
+}
+
+async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
     if (state.matrizesData.length > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
         if (matrizesPermitidasCheck === null) return;
-    }    if (state.matrizesData.length === 0) {
+    }
+    if (state.matrizesData.length === 0) {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase.from('Matrizes').select('SERVICE, MATRIZ, REGIAO');
         if (matrizesPermitidas !== null) {
@@ -748,7 +887,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         state.serviceMatrizMap = new Map((state.matrizesData).map(i => [String(i.SERVICE || '').toUpperCase(), i.MATRIZ || '']));
         state.serviceRegiaoMap = new Map((state.matrizesData).map(i => [String(i.SERVICE || '').toUpperCase(), i.REGIAO || '']));
         state.matrizRegiaoMap = new Map((state.matrizesData).map(i => [String(i.MATRIZ || '').toUpperCase(), i.REGIAO || '']));
-    }    editSVC.innerHTML = '<option value="" disabled selected>Selecione...</option>';
+    }
+    editSVC.innerHTML = '<option value="" disabled selected>Selecione...</option>';
     const uniqueSvcs = [...new Set(state.matrizesData.map(item => String(item.SERVICE || '').toUpperCase()))].sort();
     uniqueSvcs.forEach(svc => {
         const opt = document.createElement('option');
@@ -756,17 +896,25 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         editSVC.appendChild(opt);
     });
-}async function fetchColabByNome(nome) {
+}
+
+async function fetchColabByNome(nome) {
     const {data, error} = await supabase.from('Colaboradores').select('*').eq('Nome', nome).maybeSingle();
     if (error) throw error;
     return data;
-}function showEditModal() {
+}
+
+function showEditModal() {
     editModal?.classList.remove('hidden');
-}function hideEditModal() {
+}
+
+function hideEditModal() {
     editModal?.classList.add('hidden');
     editOriginal = null;
     editForm?.reset();
-}async function fillEditForm(colab) {
+}
+
+async function fillEditForm(colab) {
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
@@ -825,17 +973,23 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
-}function openEfetivarKnModal() {
+}
+
+function openEfetivarKnModal() {
     if (!editOriginal || !efetivarKnModal) return;
     efetivarKnNomeEl.value = editOriginal.Nome;
     efetivarKnDataEl.value = new Date().toISOString().split('T')[0];
     efetivarKnModal.classList.remove('hidden');
-}function closeEfetivarKnModal() {
+}
+
+function closeEfetivarKnModal() {
     if (efetivarKnModal) {
         efetivarKnModal.classList.add('hidden');
         efetivarKnForm.reset();
     }
-}async function onEfetivarKnClick() {
+}
+
+async function onEfetivarKnClick() {
     if (!editOriginal) {
         alert('Erro: Colaborador não carregado.');
         return;
@@ -844,7 +998,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (confirmacao) {
         openEfetivarKnModal();
     }
-}async function onEfetivarKnSubmit(e) {
+}
+
+async function onEfetivarKnSubmit(e) {
     e.preventDefault();
     const dataEfetivacao = efetivarKnDataEl.value;
     if (!dataEfetivacao) {
@@ -870,7 +1026,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro ao efetivar colaborador:', error);
         alert(`Não foi possível efetivar o colaborador: ${error.message}`);
     }
-}async function validateEditDuplicates(payload) {
+}
+
+async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
         const {count, error} = await supabase.from('Colaboradores').select('Nome', {
             count: 'exact',
@@ -888,7 +1046,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if ((count || 0) > 0) return 'Já existe um colaborador com esse CPF.';
     }
     return null;
-}async function onEditSubmit(e) {
+}
+
+async function onEditSubmit(e) {
     e.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         alert('Ação não permitida. Você está em modo de visualização.');
@@ -981,15 +1141,18 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             } catch (e) {
                 console.warn('Falha ao registrar log de DSR:', e);
             }
-        }        invalidateColaboradoresCache();
-        await fetchColaboradores();        alert('Colaborador atualizado com sucesso em todas as tabelas!');
+        }
+        invalidateColaboradoresCache();
+        await fetchColaboradores();
+        alert('Colaborador atualizado com sucesso em todas as tabelas!');
         hideEditModal();
         document.dispatchEvent(new CustomEvent('colaborador-edited', {
             detail: {
                 nomeAnterior: nomeAnterior,
                 nomeAtual: payload.Nome
             }
-        }));    } catch (err) {
+        }));
+    } catch (err) {
         console.error("Erro no processo de edição:", err);
         alert("Ocorreu um erro inesperado. Verifique o console.");
     } finally {
@@ -999,51 +1162,142 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             editSalvarBtn.textContent = 'Salvar Alterações';
         }
     }
-}async function onAfastarClick() {
+}
+
+async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
         alert('Erro: Colaborador não identificado.');
         return;
     }
+
     let colab;
     try {
+        // 1. Busca os dados mais recentes do colaborador (incluindo SVC, MATRIZ, REGIAO)
         colab = await fetchColabByNome(editOriginal.Nome);
     } catch (fetchError) {
         console.error("Erro ao buscar colaborador para afastamento:", fetchError);
         alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
         return;
     }
+
     if (!colab) {
         alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
         return;
     }
+
     const currentStatus = colab.Ativo;
-    let newStatus;
-    let confirmationMessage;
+    const hojeISO = new Date().toISOString().split('T')[0];
+
     if (currentStatus === 'SIM') {
-        newStatus = 'AFAS';
-        confirmationMessage = 'Tem certeza que deseja afastar este colaborador? O status será alterado para "AFAS".';
+        // --- INICIAR AFASTAMENTO ---
+
+        // 1. Pede a data de início usando o modal de calendário
+        const dataInicio = await promptForDate("Selecione a data de INÍCIO do afastamento:", hojeISO);
+
+        if (!dataInicio) return; // Usuário cancelou o modal
+
+        const confirmationMessage = `Tem certeza que deseja AFASTAR "${colab.Nome}" a partir de ${formatDateLocal(dataInicio)}?`;
+        const ok = confirm(confirmationMessage);
+        if (!ok) return;
+
+        // 2. Cria o novo registro na tabela 'Afastamentos'
+        const newAfastamento = {
+            NOME: colab.Nome,
+            SVC: colab.SVC || null,
+            MATRIZ: colab.MATRIZ || null,
+            REGIAO: colab.REGIAO || null,
+            "DATA INICIO": dataInicio,
+            "DATA RETORNO": null // Fica nulo pois está iniciando agora
+        };
+
+        const {error: insertError} = await supabase.from('Afastamentos').insert(newAfastamento);
+        if (insertError) {
+            alert(`Erro ao criar registro de afastamento: ${insertError.message}`);
+            return;
+        }
+
+        // 3. Atualiza o status na tabela 'Colaboradores'
+        const {error: updateError} = await supabase
+            .from('Colaboradores')
+            .update({Ativo: 'AFAS'}) // Define como Afastado
+            .eq('Nome', colab.Nome);
+
+        if (updateError) {
+            alert(`Erro ao atualizar o status do colaborador: ${updateError.message}`);
+            return;
+        }
+
+        alert('Colaborador afastado com sucesso!');
+
     } else if (currentStatus === 'AFAS') {
-        newStatus = 'SIM';
-        confirmationMessage = 'Tem certeza que deseja remover o afastamento deste colaborador? O status voltará para "SIM".';
+        // --- REMOVER AFASTAMENTO (REGISTRAR RETORNO) ---
+
+        // 1. Pede a data de retorno usando o modal de calendário
+        const dataRetorno = await promptForDate("Selecione a data de RETORNO do colaborador:", hojeISO);
+
+        if (!dataRetorno) return; // Usuário cancelou o modal
+
+        // 2. Validação: A data de retorno não pode ser anterior à data de início
+        const {data: ultimoAfastamento, error: findError} = await supabase
+            .from('Afastamentos')
+            .select('"DATA INICIO"')
+            .eq('NOME', colab.Nome)
+            .is('DATA RETORNO', null) // Busca o afastamento em aberto
+            .order('"DATA INICIO"', {ascending: false})
+            .limit(1)
+            .maybeSingle();
+
+        if (findError) {
+            alert('Erro ao verificar data de início do afastamento: ' + findError.message);
+            return;
+        }
+
+        if (ultimoAfastamento && ultimoAfastamento["DATA INICIO"] > dataRetorno) {
+            alert(`Data de retorno inválida. O afastamento iniciou em ${formatDateLocal(ultimoAfastamento["DATA INICIO"])}.`);
+            return;
+        }
+
+        const confirmationMessage = `Tem certeza que deseja registrar o RETORNO de "${colab.Nome}" em ${formatDateLocal(dataRetorno)}?`;
+        const ok = confirm(confirmationMessage);
+        if (!ok) return;
+
+        // 3. Atualiza o registro existente em 'Afastamentos' com a data de retorno
+        const {error: updateAfastamentoError} = await supabase
+            .from('Afastamentos')
+            .update({"DATA RETORNO": dataRetorno})
+            .eq('NOME', colab.Nome)
+            .is('DATA RETORNO', null); // Garante que só atualize o que está em aberto
+
+        if (updateAfastamentoError) {
+            alert(`Erro ao atualizar o registro de afastamento: ${updateAfastamentoError.message}`);
+            return;
+        }
+
+        // 4. Atualiza o status na tabela 'Colaboradores'
+        const {error: updateColabError} = await supabase
+            .from('Colaboradores')
+            .update({Ativo: 'SIM'}) // Define como Ativo novamente
+            .eq('Nome', colab.Nome);
+
+        if (updateColabError) {
+            alert(`Erro ao atualizar o status do colaborador: ${updateColabError.message}`);
+            return;
+        }
+
+        alert('Retorno do colaborador registrado com sucesso!');
+
     } else {
         alert(`Ação não permitida para o status atual "${currentStatus}".`);
         return;
     }
-    const ok = confirm(confirmationMessage);
-    if (!ok) return;
-    const {error} = await supabase
-        .from('Colaboradores')
-        .update({Ativo: newStatus})
-        .eq('Nome', colab.Nome);
-    if (error) {
-        alert(`Erro ao atualizar o status: ${error.message}`);
-        return;
-    }
-    alert('Status do colaborador atualizado com sucesso!');
+
+    // 5. Se tudo deu certo, fecha o modal e atualiza a tabela
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+}
+
+function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -1063,7 +1317,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}function openDesligarModalFromColab(colab) {
+}
+
+function openDesligarModalFromColab(colab) {
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
     const hoje = new Date();
@@ -1072,11 +1328,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     desligarDataEl.value = iso;
     desligarMotivoEl.selectedIndex = 0;
     desligarModal.classList.remove('hidden');
-}function closeDesligarModal() {
+}
+
+function closeDesligarModal() {
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}async function onDesligarSubmit(e) {
+}
+
+async function onDesligarSubmit(e) {
     e.preventDefault();
     if (!desligarColaborador) {
         alert('Erro: colaborador não carregado.');
@@ -1108,25 +1368,32 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const {error: deleteError} = await supabase.from('Colaboradores').delete().eq('Nome', desligarColaborador.Nome);
     if (deleteError) {
-        alert(`Erro ao remover de Colaboradores: ${deleteError.message}`);        return;
+        alert(`Erro ao remover de Colaboradores: ${deleteError.message}`);
+        return;
     }
     alert('Colaborador desligado com sucesso!');
     closeDesligarModal();
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}async function getNonFinalizedFerias(nome) {
+}
+
+async function getNonFinalizedFerias(nome) {
     const {data, error} = await supabase
         .from('Ferias')
         .select('Numero, Status, "Data Final"')
         .eq('Nome', nome)
         .neq('Status', 'Finalizado')
         .order('Numero', {ascending: false})
-        .limit(1);    if (error) return {error};
+        .limit(1);
+    if (error) return {error};
     return {data: (data && data.length > 0) ? data[0] : null};
-}async function agendarFerias(info) {
+}
+
+async function agendarFerias(info) {
     const {colaborador, dataInicio, dataFinal} = info;
-    const {data: feriasPendentes, error: feriasCheckError} = await getNonFinalizedFerias(colaborador.Nome);    if (feriasCheckError) {
+    const {data: feriasPendentes, error: feriasCheckError} = await getNonFinalizedFerias(colaborador.Nome);
+    if (feriasCheckError) {
         console.error("Erro ao verificar férias pendentes:", feriasCheckError);
         return {error: new Error('Erro ao verificar férias existentes.')};
     }
@@ -1134,7 +1401,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         const status = feriasPendentes.Status || 'pendente';
         const dataFinalStr = feriasPendentes['Data Final'] ? ` (terminando em ${formatDateLocal(feriasPendentes['Data Final'])})` : '';
         return {error: new Error(`Este colaborador já possui férias com status "${status}"${dataFinalStr}. Não é possível agendar novas férias até que as anteriores sejam finalizadas.`)};
-    }    const {data: lastFerias, error: numError} = await supabase
+    }
+    const {data: lastFerias, error: numError} = await supabase
         .from('Ferias')
         .select('Numero')
         .order('Numero', {ascending: false})
@@ -1166,7 +1434,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     invalidateColaboradoresCache();
     await updateAllVacationStatuses();
     return {success: true};
-}async function updateAllVacationStatuses() {
+}
+
+async function updateAllVacationStatuses() {
     const {data: feriasList, error} = await supabase.from('Ferias').select('*').order('Numero', {ascending: true});
     if (error || !feriasList) return;
     const today = toStartOfDay(new Date());
@@ -1176,31 +1446,39 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         const dataFinal = toStartOfDay(ferias['Data Final']);
         let newStatus = ferias.Status;
         let updatePayload = {};
-        let colabFeriasStatusUpdate = null;        if (ferias.Status === 'Finalizado') {
+        let colabFeriasStatusUpdate = null;
+        if (ferias.Status === 'Finalizado') {
             if (ferias['Dias para finalizar'] !== 0) updatePayload['Dias para finalizar'] = 0;
             colabFeriasStatusUpdate = 'NAO';
         } else {
             if (today > dataFinal) newStatus = 'Finalizado';
             else if (today >= dataInicio && today <= dataFinal) newStatus = 'Em andamento';
-            else if (today < dataInicio) newStatus = 'A iniciar';            const diasParaFinalizar = Math.max(0, Math.ceil((dataFinal - today) / (1000 * 60 * 60 * 24)));
+            else if (today < dataInicio) newStatus = 'A iniciar';
+            const diasParaFinalizar = Math.max(0, Math.ceil((dataFinal - today) / (1000 * 60 * 60 * 24)));
             if (newStatus !== ferias.Status || diasParaFinalizar !== ferias['Dias para finalizar']) {
                 updatePayload.Status = newStatus;
                 updatePayload['Dias para finalizar'] = diasParaFinalizar;
                 if (newStatus === 'Em andamento') colabFeriasStatusUpdate = 'SIM';
                 else if (newStatus === 'Finalizado') colabFeriasStatusUpdate = 'NAO';
             }
-        }        if (Object.keys(updatePayload).length > 0) {
+        }
+        if (Object.keys(updatePayload).length > 0) {
             await supabase.from('Ferias').update(updatePayload).eq('Numero', ferias.Numero);
-        }        if (colabFeriasStatusUpdate) {            const colab = cachedColaboradores?.find(c => c.Nome === ferias.Nome);
+        }
+        if (colabFeriasStatusUpdate) {
+            const colab = cachedColaboradores?.find(c => c.Nome === ferias.Nome);
             if (!colab || colab.Ferias !== colabFeriasStatusUpdate) {
                 await supabase.from('Colaboradores').update({Ferias: colabFeriasStatusUpdate}).eq('Nome', ferias.Nome);
                 needsColabUpdate = true;
             }
         }
-    }    if (needsColabUpdate) {
+    }
+    if (needsColabUpdate) {
         invalidateColaboradoresCache();
     }
-}function openFeriasModalFromColab(colab) {
+}
+
+function openFeriasModalFromColab(colab) {
     feriasColaborador = colab;
     if (!feriasModal) return;
     if (feriasNomeEl) feriasNomeEl.value = colab?.Nome || '';
@@ -1210,14 +1488,19 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (feriasInicioEl && !feriasInicioEl.value) feriasInicioEl.value = iso;
     if (feriasFinalEl && !feriasFinalEl.value) feriasFinalEl.value = iso;
     feriasModal.classList.remove('hidden');
-}function closeFeriasModal() {
+}
+
+function closeFeriasModal() {
     if (!feriasModal) return;
     feriasModal.classList.add('hidden');
     feriasColaborador = null;
     feriasForm?.reset();
-}async function onFeriasSubmit(e) {
+}
+
+async function onFeriasSubmit(e) {
     e.preventDefault();
-    if (isSubmittingFerias) return;    try {
+    if (isSubmittingFerias) return;
+    try {
         if (!feriasColaborador || !feriasColaborador.Nome) {
             alert('Erro: dados do colaborador não carregados.');
             return;
@@ -1237,17 +1520,24 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (dFim < dIni) {
             alert('A Data Final não pode ser anterior à Data de Início.');
             return;
-        }        const ok = confirm(`Confirmar férias de ${feriasColaborador.Nome} de ${formatDateLocal(dataInicio)} até ${formatDateLocal(dataFinal)}?`);
-        if (!ok) return;        isSubmittingFerias = true;
+        }
+        const ok = confirm(`Confirmar férias de ${feriasColaborador.Nome} de ${formatDateLocal(dataInicio)} até ${formatDateLocal(dataFinal)}?`);
+        if (!ok) return;
+        isSubmittingFerias = true;
         const submitButton = feriasForm ? feriasForm.querySelector('button[type="submit"]') : null;
         if (submitButton) {
             submitButton.disabled = true;
             submitButton.textContent = 'Agendando...';
-        }        const {success, error} = await agendarFerias({colaborador: feriasColaborador, dataInicio, dataFinal});        if (!success) {
-            alert(`Erro ao agendar férias: ${error?.message || error}`);        } else {
+        }
+        const {success, error} = await agendarFerias({colaborador: feriasColaborador, dataInicio, dataFinal});
+        if (!success) {
+            alert(`Erro ao agendar férias: ${error?.message || error}`);
+        } else {
             alert('Férias agendadas com sucesso!');
-            closeFeriasModal();            await fetchColaboradores();
-        }    } finally {
+            closeFeriasModal();
+            await fetchColaboradores();
+        }
+    } finally {
         isSubmittingFerias = false;
         const submitButton = feriasForm ? feriasForm.querySelector('button[type="submit"]') : null;
         if (submitButton) {
@@ -1255,7 +1545,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             submitButton.textContent = 'Confirmar';
         }
     }
-}const HIST = {
+}
+
+const HIST = {
     nome: null, ano: new Date().getFullYear(), marks: new Map(), dsrDates: new Set(),
     initialized: false, els: {modal: null, title: null, yearSel: null, months: null, fecharBtn: null,}
 };
@@ -1285,7 +1577,9 @@ const firstWeekdayIndex = (year, month0) => {
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';function ensureHistoricoDomRefs() {
+const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';
+
+function ensureHistoricoDomRefs() {
     if (HIST.initialized) return;
     HIST.els.modal = document.getElementById('historicoModal');
     HIST.els.title = document.getElementById('hist-title');
@@ -1320,10 +1614,14 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         }
     });
     HIST.initialized = true;
-}function putHistoricoTitle() {
+}
+
+function putHistoricoTitle() {
     if (!HIST.els.title) return;
     HIST.els.title.textContent = HIST.nome ? `Histórico – ${HIST.nome}` : 'Histórico';
-}function renderHistoricoCalendar() {
+}
+
+function renderHistoricoCalendar() {
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
     monthsEl.innerHTML = '';
@@ -1371,7 +1669,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
-}async function computeDsrDatesForYear(nome, ano) {
+}
+
+async function computeDsrDatesForYear(nome, ano) {
     try {
         const {data: colab, error} = await supabase.from('Colaboradores').select('DSR').eq('Nome', nome).maybeSingle();
         if (error) throw error;
@@ -1405,7 +1705,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         console.error('computeDsrDatesForYear error:', e);
         return new Set();
     }
-}async function loadHistoricoIntoModal() {
+}
+
+async function loadHistoricoIntoModal() {
     if (!HIST.nome) return;
     if (HIST.els.months) {
         HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
@@ -1441,7 +1743,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#e55353;">Erro ao carregar histórico.</div>';
         }
     }
-}async function openHistorico(nome) {
+}
+
+async function openHistorico(nome) {
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
         alert('Não foi possível abrir o histórico (elementos do modal não encontrados).');
@@ -1456,7 +1760,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     putHistoricoTitle();
     await loadHistoricoIntoModal();
     HIST.els.modal.classList.remove('hidden');
-}function wireDsrModal() {
+}
+
+function wireDsrModal() {
     dsrModal = document.getElementById('dsrModal');
     dsrCheckboxesContainer = document.getElementById('dsrCheckboxesContainer');
     dsrOkBtn = document.getElementById('dsrOkBtn');
@@ -1493,7 +1799,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         dsrModal.classList.add('hidden');
         currentDsrInputTarget = null;
     });
-}function openDsrModal(targetInput) {
+}
+
+function openDsrModal(targetInput) {
     if (!dsrModal) return;
     currentDsrInputTarget = targetInput;
     const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -1502,7 +1810,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         checkbox.checked = currentValueSet.has(checkbox.value);
     });
     dsrModal.classList.remove('hidden');
-}function wireEdit() {
+}
+
+function wireEdit() {
     editModal = document.getElementById('editModal');
     editForm = document.getElementById('editForm');
     editTitulo = document.getElementById('editTitulo');
@@ -1615,7 +1925,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             alert('Erro ao carregar colaborador para edição.');
         }
     });
-}function wireDesligar() {
+}
+
+function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');
     desligarForm = document.getElementById('desligarForm');
     desligarNomeEl = document.getElementById('desligarNome');
@@ -1624,7 +1936,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     desligarCancelarBtn = document.getElementById('desligarCancelarBtn');
     desligarCancelarBtn?.addEventListener('click', closeDesligarModal);
     desligarForm?.addEventListener('submit', onDesligarSubmit);
-}function wireFerias() {
+}
+
+function wireFerias() {
     feriasModal = document.getElementById('feriasModal') || null;
     feriasForm = document.getElementById('feriasForm') || document.getElementById('ferias-form') || null;
     feriasNomeEl = document.getElementById('feriasNome') || document.getElementById('nome-colaborador') || null;
@@ -1633,7 +1947,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     feriasCancelarBtn = document.getElementById('feriasCancelarBtn') || document.getElementById('cancelarBtn') || null;
     feriasCancelarBtn?.addEventListener('click', closeFeriasModal);
     feriasForm?.addEventListener('submit', onFeriasSubmit);
-}async function ensureXLSX() {
+}
+
+async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -1642,7 +1958,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}function mapColabToExportRow(c) {
+}
+
+function mapColabToExportRow(c) {
     const fmt = (v) => v == null ? '' : v;
     const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
     return {
@@ -1669,7 +1987,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         'Total Atestados': c['Total Atestados'] ?? '',
         'Total Suspensões': c['Total Suspensões'] ?? ''
     };
-}async function exportColaboradoresXLSX(useFiltered) {
+}
+
+async function exportColaboradoresXLSX(useFiltered) {
     const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
     if (!data || data.length === 0) {
         alert('Não há dados para exportar.');
@@ -1689,7 +2009,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
     window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
-}function wireEfetivarKn() {
+}
+
+function wireEfetivarKn() {
     efetivarKnModal = document.getElementById('efetivarKnModal');
     efetivarKnForm = document.getElementById('efetivarKnForm');
     efetivarKnNomeEl = document.getElementById('efetivarKnNome');
@@ -1697,7 +2019,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     efetivarKnCancelarBtn = document.getElementById('efetivarKnCancelarBtn');
     efetivarKnForm?.addEventListener('submit', onEfetivarKnSubmit);
     efetivarKnCancelarBtn?.addEventListener('click', closeEfetivarKnModal);
-}export function init() {
+}
+
+export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
@@ -1803,24 +2127,28 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome}}));
             }
         });
-        document.addEventListener('colaborador-edited', async (e) => {            if (document.querySelector('[data-page="colaboradores"].active')) {
+        document.addEventListener('colaborador-edited', async (e) => {
+            if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
             } else {
                 invalidateColaboradoresCache();
             }
         });
-        document.addEventListener('colaborador-deleted', async (e) => {            if (document.querySelector('[data-page="colaboradores"].active')) {
+        document.addEventListener('colaborador-deleted', async (e) => {
+            if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
             } else {
                 invalidateColaboradoresCache();
             }
         });
-        document.addEventListener('colaborador-added', async (e) => {            if (document.querySelector('[data-page="colaboradores"].active')) {
+        document.addEventListener('colaborador-added', async (e) => {
+            if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
             } else {
                 invalidateColaboradoresCache();
             }
-        });    }
+        });
+    }
     const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
@@ -1852,12 +2180,39 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     wireFerias();
     wireEfetivarKn();
     wireDsrModal();
-}export function destroy() {  cachedColaboradores = null;
-  cachedFeriasStatus = null;
-  lastFetchTimestamp = 0;  try { state.gestoresData = []; } catch {}
-  try { state.matrizesData = []; } catch {}  try { state.serviceMatrizMap?.clear?.(); } catch {}
-  try { state.serviceRegiaoMap?.clear?.(); } catch {}
-  try { state.matrizRegiaoMap?.clear?.(); } catch {}
-  try { state.selectedNames?.clear?.(); } catch {}
-  try { state.feriasAtivasMap?.clear?.(); } catch {}  console.log("Cache de colaboradores destruído ao sair do módulo.");
+}
+
+export function destroy() {
+    cachedColaboradores = null;
+    cachedFeriasStatus = null;
+    lastFetchTimestamp = 0;
+    try {
+        state.gestoresData = [];
+    } catch {
+    }
+    try {
+        state.matrizesData = [];
+    } catch {
+    }
+    try {
+        state.serviceMatrizMap?.clear?.();
+    } catch {
+    }
+    try {
+        state.serviceRegiaoMap?.clear?.();
+    } catch {
+    }
+    try {
+        state.matrizRegiaoMap?.clear?.();
+    } catch {
+    }
+    try {
+        state.selectedNames?.clear?.();
+    } catch {
+    }
+    try {
+        state.feriasAtivasMap?.clear?.();
+    } catch {
+    }
+    console.log("Cache de colaboradores destruído ao sair do módulo.");
 }

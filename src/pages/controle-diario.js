@@ -129,6 +129,21 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         }
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
 
+        // *** INÍCIO DA ALTERAÇÃO ***
+        // Buscar afastamentos ativos para a data
+        const {data: afastamentosHoje, error: afastamentosError} = await supabase
+            .from('Afastamentos')
+            .select('NOME') // Coluna 'NOME' conforme seu exemplo
+            .lte('"DATA INICIO"', dateISO) // O afastamento começou em ou antes de hoje
+            .gt('"DATA RETORNO"', dateISO); // O retorno é *depois* de hoje (hoje ainda está afastado)
+
+        if (afastamentosError) {
+            console.warn("Erro ao buscar afastamentos do dia:", afastamentosError);
+        }
+        // Normaliza os nomes vindos da tabela 'Afastamentos' para comparação
+        const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));
+        // *** FIM DA ALTERAÇÃO ***
+
 
         let dsrLogs = [];
         const chunkSize = 200;
@@ -199,6 +214,12 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                 const dataAdmissao = c['Data de admissão'];
                 if (dataAdmissao && dataAdmissao > dateISO) return false;
                 if (nomesEmFeriasHoje.has(c.Nome)) return false;
+
+                // *** INÍCIO DA ALTERAÇÃO ***
+                // Verifica se o colaborador está no Set de afastados (usando nomes normalizados)
+                if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) return false;
+                // *** FIM DA ALTERAÇÃO ***
+
                 const isDSR = checkDSR(c);
                 return !isDSR;
             })
@@ -521,19 +542,20 @@ async function renderRows(list) {
         return;
     }
 
-    let dsrInfos = dsrNamesRaw.map(n => ({ Nome: n }));
+    let dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
     try {
         if (dsrNamesRaw.length > 0) {
-            const { data: info, error } = await supabase
+            const {data: info, error} = await supabase
                 .from('Colaboradores')
                 .select('Nome, Cargo, SVC, Gestor, Contrato, MATRIZ, LDAP')
                 .in('Nome', dsrNamesRaw);
             if (!error && Array.isArray(info)) {
                 const byName = new Map(info.map(x => [x.Nome, x]));
-                dsrInfos = dsrNamesRaw.map(n => byName.get(n) || { Nome: n });
+                dsrInfos = dsrNamesRaw.map(n => byName.get(n) || {Nome: n});
             }
         }
-    } catch (_) {  }
+    } catch (_) {
+    }
 
 
     state.dsrInfoList = dsrInfos;
@@ -614,21 +636,20 @@ function computeSummary(list, meta) {
 
 
     const hcPrevisto = list.filter(x => !isConf(x)).length;
-    const hcReal     = list.filter(x => !isConf(x) && x.Marcacao === 'PRESENCA').length;
+    const hcReal = list.filter(x => !isConf(x) && x.Marcacao === 'PRESENCA').length;
 
 
-    const confReal   = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
+    const confReal = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
 
 
-    const pend  = list.filter(x => !x.Marcacao).length;
+    const pend = list.filter(x => !x.Marcacao).length;
     const faltas = list.filter(x => x.Marcacao === 'FALTA').length;
-    const atest  = list.filter(x => x.Marcacao === 'ATESTADO').length;
-    const fesp   = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
-    const fer    = list.filter(x => x.Marcacao === 'FERIADO').length;
-    const susp   = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
+    const atest = list.filter(x => x.Marcacao === 'ATESTADO').length;
+    const fesp = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
+    const fer = list.filter(x => x.Marcacao === 'FERIADO').length;
+    const susp = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
 
     const quadroTotal = hcReal + confReal;
-
 
 
     let dsrCount = 0;
@@ -638,17 +659,17 @@ function computeSummary(list, meta) {
     if (dsrInfo.length) {
         const dsrFiltrados = dsrInfo.filter(passFilters);
         dsrCount = dsrFiltrados.length;
-        dsrPS    = dsrFiltrados.filter(isConf).length;
+        dsrPS = dsrFiltrados.filter(isConf).length;
     } else if (meta?.dsrList?.length) {
 
         const dsrColabs = meta.dsrList.map(nome =>
             state.baseList.find(c => c.Nome === nome) ||
             state.colabMap.get(nome) ||
-            { Nome: nome }
+            {Nome: nome}
         );
         const dsrFiltrados = dsrColabs.filter(passFilters);
         dsrCount = dsrFiltrados.length;
-        dsrPS    = dsrFiltrados.filter(isConf).length;
+        dsrPS = dsrFiltrados.filter(isConf).length;
     }
 
     const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
@@ -668,7 +689,6 @@ function computeSummary(list, meta) {
         </div>
     `;
 }
-
 
 
 async function carregar(full = false) {
