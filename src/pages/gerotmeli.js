@@ -4,24 +4,30 @@ let currentSubpageModule = null;
 let subtabButtons = [];
 let contentArea = null;
 let isLoadingSubpage = false;
-let subpageLoadToken = 0; // Para evitar condições de corrida ao carregar
+let subpageLoadToken = 0;
+
+// *** INÍCIO DA CORREÇÃO ***
+// Informa ao Vite (Vercel) sobre todos os módulos JS na pasta /src/pages/
+// Isso garante que eles sejam incluídos no build de produção.
+const subpageModules = import.meta.glob('/src/pages/*.js');
+// *** FIM DA CORREÇÃO ***
+
 
 // Função para carregar dinamicamente o HTML e JS de uma sub-página
 async function loadSubpage(pageName) {
     if (!pageName || isLoadingSubpage) return;
     isLoadingSubpage = true;
-    const myToken = ++subpageLoadToken; // Incrementa token para esta tentativa
+    const myToken = ++subpageLoadToken;
 
-    // Mostra feedback de carregamento
     if (contentArea) {
-        contentArea.style.opacity = '0'; // Começa a esmaecer
-        await new Promise(resolve => setTimeout(resolve, 150)); // Tempo para animação
-        if (myToken !== subpageLoadToken) { // Verifica se outra carga começou
-             isLoadingSubpage = false;
-             return;
+        contentArea.style.opacity = '0';
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (myToken !== subpageLoadToken) {
+            isLoadingSubpage = false;
+            return;
         }
         contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando ${pageName}...</div>`;
-        contentArea.style.opacity = '1'; // Mostra carregando
+        contentArea.style.opacity = '1';
     }
 
     try {
@@ -29,29 +35,38 @@ async function loadSubpage(pageName) {
         if (currentSubpageModule && typeof currentSubpageModule.destroy === 'function') {
             await currentSubpageModule.destroy();
         }
-        currentSubpageModule = null; // Limpa a referência
+        currentSubpageModule = null;
 
-        // 2. Buscar o HTML da sub-página
-        const htmlResponse = await fetch(`/pages/${pageName}.html`, { cache: 'no-cache' });
+        // 2. Buscar o HTML da sub-página (Isso já estava correto, pois /pages/ está na pasta 'public')
+        const htmlResponse = await fetch(`/pages/${pageName}.html`, {cache: 'no-cache'});
         if (!htmlResponse.ok) {
             throw new Error(`HTML da sub-página ${pageName} não encontrado (HTTP ${htmlResponse.status}).`);
         }
         const htmlContent = await htmlResponse.text();
 
-        if (myToken !== subpageLoadToken) return; // Aborta se outra carga começou
+        if (myToken !== subpageLoadToken) return;
 
         // 3. Injetar o HTML no container
         if (contentArea) {
             contentArea.innerHTML = htmlContent;
         }
 
-        // 4. Importar dinamicamente o módulo JS da sub-página
-        //    IMPORTANTE: O caminho DEVE começar com '/' ou ser relativo à raiz do projeto
-        //    para que o build/servidor consiga encontrá-lo.
+        // *** INÍCIO DA CORREÇÃO ***
+        // 4. Carregar o Módulo JS usando o glob que definimos
         const modulePath = `/src/pages/${pageName}.js`;
-        const module = await import(modulePath);
 
-        if (myToken !== subpageLoadToken) return; // Aborta se outra carga começou
+        // Verifica se o módulo que queremos existe no 'manifest' que o Vite criou
+        if (!subpageModules[modulePath]) {
+            throw new Error(`Módulo JS (${modulePath}) não foi encontrado. Verifique o caminho em import.meta.glob.`);
+        }
+
+        // O glob retorna uma *função* que, quando chamada, importa o módulo
+        const moduleFactory = subpageModules[modulePath];
+        const module = await moduleFactory(); // Chama a função para carregar o módulo
+        // *** FIM DA CORREÇÃO ***
+
+
+        if (myToken !== subpageLoadToken) return;
 
         // 5. Chamar a função init do módulo carregado
         currentSubpageModule = module;
@@ -62,13 +77,13 @@ async function loadSubpage(pageName) {
 
     } catch (error) {
         console.error(`Falha ao carregar a sub-página ${pageName}:`, error);
-        if (contentArea && myToken === subpageLoadToken) { // Mostra erro apenas se for a carga mais recente
+        if (contentArea && myToken === subpageLoadToken) {
             contentArea.innerHTML = `<p class="p-4 text-red-500">Erro ao carregar a interface da sub-aba "${pageName}".</p>`;
         }
     } finally {
-        if (myToken === subpageLoadToken) { // Só finaliza se for a carga mais recente
+        if (myToken === subpageLoadToken) {
             isLoadingSubpage = false;
-             if(contentArea) contentArea.style.opacity = '1'; // Garante visibilidade
+            if (contentArea) contentArea.style.opacity = '1';
         }
     }
 }
@@ -98,16 +113,13 @@ export async function init() {
 
 // Handler para clique nas sub-abas
 function handleSubtabClick(event) {
-    if (isLoadingSubpage) return; // Ignora cliques enquanto carrega
+    if (isLoadingSubpage) return;
     const clickedButton = event.currentTarget;
     const subpageToLoad = clickedButton.dataset.subpage;
 
     if (subpageToLoad && subpageToLoad !== currentSubpage) {
-        // Remove 'active' de todos os botões
         subtabButtons.forEach(btn => btn.classList.remove('active'));
-        // Adiciona 'active' ao botão clicado
         clickedButton.classList.add('active');
-        // Carrega a nova sub-página
         loadSubpage(subpageToLoad);
     }
 }
@@ -115,12 +127,10 @@ function handleSubtabClick(event) {
 // Função chamada quando o usuário sai da aba "Gerot Meli" (pelo dashboard.js)
 export async function destroy() {
     console.log("Destruindo Gerot Meli...");
-    // Remove listeners dos botões das sub-abas
     subtabButtons.forEach(button => {
         button.removeEventListener('click', handleSubtabClick);
     });
 
-    // Chama o destroy do módulo da sub-página atualmente carregada
     if (currentSubpageModule && typeof currentSubpageModule.destroy === 'function') {
         try {
             await currentSubpageModule.destroy();
@@ -129,11 +139,10 @@ export async function destroy() {
         }
     }
 
-    // Limpa referências
     contentArea = null;
     subtabButtons = [];
     currentSubpage = null;
     currentSubpageModule = null;
-    isLoadingSubpage = false; // Reseta estado de carregamento
-    subpageLoadToken = 0; // Reseta token
+    isLoadingSubpage = false;
+    subpageLoadToken = 0;
 }
