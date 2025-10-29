@@ -39,8 +39,8 @@ body {
     gap: 8px;
     margin-bottom: 10px;
     flex-shrink: 0;
-    overflow-x: auto;   /* ADICIONE ISSO */
-    padding-bottom: 5px; /* ADICIONE ISSO */
+    overflow-x: auto;
+    padding-bottom: 5px;
 }
 
 .tab-btn {
@@ -351,9 +351,7 @@ h3 {
     color: #2b3355;
 }
 
-/* =======================================================
-   CONTROLE DIÁRIO — ESTILOS COMPLETOS E REORGANIZADOS
-========================================================== */
+
 #cd-loading {
     z-index: 9998;
     position: fixed;
@@ -828,9 +826,7 @@ h3 {
     min-width: 260px;
 }
 
-/* =========================
-   HC DIÁRIO (web)
-   ========================= */
+
 :root {
     --hcd-blue: #003369;
     --hcd-blue-2: #0b3b73;
@@ -1065,9 +1061,7 @@ h3 {
     transform: translateY(-2px);
 }
 
-/* =========================
-   RELATÓRIO ABS (web)
-   ========================= */
+
 .abs-toolbar {
     display: flex;
     align-items: center;
@@ -1263,9 +1257,7 @@ h3 {
     }
 }
 
-/* =========================
-   HC — ANÁLISE ABS (web)
-   ========================= */
+
 :root {
     --hcana-primary: #003369;
     --hcana-primary-600: #0F2A55;
@@ -2052,9 +2044,7 @@ h3 {
     font-weight: 700;
 }
 
-/* ================================
-    Vars / Base da página de Diaristas
-    ================================ */
+
 .diaristas-root {
     --d-primary: #003369;
     --d-accent: #02B1EE;
@@ -2198,9 +2188,7 @@ h3 {
     width: min(1200px, 96vw);
 }
 
-/* ================================
-    Tabela e Cards
-    ================================ */
+
 .diaristas-root .table-wrapper {
     background: #fff;
     border: 1px solid var(--d-border);
@@ -2314,9 +2302,7 @@ h3 {
     color: var(--d-primary);
 }
 
-/* ================================
-    Botões da Toolbar
-    ================================ */
+
 .diaristas-root #btn-add-diarista,
 .diaristas-root #btn-export-xlsx {
     align-self: center;
@@ -2363,13 +2349,9 @@ h3 {
     transform: none;
 }
 
-/* ================================
-    Modal Diaristas (padrão Colaboradores)
-    (Estilos específicos para #diarista-modal)
-    ================================ */
+
 #diarista-modal.diaristas-modal {
-    /* Este modal usa o .diaristas-modal (abaixo) para o overlay,
-       mas tem seus próprios estilos de card */
+
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, .35);
@@ -2508,9 +2490,7 @@ h3 {
     transform: translateY(-2px);
 }
 
-/* ================================
-    Responsividade (para Diaristas)
-    ================================ */
+
 @media (max-width: 980px) {
     .diaristas-root .relatorio-grid {
         grid-template-columns: 1fr;
@@ -2533,22 +2513,7 @@ h3 {
     }
 }
 
-/* ESTILOS GLOBAIS PARA MODAIS (#registrar-diarista-modal, etc.).diaristas-modal {
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    z-index: 50;
-    overflow-y: auto;
-}.diaristas-modal.hidden {
-    display: none;
-}/* * Estilos para os modais de FORMULÁRIO
- * (#registrar-diarista-modal)
-*/
+
 :is(#registrar-diarista-modal) .modal-card {
     background-color: white;
     border-radius: 12px;
@@ -3141,8 +3106,8 @@ h3 {
   --wr-meta-bg: #f2f2f2;
   --wr-sep-bg: #f0f3f7;
   --wr-max-h: 70vh;
-  /* Larguras das colunas fixas - AJUSTE AQUI SE NECESSÁRIO */
-  --kpi-col-w: 40px; /* Exemplo: Aumentado para 40px */
+
+  --kpi-col-w: 40px;
   --service-col-w: 110px;
 }
 
@@ -3210,23 +3175,23 @@ html, body {
   min-height: 0;
   overflow-y: auto;
   overflow-x: auto;
-  /* *** MUDANÇA 1: Aumentar padding e ativar scrollbar-gutter *** */
-  padding-right: 30px; /* Aumentado de 18px */
-  padding-bottom: 12px; /* Espaço para scrollbar horizontal */
-  scrollbar-gutter: stable; /* Reservar espaço para scrollbar vertical */
+
+  padding-right: 30px;
+  padding-bottom: 12px;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-/* *** MUDANÇA 2: ::after com margem maior *** */
+
 .table-sticky-wrapper > .weekly-regional-table::after {
   content: ""; display: inline-block;
   width: 1px; height: 1px;
-  margin-right: 25px; /* Aumentado de 16px */
+  margin-right: 25px;
 }
 
 .table-sticky-wrapper::-webkit-scrollbar:vertical {
-  width: 0px; /* Mantido escondido, mas 'stable' reserva espaço */
+  width: 0px;
 }
 
 .table-sticky-wrapper::-webkit-scrollbar:horizontal {
@@ -3244,7 +3209,7 @@ html, body {
 
 .weekly-regional-table {
   width: 100%;
-  border-collapse: separate; /* Mantido como original */
+  border-collapse: separate;
   border-spacing: 0;
   font-size: 12px;
   min-width: 1200px;
@@ -3256,13 +3221,13 @@ html, body {
   padding: 6px 8px;
   text-align: center;
   white-space: nowrap;
-  background: #fff; /* Garantir fundo opaco */
+  background: #fff;
   vertical-align: middle;
 }
 
 .weekly-regional-table thead th {
   position: sticky;
-  z-index: 5; /* Nível base para cabeçalhos que rolam */
+  z-index: 5;
   background: var(--wr-header-bg);
   color: var(--wr-header-fg);
   font-weight: 700;
@@ -3295,26 +3260,26 @@ html, body {
   text-align: center;
 }
 
-/* --- Estilos específicos das colunas fixas --- */
+
 .weekly-regional-table td.sticky-kpi {
   writing-mode: vertical-rl;
   text-orientation: mixed;
   transform: rotate(180deg);
   font-weight: 700;
   padding: 8px 4px;
-  width: var(--kpi-col-w); /* Largura explícita */
+  width: var(--kpi-col-w);
   min-width: var(--kpi-col-w);
   max-width: var(--kpi-col-w);
 }
 
 .weekly-regional-table td.sticky-codigo {
   font-weight: 600;
-  width: var(--service-col-w); /* Largura explícita */
+  width: var(--service-col-w);
   min-width: var(--service-col-w);
-  max-width: var(--service-col-w); /* Adicionado para consistência */
+  max-width: var(--service-col-w);
 }
 
-/* --- Estilos Células Corpo --- */
+
 .weekly-regional-table td.res { background: #ffffff; }
 .weekly-regional-table td.meta { background: var(--wr-meta-bg); }
 .weekly-regional-table td.delta { background: #ffffff; }
@@ -3323,23 +3288,23 @@ html, body {
 .weekly-regional-table td.delta.delta-neutral { color: #6c757d; background: #e9ecef; font-weight: 600; }
 .weekly-regional-table tr.kpi-separator td { border: none; height: 10px; background-color: var(--wr-sep-bg) !important; padding: 0; border-top: 1px solid #d8dfea; }
 
-/* =========================================== */
-/* --- SEÇÃO STICKY (COLUNAS FIXAS) CORRIGIDA --- */
-/* =========================================== */
 
-/* 1. Canto Superior Esquerdo (Camada mais alta) */
+
+
+
+
 .weekly-regional-table thead tr.header-row-1 th:first-child {
   position: sticky;
   left: 0;
   z-index: 10;
 }
 
-/* 2. Cabeçalhos "Week" e "Service" (Camada intermediária-alta) */
+
 .weekly-regional-table thead tr.header-row-2 th.col-kpi {
   position: sticky;
   left: 0;
   z-index: 9;
-  background: var(--wr-header-bg); /* Garantir fundo */
+  background: var(--wr-header-bg);
   min-width: var(--kpi-col-w);
   width: var(--kpi-col-w);
   max-width: var(--kpi-col-w);
@@ -3349,27 +3314,27 @@ html, body {
   position: sticky;
   left: var(--kpi-col-w);
   z-index: 9;
-  background: var(--wr-header-bg); /* Garantir fundo */
+  background: var(--wr-header-bg);
   min-width: var(--service-col-w);
   width: var(--service-col-w);
   max-width: var(--service-col-w);
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.15); /* Sombra original */
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.15);
 }
 
-/* 3. Células do Corpo "Week" e "Service" (Camada intermediária-baixa) */
+
 .weekly-regional-table td.sticky-kpi {
   position: sticky;
   left: 0;
   z-index: 7;
-  background: #fff; /* Fundo já estava ok */
+  background: #fff;
 }
 
 .weekly-regional-table td.sticky-codigo {
   position: sticky;
   left: var(--kpi-col-w);
   z-index: 7;
-  background: #fff; /* Fundo já estava ok */
-  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06); /* Sombra original */
+  background: #fff;
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
 }
 
 :root {
@@ -3676,47 +3641,265 @@ html, body {
     font-weight: 600;
 }
 
-/* Estilos ATUALIZADOS para os filtros arredondados do Painel Gerencial */
+
 .gerencial-filter-select {
-    padding: 8px 12px; /* Padding do exemplo */
-    padding-right: 2.5em; /* Espaço para a seta (mantido) */
-    border: 1px solid #ddd; /* Borda cinza do exemplo */
-    border-radius: 20px; /* Bordas arredondadas do exemplo */
-    background: #fff; /* Fundo branco do exemplo */
-    font-weight: 700; /* Peso da fonte do exemplo */
-    font-size: 12px; /* Tamanho da fonte do exemplo */
-    color: #4B4F56; /* Cor do texto primária (azul escuro) */
+    padding: 8px 12px;
+    padding-right: 2.5em;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    color: #4B4F56;
     cursor: pointer;
-    /* Adiciona a aparência padrão e a seta */
+
     -webkit-appearance: none;
     appearance: none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23003369' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); /* Cor da seta ajustada */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23003369' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 0.7em top 50%;
     background-size: 0.65em auto;
-    /* Transições */
+
     transition: transform .08s ease, box-shadow .25s, border-color .25s;
-    min-width: 150px; /* Largura mínima (ajuste se necessário) */
+    min-width: 150px;
 }
 
-/* Efeito hover (copiado do exemplo) */
+
 .gerencial-filter-select:hover {
     transform: translateY(-1px);
-    /* Opcional: background-color: #f8f9fa; */
+
 }
 
-/* Efeito focus (copiado do exemplo) */
+
 .gerencial-filter-select:focus {
     outline: none;
-    border-color: #02B1EE; /* Cor da borda azul clara ao focar */
-    box-shadow: 0 0 0 4px rgba(2, 177, 238, .2); /* Sombra azul clara ao focar */
+    border-color: #02B1EE;
+    box-shadow: 0 0 0 4px rgba(2, 177, 238, .2);
 }
 
-/* Garante que o botão Limpar Filtros também fique arredondado */
+
 .top-controls .btn-cancelar {
     padding: 8px 14px;
-    border-radius: 20px; /* Mesmo arredondamento dos selects */
+    border-radius: 20px;
     font-size: 12px;
     font-weight: 700;
-    /* Mantenha outras propriedades de .btn-cancelar */
+
+}
+
+
+
+
+
+
+
+:root {
+
+  --mr-header-1-h: var(--wr-header-1-h, 38px);
+  --mr-header-2-h: var(--wr-header-2-h, 34px);
+  --mr-header-bg: var(--wr-header-bg, #003369);
+  --mr-header-fg: var(--wr-header-fg, #ffffff);
+  --mr-border: var(--wr-border, #e0e4e9);
+  --mr-cell-border: var(--wr-cell-border, #d6d9df);
+  --mr-meta-bg: var(--wr-meta-bg, #f2f2f2);
+  --mr-sep-bg: var(--wr-sep-bg, #f0f3f7);
+  --mr-max-h: var(--wr-max-h, 70vh);
+
+
+  --month-col-w: 40px;
+  --mr-service-col-w: var(--service-col-w, 110px);
+}
+
+
+#tab-month-regional {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+#tab-month-regional > h2 {
+  margin: 0;
+  color: var(--mr-header-bg);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+
+#month-regional-loading {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  font-weight: bold;
+  color: var(--mr-header-bg);
+}
+
+
+#mr-header .cd-filters select {
+  max-width: 160px;
+}
+
+
+#mr-header .action-buttons #mr-clear-all {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .08);
+  color: #fff;
+  background: #6c757d;
+  transition: all .2s ease;
+  white-space: nowrap;
+}
+
+#mr-header .action-buttons #mr-clear-all:hover {
+  transform: translateY(-1px);
+}
+
+
+
+
+
+.month-regional-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  min-width: 1200px;
+}
+
+.month-regional-table th,
+.month-regional-table td {
+  border: 1px solid var(--mr-cell-border);
+  padding: 6px 8px;
+  text-align: center;
+  white-space: nowrap;
+  background: #fff;
+  vertical-align: middle;
+}
+
+
+.month-regional-table thead th {
+  position: sticky;
+  z-index: 5;
+  background: var(--mr-header-bg);
+  color: var(--mr-header-fg);
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.month-regional-table thead tr.header-row-1 th {
+  top: 0;
+  height: var(--mr-header-1-h);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+
+.month-regional-table thead tr.header-row-1 th:first-child {
+  border-top-left-radius: 14px;
+}
+.month-regional-table thead tr.header-row-1 th:last-child {
+  border-top-right-radius: 14px;
+}
+
+.month-regional-table thead tr.header-row-2 th {
+  top: var(--mr-header-1-h);
+  height: var(--mr-header-2-h);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+
+
+
+.month-regional-table td.sticky-kpi {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-weight: 700;
+  padding: 8px 4px;
+  width: var(--month-col-w);
+  min-width: var(--month-col-w);
+  max-width: var(--month-col-w);
+  text-align: center;
+  vertical-align: middle;
+}
+
+
+.month-regional-table td.sticky-codigo {
+  font-weight: 600;
+  width: var(--mr-service-col-w);
+  min-width: var(--mr-service-col-w);
+  max-width: var(--mr-service-col-w);
+  vertical-align: middle;
+  text-align: center;
+}
+
+
+
+.month-regional-table td.res { background: #ffffff; }
+
+.month-regional-table td.delta { background: #ffffff; }
+.month-regional-table td.delta.delta-positive { color: #155724; background: #d4edda; font-weight: 700; }
+.month-regional-table td.delta.delta-negative { color: #721c24; background: #f8d7da; font-weight: 700; }
+.month-regional-table td.delta.delta-neutral { color: #6c757d; background: #e9ecef; font-weight: 600; }
+
+
+.month-regional-table tr.kpi-separator td {
+   border: none;
+   height: 10px;
+   background-color: var(--mr-sep-bg) !important;
+   padding: 0;
+   border-top: 1px solid #d8dfea;
+}
+
+
+
+
+
+
+.month-regional-table thead tr.header-row-1 th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+
+.month-regional-table thead tr.header-row-2 th.col-kpi {
+  position: sticky;
+  left: 0;
+  z-index: 9;
+  background: var(--mr-header-bg);
+  min-width: var(--month-col-w);
+  width: var(--month-col-w);
+  max-width: var(--month-col-w);
+  vertical-align: middle;
+}
+
+.month-regional-table thead tr.header-row-2 th.col-service {
+  position: sticky;
+  left: var(--month-col-w);
+  z-index: 9;
+  background: var(--mr-header-bg);
+  min-width: var(--mr-service-col-w);
+  width: var(--mr-service-col-w);
+  max-width: var(--mr-service-col-w);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.15);
+  vertical-align: middle;
+}
+
+
+.month-regional-table td.sticky-kpi {
+  position: sticky;
+  left: 0;
+  z-index: 7;
+  background: #fff;
+}
+
+.month-regional-table td.sticky-codigo {
+  position: sticky;
+  left: var(--month-col-w);
+  z-index: 7;
+  background: #fff;
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
 }

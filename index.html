@@ -4,7 +4,9 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Acesso ao Sistema | KN Conecta</title>
-    <link rel="icon" href="/imagens/kn.ico" type="image/x-icon">
+
+    <link rel="icon" href="/imagens/kn.gif" type="image/gif">
+
     <link rel="stylesheet" href="/login.css"/>
 </head>
 
@@ -19,7 +21,7 @@
             </label>
             <input type="file" id="registerAvatar" accept="image/*" style="display: none;">
 
-            <span class="form-subtitle"><strong>Use seu nome, email e crie um PIN para se registrar</strong></span>
+            <span class="form-subtitle"><strong>Use seu nome, email e gere um PIN para se registrar</strong></span>
 
             <input id="registerName" type="text" placeholder="Nome Completo" required class="form-field"/>
             <input id="registerEmail" type="email" placeholder="Email" required class="form-field"/>
@@ -34,10 +36,18 @@
                 </select>
             </div>
 
-            <input id="registerPin" type="password" placeholder="Crie um PIN de 6 dígitos" maxlength="6"
-                   inputmode="numeric" required class="form-field"/>
+            <div class="pin-display-container">
+                <span id="generatedPinDisplay"></span>
+            </div>
 
-            <button id="registerBtn" type="submit">Criar e Enviar</button>
+            <p id="pinMessage" class="message pin-message"></p>
+
+
+            <div class="form-button-container">
+                <button type="button" id="generatePinBtn">Gerar PIN</button>
+                <button id="registerBtn" type="submit">Criar e Enviar</button>
+            </div>
+
             <p id="registerMsg" class="message"></p>
         </form>
     </div>
@@ -62,13 +72,17 @@
     <div class="toggle-container">
         <div class="toggle">
             <div class="toggle-panel toggle-left">
-                <img src="/imagens/kn.ico" alt="Logo KN Conecta" style="height: 60px; margin-bottom: 15px;">
+
+                <img src="/imagens/kn.gif" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
+
                 <h1>Bem-vindo de volta!</h1>
                 <p>Já possui uma conta? Faça o login para acessar o sistema.</p>
                 <button class="hidden" id="showLoginBtn">Entrar</button>
             </div>
             <div class="toggle-panel toggle-right">
-                <img src="/imagens/kn.ico" alt="Logo KN Conecta" style="height: 60px; margin-bottom: 15px;">
+
+                <img src="/imagens/kn.gif" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
+
                 <h1>Olá, seja bem vindo ao KNConecta!</h1>
                 <p>Ainda não tem uma conta? Registre-se para solicitar seu acesso.</p>
                 <button class="hidden" id="showRegisterBtn">Criar Conta</button>

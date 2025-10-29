@@ -405,12 +405,15 @@ serve(async (req) => {
                 kpiCodigoMap[kpi] ??= new Set();
                 kpiCodigoMap[kpi].add(codigo);
 
+
+
                 processedData[dateKey][kpi][codigo] = {
-                    resultado: resultadoNum,
-                    meta: metaNum,
-                    resultadoRaw: resultadoStr || "-",
-                    metaRaw: metaStr || "-",
+                    com_poc: resultadoNum,
+                    sem_poc: metaNum,
+                    com_pocRaw: resultadoStr || "-",
+                    sem_pocRaw: metaStr || "-",
                 };
+
 
                 if (gerente) {
                     if (!codigoToGerente[codigo]) codigoToGerente[codigo] = gerente;

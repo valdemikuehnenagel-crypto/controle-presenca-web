@@ -76,14 +76,21 @@ body {
 }
 
 form#registerForm {
-    padding-top: 40px;
+
+    padding-top: 20px;
+
+
+    gap: 5px;
 }
 
 .container input,
 .container select {
     background-color: #eee;
     border: 1px solid #e0e0e0;
-    margin: 8px 0;
+
+
+    margin: 0;
+
     padding: 10px 15px;
     font-size: 13px;
     border-radius: 8px;
@@ -129,16 +136,19 @@ form#registerForm {
     font-size: 12px;
     height: auto;
     min-height: 16px;
-    margin-top: 10px;
+
+
     word-break: break-all;
 }
 
 #loginMsg {
     color: #e53e3e;
+    margin-top: 8px;
 }
 
 #registerMsg {
     color: #48bb78;
+    margin-top: 8px;
 }
 
 #registerMsg.error {
@@ -299,12 +309,14 @@ body.login-page::before {
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    margin-bottom: 15px;
+
+    margin-bottom: 10px;
 }
 
 .avatar-upload-label img {
-    width: 60px;
-    height: 60px;
+
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid #e0e0e0;
@@ -324,7 +336,8 @@ body.login-page::before {
 }
 
 form#registerForm > span:first-of-type {
-    margin-bottom: 15px;
+
+    margin-bottom: 10px;
 }
 
 .login-content {
@@ -388,7 +401,8 @@ form#registerForm > span:first-of-type {
     display: flex;
     gap: 10px;
     width: 100%;
-    margin: 8px 0;
+
+    margin: 0;
 }
 
 #open-matriz-modal-btn,
@@ -515,4 +529,50 @@ form#registerForm > span:first-of-type {
     cursor: pointer;
     font-weight: bold;
     text-transform: uppercase;
+}
+
+
+
+
+.form-button-container {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+
+    margin-top: 8px;
+    justify-content: center;
+}
+
+.form-button-container button {
+    margin-top: 0;
+    padding: 10px 25px;
+    min-width: 140px;
+    text-align: center;
+}
+
+.pin-display-container {
+    width: 100%;
+    text-align: center;
+    margin: 0;
+}
+
+#generatedPinDisplay {
+    font-size: 20px;
+    font-weight: 700;
+    color: #003369;
+    letter-spacing: 2px;
+    padding: 5px 10px;
+    background-color: #eee;
+    border-radius: 8px;
+    display: inline-block;
+    min-height: 36px;
+    line-height: 26px;
+}
+
+.message.pin-message {
+    color: #333;
+    font-weight: 500;
+    text-align: center;
+
+    margin: 2px 0 0 0;
 }
