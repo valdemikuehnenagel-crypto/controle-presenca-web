@@ -1,7 +1,7 @@
 // ========================================================================
 // separacao.js — Auditoria de Mangas (Validação contínua + DOCA + Massa + Print Fix + UI reorder)
 //
-// V9.1: Correção do Bug de Validação (String vs Number)
+// V10: Scan Contínuo (Tela Verde) e Parada no Erro (Tela Vermelha)
 // ========================================================================
 
 // IMPORTANTE: Você precisa instalar a biblioteca 'html5-qrcode'
@@ -27,9 +27,9 @@ let state = {
     isSeparaçãoProcessing: false,
     isCarregamentoProcessing: false,
     selectedDock: null,
-    selectedIlha: null, // (NOVO) Guarda a Ilha selecionada
-    globalScannerInstance: null, // Guarda a instância do scanner
-    currentScannerTarget: null, // 'separacao' ou 'carregamento'
+    selectedIlha: null,
+    globalScannerInstance: null,
+    currentScannerTarget: null,
 };
 
 // -------------------------------
@@ -57,7 +57,7 @@ let dom = {
     modalCarClose: null,
     carUser: null,
     carDockSelect: null,
-    carIlhaSelect: null, // (NOVO) Select da Ilha
+    carIlhaSelect: null,
     carScan: null,
     carStatus: null,
     carCamBtn: null,
@@ -66,6 +66,7 @@ let dom = {
     scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
+    scannerFeedbackOverlay: null, // (NOVO)
 };
 
 // -------------------------------
@@ -192,7 +193,6 @@ function resetSeparacaoModal() {
     clearSepQrCanvas();
 }
 
-// (AJUSTADO)
 function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
@@ -202,7 +202,6 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
         if (dom.carDockSelect) dom.carDockSelect.value = '';
     }
 
-    // (NOVO) Reseta a Ilha
     state.selectedIlha = null;
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = '';
 
@@ -211,8 +210,29 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
 }
 
 // -------------------------------
-// Scanner de Câmera (V8)
+// Scanner de Câmera (AJUSTE V10)
 // -------------------------------
+
+/** (NOVO) Mostra o feedback verde/vermelho DENTRO do modal do scanner */
+function showScannerFeedback(type, message) {
+    if (!dom.scannerFeedbackOverlay) return;
+
+    const textEl = dom.scannerFeedbackOverlay.querySelector('span');
+    if (textEl) textEl.textContent = message;
+
+    dom.scannerFeedbackOverlay.classList.remove('hidden', 'bg-green-500', 'bg-red-500');
+
+    if (type === 'success') {
+        dom.scannerFeedbackOverlay.classList.add('bg-green-500');
+    } else {
+        dom.scannerFeedbackOverlay.classList.add('bg-red-500');
+    }
+
+    // Esconde o feedback após 1.5 segundos
+    setTimeout(() => {
+        dom.scannerFeedbackOverlay.classList.add('hidden');
+    }, 1500);
+}
 
 /** Cria o modal do scanner e o anexa ao body (só roda 1 vez) */
 function createGlobalScannerModal() {
@@ -224,10 +244,11 @@ function createGlobalScannerModal() {
     modal.style.zIndex = '1100';
 
     const content = document.createElement('div');
-    content.className = 'modal-content';
+    content.className = 'modal-content relative'; // (NOVO) Adicionado 'relative'
     content.style.width = '90vw';
     content.style.maxWidth = '600px';
 
+    // (NOVO) Adicionado o overlay de feedback
     content.innerHTML = `
         <div class="flex justify-between items-center mb-4 border-b pb-2">
             <h3 class="text-xl font-semibold">Escanear QR Code</h3>
@@ -236,6 +257,12 @@ function createGlobalScannerModal() {
         <button id="auditoria-scanner-cancel" type="button" class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
             Cancelar
         </button>
+        
+        <div id="scanner-feedback-overlay" 
+             class="hidden absolute inset-0 bg-green-500 bg-opacity-90 flex items-center justify-center p-4"
+             style="z-index: 10;">
+            <span class="text-white text-2xl font-bold text-center"></span>
+        </div>
     `;
 
     modal.appendChild(content);
@@ -244,6 +271,7 @@ function createGlobalScannerModal() {
     dom.scannerModal = modal;
     dom.scannerContainer = modal.querySelector('#auditoria-scanner-container');
     dom.scannerCancelBtn = modal.querySelector('#auditoria-scanner-cancel');
+    dom.scannerFeedbackOverlay = modal.querySelector('#scanner-feedback-overlay'); // (NOVO)
 
     dom.scannerCancelBtn.addEventListener('click', stopGlobalScanner);
 }
@@ -364,21 +392,68 @@ function stopGlobalScanner() {
 }
 
 
-/** Chamado no sucesso da leitura da câmera */
-function onGlobalScanSuccess(decodedText) {
+/** Chamado no sucesso da leitura da câmera (AJUSTADO V10) */
+async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target) {
         stopGlobalScanner();
         return;
     }
-    const input = (target === 'separacao') ? dom.sepScan : dom.carScan;
-    if (input) {
-        input.value = decodedText;
-        stopGlobalScanner();
-        const enterEvent = new KeyboardEvent('keydown', {
-            key: 'Enter', bubbles: true, cancelable: true
-        });
-        input.dispatchEvent(enterEvent);
+
+    // --- FLUXO DE SEPARAÇÃO (ANTIGO) ---
+    // (Bipa -> Para -> Simula Enter -> Vê QR na tela)
+    if (target === 'separacao') {
+        const input = dom.sepScan;
+        if (input) {
+            input.value = decodedText;
+            stopGlobalScanner();
+            const enterEvent = new KeyboardEvent('keydown', {
+                key: 'Enter', bubbles: true, cancelable: true
+            });
+            input.dispatchEvent(enterEvent);
+        }
+        return;
+    }
+
+    // --- FLUXO DE CARREGAMENTO (NOVO - V10) ---
+    // (Bipa -> Valida -> Pisca Tela -> Continua Bipando)
+    if (target === 'carregamento') {
+        if (state.isCarregamentoProcessing) return; // Já está processando um bipe
+
+        try {
+            state.isCarregamentoProcessing = true;
+            state.globalScannerInstance.pause(true); // Pausa a câmera
+
+            // Pega os dados do formulário (que está escondido)
+            const usuarioSaida = dom.carUser?.value?.trim();
+            const doca = state.selectedDock || dom.carDockSelect?.value || '';
+            const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
+
+            // Chama a lógica de validação central
+            const validation = await runCarregamentoValidation(decodedText, usuarioSaida, doca, ilha);
+
+            if (validation.success) {
+                // SUCESSO (VERDE): Pisca a tela e continua
+                showScannerFeedback('success', validation.message);
+                renderDashboard(); // Atualiza o dashboard em background
+                state.globalScannerInstance.resume(); // Retoma a câmera
+            } else {
+                // ERRO (VERMELHO): Pisca a tela e FECHA o scanner
+                showScannerFeedback('error', validation.message);
+                stopGlobalScanner(); // Força o usuário a voltar
+                setCarStatus(validation.message, {error: true}); // Seta o erro no modal de input
+                dom.carScan.value = decodedText; // Deixa o valor errado no input
+                dom.carScan.select();
+            }
+
+        } catch (err) {
+            // Erro inesperado
+            showScannerFeedback('error', err.message || 'Erro desconhecido');
+            stopGlobalScanner();
+            setCarStatus(err.message, {error: true});
+        } finally {
+            state.isCarregamentoProcessing = false;
+        }
     }
 }
 
@@ -550,24 +625,15 @@ function clearSepQrCanvas() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
 }
 
-/**
- * Gera o QR Code.
- * @param {string} dataForQr - O dado a ser embutido no QR Code (ID do Pacote).
- * @param {string | null} ilha - A Rota (para o sub-label).
- * @param {string | null} mangaLabel - O texto grande do label (Numeração da Manga, ex: Y_7176).
- */
 function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) return Promise.resolve();
     clearSepQrCanvas();
     const qr = qrcode(0, 'M');
-    // 1. O QR Code (scannável) usa o ID do Pacote de 11 dígitos.
     qr.addData(String(dataForQr));
     qr.make();
     dom.sepQrCanvas.innerHTML = qr.createSvgTag(10, 10);
     dom.sepQrArea.style.display = 'block';
-    // 2. O Rótulo (o que o usuário vê) usa a Numeração da Manga (ex: Y_7176).
-    const labelPrincipal = mangaLabel || dataForQr; // Se a numeração da manga não vier, usa o ID como fallback
-    // 3. O sub-rótulo mostra a Rota (Ilha).
+    const labelPrincipal = mangaLabel || dataForQr;
     dom.sepQrTitle.innerHTML = `<div class="qr-num">${labelPrincipal}</div>` + (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
     return Promise.resolve();
 }
@@ -612,11 +678,8 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
         setSepStatus(`Processando ${i + 1}/${total}: ${idPacote}...`);
         try {
             const dataScan = new Date().toISOString();
-            // Captura 'pacote' (ID do pacote) e 'numeracao' (Num. Manga)
             const {numeracao, ilha, insertedData, pacote} = await processarPacote(idPacote, dataScan, usuarioEntrada);
-            // Usa o ID do Pacote retornado pelo backend (ou o bipado) para o QR
             const idPacoteParaQr = pacote || idPacote;
-            // Passa o ID do pacote para o QR, e a numeração da manga para o label
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
 
             if (insertedData && insertedData[0]) {
@@ -674,22 +737,12 @@ async function handleSeparaçãoSubmit(e) {
 
     try {
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
-
-        // Captura 'pacote' (ID do pacote) e 'numeracao' (Num. Manga)
         const {numeracao, ilha, insertedData, pacote} = result;
-
         if (!numeracao) throw new Error('Resposta não contém numeração');
-
-        // Usa o 'pacote' retornado pelo backend (que é o idPacoteStr), ou o 'idPacote' que o usuário bipou
         const idPacoteParaQr = pacote || idPacote;
-
         setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
-
-        // Passa o ID do pacote para o QR, e a numeração da manga para o label
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
-
         dom.sepScan.value = '';
-
         if (insertedData && insertedData[0]) {
             state.cacheData.unshift(insertedData[0]);
             renderDashboard();
@@ -701,12 +754,12 @@ async function handleSeparaçãoSubmit(e) {
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
         dom.sepUser.disabled = false;
-        dom.sepScan.focus(); // Foca para a próxima bipagem IMEDIATAMENTE
+        dom.sepScan.focus();
     }
 }
 
 // -------------------------------
-// Carregamento (Passo 2) - (AJUSTADO V9)
+// Carregamento (Passo 2) - (AJUSTADO V10)
 // -------------------------------
 function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
@@ -719,7 +772,6 @@ function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, '0')}`;
 }
 
-// (Sem alterações)
 function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
 
@@ -753,7 +805,6 @@ function ensureDockSelect() {
 
         const userBlock = userInput.closest('.mt-1');
         if (userBlock && userBlock.parentElement) {
-            // Insere DEPOIS do input do usuário
             userBlock.parentElement.insertBefore(wrap, userBlock.nextSibling);
         } else {
             const container = dom.modalCarregamento?.querySelector('.max-w-md');
@@ -771,14 +822,13 @@ function ensureDockSelect() {
     });
 }
 
-/** (NOVO) Cria o HTML para o select de Ilha */
 function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
 
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
     if (!dom.carIlhaSelect) {
-        const dockSelect = dom.carDockSelect; // Acha o select da DOCA
-        if (!dockSelect) return; // Garante que a Doca foi criada primeiro
+        const dockSelect = dom.carDockSelect;
+        if (!dockSelect) return;
 
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
@@ -791,7 +841,6 @@ function ensureIlhaSelect() {
             </div>
         `;
 
-        // Insere DEPOIS do wrapper do select da DOCA
         const dockBlock = dockSelect.closest('.mt-4');
         if (dockBlock && dockBlock.parentElement) {
             dockBlock.parentElement.insertBefore(wrap, dockBlock.nextSibling);
@@ -805,15 +854,13 @@ function ensureIlhaSelect() {
     });
 }
 
-/** (NOVO) Popula o select de Ilha com dados do cache */
 function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
 
-    // Pega todas as rotas únicas do cache de dados
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
     rotas.sort();
 
-    dom.carIlhaSelect.innerHTML = ''; // Limpa opções antigas
+    dom.carIlhaSelect.innerHTML = '';
 
     const opt0 = document.createElement('option');
     opt0.value = '';
@@ -831,16 +878,13 @@ function populateIlhaSelect() {
         dom.carIlhaSelect.appendChild(opt);
     }
 
-    // Restaura a seleção se o usuário já tiver escolhido uma
     if (state.selectedIlha) {
         dom.carIlhaSelect.value = state.selectedIlha;
     }
 }
 
 
-// (Sem alterações)
 async function processarValidacao(numeracao, usuarioSaida, doca) {
-    // Esta função ainda espera a NUMERACAO (ex: Y_7176), não o ID_PACOTE
     const body = {numeracao, usuario_saida: usuarioSaida, doca};
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
@@ -859,14 +903,12 @@ async function processarValidacao(numeracao, usuarioSaida, doca) {
     return json || {};
 }
 
-// (AJUSTADO)
 function handleCarUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
-        // Flui do Usuário -> Doca -> Ilha -> Scan
         if (!state.selectedDock && dom.carDockSelect) {
             dom.carDockSelect.focus();
-        } else if (!state.selectedIlha && dom.carIlhaSelect) { // (NOVO)
+        } else if (!state.selectedIlha && dom.carIlhaSelect) {
             dom.carIlhaSelect.focus();
         } else {
             dom.carScan.focus();
@@ -874,89 +916,42 @@ function handleCarUserKeydown(e) {
     }
 }
 
-// (MUITO AJUSTADO V9.1)
-async function handleCarregamentoSubmit(e) {
-    if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
-    e.preventDefault();
+/** * (NOVO V10) Lógica de validação centralizada para Carregamento.
+ * Retorna { success: boolean, message: string }
+ */
+async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+    // --- 1. Validações de preenchimento (necessárias para o scanner) ---
+    if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
+    if (!doca) return {success: false, message: 'Selecione a DOCA'};
+    if (!ilha) return {success: false, message: 'Selecione a ILHA'};
+    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR Code do Pacote'};
 
-    // (AJUSTADO) O que é bipado agora é o ID do Pacote
-    const idPacoteScaneado = dom.carScan?.value?.trim();
-    const usuarioSaida = dom.carUser?.value?.trim();
-    const doca = state.selectedDock || dom.carDockSelect?.value || '';
-    const ilha = state.selectedIlha || dom.carIlhaSelect?.value || ''; // (NOVO)
-
-    // --- Validações de preenchimento ---
-    if (!usuarioSaida) {
-        setCarStatus('Digite o nome do colaborador', {error: true});
-        dom.carUser.focus();
-        return;
-    }
-    if (!doca) {
-        setCarStatus('Selecione a DOCA', {error: true});
-        dom.carDockSelect?.focus();
-        return;
-    }
-    // (NOVO) Validação da Ilha
-    if (!ilha) {
-        setCarStatus('Selecione a ILHA', {error: true});
-        dom.carIlhaSelect?.focus();
-        return;
-    }
-    if (!idPacoteScaneado) {
-        setCarStatus('Bipe o QR Code do Pacote', {error: true}); // Texto do placeholder ajustado
-        dom.carScan.focus();
-        return;
-    }
-
-    // --- (NOVO) VALIDAÇÃO FRONT-END (ID Pacote vs Ilha) ---
-
-    // ***** INÍCIO DA CORREÇÃO V9.1 *****
-    // Compara STRING com STRING (i['ID PACOTE'] vem como NÚMERO do banco)
+    // --- 2. VALIDAÇÃO FRONT-END (ID Pacote vs Ilha) ---
     const item = state.cacheData.find(i => String(i['ID PACOTE']) === idPacoteScaneado);
-    // ***** FIM DA CORREÇÃO V9.1 *****
-
 
     if (!item) {
-        setCarStatus(`Erro: Pacote ${idPacoteScaneado} não encontrado.`, {error: true});
-        dom.carScan.select(); // Seleciona o texto errado para fácil substituição
-        return; // NÃO AVANÇA
+        return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
     }
 
     if (item.ROTA !== ilha) {
-        setCarStatus(`Erro: Pacote pertence à Rota ${item.ROTA}, não à Rota ${ilha}.`, {error: true});
-        dom.carScan.select();
-        return; // NÃO AVANÇA
+        return {success: false, message: `Erro: Pacote pertence à Rota ${item.ROTA}, não à Rota ${ilha}.`};
     }
 
-    // Se chegou aqui, o pacote é da ilha correta.
-    // Pegamos a NUMERACAO (ex: Y_7176) para enviar ao backend
     const numeracaoParaBackend = item.NUMERACAO;
-    // --- FIM DA NOVA VALIDAÇÃO ---
 
-
-    state.isCarregamentoProcessing = true;
-    dom.carScan.disabled = true;
-    dom.carUser.disabled = true;
-    dom.carDockSelect && (dom.carDockSelect.disabled = true);
-    dom.carIlhaSelect && (dom.carIlhaSelect.disabled = true); // (NOVO)
-    setCarStatus('Validando manga...');
-
+    // --- 3. VALIDAÇÃO BACK-END (Chama a API) ---
     try {
-        // Envia a NUMERACAO (Y_7176) para o backend, não o ID_PACOTE
         const result = await processarValidacao(numeracaoParaBackend, usuarioSaida, doca);
         const {updatedData, idempotent, message} = result || {};
 
+        let successMessage = `OK! ${numeracaoParaBackend} validada.`;
         if (idempotent) {
-            // (AJUSTADO) Mostra a NUMERACAO (Y_7176) na mensagem de erro
-            setCarStatus(message || `Manga ${numeracaoParaBackend} já estava validada.`, {error: true});
-        } else {
-            setCarStatus(`OK! ${numeracaoParaBackend} validada. Escaneie a próxima...`, {error: false});
+            // Se já foi validado, ainda é um "sucesso" parcial, mas com aviso
+            // (Para o scan contínuo, tratamos como sucesso para não parar)
+            successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;
         }
 
-        dom.carScan.value = ''; // Limpa para o próximo scan
-
         if (updatedData) {
-            // Acha pelo ID_PACOTE ou NUMERACAO, tanto faz, mas NUMERACAO é o que o backend retorna
             const index = state.cacheData.findIndex(itemCache => {
                 try {
                     return String(itemCache.NUMERACAO).trim() === String(updatedData.NUMERACAO).trim();
@@ -967,33 +962,67 @@ async function handleCarregamentoSubmit(e) {
             if (index > -1) {
                 state.cacheData[index] = {...state.cacheData[index], ...updatedData, DOCA: doca, ROTA: ilha};
             }
-            renderDashboard();
-        } else if (idempotent) {
-            // Atualiza o dashboard mesmo se já foi bipado (para o caso de ter sido bipado sem doca antes)
-            renderDashboard();
         }
 
-        setTimeout(() => {
-            dom.carScan.focus();
-            dom.carScan.select?.();
-        }, 150);
+        return {success: true, message: successMessage};
 
     } catch (err) {
-        console.error('Erro Carregamento:', err);
+        console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
-        if (/não encontrada/i.test(msg)) setCarStatus(`Manga ${numeracaoParaBackend} não encontrada.`, {error: true});
-        else setCarStatus(`Erro: ${msg}`, {error: true});
+        if (/não encontrada/i.test(msg)) return {
+            success: false,
+            message: `Manga ${numeracaoParaBackend} não encontrada.`
+        };
+        return {success: false, message: `Erro: ${msg}`};
+    }
+}
+
+
+/** (AJUSTADO V10) Handle para quem aperta "Enter" (Desktop) */
+async function handleCarregamentoSubmit(e) {
+    if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
+    e.preventDefault();
+
+    state.isCarregamentoProcessing = true;
+    dom.carScan.disabled = true;
+    dom.carUser.disabled = true;
+    dom.carDockSelect && (dom.carDockSelect.disabled = true);
+    dom.carIlhaSelect && (dom.carIlhaSelect.disabled = true);
+    setCarStatus('Validando...');
+
+    const idPacoteScaneado = dom.carScan?.value?.trim();
+    const usuarioSaida = dom.carUser?.value?.trim();
+    const doca = state.selectedDock || dom.carDockSelect?.value || '';
+    const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
+
+    try {
+        // Chama a lógica de validação central
+        const validation = await runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha);
+
+        if (validation.success) {
+            setCarStatus(validation.message, {error: false});
+            dom.carScan.value = ''; // Limpa para o próximo
+            renderDashboard();
+            dom.carScan.focus();
+        } else {
+            setCarStatus(validation.message, {error: true});
+            dom.carScan.select(); // Seleciona o texto errado
+        }
+    } catch (err) {
+        // Pega erros inesperados da própria validação
+        setCarStatus(err.message, {error: true});
     } finally {
         state.isCarregamentoProcessing = false;
         dom.carScan.disabled = false;
         dom.carUser.disabled = false;
         dom.carDockSelect && (dom.carDockSelect.disabled = false);
-        dom.carIlhaSelect && (dom.carIlhaSelect.disabled = false); // (NOVO)
+        dom.carIlhaSelect && (dom.carIlhaSelect.disabled = false);
         if (dom.modalCarregamento && !dom.modalCarregamento.classList.contains('hidden')) {
             dom.carScan.focus();
         }
     }
 }
+
 
 // -------------------------------
 // Ciclo de Vida
@@ -1048,11 +1077,11 @@ export function init() {
         }
     }
 
-    // Prepara o leitor de câmera (Lógica V8)
+    // Prepara o leitor de câmera (Lógica V10)
     createGlobalScannerModal();
     injectScannerButtons();
 
-    // (AJUSTADO) Cria os selects de Doca e Ilha
+    // Cria os selects de Doca e Ilha
     ensureDockSelect();
     ensureIlhaSelect();
 
@@ -1063,10 +1092,9 @@ export function init() {
         dom.sepUser?.focus();
     });
 
-    // (AJUSTADO)
     dom.btnCarregamento?.addEventListener('click', () => {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-        populateIlhaSelect(); // (NOVO) Popula o dropdown de Ilhas
+        populateIlhaSelect(); // Popula o dropdown de Ilhas
         openModal(dom.modalCarregamento);
         // Foca no primeiro campo vazio (Doca, Ilha ou Scan)
         if (!state.selectedDock) dom.carDockSelect?.focus();
