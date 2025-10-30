@@ -1,9 +1,12 @@
 // ========================================================================
 // separacao.js — Auditoria de Mangas (Validação contínua + DOCA + Massa + Print Fix + UI reorder)
 // 
-// V4: Ajuste de CSS via manipulação de classes Tailwind (sem injetar CSS)
+// V5: Integração com Câmera Mobile (html5-qrcode)
 // ========================================================================
 
+// IMPORTANTE: Você precisa instalar a biblioteca 'html5-qrcode'
+// Ex: npm install html5-qrcode
+import {Html5QrcodeScanner} from 'html5-qrcode';
 import qrcode from 'qrcode-generator';
 
 // -------------------------------
@@ -24,6 +27,8 @@ let state = {
     isSeparaçãoProcessing: false,
     isCarregamentoProcessing: false,
     selectedDock: null,
+    globalScannerInstance: null, // (NOVO) Guarda a instância do scanner
+    currentScannerTarget: null, // (NOVO) 'separacao' ou 'carregamento'
 };
 
 // -------------------------------
@@ -44,6 +49,7 @@ let dom = {
     sepQrTitle: null,
     sepQrCanvas: null,
     sepPrintBtn: null,
+    sepCamBtn: null, // (NOVO)
 
     // Modal Carregamento
     modalCarregamento: null,
@@ -52,6 +58,12 @@ let dom = {
     carDockSelect: null,
     carScan: null,
     carStatus: null,
+    carCamBtn: null, // (NOVO)
+
+    // Modal Scanner (NOVO)
+    scannerModal: null,
+    scannerContainer: null,
+    scannerCancelBtn: null,
 };
 
 // -------------------------------
@@ -123,9 +135,20 @@ function openModal(modal) {
     dom._currentModal = modal;
 
     if (!modal._bound) modal._bound = {};
+
+    // (AJUSTADO) Tecla 'Escape' agora fecha o scanner OU o modal
     modal._bound.onKeyDown ??= (e) => {
-        if (e.key === 'Escape') closeModal(modal);
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (state.globalScannerInstance) {
+                stopGlobalScanner(); // 'Esc' fecha o scanner
+            } else {
+                closeModal(modal); // 'Esc' fecha o modal
+            }
+        }
     };
+
     modal._bound.onOverlayClick ??= (e) => {
         const content = modal.querySelector('.modal-content');
         if (!content) return;
@@ -145,6 +168,12 @@ function openModal(modal) {
 
 function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
+
+    // (AJUSTADO) Garante que o scanner pare ao fechar o modal
+    if (state.globalScannerInstance) {
+        stopGlobalScanner();
+    }
+
     modal.classList.add('hidden');
     modal.setAttribute('aria-hidden', 'true');
     if (modal._bound?.onKeyDown) document.removeEventListener('keydown', modal._bound.onKeyDown);
@@ -155,6 +184,7 @@ function closeModal(modal) {
 // -------------------------------
 /** Resets rápidos */
 function resetSeparacaoModal() {
+    if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepUser) dom.sepUser.value = '';
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
@@ -162,6 +192,7 @@ function resetSeparacaoModal() {
 }
 
 function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
+    if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
     if (!preserveDock) {
         state.selectedDock = null;
@@ -169,6 +200,174 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
     }
     if (dom.carScan) dom.carScan.value = '';
     setCarStatus('');
+}
+
+// -------------------------------
+// Scanner de Câmera (NOVO)
+// -------------------------------
+
+/** Cria o modal do scanner e o anexa ao body (só roda 1 vez) */
+function createGlobalScannerModal() {
+    if (document.getElementById('auditoria-scanner-modal')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'auditoria-scanner-modal';
+    modal.className = 'modal-overlay hidden'; // Começa escondido
+    modal.style.zIndex = '1100'; // Mais alto que os outros modais
+
+    const content = document.createElement('div');
+    content.className = 'modal-content';
+    content.style.width = '90vw';
+    content.style.maxWidth = '600px';
+
+    content.innerHTML = `
+        <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 class="text-xl font-semibold">Escanear QR Code</h3>
+        </div>
+        <div id="auditoria-scanner-container" style="width: 100%;"></div>
+        <button id="auditoria-scanner-cancel" type="button" class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
+            Cancelar
+        </button>
+    `;
+
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    dom.scannerModal = modal;
+    dom.scannerContainer = modal.querySelector('#auditoria-scanner-container');
+    dom.scannerCancelBtn = modal.querySelector('#auditoria-scanner-cancel');
+
+    dom.scannerCancelBtn.addEventListener('click', stopGlobalScanner);
+}
+
+/** Adiciona botões de câmera aos inputs de scan */
+function injectScannerButtons() {
+    const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
+
+    [
+        {input: dom.sepScan, id: 'sep-cam-btn'},
+        {input: dom.carScan, id: 'car-cam-btn'}
+    ].forEach(({input, id}) => {
+        if (!input) return;
+
+        const parent = input.parentElement;
+        if (!parent) return;
+
+        // Torna o 'pai' relativo para posicionar o botão
+        parent.style.position = 'relative';
+
+        const button = document.createElement('button');
+        button.id = id;
+        button.type = 'button';
+        button.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 p-1';
+        button.innerHTML = cameraIcon;
+
+        // Adiciona o botão
+        parent.appendChild(button);
+
+        // Salva a referência
+        if (id === 'sep-cam-btn') {
+            dom.sepCamBtn = button;
+        } else {
+            dom.carCamBtn = button;
+        }
+    });
+
+    // Adiciona os listeners
+    dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
+    dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
+}
+
+/** Inicia o scanner global */
+function startGlobalScanner(targetModal) {
+    if (state.globalScannerInstance || !dom.scannerModal) return;
+
+    state.currentScannerTarget = targetModal;
+
+    // Esconde o modal de input atual
+    if (dom._currentModal) {
+        dom._currentModal.classList.add('hidden');
+        dom._currentModal.setAttribute('aria-hidden', 'true');
+    }
+
+    // Mostra o modal do scanner
+    dom.scannerModal.classList.remove('hidden');
+
+    try {
+        const scanner = new Html5QrcodeScanner(
+            'auditoria-scanner-container',
+            {
+                fps: 10,
+                qrbox: {width: 250, height: 250},
+                supportedScanTypes: [0] // 0 = Câmera
+            },
+            false // verbose
+        );
+
+        scanner.render(onGlobalScanSuccess, onGlobalScanError);
+        state.globalScannerInstance = scanner;
+    } catch (err) {
+        console.error("Erro ao iniciar Html5QrcodeScanner:", err);
+        setSepStatus("Erro ao iniciar câmera.", {error: true});
+        setCarStatus("Erro ao iniciar câmera.", {error: true});
+        stopGlobalScanner();
+    }
+}
+
+/** Para o scanner global e reexibe o modal de input */
+function stopGlobalScanner() {
+    if (!state.globalScannerInstance) return;
+
+    try {
+        state.globalScannerInstance.clear().catch(err => {
+            console.error("Erro ao limpar scanner:", err);
+        });
+    } catch (err) {
+        console.error("Erro ao parar scanner:", err);
+    }
+
+    state.globalScannerInstance = null;
+
+    // Esconde o modal do scanner
+    dom.scannerModal.classList.add('hidden');
+
+    // Reexibe o modal de input original
+    if (dom._currentModal) {
+        dom._currentModal.classList.remove('hidden');
+        dom._currentModal.setAttribute('aria-hidden', 'false');
+    }
+
+    state.currentScannerTarget = null;
+}
+
+/** Chamado no sucesso da leitura da câmera */
+function onGlobalScanSuccess(decodedText) {
+    const target = state.currentScannerTarget;
+    if (!target) {
+        stopGlobalScanner();
+        return;
+    }
+
+    const input = (target === 'separacao') ? dom.sepScan : dom.carScan;
+
+    if (input) {
+        input.value = decodedText; // Coloca o texto lido no input
+        stopGlobalScanner(); // Para a câmera e troca os modais
+
+        // Simula o "Enter" para disparar a validação
+        const enterEvent = new KeyboardEvent('keydown', {
+            key: 'Enter',
+            bubbles: true,
+            cancelable: true
+        });
+        input.dispatchEvent(enterEvent);
+    }
+}
+
+/** Chamado em falhas de leitura (ex: não achou QR) */
+function onGlobalScanError(error) {
+    // A biblioteca chama isso constantemente se não achar um QR code
+    // console.warn(`Scan error: ${error}`);
 }
 
 // -------------------------------
@@ -220,7 +419,6 @@ function calculateStats(data) {
     };
 }
 
-// --- AJUSTADO: renderDashboard ---
 function renderDashboard() {
     const container = dom.dashboard;
     if (!container) return;
@@ -234,7 +432,6 @@ function renderDashboard() {
 
     let html = '';
 
-    // 2. Renderizar os contadores com classes Tailwind MENORES
     html += `
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="bg-white p-3 rounded-lg shadow border border-gray-200"> <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div> <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div> </div>
@@ -249,7 +446,6 @@ function renderDashboard() {
     </div>
     `;
 
-    // 3. Renderizar a tabela (nomes já corrigidos)
     html += `
     <div class="overflow-x-auto bg-white rounded-lg shadow border border-gray-200" style="max-height: 60vh; overflow-y: auto;">
         <table class="min-w-full divide-y divide-gray-200">
@@ -309,17 +505,14 @@ function reorderControlsOverDashboard() {
     const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
     if (!btn1 || !btn2 || !dashboardBlock) return;
 
-    // já existe uma barra?
     let bar = document.getElementById('auditoria-controls-bar');
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'auditoria-controls-bar';
-        // As classes do container dos botões são aplicadas aqui
         bar.className = 'p-4 grid grid-cols-1 md:grid-cols-2 gap-4';
         dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
     }
 
-    // Move os botões para a barra
     if (btn1.parentElement !== bar) bar.appendChild(btn1);
     if (btn2.parentElement !== bar) bar.appendChild(btn2);
 }
@@ -689,16 +882,15 @@ export function init() {
     dom.carStatus = document.getElementById('car-status');
 
 
-    // --- NOVO: Ajustar classes dos botões (CSS via JS) ---
-    // Removemos a injeção de CSS e trocamos as classes do Tailwind
+    // Ajustar classes dos botões (CSS via JS)
     if (dom.btnSeparação) {
-        dom.btnSeparação.classList.remove('px-6', 'py-4'); // Remove padding grande
-        dom.btnSeparação.classList.add('px-4', 'py-3'); // Adiciona padding menor
+        dom.btnSeparação.classList.remove('px-6', 'py-4');
+        dom.btnSeparação.classList.add('px-4', 'py-3');
 
         const span = dom.btnSeparação.querySelector('.text-xl');
         if (span) {
-            span.classList.remove('text-xl'); // Remove fonte grande
-            span.classList.add('text-lg'); // Adiciona fonte média
+            span.classList.remove('text-xl');
+            span.classList.add('text-lg');
         }
     }
     if (dom.btnCarregamento) {
@@ -711,7 +903,10 @@ export function init() {
             span.classList.add('text-lg');
         }
     }
-    // ----------------------------------------------------
+
+    // (NOVO) Prepara o leitor de câmera
+    createGlobalScannerModal();
+    injectScannerButtons();
 
     // DOCA select
     ensureDockSelect();
@@ -782,8 +977,18 @@ export function init() {
 export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
 
+    // (NOVO) Garante que o scanner e seu modal sejam destruídos
+    if (state.globalScannerInstance) {
+        stopGlobalScanner();
+    }
+    if (dom.scannerModal) {
+        dom.scannerModal.parentElement.removeChild(dom.scannerModal);
+    }
+
     // Limpa o cache e DOM refs
     state.cacheData = [];
+    state.globalScannerInstance = null;
+    state.currentScannerTarget = null;
     dom = {};
     initOnce = false;
 }
