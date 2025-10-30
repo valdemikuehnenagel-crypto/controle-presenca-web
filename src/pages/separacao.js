@@ -1,7 +1,7 @@
 // ========================================================================
 // separacao.js — Auditoria de Mangas (Validação contínua + DOCA + Massa + Print Fix + UI reorder)
 // 
-// V5: Integração com Câmera Mobile (html5-qrcode)
+// V6: Forçar câmera traseira (environment) no scanner
 // ========================================================================
 
 // IMPORTANTE: Você precisa instalar a biblioteca 'html5-qrcode'
@@ -27,8 +27,8 @@ let state = {
     isSeparaçãoProcessing: false,
     isCarregamentoProcessing: false,
     selectedDock: null,
-    globalScannerInstance: null, // (NOVO) Guarda a instância do scanner
-    currentScannerTarget: null, // (NOVO) 'separacao' ou 'carregamento'
+    globalScannerInstance: null, // Guarda a instância do scanner
+    currentScannerTarget: null, // 'separacao' ou 'carregamento'
 };
 
 // -------------------------------
@@ -49,7 +49,7 @@ let dom = {
     sepQrTitle: null,
     sepQrCanvas: null,
     sepPrintBtn: null,
-    sepCamBtn: null, // (NOVO)
+    sepCamBtn: null,
 
     // Modal Carregamento
     modalCarregamento: null,
@@ -58,9 +58,9 @@ let dom = {
     carDockSelect: null,
     carScan: null,
     carStatus: null,
-    carCamBtn: null, // (NOVO)
+    carCamBtn: null,
 
-    // Modal Scanner (NOVO)
+    // Modal Scanner
     scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
@@ -136,7 +136,6 @@ function openModal(modal) {
 
     if (!modal._bound) modal._bound = {};
 
-    // (AJUSTADO) Tecla 'Escape' agora fecha o scanner OU o modal
     modal._bound.onKeyDown ??= (e) => {
         if (e.key === 'Escape') {
             e.preventDefault();
@@ -169,7 +168,6 @@ function openModal(modal) {
 function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
 
-    // (AJUSTADO) Garante que o scanner pare ao fechar o modal
     if (state.globalScannerInstance) {
         stopGlobalScanner();
     }
@@ -203,7 +201,7 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
 }
 
 // -------------------------------
-// Scanner de Câmera (NOVO)
+// Scanner de Câmera
 // -------------------------------
 
 /** Cria o modal do scanner e o anexa ao body (só roda 1 vez) */
@@ -253,7 +251,6 @@ function injectScannerButtons() {
         const parent = input.parentElement;
         if (!parent) return;
 
-        // Torna o 'pai' relativo para posicionar o botão
         parent.style.position = 'relative';
 
         const button = document.createElement('button');
@@ -262,10 +259,8 @@ function injectScannerButtons() {
         button.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 p-1';
         button.innerHTML = cameraIcon;
 
-        // Adiciona o botão
         parent.appendChild(button);
 
-        // Salva a referência
         if (id === 'sep-cam-btn') {
             dom.sepCamBtn = button;
         } else {
@@ -273,7 +268,6 @@ function injectScannerButtons() {
         }
     });
 
-    // Adiciona os listeners
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
 }
@@ -284,25 +278,29 @@ function startGlobalScanner(targetModal) {
 
     state.currentScannerTarget = targetModal;
 
-    // Esconde o modal de input atual
     if (dom._currentModal) {
         dom._currentModal.classList.add('hidden');
         dom._currentModal.setAttribute('aria-hidden', 'true');
     }
 
-    // Mostra o modal do scanner
     dom.scannerModal.classList.remove('hidden');
 
     try {
+        // --- AJUSTE V6 ---
+        // Adicionado 'facingMode: "environment"' para forçar a câmera traseira
+        const scannerConfig = {
+            fps: 10,
+            qrbox: {width: 250, height: 250},
+            facingMode: "environment" // <-- ESTA É A MUDANÇA
+            // 'supportedScanTypes' foi removido por ser obsoleto e substituído pelo 'facingMode'
+        };
+
         const scanner = new Html5QrcodeScanner(
             'auditoria-scanner-container',
-            {
-                fps: 10,
-                qrbox: {width: 250, height: 250},
-                supportedScanTypes: [0] // 0 = Câmera
-            },
+            scannerConfig,
             false // verbose
         );
+        // --- FIM DO AJUSTE ---
 
         scanner.render(onGlobalScanSuccess, onGlobalScanError);
         state.globalScannerInstance = scanner;
@@ -327,11 +325,8 @@ function stopGlobalScanner() {
     }
 
     state.globalScannerInstance = null;
-
-    // Esconde o modal do scanner
     dom.scannerModal.classList.add('hidden');
 
-    // Reexibe o modal de input original
     if (dom._currentModal) {
         dom._currentModal.classList.remove('hidden');
         dom._currentModal.setAttribute('aria-hidden', 'false');
@@ -904,7 +899,7 @@ export function init() {
         }
     }
 
-    // (NOVO) Prepara o leitor de câmera
+    // Prepara o leitor de câmera
     createGlobalScannerModal();
     injectScannerButtons();
 
@@ -977,7 +972,6 @@ export function init() {
 export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
 
-    // (NOVO) Garante que o scanner e seu modal sejam destruídos
     if (state.globalScannerInstance) {
         stopGlobalScanner();
     }
