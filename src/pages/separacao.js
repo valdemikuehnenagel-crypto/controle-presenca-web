@@ -414,7 +414,7 @@ function stopGlobalScanner() {
 }
 
 
-/** Chamado no sucesso da leitura da câmera (AJUSTADO V11) */
+/** Chamado no sucesso da leitura da câmera (AJUSTADO V11.1) */
 async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target) {
@@ -422,28 +422,27 @@ async function onGlobalScanSuccess(decodedText) {
         return;
     }
 
-    // --- FLUXO DE SEPARAÇÃO (ANTIGO) ---
-    // (Bipa -> Para -> Simula Enter -> Vê QR na tela -> IMPRIME)
+    // --- FLUXO DE SEPARAÇÃO (AJUSTADO) ---
     if (target === 'separacao') {
-        if (state.isSeparaçãoProcessing) return; // Evita bip duplo
-
-        state.isSeparaçãoProcessing = true; // Trava
+        // BUG FIX: Remove a trava daqui. A trava deve ser gerenciada pelo handleSeparaçãoSubmit.
+        // if (state.isSeparaçãoProcessing) return; // REMOVIDO
+        // state.isSeparaçãoProcessing = true; // REMOVIDO
 
         const input = dom.sepScan;
         if (input) {
             input.value = decodedText;
-            stopGlobalScanner();
+            stopGlobalScanner(); // Fecha a câmera
+
+            // Simula o "Enter"
             const enterEvent = new KeyboardEvent('keydown', {
                 key: 'Enter', bubbles: true, cancelable: true
             });
             input.dispatchEvent(enterEvent);
         }
-        // A flag 'isSeparaçãoProcessing' é liberada no 'finally' do handleSeparaçãoSubmit
         return;
     }
 
-    // --- FLUXO DE CARREGAMENTO (NOVO - V11) ---
-    // (Bipa -> Valida -> Pisca Tela -> Continua Bipando)
+    // --- FLUXO DE CARREGAMENTO (V11) ---
     if (target === 'carregamento') {
         if (state.isCarregamentoProcessing) return; // Já está processando um bipe
 
@@ -451,30 +450,24 @@ async function onGlobalScanSuccess(decodedText) {
             state.isCarregamentoProcessing = true;
             state.globalScannerInstance.pause(true); // Pausa a câmera
 
-            // Pega os dados do formulário (que está escondido)
             const usuarioSaida = dom.carUser?.value?.trim();
             const doca = state.selectedDock || dom.carDockSelect?.value || '';
             const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
 
-            // Chama a lógica de validação central
             const validation = await runCarregamentoValidation(decodedText, usuarioSaida, doca, ilha);
 
             if (validation.success) {
-                // SUCESSO (VERDE): Pisca a tela e continua
                 showScannerFeedback('success', validation.message); // Flash rápido
-                renderDashboard(); // Atualiza o dashboard em background
+                renderDashboard();
                 state.globalScannerInstance.resume(); // Retoma a câmera
             } else {
-                // ERRO (VERMELHO): Mostra erro FIXO e ESPERA o clique no "Fechar"
                 showScannerFeedback('error', validation.message, true); // Erro "pegajoso"
-                // NÃO FECHA O SCANNER. O usuário vai clicar no "Fechar" do overlay.
                 setCarStatus(validation.message, {error: true});
                 dom.carScan.value = decodedText;
                 dom.carScan.select();
             }
 
         } catch (err) {
-            // Erro inesperado
             showScannerFeedback('error', err.message || 'Erro desconhecido', true); // Erro "pegajoso"
             setCarStatus(err.message, {error: true});
         } finally {
@@ -733,7 +726,10 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
 }
 
 async function handleSeparaçãoSubmit(e) {
-    if (e.key !== 'Enter' || state.isSeparaçãoProcessing) return;
+    // AJUSTE V11.1: Garante que a tecla seja 'Enter' E que não esteja processando
+    if (e.key !== 'Enter') return;
+    if (state.isSeparaçãoProcessing) return; // Se já estiver processando, não faz nada
+
     e.preventDefault();
 
     const raw = dom.sepScan?.value ?? '';
@@ -752,12 +748,15 @@ async function handleSeparaçãoSubmit(e) {
 
     const ids = parseBulkEntries(raw);
     if (ids.length > 1) {
+        // A trava para o processamento em massa é gerenciada dentro da função
         await processarSeparacaoEmMassa(ids, usuarioEntrada);
         return;
     }
 
     const idPacote = ids[0];
     const dataScan = new Date().toISOString();
+
+    // A trava de processamento único começa AQUI
     state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
     dom.sepUser.disabled = true;
@@ -773,7 +772,7 @@ async function handleSeparaçãoSubmit(e) {
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
         dom.sepScan.value = '';
 
-        // (AJUSTADO V11) Chama a impressão automaticamente
+        // (V11) Chama a impressão automaticamente
         await printEtiqueta();
 
         if (insertedData && insertedData[0]) {
@@ -784,6 +783,7 @@ async function handleSeparaçãoSubmit(e) {
         console.error('Erro Separação:', err);
         setSepStatus(`Erro: ${err.message}`, {error: true});
     } finally {
+        // Libera a trava
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
         dom.sepUser.disabled = false;
