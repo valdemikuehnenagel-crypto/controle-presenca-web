@@ -1,12 +1,12 @@
 // ========================================================================
 // separacao.js — Auditoria de Mangas (Validação contínua + DOCA + Massa + Print Fix + UI reorder)
 // 
-// V6: Forçar câmera traseira (environment) no scanner
+// V8: Câmera Traseira Forçada (Html5Qrcode) + Impressão Rápida (manual)
 // ========================================================================
 
 // IMPORTANTE: Você precisa instalar a biblioteca 'html5-qrcode'
 // Ex: npm install html5-qrcode
-import {Html5QrcodeScanner} from 'html5-qrcode';
+import {Html5Qrcode} from 'html5-qrcode'; // Mudança: de Html5QrcodeScanner para Html5Qrcode (core)
 import qrcode from 'qrcode-generator';
 
 // -------------------------------
@@ -113,6 +113,7 @@ function waitForPaint() {
     });
 }
 
+// A função de imprimir ainda existe, mas não será chamada automaticamente
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
     // força reflow
@@ -201,7 +202,7 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
 }
 
 // -------------------------------
-// Scanner de Câmera
+// Scanner de Câmera (AJUSTE V8)
 // -------------------------------
 
 /** Cria o modal do scanner e o anexa ao body (só roda 1 vez) */
@@ -210,19 +211,20 @@ function createGlobalScannerModal() {
 
     const modal = document.createElement('div');
     modal.id = 'auditoria-scanner-modal';
-    modal.className = 'modal-overlay hidden'; // Começa escondido
-    modal.style.zIndex = '1100'; // Mais alto que os outros modais
+    modal.className = 'modal-overlay hidden';
+    modal.style.zIndex = '1100';
 
     const content = document.createElement('div');
     content.className = 'modal-content';
     content.style.width = '90vw';
     content.style.maxWidth = '600px';
 
+    // HTML alterado para não ter botão de "start"
     content.innerHTML = `
         <div class="flex justify-between items-center mb-4 border-b pb-2">
             <h3 class="text-xl font-semibold">Escanear QR Code</h3>
         </div>
-        <div id="auditoria-scanner-container" style="width: 100%;"></div>
+        <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
         <button id="auditoria-scanner-cancel" type="button" class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
             Cancelar
         </button>
@@ -247,32 +249,24 @@ function injectScannerButtons() {
         {input: dom.carScan, id: 'car-cam-btn'}
     ].forEach(({input, id}) => {
         if (!input) return;
-
         const parent = input.parentElement;
         if (!parent) return;
-
         parent.style.position = 'relative';
-
         const button = document.createElement('button');
         button.id = id;
         button.type = 'button';
         button.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 p-1';
         button.innerHTML = cameraIcon;
-
         parent.appendChild(button);
-
-        if (id === 'sep-cam-btn') {
-            dom.sepCamBtn = button;
-        } else {
-            dom.carCamBtn = button;
-        }
+        if (id === 'sep-cam-btn') dom.sepCamBtn = button;
+        else dom.carCamBtn = button;
     });
 
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
 }
 
-/** Inicia o scanner global */
+/** Inicia o scanner global (LÓGICA V8 - SEM SELEÇÃO) */
 function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
 
@@ -286,54 +280,85 @@ function startGlobalScanner(targetModal) {
     dom.scannerModal.classList.remove('hidden');
 
     try {
-        // --- AJUSTE V6 ---
-        // Adicionado 'facingMode: "environment"' para forçar a câmera traseira
-        const scannerConfig = {
-            fps: 10,
-            qrbox: {width: 250, height: 250},
-            facingMode: "environment" // <-- ESTA É A MUDANÇA
-            // 'supportedScanTypes' foi removido por ser obsoleto e substituído pelo 'facingMode'
-        };
+        // Usa a classe 'core' Html5Qrcode
+        const scanner = new Html5Qrcode('auditoria-scanner-container');
+        state.globalScannerInstance = scanner; // Salva a instância
 
-        const scanner = new Html5QrcodeScanner(
-            'auditoria-scanner-container',
-            scannerConfig,
-            false // verbose
-        );
-        // --- FIM DO AJUSTE ---
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+                let deviceId = null;
+                const backCamera = devices.find(d => d.facingMode === 'environment');
+                if (backCamera) {
+                    deviceId = backCamera.id;
+                } else {
+                    const backCameraByLabel = devices.find(d => /back/i.test(d.label));
+                    if (backCameraByLabel) {
+                        deviceId = backCameraByLabel.id;
+                    } else {
+                        deviceId = devices[devices.length - 1].id;
+                    }
+                }
 
-        scanner.render(onGlobalScanSuccess, onGlobalScanError);
-        state.globalScannerInstance = scanner;
+                if (deviceId) {
+                    // Inicia o scanner FORÇANDO o deviceId (sem seleção, sem "start")
+                    scanner.start(
+                        deviceId,
+                        {fps: 10, qrbox: {width: 250, height: 250}},
+                        onGlobalScanSuccess,
+                        onGlobalScanError
+                    ).catch(err => {
+                        console.error("Erro ao INICIAR scanner:", err);
+                        setSepStatus("Câmera falhou. Tente novamente.", {error: true});
+                        setCarStatus("Câmera falhou. Tente novamente.", {error: true});
+                        stopGlobalScanner();
+                    });
+                } else {
+                    throw new Error("Nenhuma câmera encontrada.");
+                }
+            } else {
+                throw new Error("Nenhuma câmera detectada.");
+            }
+        }).catch(err => {
+            console.error("Erro ao listar câmeras:", err);
+            setSepStatus("Não foi possível listar câmeras.", {error: true});
+            setCarStatus("Não foi possível listar câmeras.", {error: true});
+            stopGlobalScanner();
+        });
+
     } catch (err) {
-        console.error("Erro ao iniciar Html5QrcodeScanner:", err);
+        console.error("Erro ao instanciar Html5Qrcode:", err);
         setSepStatus("Erro ao iniciar câmera.", {error: true});
         setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
 }
 
-/** Para o scanner global e reexibe o modal de input */
+/** Para o scanner global e reexibe o modal de input (LÓGICA V8) */
 function stopGlobalScanner() {
     if (!state.globalScannerInstance) return;
 
-    try {
-        state.globalScannerInstance.clear().catch(err => {
-            console.error("Erro ao limpar scanner:", err);
-        });
-    } catch (err) {
-        console.error("Erro ao parar scanner:", err);
-    }
-
+    const scanner = state.globalScannerInstance;
     state.globalScannerInstance = null;
-    dom.scannerModal.classList.add('hidden');
 
-    if (dom._currentModal) {
-        dom._currentModal.classList.remove('hidden');
-        dom._currentModal.setAttribute('aria-hidden', 'false');
-    }
-
-    state.currentScannerTarget = null;
+    scanner.stop()
+        .then(() => { /* Sucesso */
+        })
+        .catch(err => {
+            if (!/already stopped/i.test(String(err))) {
+                console.error("Erro ao parar scanner:", err);
+            }
+        })
+        .finally(() => {
+            if (dom.scannerContainer) dom.scannerContainer.innerHTML = "";
+            dom.scannerModal.classList.add('hidden');
+            if (dom._currentModal) {
+                dom._currentModal.classList.remove('hidden');
+                dom._currentModal.setAttribute('aria-hidden', 'false');
+            }
+            state.currentScannerTarget = null;
+        });
 }
+
 
 /** Chamado no sucesso da leitura da câmera */
 function onGlobalScanSuccess(decodedText) {
@@ -342,18 +367,12 @@ function onGlobalScanSuccess(decodedText) {
         stopGlobalScanner();
         return;
     }
-
     const input = (target === 'separacao') ? dom.sepScan : dom.carScan;
-
     if (input) {
-        input.value = decodedText; // Coloca o texto lido no input
-        stopGlobalScanner(); // Para a câmera e troca os modais
-
-        // Simula o "Enter" para disparar a validação
+        input.value = decodedText;
+        stopGlobalScanner();
         const enterEvent = new KeyboardEvent('keydown', {
-            key: 'Enter',
-            bubbles: true,
-            cancelable: true
+            key: 'Enter', bubbles: true, cancelable: true
         });
         input.dispatchEvent(enterEvent);
     }
@@ -361,8 +380,7 @@ function onGlobalScanSuccess(decodedText) {
 
 /** Chamado em falhas de leitura (ex: não achou QR) */
 function onGlobalScanError(error) {
-    // A biblioteca chama isso constantemente se não achar um QR code
-    // console.warn(`Scan error: ${error}`);
+    // Ignora erros de "QR code não encontrado"
 }
 
 // -------------------------------
@@ -582,7 +600,10 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
             const dataScan = new Date().toISOString();
             const {numeracao, ilha, insertedData} = await processarPacote(idPacote, dataScan, usuarioEntrada);
             await generateQRCode(numeracao, ilha);
-            await printEtiqueta();
+
+            // REMOVIDO: await printEtiqueta();
+            // A impressão agora é manual, clicando no botão 'sepPrintBtn'
+
             if (insertedData && insertedData[0]) {
                 state.cacheData.unshift(insertedData[0]);
             }
@@ -595,7 +616,7 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     }
 
     renderDashboard();
-    setSepStatus(`Lote concluído: ${ok} sucesso(s), ${fail} falha(s). ${ok > 0 ? 'Etiquetas impressas.' : ''}`, {error: fail > 0});
+    setSepStatus(`Lote concluído: ${ok} sucesso(s), ${fail} falha(s).`, {error: fail > 0});
     dom.sepScan.value = '';
     dom.sepScan.focus();
 
@@ -641,9 +662,12 @@ async function handleSeparaçãoSubmit(e) {
         const {numeracao, ilha, insertedData} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
         setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
-        await generateQRCode(numeracao, ilha);
+        await generateQRCode(numeracao, ilha); // Apenas mostra o QR na tela
         dom.sepScan.value = '';
-        await printEtiqueta();
+
+        // REMOVIDO: await printEtiqueta();
+        // A impressão não é mais automática para não travar o fluxo
+        // O usuário pode clicar no botão "Imprimir" se desejar
 
         if (insertedData && insertedData[0]) {
             state.cacheData.unshift(insertedData[0]);
@@ -656,7 +680,7 @@ async function handleSeparaçãoSubmit(e) {
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
         dom.sepUser.disabled = false;
-        dom.sepScan.focus();
+        dom.sepScan.focus(); // Foca para a próxima bipagem IMEDIATAMENTE
     }
 }
 
@@ -881,7 +905,6 @@ export function init() {
     if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4');
         dom.btnSeparação.classList.add('px-4', 'py-3');
-
         const span = dom.btnSeparação.querySelector('.text-xl');
         if (span) {
             span.classList.remove('text-xl');
@@ -891,7 +914,6 @@ export function init() {
     if (dom.btnCarregamento) {
         dom.btnCarregamento.classList.remove('px-6', 'py-4');
         dom.btnCarregamento.classList.add('px-4', 'py-3');
-
         const span = dom.btnCarregamento.querySelector('.text-xl');
         if (span) {
             span.classList.remove('text-xl');
@@ -899,7 +921,7 @@ export function init() {
         }
     }
 
-    // Prepara o leitor de câmera
+    // Prepara o leitor de câmera (Lógica V8)
     createGlobalScannerModal();
     injectScannerButtons();
 
@@ -938,7 +960,7 @@ export function init() {
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
     dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
 
-    // Print manual
+    // Print manual (Agora é a única forma de imprimir)
     dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             await printEtiqueta();
