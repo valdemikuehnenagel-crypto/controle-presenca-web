@@ -1,18 +1,14 @@
 // ========================================================================
 // separacao.js — Auditoria de Mangas (Validação contínua + DOCA + Massa + Print Fix + UI reorder)
-//
-// V11: Impressão Automática (Separação) + Feedback de Erro Fixo (Carregamento)
+// V12: Fluxo contínuo (auto reabrir câmera), Confirmação de scan e erro amigável de duplicidade
 // ========================================================================
 
-// IMPORTANTE: Você precisa instalar a biblioteca 'html5-qrcode'
-// Ex: npm install html5-qrcode
-import {Html5Qrcode} from 'html5-qrcode'; // Mudança: de Html5QrcodeScanner para Html5Qrcode (core)
+import {Html5Qrcode} from 'html5-qrcode';
 import qrcode from 'qrcode-generator';
 
 // -------------------------------
 // Configurações e Constantes
 // -------------------------------
-
 const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 
@@ -30,6 +26,8 @@ let state = {
     selectedIlha: null,
     globalScannerInstance: null,
     currentScannerTarget: null,
+    // V12 - confirmação do scan
+    pendingDecodedText: null,
 };
 
 // -------------------------------
@@ -66,12 +64,20 @@ let dom = {
     scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
+
+    // Overlays
     scannerFeedbackOverlay: null,
-    scannerFeedbackCloseBtn: null, // (NOVO) Botão 'Fechar' do erro
+    scannerFeedbackCloseBtn: null,
+
+    // V12 - overlay de confirmação
+    scannerConfirmOverlay: null,
+    scannerConfirmText: null,
+    scannerConfirmYesBtn: null,
+    scannerConfirmNoBtn: null,
 };
 
 // -------------------------------
-// HTTP headers
+// HTTP
 // -------------------------------
 function buildFunctionHeaders() {
     return {
@@ -90,7 +96,7 @@ function buildSelectHeaders() {
 }
 
 // -------------------------------
-// Helper Formatação
+// Helpers
 // -------------------------------
 function formatarDataHora(isoString) {
     if (!isoString) return '---';
@@ -103,26 +109,21 @@ function formatarDataHora(isoString) {
             hour: '2-digit',
             minute: '2-digit',
         });
-    } catch (e) {
-        return isoString; // fallback
+    } catch {
+        return isoString;
     }
 }
 
-// -------------------------------
-// Print helpers
-// -------------------------------
 function waitForPaint() {
     return new Promise((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
     });
 }
 
-// A função de imprimir
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
     // força reflow
-    // eslint-disable-next-line no-unused-expressions
-    dom.sepQrArea && dom.sepQrArea.offsetHeight;
+    dom.sepQrArea && dom.sepQrArea.offsetHeight; // eslint-disable-line no-unused-expressions
     await waitForPaint();
     await waitForPaint();
     window.print();
@@ -132,9 +133,7 @@ async function printEtiqueta() {
 // Modal helpers
 // -------------------------------
 function openModal(modal) {
-    if (!modal) return;
-    if (!modal.classList.contains('hidden')) return;
-
+    if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
     dom._currentModal = modal;
@@ -146,9 +145,9 @@ function openModal(modal) {
             e.preventDefault();
             e.stopPropagation();
             if (state.globalScannerInstance) {
-                stopGlobalScanner(); // 'Esc' fecha o scanner
+                stopGlobalScanner();
             } else {
-                closeModal(modal); // 'Esc' fecha o modal
+                closeModal(modal);
             }
         }
     };
@@ -173,9 +172,7 @@ function openModal(modal) {
 function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
 
-    if (state.globalScannerInstance) {
-        stopGlobalScanner();
-    }
+    if (state.globalScannerInstance) stopGlobalScanner();
 
     modal.classList.add('hidden');
     modal.setAttribute('aria-hidden', 'true');
@@ -185,7 +182,6 @@ function closeModal(modal) {
 }
 
 // -------------------------------
-/** Resets rápidos */
 function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepUser) dom.sepUser.value = '';
@@ -211,10 +207,8 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
 }
 
 // -------------------------------
-// Scanner de Câmera (AJUSTE V11)
+// Scanner de Câmera + Overlays
 // -------------------------------
-
-/** (AJUSTADO V11) Mostra o feedback verde (rápido) ou vermelho (fixo) */
 function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
 
@@ -225,27 +219,42 @@ function showScannerFeedback(type, message, sticky = false) {
 
     if (type === 'success') {
         dom.scannerFeedbackOverlay.classList.add('bg-green-500');
-        dom.scannerFeedbackCloseBtn.style.display = 'none'; // Esconde o botão de fechar no sucesso
-
-        // Esconde o feedback (sucesso) após 1.5 segundos
-        setTimeout(() => {
-            dom.scannerFeedbackOverlay.classList.add('hidden');
-        }, 1500);
-
-    } else { // Erro
+        dom.scannerFeedbackCloseBtn.style.display = 'none';
+        setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1200);
+    } else {
         dom.scannerFeedbackOverlay.classList.add('bg-red-500');
-        dom.scannerFeedbackCloseBtn.style.display = 'block'; // Mostra o botão de fechar no erro
-
-        if (!sticky) { // Se não for 'sticky', esconde sozinho
-            setTimeout(() => {
-                dom.scannerFeedbackOverlay.classList.add('hidden');
-            }, 1500);
-        }
-        // Se for sticky (padrão do erro agora), não faz nada, espera o clique.
+        dom.scannerFeedbackCloseBtn.style.display = 'block';
+        if (!sticky) setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1500);
     }
 }
 
-/** Cria o modal do scanner e o anexa ao body (só roda 1 vez) */
+// V12 — Overlay de confirmação
+function showScannerConfirm(decodedText, onYes, onNo) {
+    if (!dom.scannerConfirmOverlay) return;
+    state.pendingDecodedText = decodedText;
+
+    dom.scannerConfirmText.textContent = decodedText;
+    dom.scannerConfirmOverlay.classList.remove('hidden');
+
+    // Liga botões
+    const yesHandler = () => {
+        dom.scannerConfirmOverlay.classList.add('hidden');
+        dom.scannerConfirmYesBtn.removeEventListener('click', yesHandler);
+        dom.scannerConfirmNoBtn.removeEventListener('click', noHandler);
+        onYes?.(decodedText);
+    };
+
+    const noHandler = () => {
+        dom.scannerConfirmOverlay.classList.add('hidden');
+        dom.scannerConfirmYesBtn.removeEventListener('click', yesHandler);
+        dom.scannerConfirmNoBtn.removeEventListener('click', noHandler);
+        onNo?.();
+    };
+
+    dom.scannerConfirmYesBtn.addEventListener('click', yesHandler);
+    dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
+}
+
 function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
 
@@ -255,31 +264,54 @@ function createGlobalScannerModal() {
     modal.style.zIndex = '1100';
 
     const content = document.createElement('div');
-    content.className = 'modal-content relative'; // Adicionado 'relative'
+    content.className = 'modal-content relative';
     content.style.width = '90vw';
     content.style.maxWidth = '600px';
 
-    // (AJUSTADO V11) Adicionado o botão de fechar no overlay
     content.innerHTML = `
-        <div class="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 class="text-xl font-semibold">Escanear QR Code</h3>
-        </div>
-        <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
-        <button id="auditoria-scanner-cancel" type="button" class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
-            Cancelar
+    <div class="flex justify-between items-center mb-4 border-b pb-2">
+      <h3 class="text-xl font-semibold">Escanear QR Code</h3>
+    </div>
+
+    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
+
+    <button id="auditoria-scanner-cancel" type="button"
+      class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
+      Cancelar
+    </button>
+
+    <!-- Overlay de feedback -->
+    <div id="scanner-feedback-overlay"
+      class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
+      style="z-index: 10;">
+      <span class="text-white text-2xl font-bold text-center"></span>
+      <button id="scanner-feedback-close" type="button"
+        class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"
+        style="display: none;">
+        Fechar
+      </button>
+    </div>
+
+    <!-- V12: Overlay de confirmação -->
+    <div id="scanner-confirm-overlay"
+      class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
+      style="z-index: 20;">
+      <div class="text-white text-center">
+        <div class="text-lg opacity-80 mb-1">Confirmar código lido?</div>
+        <div id="scanner-confirm-text" class="text-2xl font-bold break-all"></div>
+      </div>
+      <div class="flex gap-3">
+        <button id="scanner-confirm-yes" type="button"
+          class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow hover:bg-green-700">
+          Confirmar (Enter)
         </button>
-        
-        <div id="scanner-feedback-overlay" 
-             class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
-             style="z-index: 10;">
-            <span class="text-white text-2xl font-bold text-center"></span>
-            <button id="scanner-feedback-close" type="button" 
-                    class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"
-                    style="display: none;">
-                Fechar
-            </button>
-        </div>
-    `;
+        <button id="scanner-confirm-no" type="button"
+          class="px-5 py-2 rounded-md bg-gray-300 text-gray-800 font-semibold shadow hover:bg-gray-400">
+          Reescanear (Esc)
+        </button>
+      </div>
+    </div>
+  `;
 
     modal.appendChild(content);
     document.body.appendChild(modal);
@@ -288,14 +320,30 @@ function createGlobalScannerModal() {
     dom.scannerContainer = modal.querySelector('#auditoria-scanner-container');
     dom.scannerCancelBtn = modal.querySelector('#auditoria-scanner-cancel');
     dom.scannerFeedbackOverlay = modal.querySelector('#scanner-feedback-overlay');
-    dom.scannerFeedbackCloseBtn = modal.querySelector('#scanner-feedback-close'); // (NOVO)
+    dom.scannerFeedbackCloseBtn = modal.querySelector('#scanner-feedback-close');
 
-    // (NOVO) O botão "Fechar" do erro simplesmente fecha o scanner
+    dom.scannerConfirmOverlay = modal.querySelector('#scanner-confirm-overlay');
+    dom.scannerConfirmText = modal.querySelector('#scanner-confirm-text');
+    dom.scannerConfirmYesBtn = modal.querySelector('#scanner-confirm-yes');
+    dom.scannerConfirmNoBtn = modal.querySelector('#scanner-confirm-no');
+
     dom.scannerFeedbackCloseBtn.addEventListener('click', stopGlobalScanner);
     dom.scannerCancelBtn.addEventListener('click', stopGlobalScanner);
+
+    // Atalhos dentro do scanner
+    modal.addEventListener('keydown', (e) => {
+        if (dom.scannerConfirmOverlay && !dom.scannerConfirmOverlay.classList.contains('hidden')) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                dom.scannerConfirmYesBtn.click();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                dom.scannerConfirmNoBtn.click();
+            }
+        }
+    });
 }
 
-/** Adiciona botões de câmera aos inputs de scan */
 function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
 
@@ -321,7 +369,6 @@ function injectScannerButtons() {
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
 }
 
-/** Inicia o scanner global (LÓGICA V8 - SEM SELEÇÃO) */
 function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
 
@@ -332,8 +379,10 @@ function startGlobalScanner(targetModal) {
         dom._currentModal.setAttribute('aria-hidden', 'true');
     }
 
-    // (NOVO V11) Garante que o feedback de erro antigo seja limpo ao abrir
-    if (dom.scannerFeedbackOverlay) dom.scannerFeedbackOverlay.classList.add('hidden');
+    // Limpa overlays
+    dom.scannerFeedbackOverlay?.classList.add('hidden');
+    dom.scannerConfirmOverlay?.classList.add('hidden');
+    state.pendingDecodedText = null;
 
     dom.scannerModal.classList.remove('hidden');
 
@@ -345,32 +394,23 @@ function startGlobalScanner(targetModal) {
             if (devices && devices.length) {
                 let deviceId = null;
                 const backCamera = devices.find(d => d.facingMode === 'environment');
-                if (backCamera) {
-                    deviceId = backCamera.id;
-                } else {
-                    const backCameraByLabel = devices.find(d => /back/i.test(d.label));
-                    if (backCameraByLabel) {
-                        deviceId = backCameraByLabel.id;
-                    } else {
-                        deviceId = devices[devices.length - 1].id;
-                    }
-                }
+                deviceId = backCamera?.id
+                    ?? devices.find(d => /back/i.test(d.label))?.id
+                    ?? devices[devices.length - 1].id;
 
-                if (deviceId) {
-                    scanner.start(
-                        deviceId,
-                        {fps: 10, qrbox: {width: 250, height: 250}},
-                        onGlobalScanSuccess,
-                        onGlobalScanError
-                    ).catch(err => {
-                        console.error("Erro ao INICIAR scanner:", err);
-                        setSepStatus("Câmera falhou. Tente novamente.", {error: true});
-                        setCarStatus("Câmera falhou. Tente novamente.", {error: true});
-                        stopGlobalScanner();
-                    });
-                } else {
-                    throw new Error("Nenhuma câmera encontrada.");
-                }
+                if (!deviceId) throw new Error('Nenhuma câmera encontrada.');
+
+                scanner.start(
+                    deviceId,
+                    {fps: 10, qrbox: {width: 250, height: 250}},
+                    onGlobalScanSuccess,
+                    onGlobalScanError
+                ).catch(err => {
+                    console.error("Erro ao INICIAR scanner:", err);
+                    setSepStatus("Câmera falhou. Tente novamente.", {error: true});
+                    setCarStatus("Câmera falhou. Tente novamente.", {error: true});
+                    stopGlobalScanner();
+                });
             } else {
                 throw new Error("Nenhuma câmera detectada.");
             }
@@ -389,14 +429,20 @@ function startGlobalScanner(targetModal) {
     }
 }
 
-/** Para o scanner global e reexibe o modal de input (LÓGICA V8) */
 function stopGlobalScanner() {
-    if (!state.globalScannerInstance) return;
+    if (!state.globalScannerInstance) {
+        dom.scannerModal?.classList.add('hidden');
+        if (dom._currentModal) {
+            dom._currentModal.classList.remove('hidden');
+            dom._currentModal.setAttribute('aria-hidden', 'false');
+        }
+        state.currentScannerTarget = null;
+        return;
+    }
+
     const scanner = state.globalScannerInstance;
     state.globalScannerInstance = null;
     scanner.stop()
-        .then(() => { /* Sucesso */
-        })
         .catch(err => {
             if (!/already stopped/i.test(String(err))) {
                 console.error("Erro ao parar scanner:", err);
@@ -410,75 +456,86 @@ function stopGlobalScanner() {
                 dom._currentModal.setAttribute('aria-hidden', 'false');
             }
             state.currentScannerTarget = null;
+            state.pendingDecodedText = null;
         });
 }
 
-
-/** Chamado no sucesso da leitura da câmera (AJUSTADO V11.1) */
+// -------------------------------
+// Callbacks do Scanner (V12)
+// -------------------------------
 async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
-    if (!target) {
+    if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
         return;
     }
 
-    // --- FLUXO DE SEPARAÇÃO (AJUSTADO) ---
-    if (target === 'separacao') {
-        // BUG FIX: Remove a trava daqui. A trava deve ser gerenciada pelo handleSeparaçãoSubmit.
-        // if (state.isSeparaçãoProcessing) return; // REMOVIDO
-        // state.isSeparaçãoProcessing = true; // REMOVIDO
+    // Pausa a leitura imediata e pede confirmação
+    state.globalScannerInstance.pause(true);
 
-        const input = dom.sepScan;
-        if (input) {
-            input.value = decodedText;
-            stopGlobalScanner(); // Fecha a câmera
-
-            // Simula o "Enter"
-            const enterEvent = new KeyboardEvent('keydown', {
-                key: 'Enter', bubbles: true, cancelable: true
-            });
-            input.dispatchEvent(enterEvent);
-        }
-        return;
-    }
-
-    // --- FLUXO DE CARREGAMENTO (V11) ---
-    if (target === 'carregamento') {
-        if (state.isCarregamentoProcessing) return; // Já está processando um bipe
-
-        try {
-            state.isCarregamentoProcessing = true;
-            state.globalScannerInstance.pause(true); // Pausa a câmera
-
-            const usuarioSaida = dom.carUser?.value?.trim();
-            const doca = state.selectedDock || dom.carDockSelect?.value || '';
-            const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
-
-            const validation = await runCarregamentoValidation(decodedText, usuarioSaida, doca, ilha);
-
-            if (validation.success) {
-                showScannerFeedback('success', validation.message); // Flash rápido
-                renderDashboard();
-                state.globalScannerInstance.resume(); // Retoma a câmera
-            } else {
-                showScannerFeedback('error', validation.message, true); // Erro "pegajoso"
-                setCarStatus(validation.message, {error: true});
-                dom.carScan.value = decodedText;
-                dom.carScan.select();
+    showScannerConfirm(
+        decodedText,
+        // YES (Confirmar)
+        () => {
+            if (target === 'separacao') {
+                const input = dom.sepScan;
+                if (input) {
+                    input.value = decodedText;
+                    stopGlobalScanner(); // volta ao modal
+                    const enterEvent = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true});
+                    input.dispatchEvent(enterEvent);
+                } else {
+                    // se não tiver input por algum motivo, apenas retoma
+                    state.globalScannerInstance?.resume();
+                }
+            } else if (target === 'carregamento') {
+                // No carregamento, validamos logo após confirmar (mantém lógica antiga de pause/validate/resume)
+                handleCarregamentoFromScanner(decodedText).finally(() => {
+                    // se o scanner ainda existir, retoma
+                    state.globalScannerInstance?.resume();
+                });
             }
-
-        } catch (err) {
-            showScannerFeedback('error', err.message || 'Erro desconhecido', true); // Erro "pegajoso"
-            setCarStatus(err.message, {error: true});
-        } finally {
-            state.isCarregamentoProcessing = false; // Libera para o próximo bipe
+        },
+        // NO (Reescanear)
+        () => {
+            // Limpa texto pendente e retoma a câmera
+            state.pendingDecodedText = null;
+            state.globalScannerInstance?.resume();
         }
-    }
+    );
 }
 
-/** Chamado em falhas de leitura (ex: não achou QR) */
-function onGlobalScanError(error) {
-    // Ignora erros de "QR code não encontrado"
+function onGlobalScanError(_) {
+    // Ignora "no QR code found"
+}
+
+// Aux para carregamento com confirmação
+async function handleCarregamentoFromScanner(decodedText) {
+    if (state.isCarregamentoProcessing) return;
+
+    try {
+        state.isCarregamentoProcessing = true;
+
+        const usuarioSaida = dom.carUser?.value?.trim();
+        const doca = state.selectedDock || dom.carDockSelect?.value || '';
+        const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
+
+        const validation = await runCarregamentoValidation(decodedText, usuarioSaida, doca, ilha);
+
+        if (validation.success) {
+            showScannerFeedback('success', validation.message);
+            renderDashboard();
+        } else {
+            showScannerFeedback('error', validation.message, true);
+            dom.carScan.value = decodedText;
+            dom.carScan.select();
+        }
+    } catch (err) {
+        showScannerFeedback('error', err.message || 'Erro desconhecido', true);
+        setCarStatus(err.message, {error: true});
+    } finally {
+        state.isCarregamentoProcessing = false;
+    }
 }
 
 // -------------------------------
@@ -515,12 +572,8 @@ function calculateStats(data) {
     };
 
     for (const item of data) {
-        if (item.VALIDACAO === 'BIPADO') {
-            stats.totalCarregamento += 1;
-        }
-        if (item.DOCA) {
-            stats.docasAtivas.add(item.DOCA);
-        }
+        if (item.VALIDACAO === 'BIPADO') stats.totalCarregamento += 1;
+        if (item.DOCA) stats.docasAtivas.add(item.DOCA);
     }
 
     return {
@@ -541,37 +594,38 @@ function renderDashboard() {
 
     const {totalSeparacao, totalCarregamento, totalDocasAtivas} = calculateStats(state.cacheData);
 
-    let html = '';
-
-    html += `
+    let html = `
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white p-3 rounded-lg shadow border border-gray-200"> <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div> <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div> </div>
-        <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-            <div class="text-xs font-medium text-gray-500">Carregamento Total (24h)</div>
-            <div class="mt-1 text-2xl font-semibold text-gray-900">${totalCarregamento}</div>
-        </div>
-        <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-            <div class="text-xs font-medium text-gray-500">Docas Ativas (24h)</div>
-            <div class="mt-1 text-2xl font-semibold text-gray-900">${totalDocasAtivas}</div>
-        </div>
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div>
+      </div>
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Carregamento Total (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalCarregamento}</div>
+      </div>
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Docas Ativas (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalDocasAtivas}</div>
+      </div>
     </div>
-    `;
+  `;
 
     html += `
     <div class="overflow-x-auto bg-white rounded-lg shadow border border-gray-200" style="max-height: 60vh; overflow-y: auto;">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
-                <tr>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rota</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Separado Por</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Separação</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carregado Por</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Finalizado</th>
-                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-    `;
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rota</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Separado Por</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Separação</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carregado Por</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Finalizado</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+  `;
 
     for (const item of state.cacheData) {
         const isBipado = item.VALIDACAO === 'BIPADO';
@@ -579,26 +633,25 @@ function renderDashboard() {
         const statusText = isBipado ? 'Carregado' : 'Aguardando';
 
         html += `
-                <tr class="text-sm text-gray-700">
-                    <td class="px-4 py-3 whitespace-nowrap font-medium">${item.ROTA || 'N/A'}</td>
-                    <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_ENTRADA || '---'}</td>
-                    <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
-                    <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_SAIDA || '---'}</td>
-                    <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA_SAIDA)}</td>
-                    <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
-                </tr>
-        `;
+      <tr class="text-sm text-gray-700">
+        <td class="px-4 py-3 whitespace-nowrap font-medium">${item.ROTA || 'N/A'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_ENTRADA || '---'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_SAIDA || '---'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA_SAIDA)}</td>
+        <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
+      </tr>
+    `;
     }
 
     html += `
-            </tbody>
-        </table>
+        </tbody>
+      </table>
     </div>
-    `;
+  `;
 
     container.innerHTML = html;
 }
-
 
 async function fetchAndRenderDashboard() {
     await fetchDashboardData();
@@ -606,7 +659,7 @@ async function fetchAndRenderDashboard() {
 }
 
 // -------------------------------
-// UI reorder: botões em cima, relatório embaixo (sem mexer no HTML)
+// UI reorder
 // -------------------------------
 function reorderControlsOverDashboard() {
     const root = document.getElementById('tab-auditoria-mangas');
@@ -664,7 +717,7 @@ async function processarPacote(idPacote, dataScan, usuarioEntrada) {
         headers: buildFunctionHeaders(),
         body: JSON.stringify(body),
     });
-    const json = await response.json();
+    const json = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(json?.error || 'Erro desconhecido');
     return json;
 }
@@ -700,13 +753,9 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
             const {numeracao, ilha, insertedData, pacote} = await processarPacote(idPacote, dataScan, usuarioEntrada);
             const idPacoteParaQr = pacote || idPacote;
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
-
-            // (AJUSTADO V11) Chama a impressão automaticamente
             await printEtiqueta();
 
-            if (insertedData && insertedData[0]) {
-                state.cacheData.unshift(insertedData[0]);
-            }
+            if (insertedData && insertedData[0]) state.cacheData.unshift(insertedData[0]);
             ok++;
         } catch (err) {
             console.error('Erro em massa (separação):', err);
@@ -725,10 +774,13 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     dom.sepUser.disabled = false;
 }
 
+function isDuplicateErrorMessage(msg = '') {
+    return /duplicate key|unique constraint|Carregamento_pkay/i.test(String(msg));
+}
+
 async function handleSeparaçãoSubmit(e) {
-    // AJUSTE V11.1: Garante que a tecla seja 'Enter' E que não esteja processando
     if (e.key !== 'Enter') return;
-    if (state.isSeparaçãoProcessing) return; // Se já estiver processando, não faz nada
+    if (state.isSeparaçãoProcessing) return;
 
     e.preventDefault();
 
@@ -748,7 +800,6 @@ async function handleSeparaçãoSubmit(e) {
 
     const ids = parseBulkEntries(raw);
     if (ids.length > 1) {
-        // A trava para o processamento em massa é gerenciada dentro da função
         await processarSeparacaoEmMassa(ids, usuarioEntrada);
         return;
     }
@@ -756,7 +807,6 @@ async function handleSeparaçãoSubmit(e) {
     const idPacote = ids[0];
     const dataScan = new Date().toISOString();
 
-    // A trava de processamento único começa AQUI
     state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
     dom.sepUser.disabled = true;
@@ -767,32 +817,45 @@ async function handleSeparaçãoSubmit(e) {
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
         const {numeracao, ilha, insertedData, pacote} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
+
         const idPacoteParaQr = pacote || idPacote;
         setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
         dom.sepScan.value = '';
 
-        // (V11) Chama a impressão automaticamente
         await printEtiqueta();
 
         if (insertedData && insertedData[0]) {
             state.cacheData.unshift(insertedData[0]);
             renderDashboard();
         }
+
+        // V12 — fluxo contínuo: reabre a câmera para o próximo
+        if (!state.globalScannerInstance) startGlobalScanner('separacao');
+
     } catch (err) {
         console.error('Erro Separação:', err);
-        setSepStatus(`Erro: ${err.message}`, {error: true});
+        const friendly = isDuplicateErrorMessage(err?.message)
+            ? 'Pacote já bipado e atrelado, passe para próximo!'
+            : `Erro: ${err.message || err}`;
+
+        setSepStatus(friendly, {error: isDuplicateErrorMessage(err?.message) ? false : true});
+
+        // Após erro de duplicidade, já abre a câmera para o próximo
+        if (isDuplicateErrorMessage(err?.message) && !state.globalScannerInstance) {
+            startGlobalScanner('separacao');
+        }
     } finally {
-        // Libera a trava
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
         dom.sepUser.disabled = false;
-        dom.sepScan.focus(); // Foca para a próxima bipagem IMEDIATAMENTE
+        // Se o scanner foi reaberto, não precisa focar o input; senão, mantém a UX de teclado
+        if (!state.globalScannerInstance) dom.sepScan.focus();
     }
 }
 
 // -------------------------------
-// Carregamento (Passo 2) - (AJUSTADO V11)
+// Carregamento (Passo 2)
 // -------------------------------
 function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
@@ -816,12 +879,11 @@ function ensureDockSelect() {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-            <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
-            <div class="mt-1">
-                <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
-                </select>
-            </div>
-        `;
+      <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
+      <div class="mt-1">
+        <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
+      </div>
+    `;
 
         const sel = wrap.querySelector('#car-dock-select');
         const opt0 = document.createElement('option');
@@ -866,13 +928,13 @@ function ensureIlhaSelect() {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-            <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
-            <div class="mt-1">
-                <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
-                    <option value="">Carregando ilhas...</option>
-                </select>
-            </div>
-        `;
+      <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
+      <div class="mt-1">
+        <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
+          <option value="">Carregando ilhas...</option>
+        </select>
+      </div>
+    `;
 
         const dockBlock = dockSelect.closest('.mt-4');
         if (dockBlock && dockBlock.parentElement) {
@@ -907,15 +969,12 @@ function populateIlhaSelect() {
     for (const rota of rotas) {
         const opt = document.createElement('option');
         opt.value = rota;
-        opt.textContent = `ROTA ${rota}`; // Ex: "ROTA Y"
+        opt.textContent = `ROTA ${rota}`;
         dom.carIlhaSelect.appendChild(opt);
     }
 
-    if (state.selectedIlha) {
-        dom.carIlhaSelect.value = state.selectedIlha;
-    }
+    if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
 }
-
 
 async function processarValidacao(numeracao, usuarioSaida, doca) {
     const body = {numeracao, usuario_saida: usuarioSaida, doca};
@@ -927,7 +986,7 @@ async function processarValidacao(numeracao, usuarioSaida, doca) {
     let json = null;
     try {
         json = await response.json();
-    } catch (_) {
+    } catch {
     }
     if (!response.ok) {
         const msg = json?.error || `Falha (HTTP ${response.status})`;
@@ -949,40 +1008,27 @@ function handleCarUserKeydown(e) {
     }
 }
 
-/** * (NOVO V10) Lógica de validação centralizada para Carregamento.
- * Retorna { success: boolean, message: string }
- */
 async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
-    // --- 1. Validações de preenchimento (necessárias para o scanner) ---
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
     if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR Code do Pacote'};
 
-    // --- 2. VALIDAÇÃO FRONT-END (ID Pacote vs Ilha) ---
     const item = state.cacheData.find(i => String(i['ID PACOTE']) === idPacoteScaneado);
-
-    if (!item) {
-        return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
-    }
-
-    if (item.ROTA !== ilha) {
-        return {success: false, message: `Erro: Pacote pertence à Rota ${item.ROTA}, não à Rota ${ilha}.`};
-    }
+    if (!item) return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
+    if (item.ROTA !== ilha) return {
+        success: false,
+        message: `Erro: Pacote pertence à Rota ${item.ROTA}, não à Rota ${ilha}.`
+    };
 
     const numeracaoParaBackend = item.NUMERACAO;
 
-    // --- 3. VALIDAÇÃO BACK-END (Chama a API) ---
     try {
         const result = await processarValidacao(numeracaoParaBackend, usuarioSaida, doca);
         const {updatedData, idempotent, message} = result || {};
 
         let successMessage = `OK! ${numeracaoParaBackend} validada.`;
-        if (idempotent) {
-            // Se já foi validado, ainda é um "sucesso" parcial, mas com aviso
-            // (Para o scan contínuo, tratamos como sucesso para não parar)
-            successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;
-        }
+        if (idempotent) successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;
 
         if (updatedData) {
             const index = state.cacheData.findIndex(itemCache => {
@@ -992,13 +1038,14 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
                     return false;
                 }
             });
-            if (index > -1) {
-                state.cacheData[index] = {...state.cacheData[index], ...updatedData, DOCA: doca, ROTA: ilha};
-            }
+            if (index > -1) state.cacheData[index] = {
+                ...state.cacheData[index], ...updatedData,
+                DOCA: doca,
+                ROTA: ilha
+            };
         }
 
         return {success: true, message: successMessage};
-
     } catch (err) {
         console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
@@ -1010,8 +1057,6 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
     }
 }
 
-
-/** (AJUSTADO V10) Handle para quem aperta "Enter" (Desktop) */
 async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
@@ -1029,20 +1074,18 @@ async function handleCarregamentoSubmit(e) {
     const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
 
     try {
-        // Chama a lógica de validação central
         const validation = await runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha);
 
         if (validation.success) {
             setCarStatus(validation.message, {error: false});
-            dom.carScan.value = ''; // Limpa para o próximo
+            dom.carScan.value = '';
             renderDashboard();
             dom.carScan.focus();
         } else {
             setCarStatus(validation.message, {error: true});
-            dom.carScan.select(); // Seleciona o texto errado
+            dom.carScan.select();
         }
     } catch (err) {
-        // Pega erros inesperados da própria validação
         setCarStatus(err.message, {error: true});
     } finally {
         state.isCarregamentoProcessing = false;
@@ -1055,7 +1098,6 @@ async function handleCarregamentoSubmit(e) {
         }
     }
 }
-
 
 // -------------------------------
 // Ciclo de Vida
@@ -1089,8 +1131,7 @@ export function init() {
     dom.carScan = document.getElementById('car-scan-input');
     dom.carStatus = document.getElementById('car-status');
 
-
-    // Ajustar classes dos botões (CSS via JS)
+    // Ajustes de estilo botões
     if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4');
         dom.btnSeparação.classList.add('px-4', 'py-3');
@@ -1110,11 +1151,11 @@ export function init() {
         }
     }
 
-    // Prepara o leitor de câmera (Lógica V11)
+    // Scanner e Overlays
     createGlobalScannerModal();
     injectScannerButtons();
 
-    // Cria os selects de Doca e Ilha
+    // Selects
     ensureDockSelect();
     ensureIlhaSelect();
 
@@ -1127,9 +1168,8 @@ export function init() {
 
     dom.btnCarregamento?.addEventListener('click', () => {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-        populateIlhaSelect(); // Popula o dropdown de Ilhas
+        populateIlhaSelect();
         openModal(dom.modalCarregamento);
-        // Foca no primeiro campo vazio (Doca, Ilha ou Scan)
         if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
@@ -1149,13 +1189,13 @@ export function init() {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
     });
 
-    // Handlers de entrada (handleCarUserKeydown foi ajustado)
+    // Entradas
     dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
     dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
 
-    // Print manual (Agora é a única forma de imprimir)
+    // Print manual
     dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             await printEtiqueta();
@@ -1164,7 +1204,7 @@ export function init() {
         }
     });
 
-    // Atalho F6: foca scan do modal aberto
+    // Atalho F6
     document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
@@ -1177,26 +1217,19 @@ export function init() {
         }
     });
 
-    // Reordenar UI: botões em cima
+    // Reordenar UI
     reorderControlsOverDashboard();
 
     // Dashboard
     fetchAndRenderDashboard();
 
-    console.log('Módulo de Auditoria (Dashboard) inicializado.');
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V12].');
 }
 
 export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
-
-    if (state.globalScannerInstance) {
-        stopGlobalScanner();
-    }
-    if (dom.scannerModal) {
-        dom.scannerModal.parentElement.removeChild(dom.scannerModal);
-    }
-
-    // Limpa o cache e DOM refs
+    if (state.globalScannerInstance) stopGlobalScanner();
+    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
     state.cacheData = [];
     state.globalScannerInstance = null;
     state.currentScannerTarget = null;
