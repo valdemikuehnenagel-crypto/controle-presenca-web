@@ -1,0 +1,96 @@
+<section id="tab-auditoria-mangas" class="tab-panel active">
+
+    <div class="cd-header single-line">
+        <div class="cd-filters">
+            <h3 class="text-lg font-semibold">Auditoria de Mangas (Dashboard)</h3>
+        </div>
+    </div>
+
+    <div class="p-4">
+        <div class="bg-white p-4 rounded-lg shadow-md">
+            <h4 class="text-lg font-bold text-gray-800 mb-3">Progresso (Últimas 24h)</h4>
+            <div id="dashboard-stats" class="space-y-2">
+                <p class="text-gray-500">Carregando dados...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button id="btn-iniciar-separacao"
+                class="w-full px-6 py-4 bg-blue-600 text-white font-semibold rounded-md shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <span class="text-xl">PASSO 1: Iniciar Separação</span>
+            <span class="block text-sm">(Bipar Pacote e Gerar QR da Manga)</span>
+        </button>
+
+        <button id="btn-iniciar-carregamento"
+                class="w-full px-6 py-4 bg-green-600 text-white font-semibold rounded-md shadow hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+            <span class="text-xl">PASSO 2: Iniciar Carregamento</span>
+            <span class="block text-sm">(Bipar QR da Manga e Validar)</span>
+        </button>
+    </div>
+
+</section>
+
+<div id="modal-separacao" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 class="text-xl font-semibold">Passo 1: Registrar Manga (Separação)</h3>
+            <button class="modal-close" type="button">&times;</button>
+        </div>
+
+        <div class="max-w-md mx-auto">
+            <label for="sep-user-name" class="block text-sm font-medium text-gray-700">Colaborador</label>
+            <div class="mt-1">
+                <input type="text" id="sep-user-name"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                       placeholder="Digite seu nome...">
+            </div>
+
+            <label for="sep-scan-input" class="block text-sm font-medium text-gray-700 mt-4">Bipar Pacote
+                (Amostra)</label>
+            <div class="mt-1">
+                <input type="text" id="sep-scan-input"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                       placeholder="Aguardando leitura do scanner...">
+            </div>
+            <p id="sep-status" class="mt-2 text-sm text-gray-500 h-5"></p>
+        </div>
+
+        <div id="sep-qr-area" class="p-4 text-center" style="display: none;">
+            <h4 class="text-xl font-bold" id="sep-qr-title"></h4>
+            <div id="sep-qr-canvas" class="flex justify-center p-4"></div>
+            <button id="sep-print-btn"
+                    class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md shadow hover:bg-blue-700">
+                Imprimir Etiqueta
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<div id="modal-carregamento" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 class="text-xl font-semibold">Passo 2: Validar Manga (Carregamento)</h3>
+            <button class="modal-close" type="button">&times;</button>
+        </div>
+
+        <div class="max-w-md mx-auto">
+            <label for="car-user-name" class="block text-sm font-medium text-gray-700">Colaborador</label>
+            <div class="mt-1">
+                <input type="text" id="car-user-name"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                       placeholder="Digite seu nome...">
+            </div>
+
+            <label for="car-scan-input" class="block text-sm font-medium text-gray-700 mt-4">Bipar QR Code da
+                Manga</label>
+            <div class="mt-1">
+                <input type="text" id="car-scan-input"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                       placeholder="Aguardando leitura do scanner...">
+            </div>
+            <p id="car-status" class="mt-2 text-sm text-gray-500 h-5"></p>
+        </div>
+    </div>
+</div>
