@@ -1,12 +1,12 @@
 // ========================================================================
 // separacao.js — Auditoria de Mangas (Validação contínua + DOCA + Massa + Print Fix + UI reorder)
 //
-// V12: Scan Contínuo (Separação) + Botão "Iniciar Scanner" (Controle)
+// V11: Impressão Automática (Separação) + Feedback de Erro Fixo (Carregamento)
 // ========================================================================
 
 // IMPORTANTE: Você precisa instalar a biblioteca 'html5-qrcode'
 // Ex: npm install html5-qrcode
-import { Html5QrcodeScanner } from 'html5-qrcode'; // (V12) Voltamos para o Scanner (com botão "Iniciar")
+import {Html5Qrcode} from 'html5-qrcode'; // Mudança: de Html5QrcodeScanner para Html5Qrcode (core)
 import qrcode from 'qrcode-generator';
 
 // -------------------------------
@@ -67,7 +67,7 @@ let dom = {
     scannerContainer: null,
     scannerCancelBtn: null,
     scannerFeedbackOverlay: null,
-    scannerFeedbackCloseBtn: null,
+    scannerFeedbackCloseBtn: null, // (NOVO) Botão 'Fechar' do erro
 };
 
 // -------------------------------
@@ -211,10 +211,10 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
 }
 
 // -------------------------------
-// Scanner de Câmera (AJUSTE V12)
+// Scanner de Câmera (AJUSTE V11)
 // -------------------------------
 
-/** (V11) Mostra o feedback verde (rápido) ou vermelho (fixo) */
+/** (AJUSTADO V11) Mostra o feedback verde (rápido) ou vermelho (fixo) */
 function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
 
@@ -225,21 +225,23 @@ function showScannerFeedback(type, message, sticky = false) {
 
     if (type === 'success') {
         dom.scannerFeedbackOverlay.classList.add('bg-green-500');
-        dom.scannerFeedbackCloseBtn.style.display = 'none';
+        dom.scannerFeedbackCloseBtn.style.display = 'none'; // Esconde o botão de fechar no sucesso
 
+        // Esconde o feedback (sucesso) após 1.5 segundos
         setTimeout(() => {
             dom.scannerFeedbackOverlay.classList.add('hidden');
         }, 1500);
 
     } else { // Erro
         dom.scannerFeedbackOverlay.classList.add('bg-red-500');
-        dom.scannerFeedbackCloseBtn.style.display = 'block';
+        dom.scannerFeedbackCloseBtn.style.display = 'block'; // Mostra o botão de fechar no erro
 
-        if (!sticky) {
-             setTimeout(() => {
+        if (!sticky) { // Se não for 'sticky', esconde sozinho
+            setTimeout(() => {
                 dom.scannerFeedbackOverlay.classList.add('hidden');
             }, 1500);
         }
+        // Se for sticky (padrão do erro agora), não faz nada, espera o clique.
     }
 }
 
@@ -253,11 +255,11 @@ function createGlobalScannerModal() {
     modal.style.zIndex = '1100';
 
     const content = document.createElement('div');
-    content.className = 'modal-content relative';
+    content.className = 'modal-content relative'; // Adicionado 'relative'
     content.style.width = '90vw';
     content.style.maxWidth = '600px';
 
-    // (V11) Adicionado o botão de fechar no overlay
+    // (AJUSTADO V11) Adicionado o botão de fechar no overlay
     content.innerHTML = `
         <div class="flex justify-between items-center mb-4 border-b pb-2">
             <h3 class="text-xl font-semibold">Escanear QR Code</h3>
@@ -286,9 +288,9 @@ function createGlobalScannerModal() {
     dom.scannerContainer = modal.querySelector('#auditoria-scanner-container');
     dom.scannerCancelBtn = modal.querySelector('#auditoria-scanner-cancel');
     dom.scannerFeedbackOverlay = modal.querySelector('#scanner-feedback-overlay');
-    dom.scannerFeedbackCloseBtn = modal.querySelector('#scanner-feedback-close');
+    dom.scannerFeedbackCloseBtn = modal.querySelector('#scanner-feedback-close'); // (NOVO)
 
-    // O botão "Fechar" do erro e o "Cancelar" principal agora param o scanner
+    // (NOVO) O botão "Fechar" do erro simplesmente fecha o scanner
     dom.scannerFeedbackCloseBtn.addEventListener('click', stopGlobalScanner);
     dom.scannerCancelBtn.addEventListener('click', stopGlobalScanner);
 }
@@ -319,7 +321,7 @@ function injectScannerButtons() {
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
 }
 
-/** (AJUSTADO V12) Inicia o Html5QrcodeScanner (com botão Iniciar) */
+/** Inicia o scanner global (LÓGICA V8 - SEM SELEÇÃO) */
 function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
 
@@ -330,60 +332,89 @@ function startGlobalScanner(targetModal) {
         dom._currentModal.setAttribute('aria-hidden', 'true');
     }
 
+    // (NOVO V11) Garante que o feedback de erro antigo seja limpo ao abrir
     if (dom.scannerFeedbackOverlay) dom.scannerFeedbackOverlay.classList.add('hidden');
 
     dom.scannerModal.classList.remove('hidden');
 
     try {
-        // (V12) Config para forçar a câmera traseira e dar ao usuário o botão "Start"
-        const scannerConfig = {
-            fps: 5, // Mais lento para não ser tão agressivo
-            qrbox: {width: 250, height: 250},
-            facingMode: "environment" // Força a câmera traseira
-        };
+        const scanner = new Html5Qrcode('auditoria-scanner-container');
+        state.globalScannerInstance = scanner;
 
-        const scanner = new Html5QrcodeScanner(
-            'auditoria-scanner-container',
-            scannerConfig,
-            false // verbose
-        );
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+                let deviceId = null;
+                const backCamera = devices.find(d => d.facingMode === 'environment');
+                if (backCamera) {
+                    deviceId = backCamera.id;
+                } else {
+                    const backCameraByLabel = devices.find(d => /back/i.test(d.label));
+                    if (backCameraByLabel) {
+                        deviceId = backCameraByLabel.id;
+                    } else {
+                        deviceId = devices[devices.length - 1].id;
+                    }
+                }
 
-        scanner.render(onGlobalScanSuccess, onGlobalScanError);
-        state.globalScannerInstance = scanner; // Salva a instância
+                if (deviceId) {
+                    scanner.start(
+                        deviceId,
+                        {fps: 10, qrbox: {width: 250, height: 250}},
+                        onGlobalScanSuccess,
+                        onGlobalScanError
+                    ).catch(err => {
+                        console.error("Erro ao INICIAR scanner:", err);
+                        setSepStatus("Câmera falhou. Tente novamente.", {error: true});
+                        setCarStatus("Câmera falhou. Tente novamente.", {error: true});
+                        stopGlobalScanner();
+                    });
+                } else {
+                    throw new Error("Nenhuma câmera encontrada.");
+                }
+            } else {
+                throw new Error("Nenhuma câmera detectada.");
+            }
+        }).catch(err => {
+            console.error("Erro ao listar câmeras:", err);
+            setSepStatus("Não foi possível listar câmeras.", {error: true});
+            setCarStatus("Não foi possível listar câmeras.", {error: true});
+            stopGlobalScanner();
+        });
 
     } catch (err) {
-        console.error("Erro ao instanciar Html5QrcodeScanner:", err);
-        setSepStatus("Erro ao iniciar câmera.", { error: true });
-        setCarStatus("Erro ao iniciar câmera.", { error: true });
+        console.error("Erro ao instanciar Html5Qrcode:", err);
+        setSepStatus("Erro ao iniciar câmera.", {error: true});
+        setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
 }
 
-/** (AJUSTADO V12) Para o Html5QrcodeScanner */
+/** Para o scanner global e reexibe o modal de input (LÓGICA V8) */
 function stopGlobalScanner() {
     if (!state.globalScannerInstance) return;
-
-    try {
-        state.globalScannerInstance.clear().catch(err => {
-            console.error("Erro ao limpar scanner:", err);
-        });
-    } catch (err) {
-        console.error("Erro ao parar scanner:", err);
-    }
-
+    const scanner = state.globalScannerInstance;
     state.globalScannerInstance = null;
-    dom.scannerModal.classList.add('hidden');
-
-    if (dom._currentModal) {
-        dom._currentModal.classList.remove('hidden');
-        dom._currentModal.setAttribute('aria-hidden', 'false');
-    }
-
-    state.currentScannerTarget = null;
+    scanner.stop()
+        .then(() => { /* Sucesso */
+        })
+        .catch(err => {
+            if (!/already stopped/i.test(String(err))) {
+                console.error("Erro ao parar scanner:", err);
+            }
+        })
+        .finally(() => {
+            if (dom.scannerContainer) dom.scannerContainer.innerHTML = "";
+            dom.scannerModal.classList.add('hidden');
+            if (dom._currentModal) {
+                dom._currentModal.classList.remove('hidden');
+                dom._currentModal.setAttribute('aria-hidden', 'false');
+            }
+            state.currentScannerTarget = null;
+        });
 }
 
 
-/** Chamado no sucesso da leitura da câmera (AJUSTADO V12) */
+/** Chamado no sucesso da leitura da câmera (AJUSTADO V11.1) */
 async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target) {
@@ -391,59 +422,33 @@ async function onGlobalScanSuccess(decodedText) {
         return;
     }
 
-    // --- FLUXO DE SEPARAÇÃO (NOVO V12) ---
-    // (Bipa -> Pausa -> Processa -> Imprime -> Retoma)
+    // --- FLUXO DE SEPARAÇÃO (AJUSTADO) ---
     if (target === 'separacao') {
-        if (state.isSeparaçãoProcessing) return; // Evita bip duplo
+        // BUG FIX: Remove a trava daqui. A trava deve ser gerenciada pelo handleSeparaçãoSubmit.
+        // if (state.isSeparaçãoProcessing) return; // REMOVIDO
+        // state.isSeparaçãoProcessing = true; // REMOVIDO
 
-        try {
-            state.isSeparaçãoProcessing = true;
-            state.globalScannerInstance.pause(true); // Pausa a câmera
+        const input = dom.sepScan;
+        if (input) {
+            input.value = decodedText;
+            stopGlobalScanner(); // Fecha a câmera
 
-            const usuarioEntrada = dom.sepUser?.value?.trim();
-            const dataScan = new Date().toISOString();
-
-            // 1. Processa o pacote (chama o backend)
-            const result = await processarPacote(decodedText, dataScan, usuarioEntrada);
-            const {numeracao, ilha, insertedData, pacote} = result;
-            if (!numeracao) throw new Error('Resposta não contém numeração');
-
-            const idPacoteParaQr = pacote || decodedText;
-
-            // 2. Gera o QR (no modal escondido)
-            await generateQRCode(idPacoteParaQr, ilha, numeracao);
-
-            // 3. Mostra feedback verde
-            showScannerFeedback('success', `OK: ${numeracao}`);
-
-            // 4. CHAMA A IMPRESSÃO (Trava a execução)
-            await printEtiqueta();
-
-            // 5. Atualiza o dashboard e retoma a câmera
-            if (insertedData && insertedData[0]) {
-                state.cacheData.unshift(insertedData[0]);
-                renderDashboard();
-            }
-            state.globalScannerInstance.resume();
-
-        } catch (err) {
-            // Erro na Separação
-            showScannerFeedback('error', err.message || 'Erro desconhecido', true); // Erro "pegajoso"
-            setSepStatus(err.message, { error: true }); // Seta o erro no modal principal
-            dom.sepScan.value = decodedText; // Deixa o valor errado no input
-        } finally {
-            state.isSeparaçãoProcessing = false; // Libera
+            // Simula o "Enter"
+            const enterEvent = new KeyboardEvent('keydown', {
+                key: 'Enter', bubbles: true, cancelable: true
+            });
+            input.dispatchEvent(enterEvent);
         }
         return;
     }
 
-    // --- FLUXO DE CARREGAMENTO (V11 - Sem alteração) ---
+    // --- FLUXO DE CARREGAMENTO (V11) ---
     if (target === 'carregamento') {
-        if (state.isCarregamentoProcessing) return;
+        if (state.isCarregamentoProcessing) return; // Já está processando um bipe
 
         try {
             state.isCarregamentoProcessing = true;
-            state.globalScannerInstance.pause(true);
+            state.globalScannerInstance.pause(true); // Pausa a câmera
 
             const usuarioSaida = dom.carUser?.value?.trim();
             const doca = state.selectedDock || dom.carDockSelect?.value || '';
@@ -457,16 +462,16 @@ async function onGlobalScanSuccess(decodedText) {
                 state.globalScannerInstance.resume(); // Retoma a câmera
             } else {
                 showScannerFeedback('error', validation.message, true); // Erro "pegajoso"
-                setCarStatus(validation.message, { error: true });
+                setCarStatus(validation.message, {error: true});
                 dom.carScan.value = decodedText;
                 dom.carScan.select();
             }
 
         } catch (err) {
-            showScannerFeedback('error', err.message || 'Erro desconhecido', true);
-            setCarStatus(err.message, { error: true });
+            showScannerFeedback('error', err.message || 'Erro desconhecido', true); // Erro "pegajoso"
+            setCarStatus(err.message, {error: true});
         } finally {
-            state.isCarregamentoProcessing = false;
+            state.isCarregamentoProcessing = false; // Libera para o próximo bipe
         }
     }
 }
@@ -696,7 +701,7 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
             const idPacoteParaQr = pacote || idPacote;
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
 
-            // (V11) Chama a impressão automaticamente
+            // (AJUSTADO V11) Chama a impressão automaticamente
             await printEtiqueta();
 
             if (insertedData && insertedData[0]) {
@@ -720,10 +725,10 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     dom.sepUser.disabled = false;
 }
 
-// (AJUSTADO V12) Esta função é SÓ para o "Enter" do teclado
 async function handleSeparaçãoSubmit(e) {
+    // AJUSTE V11.1: Garante que a tecla seja 'Enter' E que não esteja processando
     if (e.key !== 'Enter') return;
-    if (state.isSeparaçãoProcessing) return;
+    if (state.isSeparaçãoProcessing) return; // Se já estiver processando, não faz nada
 
     e.preventDefault();
 
@@ -743,6 +748,7 @@ async function handleSeparaçãoSubmit(e) {
 
     const ids = parseBulkEntries(raw);
     if (ids.length > 1) {
+        // A trava para o processamento em massa é gerenciada dentro da função
         await processarSeparacaoEmMassa(ids, usuarioEntrada);
         return;
     }
@@ -750,6 +756,7 @@ async function handleSeparaçãoSubmit(e) {
     const idPacote = ids[0];
     const dataScan = new Date().toISOString();
 
+    // A trava de processamento único começa AQUI
     state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
     dom.sepUser.disabled = true;
@@ -776,10 +783,11 @@ async function handleSeparaçãoSubmit(e) {
         console.error('Erro Separação:', err);
         setSepStatus(`Erro: ${err.message}`, {error: true});
     } finally {
+        // Libera a trava
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
         dom.sepUser.disabled = false;
-        dom.sepScan.focus(); // Foca para a próxima bipagem
+        dom.sepScan.focus(); // Foca para a próxima bipagem IMEDIATAMENTE
     }
 }
 
@@ -941,7 +949,7 @@ function handleCarUserKeydown(e) {
     }
 }
 
-/** * (V10) Lógica de validação centralizada para Carregamento.
+/** * (NOVO V10) Lógica de validação centralizada para Carregamento.
  * Retorna { success: boolean, message: string }
  */
 async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
@@ -971,6 +979,8 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
 
         let successMessage = `OK! ${numeracaoParaBackend} validada.`;
         if (idempotent) {
+            // Se já foi validado, ainda é um "sucesso" parcial, mas com aviso
+            // (Para o scan contínuo, tratamos como sucesso para não parar)
             successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;
         }
 
@@ -1001,7 +1011,7 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
 }
 
 
-/** (V10) Handle para quem aperta "Enter" (Desktop) */
+/** (AJUSTADO V10) Handle para quem aperta "Enter" (Desktop) */
 async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
@@ -1019,6 +1029,7 @@ async function handleCarregamentoSubmit(e) {
     const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
 
     try {
+        // Chama a lógica de validação central
         const validation = await runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha);
 
         if (validation.success) {
@@ -1031,6 +1042,7 @@ async function handleCarregamentoSubmit(e) {
             dom.carScan.select(); // Seleciona o texto errado
         }
     } catch (err) {
+        // Pega erros inesperados da própria validação
         setCarStatus(err.message, {error: true});
     } finally {
         state.isCarregamentoProcessing = false;
@@ -1098,7 +1110,7 @@ export function init() {
         }
     }
 
-    // Prepara o leitor de câmera (Lógica V12)
+    // Prepara o leitor de câmera (Lógica V11)
     createGlobalScannerModal();
     injectScannerButtons();
 
@@ -1117,6 +1129,7 @@ export function init() {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
         populateIlhaSelect(); // Popula o dropdown de Ilhas
         openModal(dom.modalCarregamento);
+        // Foca no primeiro campo vazio (Doca, Ilha ou Scan)
         if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
