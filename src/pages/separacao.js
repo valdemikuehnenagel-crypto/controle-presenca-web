@@ -113,11 +113,18 @@ function waitForPaint() {
     });
 }
 
+// MELHORIA 2: Adiciona função sleep
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// MELHORIA 2: Adiciona delay para impressão no mobile
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
-    dom.sepQrArea && dom.sepQrArea.offsetHeight;
+    dom.sepQrArea && dom.sepQrArea.offsetHeight; // Força reflow
     await waitForPaint();
     await waitForPaint();
+    await sleep(150); // Delay de segurança para renderização do SVG no mobile
     window.print();
 }
 
@@ -132,9 +139,9 @@ function extractElevenDigits(str) {
 }
 
 /**
- * Recebe: JSON com {id:"..."}, textos com números, códigos puros (QR/1D).
- * Retorna: 11 dígitos (string) quando possível; caso contrário, texto original.
- */
+  * Recebe: JSON com {id:"..."}, textos com números, códigos puros (QR/1D).
+  * Retorna: 11 dígitos (string) quando possível; caso contrário, texto original.
+  */
 function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
@@ -253,7 +260,8 @@ function showScannerFeedback(type, message, sticky = false) {
     if (type === 'success') {
         dom.scannerFeedbackOverlay.classList.add('bg-green-500');
         dom.scannerFeedbackCloseBtn.style.display = 'none';
-        setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1200);
+        // MELHORIA 3: Aumenta o tempo da mensagem de sucesso
+        setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 2500);
     } else {
         dom.scannerFeedbackOverlay.classList.add('bg-red-500');
         dom.scannerFeedbackCloseBtn.style.display = 'block';
@@ -303,49 +311,47 @@ function createGlobalScannerModal() {
     content.style.maxWidth = '600px';
 
     content.innerHTML = `
-    <div class="flex justify-between items-center mb-4 border-b pb-2">
-      <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>
-    </div>
+    <div class="flex justify-between items-center mb-4 border-b pb-2">
+      <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>
+    </div>
 
-    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
+    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
 
-    <button id="auditoria-scanner-cancel" type="button"
-      class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
-      Cancelar
-    </button>
+    <button id="auditoria-scanner-cancel" type="button"
+      class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
+      Cancelar
+    </button>
 
-    <!-- Overlay de feedback -->
-    <div id="scanner-feedback-overlay"
-      class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
-      style="z-index: 10;">
-      <span class="text-white text-2xl font-bold text-center"></span>
-      <button id="scanner-feedback-close" type="button"
-        class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"
-        style="display: none;">
-        Fechar
-      </button>
-    </div>
+        <div id="scanner-feedback-overlay"
+      class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
+      style="z-index: 10;">
+      <span class="text-white text-2xl font-bold text-center"></span>
+      <button id="scanner-feedback-close" type="button"
+        class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"
+        style="display: none;">
+        Fechar
+      </button>
+    </div>
 
-    <!-- Overlay de confirmação -->
-    <div id="scanner-confirm-overlay"
-      class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
-      style="z-index: 20;">
-      <div class="text-white text-center">
-        <div class="text-lg opacity-80 mb-1">Confirmar código lido?</div>
-        <div id="scanner-confirm-text" class="text-2xl font-bold break-all"></div>
-      </div>
-      <div class="flex gap-3">
-        <button id="scanner-confirm-yes" type="button"
-          class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow hover:bg-green-700">
-          Confirmar (Enter)
-        </button>
-        <button id="scanner-confirm-no" type="button"
-          class="px-5 py-2 rounded-md bg-gray-300 text-gray-800 font-semibold shadow hover:bg-gray-400">
-          Reescanear (Esc)
-        </button>
-      </div>
-    </div>
-  `;
+        <div id="scanner-confirm-overlay"
+      class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
+      style="z-index: 20;">
+      <div class="text-white text-center">
+        <div class="text-lg opacity-80 mb-1">Confirmar código lido?</div>
+        <div id="scanner-confirm-text" class="text-2xl font-bold break-all"></div>
+      </div>
+      <div class="flex gap-3">
+        <button id="scanner-confirm-yes" type="button"
+          class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow hover:bg-green-700">
+          Confirmar (Enter)
+        </button>
+        <button id="scanner-confirm-no" type="button"
+          class="px-5 py-2 rounded-md bg-gray-300 text-gray-800 font-semibold shadow hover:bg-gray-400">
+          Reescanear (Esc)
+        </button>
+      </div>
+    </div>
+  `;
 
     modal.appendChild(content);
     document.body.appendChild(modal);
@@ -640,37 +646,37 @@ function renderDashboard() {
     const {totalSeparacao, totalCarregamento, totalDocasAtivas} = calculateStats(state.cacheData);
 
     let html = `
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div>
-      </div>
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Carregamento Total (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalCarregamento}</div>
-      </div>
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Docas Ativas (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalDocasAtivas}</div>
-      </div>
-    </div>
-  `;
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div>
+      </div>
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Carregamento Total (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalCarregamento}</div>
+      </div>
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Docas Ativas (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalDocasAtivas}</div>
+      </div>
+    </div>
+  `;
 
     html += `
-    <div class="overflow-x-auto bg-white rounded-lg shadow border border-gray-200" style="max-height: 60vh; overflow-y: auto;">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rota</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Separado Por</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Separação</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carregado Por</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Finalizado</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-  `;
+    <div class="overflow-x-auto bg-white rounded-lg shadow border border-gray-200" style="max-height: 60vh; overflow-y: auto;">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rota</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Separado Por</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Separação</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carregado Por</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Finalizado</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+  `;
 
     for (const item of state.cacheData) {
         const isBipado = item.VALIDACAO === 'BIPADO';
@@ -678,22 +684,22 @@ function renderDashboard() {
         const statusText = isBipado ? 'Carregado' : 'Aguardando';
 
         html += `
-      <tr class="text-sm text-gray-700">
-        <td class="px-4 py-3 whitespace-nowrap font-medium">${item.ROTA || 'N/A'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_ENTRADA || '---'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_SAIDA || '---'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA_SAIDA)}</td>
-        <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
-      </tr>
-    `;
+      <tr class="text-sm text-gray-700">
+        <td class="px-4 py-3 whitespace-nowrap font-medium">${item.ROTA || 'N/A'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_ENTRADA || '---'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_SAIDA || '---'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA_SAIDA)}</td>
+        <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
+      </tr>
+    `;
     }
 
     html += `
-        </tbody>
-      </table>
-    </div>
-  `;
+        </tbody>
+      </table>
+    </div>
+  `;
 
     container.innerHTML = html;
 }
@@ -886,8 +892,8 @@ async function handleSeparaçãoSubmit(e) {
             renderDashboard();
         }
 
-        // volta com a câmera já aberta para o próximo
-        if (!state.globalScannerInstance) startGlobalScanner('separacao');
+        // MELHORIA 3: Removido 'startGlobalScanner' automático no sucesso
+        // (O usuário verá a mensagem de sucesso e decidirá se quer bipar outro)
 
     } catch (err) {
         console.error('Erro Separação:', err);
@@ -895,11 +901,12 @@ async function handleSeparaçãoSubmit(e) {
             ? 'Pacote já bipado e atrelado, passe para próximo!'
             : `Erro: ${err.message || err}`;
 
-        setSepStatus(friendly, {error: !isDuplicateErrorMessage(err?.message)});
+        // MELHORIA 1: Força o status de erro (vermelho) mesmo para duplicatas
+        setSepStatus(friendly, {error: true});
 
-        if (isDuplicateErrorMessage(err?.message) && !state.globalScannerInstance) {
-            startGlobalScanner('separacao');
-        }
+        // MELHORIA 1: Removido 'startGlobalScanner' automático no erro de duplicidade
+        // (O usuário verá a mensagem de erro vermelha até agir)
+
     } finally {
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
@@ -934,11 +941,11 @@ function ensureDockSelect() {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-      <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
-      <div class="mt-1">
-        <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
-      </div>
-    `;
+      <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
+      <div class="mt-1">
+        <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
+      </div>
+    `;
 
         const sel = wrap.querySelector('#car-dock-select');
         const opt0 = document.createElement('option');
@@ -983,13 +990,13 @@ function ensureIlhaSelect() {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-      <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
-      <div class="mt-1">
-        <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
-          <option value="">Carregando ilhas...</option>
-        </select>
-      </div>
-    `;
+      <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
+      <div class="mt-1">
+        <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
+          <option value="">Carregando ilhas...</option>
+        </select>
+      </div>
+    `;
 
         const dockBlock = dockSelect.closest('.mt-4');
         if (dockBlock && dockBlock.parentElement) {
@@ -1245,6 +1252,7 @@ export function init() {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
+        a
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
     });
 
