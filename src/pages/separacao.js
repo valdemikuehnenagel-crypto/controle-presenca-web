@@ -1,6 +1,8 @@
-import {Html5Qrcode} from 'html5-qrcode';
+// ========================================================================
+// separacao + carregamento — Leitura QR + Barras com normalização (11 dígitos)
+// ========================================================================
+import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
 import qrcode from 'qrcode-generator';
-
 
 const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
@@ -8,6 +10,14 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
 
+// ---- formatos suportados (QR + 1D) ----
+const SUPPORTED_FORMATS = [
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.UPC_A,
+];
 
 let state = {
     cacheData: [],
@@ -21,12 +31,10 @@ let state = {
     pendingDecodedText: null,
 };
 
-
 let dom = {
     dashboard: null,
     btnSeparação: null,
     btnCarregamento: null,
-
 
     modalSeparação: null,
     modalSepClose: null,
@@ -39,7 +47,6 @@ let dom = {
     sepPrintBtn: null,
     sepCamBtn: null,
 
-
     modalCarregamento: null,
     modalCarClose: null,
     carUser: null,
@@ -49,15 +56,12 @@ let dom = {
     carStatus: null,
     carCamBtn: null,
 
-
     scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
 
-
     scannerFeedbackOverlay: null,
     scannerFeedbackCloseBtn: null,
-
 
     scannerConfirmOverlay: null,
     scannerConfirmText: null,
@@ -65,7 +69,9 @@ let dom = {
     scannerConfirmNoBtn: null,
 };
 
-
+// ==========================
+// Helpers de headers
+// ==========================
 function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
@@ -82,7 +88,9 @@ function buildSelectHeaders() {
     };
 }
 
-
+// ==========================
+// Helpers de data e impressão
+// ==========================
 function formatarDataHora(isoString) {
     if (!isoString) return '---';
     try {
@@ -107,14 +115,54 @@ function waitForPaint() {
 
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
-
     dom.sepQrArea && dom.sepQrArea.offsetHeight;
     await waitForPaint();
     await waitForPaint();
     window.print();
 }
 
+// ==========================
+// Normalização de leitura
+// ==========================
+function extractElevenDigits(str) {
+    if (str == null) return null;
+    const digits = String(str).replace(/\D+/g, '');
+    if (digits.length >= 11) return digits.slice(-11);
+    return null;
+}
 
+/**
+ * Recebe: JSON com {id:"..."}, textos com números, códigos puros (QR/1D).
+ * Retorna: 11 dígitos (string) quando possível; caso contrário, texto original.
+ */
+function normalizeScanned(input) {
+    if (!input) return '';
+    const s = String(input).trim();
+
+    // Tenta JSON
+    if (s.startsWith('{') && s.endsWith('}')) {
+        try {
+            const obj = JSON.parse(s);
+            const idFromJson = obj?.id ?? obj?.ID ?? obj?.Id;
+            const cleaned = extractElevenDigits(idFromJson);
+            if (cleaned) return cleaned;
+        } catch {
+            // ignora erro de parse
+        }
+    }
+
+    // Tenta bloco de >= 11 dígitos
+    const seq = s.match(/\d{11,}/);
+    if (seq) return seq[0].slice(-11);
+
+    // Limpa tudo que não é dígito
+    const cleaned = extractElevenDigits(s);
+    return cleaned || s;
+}
+
+// ==========================
+// Modais base
+// ==========================
 function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
@@ -164,7 +212,9 @@ function closeModal(modal) {
     dom._currentModal = null;
 }
 
-
+// ==========================
+// Reset modais
+// ==========================
 function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepUser) dom.sepUser.value = '';
@@ -189,7 +239,9 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
     setCarStatus('');
 }
 
-
+// ==========================
+// UI feedback do scanner
+// ==========================
 function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
 
@@ -209,14 +261,12 @@ function showScannerFeedback(type, message, sticky = false) {
     }
 }
 
-
 function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
 
     dom.scannerConfirmText.textContent = decodedText;
     dom.scannerConfirmOverlay.classList.remove('hidden');
-
 
     const yesHandler = () => {
         dom.scannerConfirmOverlay.classList.add('hidden');
@@ -236,6 +286,9 @@ function showScannerConfirm(decodedText, onYes, onNo) {
     dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
 }
 
+// ==========================
+// Modal do scanner (global)
+// ==========================
 function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
 
@@ -251,7 +304,7 @@ function createGlobalScannerModal() {
 
     content.innerHTML = `
     <div class="flex justify-between items-center mb-4 border-b pb-2">
-      <h3 class="text-xl font-semibold">Escanear QR Code</h3>
+      <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>
     </div>
 
     <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
@@ -273,7 +326,7 @@ function createGlobalScannerModal() {
       </button>
     </div>
 
-    <!-- V12: Overlay de confirmação -->
+    <!-- Overlay de confirmação -->
     <div id="scanner-confirm-overlay"
       class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
       style="z-index: 20;">
@@ -311,7 +364,6 @@ function createGlobalScannerModal() {
     dom.scannerFeedbackCloseBtn.addEventListener('click', stopGlobalScanner);
     dom.scannerCancelBtn.addEventListener('click', stopGlobalScanner);
 
-
     modal.addEventListener('keydown', (e) => {
         if (dom.scannerConfirmOverlay && !dom.scannerConfirmOverlay.classList.contains('hidden')) {
             if (e.key === 'Enter') {
@@ -325,6 +377,9 @@ function createGlobalScannerModal() {
     });
 }
 
+// ==========================
+// Botões de câmera nos inputs
+// ==========================
 function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
 
@@ -350,6 +405,9 @@ function injectScannerButtons() {
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
 }
 
+// ==========================
+// Scanner (início/parada)
+// ==========================
 function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
 
@@ -359,7 +417,6 @@ function startGlobalScanner(targetModal) {
         dom._currentModal.classList.add('hidden');
         dom._currentModal.setAttribute('aria-hidden', 'true');
     }
-
 
     dom.scannerFeedbackOverlay?.classList.add('hidden');
     dom.scannerConfirmOverlay?.classList.add('hidden');
@@ -383,7 +440,12 @@ function startGlobalScanner(targetModal) {
 
                 scanner.start(
                     deviceId,
-                    {fps: 10, qrbox: {width: 250, height: 250}},
+                    {
+                        fps: 8, // um pouco mais “calmo”
+                        qrbox: {width: 280, height: 280},
+                        formatsToSupport: SUPPORTED_FORMATS,
+                        experimentalFeatures: {useBarCodeDetectorIfSupported: true}
+                    },
                     onGlobalScanSuccess,
                     onGlobalScanError
                 ).catch(err => {
@@ -441,7 +503,9 @@ function stopGlobalScanner() {
         });
 }
 
-
+// ==========================
+// Callbacks do scanner
+// ==========================
 async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
@@ -449,35 +513,34 @@ async function onGlobalScanSuccess(decodedText) {
         return;
     }
 
-
+    // Pausa para evitar disparos múltiplos
     state.globalScannerInstance.pause(true);
 
-    showScannerConfirm(
-        decodedText,
+    const normalized = normalizeScanned(decodedText);
+    const labelForConfirm = normalized && normalized !== decodedText
+        ? `${normalized} (limpo)`
+        : normalized || decodedText;
 
+    showScannerConfirm(
+        labelForConfirm,
         () => {
             if (target === 'separacao') {
                 const input = dom.sepScan;
                 if (input) {
-                    input.value = decodedText;
+                    input.value = normalized || decodedText;
                     stopGlobalScanner();
                     const enterEvent = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true});
                     input.dispatchEvent(enterEvent);
                 } else {
-
                     state.globalScannerInstance?.resume();
                 }
             } else if (target === 'carregamento') {
-
-                handleCarregamentoFromScanner(decodedText).finally(() => {
-
+                handleCarregamentoFromScanner(normalized || decodedText).finally(() => {
                     state.globalScannerInstance?.resume();
                 });
             }
         },
-
         () => {
-
             state.pendingDecodedText = null;
             state.globalScannerInstance?.resume();
         }
@@ -485,12 +548,15 @@ async function onGlobalScanSuccess(decodedText) {
 }
 
 function onGlobalScanError(_) {
-
+    // ignoramos erros transitórios de leitura
 }
 
-
+// ==========================
+// Carregamento via scanner
+// ==========================
 async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
+    const cleaned = normalizeScanned(decodedText);
 
     try {
         state.isCarregamentoProcessing = true;
@@ -499,14 +565,14 @@ async function handleCarregamentoFromScanner(decodedText) {
         const doca = state.selectedDock || dom.carDockSelect?.value || '';
         const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
 
-        const validation = await runCarregamentoValidation(decodedText, usuarioSaida, doca, ilha);
+        const validation = await runCarregamentoValidation(cleaned, usuarioSaida, doca, ilha);
 
         if (validation.success) {
             showScannerFeedback('success', validation.message);
             renderDashboard();
         } else {
             showScannerFeedback('error', validation.message, true);
-            dom.carScan.value = decodedText;
+            dom.carScan.value = cleaned;
             dom.carScan.select();
         }
     } catch (err) {
@@ -517,7 +583,9 @@ async function handleCarregamentoFromScanner(decodedText) {
     }
 }
 
-
+// ==========================
+// Dashboard (24h)
+// ==========================
 async function fetchDashboardData() {
     const now = new Date();
     now.setHours(now.getHours() - 24);
@@ -635,7 +703,9 @@ async function fetchAndRenderDashboard() {
     renderDashboard();
 }
 
-
+// ==========================
+// Reordenar botões sobre o dashboard
+// ==========================
 function reorderControlsOverDashboard() {
     const root = document.getElementById('tab-auditoria-mangas');
     if (!root) return;
@@ -656,7 +726,9 @@ function reorderControlsOverDashboard() {
     if (btn2.parentElement !== bar) bar.appendChild(btn2);
 }
 
-
+// ==========================
+// Status helpers
+// ==========================
 function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
@@ -679,10 +751,15 @@ function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     dom.sepQrCanvas.innerHTML = qr.createSvgTag(10, 10);
     dom.sepQrArea.style.display = 'block';
     const labelPrincipal = mangaLabel || dataForQr;
-    dom.sepQrTitle.innerHTML = `<div class="qr-num">${labelPrincipal}</div>` + (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
+    dom.sepQrTitle.innerHTML =
+        `<div class="qr-num">${labelPrincipal}</div>` +
+        (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
     return Promise.resolve();
 }
 
+// ==========================
+// Backend calls (separação/carregamento)
+// ==========================
 async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
     const response = await fetch(FUNC_SEPARACAO_URL, {
@@ -751,6 +828,9 @@ function isDuplicateErrorMessage(msg = '') {
     return /duplicate key|unique constraint|Carregamento_pkay/i.test(String(msg));
 }
 
+// ==========================
+// Submit — Separação
+// ==========================
 async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
     if (state.isSeparaçãoProcessing) return;
@@ -771,7 +851,10 @@ async function handleSeparaçãoSubmit(e) {
         return;
     }
 
-    const ids = parseBulkEntries(raw);
+    // Normaliza cada entrada
+    const idsRaw = parseBulkEntries(raw);
+    const ids = idsRaw.map(normalizeScanned).filter(Boolean);
+
     if (ids.length > 1) {
         await processarSeparacaoEmMassa(ids, usuarioEntrada);
         return;
@@ -803,7 +886,7 @@ async function handleSeparaçãoSubmit(e) {
             renderDashboard();
         }
 
-
+        // volta com a câmera já aberta para o próximo
         if (!state.globalScannerInstance) startGlobalScanner('separacao');
 
     } catch (err) {
@@ -812,8 +895,7 @@ async function handleSeparaçãoSubmit(e) {
             ? 'Pacote já bipado e atrelado, passe para próximo!'
             : `Erro: ${err.message || err}`;
 
-        setSepStatus(friendly, {error: isDuplicateErrorMessage(err?.message) ? false : true});
-
+        setSepStatus(friendly, {error: !isDuplicateErrorMessage(err?.message)});
 
         if (isDuplicateErrorMessage(err?.message) && !state.globalScannerInstance) {
             startGlobalScanner('separacao');
@@ -827,7 +909,9 @@ async function handleSeparaçãoSubmit(e) {
     }
 }
 
-
+// ==========================
+// Helpers Carregamento
+// ==========================
 function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
@@ -979,13 +1063,22 @@ function handleCarUserKeydown(e) {
     }
 }
 
+// ==========================
+// Validação Carregamento
+// ==========================
 async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
-    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR Code do Pacote'};
+    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
 
-    const item = state.cacheData.find(i => String(i['ID PACOTE']) === idPacoteScaneado);
+    // Busca tolerante: compara pelos 11 dígitos
+    const item = state.cacheData.find(i => {
+        const a = extractElevenDigits(i['ID PACOTE']);
+        const b = extractElevenDigits(idPacoteScaneado);
+        return a && b && a === b;
+    });
+
     if (!item) return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
     if (item.ROTA !== ilha) return {
         success: false,
@@ -1028,6 +1121,9 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
     }
 }
 
+// ==========================
+// Submit — Carregamento
+// ==========================
 async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
@@ -1039,7 +1135,7 @@ async function handleCarregamentoSubmit(e) {
     dom.carIlhaSelect && (dom.carIlhaSelect.disabled = true);
     setCarStatus('Validando...');
 
-    const idPacoteScaneado = dom.carScan?.value?.trim();
+    const idPacoteScaneado = normalizeScanned(dom.carScan?.value?.trim());
     const usuarioSaida = dom.carUser?.value?.trim();
     const doca = state.selectedDock || dom.carDockSelect?.value || '';
     const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
@@ -1070,18 +1166,18 @@ async function handleCarregamentoSubmit(e) {
     }
 }
 
-
+// ==========================
+// Inicialização
+// ==========================
 let initOnce = false;
 
 export function init() {
     if (initOnce) return;
     initOnce = true;
 
-
     dom.dashboard = document.getElementById('dashboard-stats');
     dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
-
 
     dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
@@ -1093,13 +1189,11 @@ export function init() {
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
     dom.sepPrintBtn = document.getElementById('sep-print-btn');
 
-
     dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
     dom.carStatus = document.getElementById('car-status');
-
 
     if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4');
@@ -1120,14 +1214,11 @@ export function init() {
         }
     }
 
-
     createGlobalScannerModal();
     injectScannerButtons();
 
-
     ensureDockSelect();
     ensureIlhaSelect();
-
 
     dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
@@ -1144,7 +1235,6 @@ export function init() {
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
     });
 
-
     dom.modalSepClose?.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -1158,12 +1248,10 @@ export function init() {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
     });
 
-
     dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
     dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
-
 
     dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
@@ -1173,7 +1261,7 @@ export function init() {
         }
     });
 
-
+    // Foco rápido
     document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
@@ -1186,13 +1274,20 @@ export function init() {
         }
     });
 
+    // Higienização automática ao colar em qualquer input de leitura
+    [dom.sepScan, dom.carScan].forEach(inp => {
+        if (!inp) return;
+        inp.addEventListener('paste', () => {
+            setTimeout(() => {
+                inp.value = normalizeScanned(inp.value);
+            }, 0);
+        });
+    });
 
     reorderControlsOverDashboard();
-
-
     fetchAndRenderDashboard();
 
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V12].');
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V12 + leitura QR/Barra + normalização 11 dígitos].');
 }
 
 export function destroy() {
@@ -1205,7 +1300,6 @@ export function destroy() {
     dom = {};
     initOnce = false;
 }
-
 
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
