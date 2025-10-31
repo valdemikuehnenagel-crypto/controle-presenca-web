@@ -72,142 +72,81 @@ import {supabase} from '../supabaseClient.js';
         return String(v == null ? '' : v).trim().replace(/\s+/g, ' ');
     }
 
-    function ilikeEq(v) {
-        return clean(v);
-    }
-
-    function nice(v) {
-        v = clean(v);
-        return v ? '"' + v + '"' : '—';
+    function stripAccents(s) {
+        return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     }
 
     function isActiveView() {
         return !!document.querySelector('#hc-relatorio-abs.hc-view.active');
     }
 
-    function stripAccents(s) {
-        return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    }
 
-    function defaultLast3Months() {
-        var today = new Date();
-        var start = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+    function defaultCurrentMonth() {
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
         return {start: toISO(start), end: toISO(today)};
     }
 
     var _colabIdx = null;
 
-
     async function getColabIndex() {
-
         if (_colabIdx) return _colabIdx;
-
-
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase.from('Colaboradores').select('Nome, SVC, MATRIZ, Escala, Cargo');
-
         if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
-
-
         if (state.matriz) query = query.eq('MATRIZ', state.matriz);
         if (state.svc) query = query.eq('SVC', state.svc);
-
-
         const {data, error} = await query;
         if (error) throw error;
-
-        var rows = Array.isArray(data) ? data : [];
-        var map = new Map();
-        for (var i = 0; i < rows.length; i++) {
-            var c = rows[i];
+        const map = new Map();
+        (Array.isArray(data) ? data : []).forEach(c => {
             map.set(String(c.Nome || ''), {
-                SVC: (c.SVC == null ? null : c.SVC),
-                MATRIZ: (c.MATRIZ == null ? null : c.MATRIZ),
-                Escala: (c.Escala == null ? null : c.Escala),
-                Cargo: (c.Cargo == null ? null : c.Cargo)
+                SVC: c.SVC ?? null, MATRIZ: c.MATRIZ ?? null, Escala: c.Escala ?? null, Cargo: c.Cargo ?? null
             });
-        }
-
+        });
         _colabIdx = map;
         return _colabIdx;
     }
 
-
-
-
-    function scheduleRefresh(invalidateColabsCache = false) {
-        if (invalidateColabsCache) {
-            _colabIdx = null;
-        }
-
+    function scheduleRefresh(invalidate = false) {
+        if (invalidate) _colabIdx = null;
         if (!state.mounted) {
             state.dirty = true;
             return;
         }
-
-
-        if (isActiveView()) {
-            fetchAndRender();
-        } else {
-            state.dirty = true;
-        }
+        if (isActiveView()) fetchAndRender(); else state.dirty = true;
     }
 
-
-
-
     window.addEventListener('hc-filters-changed', function (ev) {
-        var f = ev && ev.detail ? ev.detail : {};
-
+        var f = (ev && ev.detail) ? ev.detail : {};
         var mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
         var mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
-
         if (mudouMatriz) state.matriz = f.matriz;
         if (mudouSvc) state.svc = f.svc;
-
-
         if (mudouMatriz || mudouSvc) {
             state.paging.offset = 0;
             scheduleRefresh(true);
         }
     });
 
-
-
-
-    ['hc-refresh', 'controle-diario-saved', 'cd-saved', 'cd-bulk-saved'].forEach(function (evt) {
-        window.addEventListener(evt, function () {
-            scheduleRefresh(false);
-        });
+    ['hc-refresh', 'controle-diario-saved', 'cd-saved', 'cd-bulk-saved'].forEach(evt => {
+        window.addEventListener(evt, () => scheduleRefresh(false));
     });
-
-
-    ['colaborador-added'].forEach(function (evt) {
-        window.addEventListener(evt, function () {
-            scheduleRefresh(true);
-        });
+    ['colaborador-added'].forEach(evt => {
+        window.addEventListener(evt, () => scheduleRefresh(true));
     });
-
 
     window.addEventListener('hc-activated', function (ev) {
         if (ev && ev.detail && ev.detail.view === 'relatorio-abs') {
             ensureMounted(true);
-
             state.dirty = false;
         }
     });
-
-
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'visible' && isActiveView() && state.mounted) {
-
-            if (state.dirty) {
-                fetchAndRender();
-            }
+            if (state.dirty) fetchAndRender();
         }
     });
-
-
 
     function watchActivation() {
         var host = document.querySelector(HOST_SEL);
@@ -228,6 +167,7 @@ import {supabase} from '../supabaseClient.js';
         if (typeof state.cargo !== 'string') state.cargo = '';
         var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
         if (state.mounted && hasTable && !forceEnsure) return;
+
         host.innerHTML =
             '<div class="abs-toolbar">' +
             '  <div class="abs-left">' +
@@ -271,47 +211,54 @@ import {supabase} from '../supabaseClient.js';
             '    <tbody id="abs-tbody"></tbody>' +
             '  </table>' +
             '</div>';
+
         state.mounted = true;
-        var btnExport = document.getElementById('abs-export');
-        if (btnExport) btnExport.addEventListener('click', handleExport);
-        var btnPeriod = document.getElementById('abs-period');
-        if (btnPeriod) btnPeriod.addEventListener('click', openPeriodModal);
-        var elSearch = document.getElementById('abs-search');
-        var elEscala = document.getElementById('abs-filter-escala');
-        var elCargo = document.getElementById('abs-filter-cargo');
-        if (elSearch) elSearch.addEventListener('input', function () {
+
+        document.getElementById('abs-export')?.addEventListener('click', handleExport);
+        document.getElementById('abs-period')?.addEventListener('click', openPeriodModal);
+
+        const elSearch = document.getElementById('abs-search');
+        const elEscala = document.getElementById('abs-filter-escala');
+        const elCargo = document.getElementById('abs-filter-cargo');
+
+        elSearch?.addEventListener('input', function () {
             state.search = elSearch.value;
             renderRows();
         });
-        if (elEscala) elEscala.addEventListener('change', function () {
+        elEscala?.addEventListener('change', function () {
             state.escala = elEscala.value;
             fetchAndRender();
         });
-        if (elCargo) elCargo.addEventListener('change', function () {
+        elCargo?.addEventListener('change', function () {
             state.cargo = elCargo.value;
             fetchAndRender();
         });
-        var tbody = document.getElementById('abs-tbody');
+
+        const tbody = document.getElementById('abs-tbody');
         if (tbody) {
             tbody.addEventListener('dblclick', function (ev) {
-                var tr = ev.target && ev.target.closest ? ev.target.closest('tr.abs-row') : null;
+                const tr = ev.target?.closest ? ev.target.closest('tr.abs-row') : null;
                 if (!tr) return;
-                var idx = parseInt(tr.getAttribute('data-idx'), 10);
-                var row = (state.rows || [])[idx];
+                const idx = parseInt(tr.getAttribute('data-idx'), 10);
+                const row = (state.rows || [])[idx];
                 if (row) openEditModal(row);
             });
         }
+
+
         if (state.firstLoad) {
-            var d3 = defaultLast3Months();
-            state.periodo.start = d3.start;
-            state.periodo.end = d3.end;
+            const cur = defaultCurrentMonth();
+            state.periodo.start = cur.start;
+            state.periodo.end = cur.end;
             state.firstLoad = false;
         }
         updatePeriodButton();
+
         if (window.__HC_GLOBAL_FILTERS) {
             state.matriz = window.__HC_GLOBAL_FILTERS.matriz || '';
             state.svc = window.__HC_GLOBAL_FILTERS.svc || '';
         }
+
         requestAnimationFrame(fetchAndRender);
         watchActivation();
     }
@@ -323,34 +270,61 @@ import {supabase} from '../supabaseClient.js';
         b.textContent = (start && end) ? ('Período: ' + fmtBR(start) + ' → ' + fmtBR(end)) : 'Selecionar período';
     }
 
+
+    async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
+        let from = 0;
+        const all = [];
+        while (true) {
+            let q = supabase
+                .from('ControleDiario')
+                .select('Numero, Nome, Data, Turno, Falta, Atestado, Entrevista, Acao, Observacao, CID, TipoAtestado')
+                .gte('Data', baseFilters.startISO)
+                .lt('Data', baseFilters.endISONextDay)
+                .or('Falta.gt.0,Atestado.gt.0')
+                .order('Data', {ascending: false})
+                .range(from, from + pageSize - 1);
+
+            if (state.escala) q = q.eq('Turno', state.escala);
+
+            const {data, error} = await q;
+            if (error) throw error;
+
+            const batch = Array.isArray(data) ? data : [];
+            all.push(...batch);
+
+            if (batch.length < pageSize) break;
+            from += pageSize;
+        }
+        return all;
+    }
+
     async function fetchAndRender() {
         var tbody = document.getElementById('abs-tbody');
         if (!tbody) {
-
             return;
         }
         tbody.innerHTML = '<tr><td colspan="9" class="muted">Carregando…</td></tr>';
-        var startISO = toISO(state.periodo.start);
-        var endISO = toISO(state.periodo.end);
-        try {
 
+
+        var startISO = parseAnyDateToISO(state.periodo.start);
+        var endStr = parseAnyDateToISO(state.periodo.end);
+        var endISONextDay;
+        if (endStr) {
+            var parts = endStr.split('-').map(Number);
+            var endDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            endDate.setDate(endDate.getDate() + 1);
+            endISONextDay = toISO(endDate);
+        } else {
+            endISONextDay = endStr;
+        }
+
+        try {
             const colabIndex = await getColabIndex();
 
 
-            let query = supabase
-                .from('ControleDiario')
-                .select('Numero, Nome, Data, Turno, Falta, Atestado, Entrevista, Acao, Observacao, CID, TipoAtestado')
-                .gte('Data', startISO)
-                .lte('Data', endISO)
-                .or('Falta.gt.0,Atestado.gt.0');
-            if (state.escala) {
-                query = query.eq('Turno', state.escala);
-            }
-            const {data: controleRows, error} = await query;
-            if (error) throw error;
+            const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);
 
-            var transformedRows = (controleRows || []).map(function (row) {
-
+            const transformedRows = (controleRows || []).map(row => {
                 const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
                 return {
                     Numero: row.Numero,
@@ -369,24 +343,16 @@ import {supabase} from '../supabaseClient.js';
                 };
             });
 
-            var filteredRows = transformedRows.filter(function (r) {
-                var cargo = norm(r.Cargo);
+            const filteredRows = transformedRows.filter(r => {
+                const cargo = norm(r.Cargo);
                 if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
                 if (state.cargo && cargo !== norm(state.cargo)) return false;
-
-
-
-
-
                 if (state.svc && norm(r.SVC) !== norm(state.svc)) return false;
                 if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
-
                 return true;
             });
 
-            filteredRows.sort(function (a, b) {
-                return (b.Data || '').localeCompare(a.Data || '');
-            });
+            filteredRows.sort((a, b) => (b.Data || '').localeCompare(a.Data || ''));
 
             state.rows = filteredRows;
             state.dirty = false;
@@ -436,7 +402,7 @@ import {supabase} from '../supabaseClient.js';
             return;
         }
         var frag = document.createDocumentFragment();
-        filtered.forEach(function (row, idx) {
+        filtered.forEach(function (row) {
             var tr = document.createElement('tr');
             tr.tabIndex = 0;
             tr.className = 'abs-row';
@@ -516,8 +482,8 @@ import {supabase} from '../supabaseClient.js';
             '        <label>CID</label>' +
             '        <input type="text" id="abs-cid-input" placeholder="Insira o CID..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
             '      </div>' +
-            '       <label>Observação (Atestado)</label>' +
-            '       <input type="text" id="abs-obs-justificado" placeholder="Observações adicionais..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
+            '      <label>Observação (Atestado)</label>' +
+            '      <input type="text" id="abs-obs-justificado" placeholder="Observações adicionais..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
             '    </div>' +
             '  </div>' +
             '  <label style="margin-top:6px;">Ação tomada</label>' +
@@ -536,6 +502,7 @@ import {supabase} from '../supabaseClient.js';
             '</div>';
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
+
         var radioSim = modal.querySelector('input[value="SIM"]');
         var radioNao = modal.querySelector('input[value="NAO"]');
         var selAcao = modal.querySelector('#abs-acao');
@@ -574,8 +541,7 @@ import {supabase} from '../supabaseClient.js';
         radioSim.addEventListener('change', toggleConditionalFields);
         radioNao.addEventListener('change', toggleConditionalFields);
         selTipoAtestado.addEventListener('change', toggleConditionalFields);
-        if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true;
-        else radioNao.checked = true;
+        if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true; else radioNao.checked = true;
         selAcao.value = row.Acao || '';
         cidInput.value = row.CID || '';
         if (row.Absenteismo === 'Justificado') {
@@ -585,26 +551,21 @@ import {supabase} from '../supabaseClient.js';
             selObsInjustificado.value = row.Observacao || '';
         }
         toggleConditionalFields();
-        var btnCancel = modal.querySelector('#abs-cancel');
-        if (btnCancel) btnCancel.addEventListener('click', function () {
+
+        modal.querySelector('#abs-cancel')?.addEventListener('click', () => {
             document.body.removeChild(overlay);
         });
         overlay.addEventListener('click', function (ev) {
             if (ev.target === overlay) document.body.removeChild(overlay);
         });
+
         var btnSave = modal.querySelector('#abs-save');
         if (btnSave) btnSave.addEventListener('click', async function () {
             btnSave.disabled = true;
             btnSave.textContent = 'Salvando...';
             var entrevista = (modal.querySelector('input[name="abs-entrevista"]:checked') || {}).value || 'NAO';
             var acao = selAcao.value || null;
-            var updatePayload = {
-                Entrevista: entrevista,
-                Acao: acao,
-                Observacao: null,
-                TipoAtestado: null,
-                CID: null
-            };
+            var updatePayload = {Entrevista: entrevista, Acao: acao, Observacao: null, TipoAtestado: null, CID: null};
             if (entrevista === 'SIM') {
                 var absType = String(row.Absenteismo || '').toUpperCase().trim();
                 if (absType === 'INJUSTIFICADO') {
@@ -613,24 +574,14 @@ import {supabase} from '../supabaseClient.js';
                     updatePayload.TipoAtestado = selTipoAtestado.value || null;
                     updatePayload.Observacao = inputObsJustificado.value || null;
                     if (updatePayload.TipoAtestado === 'Atestado médico') {
-                        updatePayload.CID = cidInput.value.trim() || null;
+                        updatePayload.CID = (cidInput.value || '').trim() || null;
                     }
                 }
             }
             try {
-                const {error} = await supabase
-                    .from('ControleDiario')
-                    .update(updatePayload)
-                    .eq('Numero', row.Numero);
+                const {error} = await supabase.from('ControleDiario').update(updatePayload).eq('Numero', row.Numero);
                 if (error) throw error;
-
-
-                window.dispatchEvent(new CustomEvent('controle-diario-saved', {
-                    detail: {id: row.Numero}
-                }));
-
-
-
+                window.dispatchEvent(new CustomEvent('controle-diario-saved', {detail: {id: row.Numero}}));
                 document.body.removeChild(overlay);
             } catch (e) {
                 console.error('Falha ao atualizar registro no ControleDiario:', e);
@@ -648,14 +599,8 @@ import {supabase} from '../supabaseClient.js';
             '<div>' +
             '  <h3>Selecionar Período</h3>' +
             '  <div class="dates-grid">' +
-            '    <div>' +
-            '      <label>Início</label>' +
-            '      <input id="abs-period-start" type="date" value="' + esc(toISO(state.periodo.start)) + '">' +
-            '    </div>' +
-            '    <div>' +
-            '      <label>Fim</label>' +
-            '      <input id="abs-period-end" type="date" value="' + esc(toISO(state.periodo.end)) + '">' +
-            '    </div>' +
+            '    <div><label>Início</label><input id="abs-period-start" type="date" value="' + esc(toISO(state.periodo.start)) + '"></div>' +
+            '    <div><label>Fim</label><input id="abs-period-end" type="date" value="' + esc(toISO(state.periodo.end)) + '"></div>' +
             '  </div>' +
             '  <div class="form-actions">' +
             '    <button id="cd-period-cancel" class="btn">Cancelar</button>' +
@@ -663,16 +608,14 @@ import {supabase} from '../supabaseClient.js';
             '  </div>' +
             '</div>';
         document.body.appendChild(overlay);
-        var btnCancel = overlay.querySelector('#cd-period-cancel');
-        var btnApply = overlay.querySelector('#cd-period-apply');
-        var close = function () {
-            if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        var close = () => {
+            overlay?.parentNode?.removeChild(overlay);
         };
         overlay.addEventListener('click', function (ev) {
             if (ev.target === overlay) close();
         });
-        if (btnCancel) btnCancel.addEventListener('click', close);
-        if (btnApply) btnApply.addEventListener('click', function () {
+        overlay.querySelector('#cd-period-cancel')?.addEventListener('click', close);
+        overlay.querySelector('#cd-period-apply')?.addEventListener('click', function () {
             var s = (overlay.querySelector('#abs-period-start') || {}).value;
             var e = (overlay.querySelector('#abs-period-end') || {}).value;
             if (!s || !e) {
@@ -728,11 +671,7 @@ import {supabase} from '../supabaseClient.js';
             }
 
             var header = keys.join(',');
-            var body = csvRows.map(function (r) {
-                return keys.map(function (k) {
-                    return escv(r[k]);
-                }).join(',');
-            }).join('\n');
+            var body = csvRows.map(r => keys.map(k => escv(r[k])).join(',')).join('\n');
             var csv = header + '\n' + body;
             var blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
             var url = URL.createObjectURL(blob);
@@ -757,8 +696,6 @@ import {supabase} from '../supabaseClient.js';
         ensureMounted(true);
         fetchAndRender();
     };
-
-
     window.hcRelatorioApplyFilters = function (f) {
         f = f || {};
         state.matriz = f.matriz || '';
@@ -766,5 +703,4 @@ import {supabase} from '../supabaseClient.js';
         state.paging.offset = 0;
         scheduleRefresh(true);
     };
-
 })();

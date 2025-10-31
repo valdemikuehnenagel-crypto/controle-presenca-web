@@ -78,39 +78,39 @@ function checkUserAdminStatus() {
 
 function promptForDate(title, defaultDate) {
     return new Promise((resolve) => {
-        // Overlay
+
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';
 
-        // Modal
+
         const modal = document.createElement('div');
         modal.style.cssText = 'background:white; padding:20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width: 300px;';
 
-        // Título
+
         const titleEl = document.createElement('h3');
         titleEl.textContent = title;
         titleEl.style.cssText = 'margin-top:0; margin-bottom:15px; font-size:18px; color: #333;';
 
-        // Input de Data (Calendário)
+
         const inputEl = document.createElement('input');
         inputEl.type = 'date';
         inputEl.value = defaultDate;
         inputEl.style.cssText = 'width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing: border-box;';
 
-        // Botões de Ação
+
         const actionsEl = document.createElement('div');
         actionsEl.style.cssText = 'margin-top:20px; display:flex; justify-content:flex-end; gap:10px;';
 
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.textContent = 'Cancelar';
-        // Tenta usar as classes de botão existentes no seu projeto
+
         cancelBtn.className = 'btn-cancelar';
 
         const okBtn = document.createElement('button');
         okBtn.type = 'button';
         okBtn.textContent = 'Confirmar';
-        // Tenta usar as classes de botão existentes no seu projeto
+
         okBtn.className = 'btn-salvar';
 
         actionsEl.append(cancelBtn, okBtn);
@@ -118,13 +118,13 @@ function promptForDate(title, defaultDate) {
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
-        // Função para fechar o modal
+
         const close = (value) => {
             document.body.removeChild(overlay);
             resolve(value);
         };
 
-        // Event Listeners
+
         okBtn.onclick = () => {
             if (!inputEl.value) {
                 alert('Por favor, selecione uma data.');
@@ -134,7 +134,7 @@ function promptForDate(title, defaultDate) {
         };
         cancelBtn.onclick = () => close(null);
         overlay.onclick = (e) => {
-            if (e.target === overlay) close(null); // Fecha se clicar fora
+            if (e.target === overlay) close(null);
         };
     });
 }
@@ -159,6 +159,20 @@ async function fetchAllWithPagination(queryBuilder) {
     }
     return allData;
 }
+
+function ymdToday() {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function isFutureYMD(yyyyMmDd) {
+    if (!yyyyMmDd) return false;
+    return yyyyMmDd > ymdToday();
+}
+
 
 function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
@@ -918,27 +932,49 @@ async function fillEditForm(colab) {
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
+
     const setVal = (el, v) => {
         if (el) el.value = v ?? '';
     };
+
     if (editTitulo) editTitulo.textContent = colab.Nome || 'Colaborador';
+
     setVal(editInputs.Nome, colab.Nome || '');
     setVal(editInputs.CPF, colab.CPF || '');
     setVal(editInputs.Contrato, colab.Contrato || '');
     setVal(editInputs.Cargo, colab.Cargo || '');
+
     const dsrValue = colab.DSR || '';
     setVal(document.getElementById('editDSR'), dsrValue);
     const editDsrBtn = document.getElementById('editDSRBtn');
     if (editDsrBtn) editDsrBtn.value = dsrValue || '';
+
     setVal(editInputs.Escala, colab.Escala || '');
     setVal(editInputs['FOLGA ESPECIAL'], colab['FOLGA ESPECIAL'] || '');
     setVal(editInputs.LDAP, colab.LDAP ?? '');
     setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');
-    setVal(editInputs['Data de nascimento'], colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : '');
+
+
+    setVal(
+        editInputs['Data de nascimento'],
+        colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : ''
+    );
+    setVal(
+        editInputs['Data de admissão'],
+        colab['Data de admissão'] ? new Date(colab['Data de admissão']).toISOString().split('T')[0] : ''
+    );
+    setVal(
+        editInputs['Admissao KN'],
+        colab['Admissao KN'] ? new Date(colab['Admissao KN']).toISOString().split('T')[0] : ''
+    );
+
     editMatriz = document.getElementById('editMatriz');
     const editRegiao = document.getElementById('editRegiao');
+
     if (editSVC) {
         const svc = colab.SVC ? String(colab.SVC).toUpperCase() : '';
+
+
         if (svc && !Array.from(editSVC.options).some(o => o.value === svc)) {
             const opt = document.createElement('option');
             opt.value = svc;
@@ -946,12 +982,16 @@ async function fillEditForm(colab) {
             editSVC.appendChild(opt);
         }
         editSVC.value = svc || '';
+
         const matrizUi = colab.MATRIZ || (svc ? (state.serviceMatrizMap.get(svc) || '') : '');
         if (editMatriz) editMatriz.value = matrizUi || '';
+
         const regUi = computeRegiaoFromSvcMatriz(svc, matrizUi) || colab.REGIAO || '';
         if (editRegiao) editRegiao.value = regUi || '';
+
         populateGestorSelectForEdit(svc, colab.Gestor);
     }
+
     if (editAfastarBtn) {
         if (colab.Ativo === 'SIM') {
             editAfastarBtn.textContent = 'Afastar Colaborador';
@@ -963,6 +1003,7 @@ async function fillEditForm(colab) {
             editAfastarBtn.style.display = 'none';
         }
     }
+
     if (editEfetivarKnBtn) {
         if (colab.Contrato && colab.Contrato.toUpperCase() === 'KN') {
             editEfetivarKnBtn.style.display = 'none';
@@ -970,10 +1011,12 @@ async function fillEditForm(colab) {
             editEfetivarKnBtn.style.display = 'inline-block';
         }
     }
+
     if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
 }
+
 
 function openEfetivarKnModal() {
     if (!editOriginal || !efetivarKnModal) return;
@@ -1002,6 +1045,7 @@ async function onEfetivarKnClick() {
 
 async function onEfetivarKnSubmit(e) {
     e.preventDefault();
+
     const dataEfetivacao = efetivarKnDataEl.value;
     if (!dataEfetivacao) {
         alert('Por favor, selecione a data de efetivação.');
@@ -1011,12 +1055,31 @@ async function onEfetivarKnSubmit(e) {
         alert('Erro crítico: Dados do colaborador original perdidos.');
         return;
     }
+
+
+    if (isFutureYMD(dataEfetivacao)) {
+        alert('Admissão KN não pode ser futura.');
+        efetivarKnDataEl.focus();
+        return;
+    }
+
     try {
+
+        const colabAtual = await fetchColabByNome(editOriginal.Nome);
+        const admAtual = colabAtual?.['Data de admissão'] || null;
+        if (admAtual && dataEfetivacao < admAtual) {
+            alert(`Admissão KN não pode ser anterior à Data de Admissão (${formatDateLocal(admAtual)}).`);
+            efetivarKnDataEl.focus();
+            return;
+        }
+
         const {error} = await supabase
             .from('Colaboradores')
             .update({Contrato: 'KN', 'Admissao KN': dataEfetivacao})
             .eq('Nome', editOriginal.Nome);
+
         if (error) throw error;
+
         alert('Colaborador efetivado como KN com sucesso!');
         closeEfetivarKnModal();
         hideEditModal();
@@ -1027,6 +1090,7 @@ async function onEfetivarKnSubmit(e) {
         alert(`Não foi possível efetivar o colaborador: ${error.message}`);
     }
 }
+
 
 async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
@@ -1048,19 +1112,70 @@ async function validateEditDuplicates(payload) {
     return null;
 }
 
+
+async function updateColaboradorSmart(nomeAnterior, payload) {
+
+    if (payload.Nome && payload.Nome !== nomeAnterior) {
+        const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
+            nome_antigo: nomeAnterior,
+            novos_dados: payload
+        });
+        if (rpcError) throw rpcError;
+
+
+        const patch = {};
+        if (payload['Data de admissão'] !== undefined) patch['Data de admissão'] = payload['Data de admissão'];
+        if (payload['Admissao KN'] !== undefined) patch['Admissao KN'] = payload['Admissao KN'];
+        if (payload['Data de nascimento'] !== undefined) patch['Data de nascimento'] = payload['Data de nascimento'];
+
+
+        if (payload.DSR !== undefined) patch.DSR = payload.DSR;
+        if (payload.Escala !== undefined) patch.Escala = payload.Escala;
+        if (payload['FOLGA ESPECIAL'] !== undefined) patch['FOLGA ESPECIAL'] = payload['FOLGA ESPECIAL'];
+        if (payload.Contrato !== undefined) patch.Contrato = payload.Contrato;
+        if (payload.Cargo !== undefined) patch.Cargo = payload.Cargo;
+        if (payload.Gestor !== undefined) patch.Gestor = payload.Gestor;
+        if (payload.LDAP !== undefined) patch.LDAP = payload.LDAP;
+        if (payload['ID GROOT'] !== undefined) patch['ID GROOT'] = payload['ID GROOT'];
+        if (payload.SVC !== undefined) patch.SVC = payload.SVC;
+        if (payload.MATRIZ !== undefined) patch.MATRIZ = payload.MATRIZ;
+        if (payload.REGIAO !== undefined) patch.REGIAO = payload.REGIAO;
+
+        if (Object.keys(patch).length > 0) {
+            const {error: updErr} = await supabase
+                .from('Colaboradores')
+                .update(patch)
+                .eq('Nome', payload.Nome);
+            if (updErr) throw updErr;
+        }
+        return;
+    }
+
+
+    const {error: upErr} = await supabase
+        .from('Colaboradores')
+        .update(payload)
+        .eq('Nome', nomeAnterior);
+    if (upErr) throw upErr;
+}
+
+
 async function onEditSubmit(e) {
     e.preventDefault();
+
     if (document.body.classList.contains('user-level-visitante')) {
         alert('Ação não permitida. Você está em modo de visualização.');
         return;
     }
     if (isSubmittingEdit) return;
     isSubmittingEdit = true;
+
     if (!editOriginal) {
         alert('Erro: Não há dados originais do colaborador.');
         isSubmittingEdit = false;
         return;
     }
+
     const Nome = toUpperTrim(editInputs.Nome.value || '');
     if (!Nome) {
         alert('Informe o NOME.');
@@ -1068,93 +1183,135 @@ async function onEditSubmit(e) {
         isSubmittingEdit = false;
         return;
     }
+
     if (editSalvarBtn) {
         editSalvarBtn.disabled = true;
         editSalvarBtn.textContent = 'Salvando...';
     }
+
     try {
         const nomeAnterior = editOriginal.Nome;
         const CPF = normalizeCPF(editInputs.CPF.value || '');
         const svc = nullIfEmpty(editSVC.value);
         const matrizAuto = svc ? (state.serviceMatrizMap.get(String(svc).toUpperCase()) || null) : null;
+
+
         const dsrRaw = document.getElementById('editDSR').value;
         const dsrValue = toUpperTrim(nullIfEmpty(dsrRaw));
         if (!isDSRValida(dsrValue)) {
             alert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).');
             document.getElementById('editDSRBtn')?.focus();
-            isSubmittingEdit = false;
-            if (editSalvarBtn) {
-                editSalvarBtn.disabled = false;
-                editSalvarBtn.textContent = 'Salvar Alterações';
-            }
             return;
         }
+
+
         const regiaoInputEl = document.getElementById('editRegiao');
         const regiaoFromInput = toUpperTrim(nullIfEmpty(regiaoInputEl?.value));
         const regiaoAuto = computeRegiaoFromSvcMatriz(svc, matrizAuto);
         const regiaoFinal = toUpperTrim(nullIfEmpty(regiaoAuto)) || regiaoFromInput || null;
+
+
+        const dataNasc = editInputs['Data de nascimento']?.value || null;
+        const dataAdmissao = editInputs['Data de admissão']?.value || null;
+        const admKn = editInputs['Admissao KN']?.value || null;
+
+        if (dataAdmissao && isFutureYMD(dataAdmissao)) {
+            alert('Data de Admissão não pode ser futura.');
+            editInputs['Data de admissão'].focus();
+            return;
+        }
+        if (admKn && isFutureYMD(admKn)) {
+            alert('Admissão KN não pode ser futura.');
+            editInputs['Admissao KN'].focus();
+            return;
+        }
+        if (dataAdmissao && admKn && admKn < dataAdmissao) {
+            alert('Admissão KN não pode ser anterior à Data de Admissão.');
+            editInputs['Admissao KN'].focus();
+            return;
+        }
+
         const payload = {
-            Nome, CPF, Contrato: toUpperTrim(editInputs.Contrato.value || ''),
-            Cargo: toUpperTrim(editInputs.Cargo.value || ''), Gestor: toUpperTrim(nullIfEmpty(editInputs.Gestor.value)),
-            DSR: dsrValue, Escala: toUpperTrim(nullIfEmpty(editInputs.Escala.value)),
+            Nome,
+            CPF,
+            Contrato: toUpperTrim(editInputs.Contrato.value || ''),
+            Cargo: toUpperTrim(editInputs.Cargo.value || ''),
+            Gestor: toUpperTrim(nullIfEmpty(editInputs.Gestor?.value)),
+            DSR: dsrValue,
+            Escala: toUpperTrim(nullIfEmpty(editInputs.Escala.value)),
             'FOLGA ESPECIAL': toUpperTrim(nullIfEmpty(editInputs['FOLGA ESPECIAL'].value)),
-            LDAP: nullIfEmpty(editInputs.LDAP.value), 'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),
-            'Data de nascimento': editInputs['Data de nascimento'].value || null,
-            SVC: toUpperTrim(svc), MATRIZ: toUpperTrim(matrizAuto), REGIAO: regiaoFinal
+            LDAP: nullIfEmpty(editInputs.LDAP.value),
+            'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),
+
+
+            'Data de nascimento': dataNasc,
+            'Data de admissão': dataAdmissao,
+            'Admissao KN': admKn,
+
+
+            SVC: toUpperTrim(svc),
+            MATRIZ: toUpperTrim(matrizAuto),
+            REGIAO: regiaoFinal
         };
+
+
         const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             alert(dupMsg);
-            isSubmittingEdit = false;
-            if (editSalvarBtn) {
-                editSalvarBtn.disabled = false;
-                editSalvarBtn.textContent = 'Salvar Alterações';
-            }
             return;
         }
-        const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
-            nome_antigo: nomeAnterior,
-            novos_dados: payload
-        });
-        if (rpcError) {
-            console.error('Erro na transação de atualização:', rpcError);
-            alert(`Erro ao atualizar colaborador: ${rpcError.message}`);
-            isSubmittingEdit = false;
-            if (editSalvarBtn) {
-                editSalvarBtn.disabled = false;
-                editSalvarBtn.textContent = 'Salvar Alterações';
-            }
-            return;
-        }
+
+
+        await updateColaboradorSmart(nomeAnterior, payload);
+
+
         const dsrAnterior = editOriginal.DSR || null;
         const dsrAtual = payload.DSR || null;
         if (dsrAnterior !== dsrAtual) {
             try {
-                const {data: maxRow} = await supabase.from('LogDSR').select('Numero').order('Numero', {ascending: false}).limit(1);
+                const {data: maxRow} = await supabase
+                    .from('LogDSR')
+                    .select('Numero')
+                    .order('Numero', {ascending: false})
+                    .limit(1);
                 const nextNumero = (maxRow?.[0]?.Numero || 0) + 1;
                 const logEntry = {
-                    Numero: nextNumero, Name: payload.Nome, DsrAnterior: dsrAnterior, DsrAtual: dsrAtual,
-                    DataAlteracao: new Date().toISOString(), Escala: payload.Escala, Gestor: payload.Gestor,
-                    SVC: payload.SVC, MATRIZ: payload.MATRIZ
+                    Numero: nextNumero,
+                    Name: payload.Nome,
+                    DsrAnterior: dsrAnterior,
+                    DsrAtual: dsrAtual,
+                    DataAlteracao: new Date().toISOString(),
+                    Escala: payload.Escala,
+                    Gestor: payload.Gestor,
+                    SVC: payload.SVC,
+                    MATRIZ: payload.MATRIZ
                 };
                 await supabase.from('LogDSR').insert([logEntry]);
             } catch (e) {
                 console.warn('Falha ao registrar log de DSR:', e);
             }
         }
+
+
         invalidateColaboradoresCache();
         await fetchColaboradores();
+
+
+        try {
+            const recarregado = await fetchColabByNome(payload.Nome);
+            if (recarregado) await fillEditForm(recarregado);
+        } catch {
+        }
+
         alert('Colaborador atualizado com sucesso em todas as tabelas!');
         hideEditModal();
+
         document.dispatchEvent(new CustomEvent('colaborador-edited', {
-            detail: {
-                nomeAnterior: nomeAnterior,
-                nomeAtual: payload.Nome
-            }
+            detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
         }));
     } catch (err) {
-        console.error("Erro no processo de edição:", err);
-        alert("Ocorreu um erro inesperado. Verifique o console.");
+        console.error('Erro no processo de edição:', err);
+        alert('Ocorreu um erro inesperado. Verifique o console.');
     } finally {
         isSubmittingEdit = false;
         if (editSalvarBtn) {
@@ -1164,6 +1321,7 @@ async function onEditSubmit(e) {
     }
 }
 
+
 async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
         alert('Erro: Colaborador não identificado.');
@@ -1172,7 +1330,7 @@ async function onAfastarClick() {
 
     let colab;
     try {
-        // 1. Busca os dados mais recentes do colaborador (incluindo SVC, MATRIZ, REGIAO)
+
         colab = await fetchColabByNome(editOriginal.Nome);
     } catch (fetchError) {
         console.error("Erro ao buscar colaborador para afastamento:", fetchError);
@@ -1189,25 +1347,24 @@ async function onAfastarClick() {
     const hojeISO = new Date().toISOString().split('T')[0];
 
     if (currentStatus === 'SIM') {
-        // --- INICIAR AFASTAMENTO ---
 
-        // 1. Pede a data de início usando o modal de calendário
+
         const dataInicio = await promptForDate("Selecione a data de INÍCIO do afastamento:", hojeISO);
 
-        if (!dataInicio) return; // Usuário cancelou o modal
+        if (!dataInicio) return;
 
         const confirmationMessage = `Tem certeza que deseja AFASTAR "${colab.Nome}" a partir de ${formatDateLocal(dataInicio)}?`;
         const ok = confirm(confirmationMessage);
         if (!ok) return;
 
-        // 2. Cria o novo registro na tabela 'Afastamentos'
+
         const newAfastamento = {
             NOME: colab.Nome,
             SVC: colab.SVC || null,
             MATRIZ: colab.MATRIZ || null,
             REGIAO: colab.REGIAO || null,
             "DATA INICIO": dataInicio,
-            "DATA RETORNO": null // Fica nulo pois está iniciando agora
+            "DATA RETORNO": null
         };
 
         const {error: insertError} = await supabase.from('Afastamentos').insert(newAfastamento);
@@ -1216,10 +1373,10 @@ async function onAfastarClick() {
             return;
         }
 
-        // 3. Atualiza o status na tabela 'Colaboradores'
+
         const {error: updateError} = await supabase
             .from('Colaboradores')
-            .update({Ativo: 'AFAS'}) // Define como Afastado
+            .update({Ativo: 'AFAS'})
             .eq('Nome', colab.Nome);
 
         if (updateError) {
@@ -1230,19 +1387,18 @@ async function onAfastarClick() {
         alert('Colaborador afastado com sucesso!');
 
     } else if (currentStatus === 'AFAS') {
-        // --- REMOVER AFASTAMENTO (REGISTRAR RETORNO) ---
 
-        // 1. Pede a data de retorno usando o modal de calendário
+
         const dataRetorno = await promptForDate("Selecione a data de RETORNO do colaborador:", hojeISO);
 
-        if (!dataRetorno) return; // Usuário cancelou o modal
+        if (!dataRetorno) return;
 
-        // 2. Validação: A data de retorno não pode ser anterior à data de início
+
         const {data: ultimoAfastamento, error: findError} = await supabase
             .from('Afastamentos')
             .select('"DATA INICIO"')
             .eq('NOME', colab.Nome)
-            .is('DATA RETORNO', null) // Busca o afastamento em aberto
+            .is('DATA RETORNO', null)
             .order('"DATA INICIO"', {ascending: false})
             .limit(1)
             .maybeSingle();
@@ -1261,22 +1417,22 @@ async function onAfastarClick() {
         const ok = confirm(confirmationMessage);
         if (!ok) return;
 
-        // 3. Atualiza o registro existente em 'Afastamentos' com a data de retorno
+
         const {error: updateAfastamentoError} = await supabase
             .from('Afastamentos')
             .update({"DATA RETORNO": dataRetorno})
             .eq('NOME', colab.Nome)
-            .is('DATA RETORNO', null); // Garante que só atualize o que está em aberto
+            .is('DATA RETORNO', null);
 
         if (updateAfastamentoError) {
             alert(`Erro ao atualizar o registro de afastamento: ${updateAfastamentoError.message}`);
             return;
         }
 
-        // 4. Atualiza o status na tabela 'Colaboradores'
+
         const {error: updateColabError} = await supabase
             .from('Colaboradores')
-            .update({Ativo: 'SIM'}) // Define como Ativo novamente
+            .update({Ativo: 'SIM'})
             .eq('Nome', colab.Nome);
 
         if (updateColabError) {
@@ -1291,7 +1447,7 @@ async function onAfastarClick() {
         return;
     }
 
-    // 5. Se tudo deu certo, fecha o modal e atualiza a tabela
+
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
@@ -1827,6 +1983,8 @@ function wireEdit() {
     editEfetivarKnBtn = document.getElementById('editEfetivarKnBtn');
     editMatriz = document.getElementById('editMatriz');
     const editRegiao = document.getElementById('editRegiao');
+
+
     editInputs = {
         Nome: document.getElementById('editNome'),
         CPF: document.getElementById('editCPF'),
@@ -1837,9 +1995,13 @@ function wireEdit() {
         'FOLGA ESPECIAL': document.getElementById('editFolgaEspecial'),
         LDAP: document.getElementById('editLDAP'),
         'ID GROOT': document.getElementById('editIdGroot'),
-        'Data de nascimento': document.getElementById('editDataNascimento')
+        'Data de nascimento': document.getElementById('editDataNascimento'),
+        'Data de admissão': document.getElementById('editDataAdmissao'),
+        'Admissao KN': document.getElementById('editAdmissaoKn')
     };
+
     attachUpperHandlersTo(editForm);
+
     if (editSVC) {
         editSVC.addEventListener('change', () => {
             const svc = (editSVC.value || '').toString().toUpperCase();
@@ -1850,16 +2012,19 @@ function wireEdit() {
             populateGestorSelectForEdit(editSVC.value);
         });
     }
+
     const editDSRBtn = document.getElementById('editDSRBtn');
     if (editDSRBtn) {
         editDSRBtn.addEventListener('click', () => {
             openDsrModal(document.getElementById('editDSR'));
         });
     }
+
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
     editAfastarBtn?.addEventListener('click', onAfastarClick);
     editEfetivarKnBtn?.addEventListener('click', onEfetivarKnClick);
+
     editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
             alert('Apenas administradores podem excluir colaboradores.');
@@ -1868,6 +2033,7 @@ function wireEdit() {
         if (!editOriginal) return;
         const ok = confirm('Tem certeza que deseja excluir este colaborador? ESTA AÇÃO É IRREVERSÍVEL!');
         if (!ok) return;
+
         try {
             editExcluirBtn.disabled = true;
             editExcluirBtn.textContent = 'Excluindo...';
@@ -1886,6 +2052,7 @@ function wireEdit() {
             editExcluirBtn.textContent = 'Excluir Colaborador';
         }
     });
+
     editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
@@ -1895,6 +2062,7 @@ function wireEdit() {
         }
         openDesligarModalFromColab(colab);
     });
+
     editFeriasBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
@@ -1904,10 +2072,12 @@ function wireEdit() {
         }
         openFeriasModalFromColab(colab);
     });
+
     editHistoricoBtn?.addEventListener('click', () => {
         if (!editOriginal?.Nome) return;
         openHistorico(editOriginal.Nome);
     });
+
     document.addEventListener('open-edit-modal', async (evt) => {
         const nome = evt.detail?.nome;
         if (!nome) return;
@@ -1926,6 +2096,7 @@ function wireEdit() {
         }
     });
 }
+
 
 function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');

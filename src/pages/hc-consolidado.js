@@ -191,7 +191,6 @@ function calcularPeriodoTrabalhado(dtAdmISO, dtDesISO) {
         }
 
 
-
         return '0';
     }
 }
@@ -518,7 +517,7 @@ async function ensureDiarioDOM() {
     host.querySelector('#hcd-refresh')?.remove();
 }
 
-async function ensureRelatorioABSDOM() {
+-async function ensureRelatorioABSDOM() {
     const host = document.querySelector('#hc-relatorio-abs');
     if (!host) return;
     if (host.querySelector('.abs-toolbar')) return;
@@ -819,7 +818,6 @@ function renderDesligamentosTable() {
     filtered.forEach(r => {
         const dtAdm = r['Data de Admissão'] ?? '';
         const dtDes = r['Data de Desligamento'] ?? '';
-
 
 
         const periodo = calcularPeriodoTrabalhado(dtAdm, dtDes);

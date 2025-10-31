@@ -3943,7 +3943,7 @@ html, body {
     margin: 0;
 }
 
-/* ===== Somente na impressão ===== */
+
 @media print {
     html, body {
         height: 100%;
@@ -3952,20 +3952,20 @@ html, body {
         overflow: hidden !important;
     }
 
-    /* Esconde tudo */
+
     body * {
         visibility: hidden;
         margin: 0;
         padding: 0;
     }
 
-    /* Torna a área da etiqueta e filhos visíveis (NOVO e ANTIGO) */
+
     #sep-qr-area, #sep-qr-area *,
     #qr-code-area, #qr-code-area * {
         visibility: visible;
     }
 
-    /* Esconde botões de imprimir (NOVO e ANTIGO) */
+
     #sep-qr-area > #sep-print-btn,
     #sep-print-btn,
     #qr-code-area > #print-qr-btn,
@@ -3974,7 +3974,7 @@ html, body {
         visibility: hidden !important;
     }
 
-    /* Área da etiqueta (NOVO e ANTIGO) */
+
     #sep-qr-area,
     #qr-code-area {
         position: fixed;
@@ -3992,7 +3992,7 @@ html, body {
         box-shadow: none !important;
     }
 
-    /* Contêiner do QR (NOVO e ANTIGO) */
+
     #sep-qr-canvas,
     #qr-code-canvas {
         position: absolute;
@@ -4007,7 +4007,7 @@ html, body {
         overflow: hidden !important;
     }
 
-    /* A imagem/SVG do QR preenche o contêiner (NOVO e ANTIGO) */
+
     #sep-qr-canvas img, #sep-qr-canvas svg,
     #qr-code-canvas img, #qr-code-canvas svg {
         display: block;
@@ -4021,7 +4021,7 @@ html, body {
         border: none;
     }
 
-    /* Título/texto ao lado (NOVO e ANTIGO) */
+
     #sep-qr-title,
     #qr-code-title {
         display: flex !important;
@@ -4029,9 +4029,9 @@ html, body {
         justify-content: center;
         align-items: center;
         position: absolute;
-        left: 42mm; /* afasta do QR */
+        left: 42mm;
         top: 0;
-        width: calc(8cm - 42mm); /* largura restante */
+        width: calc(8cm - 42mm);
         height: 4cm;
         padding: 0 3mm;
         box-sizing: border-box;
@@ -4042,7 +4042,7 @@ html, body {
         white-space: nowrap;
     }
 
-    /* Numeração (NOVO e ANTIGO) */
+
     #sep-qr-title .qr-num,
     #qr-code-title .qr-num {
         font-weight: 700;
@@ -4052,7 +4052,7 @@ html, body {
         letter-spacing: 0.3px;
     }
 
-    /* Rota (NOVO e ANTIGO) */
+
     #sep-qr-title .qr-rota,
     #qr-code-title .qr-rota {
         font-weight: 900;
@@ -4062,7 +4062,7 @@ html, body {
         letter-spacing: 0.6px;
     }
 
-    /* Evita quebra e rolagem */
+
     #sep-qr-title .qr-num, #sep-qr-title .qr-rota,
     #qr-code-title .qr-num, #qr-code-title .qr-rota {
         overflow: hidden;
@@ -4070,7 +4070,7 @@ html, body {
         white-space: nowrap;
     }
 
-    /* Remove scrollbars/sombras */
+
     ::-webkit-scrollbar {
         display: none !important;
     }
@@ -4087,22 +4087,22 @@ html, body {
 }
 
 
-/* CSS para controlar os Modais (popups) */
+
 
 .modal-overlay {
-    position: fixed; /* Cobre a tela inteira */
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.6); /* Fundo escuro semi-transparente */
+    background-color: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000; /* Fica na frente de tudo */
+    z-index: 1000;
 }
 
-/* Classe que esconde o modal */
+
 .modal-overlay.hidden {
     display: none !important;
 }
@@ -4114,11 +4114,11 @@ html, body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     min-width: 320px;
     max-width: 90%;
-    width: 500px; /* Largura do modal */
+    width: 500px;
 }
 
 .modal-close {
-    font-size: 2rem; /* Tamanho do 'X' */
+    font-size: 2rem;
     font-weight: 300;
     line-height: 1;
     color: #333;

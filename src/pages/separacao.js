@@ -1,23 +1,14 @@
-// ========================================================================
-// separacao.js — Auditoria de Mangas (Validação contínua + DOCA + Massa + Print Fix + UI reorder)
-// V12: Fluxo contínuo (auto reabrir câmera), Confirmação de scan e erro amigável de duplicidade
-// ========================================================================
-
 import {Html5Qrcode} from 'html5-qrcode';
 import qrcode from 'qrcode-generator';
 
-// -------------------------------
-// Configurações e Constantes
-// -------------------------------
+
 const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
 
-// -------------------------------
-// Estado
-// -------------------------------
+
 let state = {
     cacheData: [],
     isSeparaçãoProcessing: false,
@@ -26,19 +17,17 @@ let state = {
     selectedIlha: null,
     globalScannerInstance: null,
     currentScannerTarget: null,
-    // V12 - confirmação do scan
+
     pendingDecodedText: null,
 };
 
-// -------------------------------
-// DOM refs
-// -------------------------------
+
 let dom = {
     dashboard: null,
     btnSeparação: null,
     btnCarregamento: null,
 
-    // Modal Separação
+
     modalSeparação: null,
     modalSepClose: null,
     sepUser: null,
@@ -50,7 +39,7 @@ let dom = {
     sepPrintBtn: null,
     sepCamBtn: null,
 
-    // Modal Carregamento
+
     modalCarregamento: null,
     modalCarClose: null,
     carUser: null,
@@ -60,25 +49,23 @@ let dom = {
     carStatus: null,
     carCamBtn: null,
 
-    // Modal Scanner
+
     scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
 
-    // Overlays
+
     scannerFeedbackOverlay: null,
     scannerFeedbackCloseBtn: null,
 
-    // V12 - overlay de confirmação
+
     scannerConfirmOverlay: null,
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
     scannerConfirmNoBtn: null,
 };
 
-// -------------------------------
-// HTTP
-// -------------------------------
+
 function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
@@ -95,9 +82,7 @@ function buildSelectHeaders() {
     };
 }
 
-// -------------------------------
-// Helpers
-// -------------------------------
+
 function formatarDataHora(isoString) {
     if (!isoString) return '---';
     try {
@@ -122,16 +107,14 @@ function waitForPaint() {
 
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
-    // força reflow
-    dom.sepQrArea && dom.sepQrArea.offsetHeight; // eslint-disable-line no-unused-expressions
+
+    dom.sepQrArea && dom.sepQrArea.offsetHeight;
     await waitForPaint();
     await waitForPaint();
     window.print();
 }
 
-// -------------------------------
-// Modal helpers
-// -------------------------------
+
 function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
@@ -181,7 +164,7 @@ function closeModal(modal) {
     dom._currentModal = null;
 }
 
-// -------------------------------
+
 function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepUser) dom.sepUser.value = '';
@@ -206,9 +189,7 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
     setCarStatus('');
 }
 
-// -------------------------------
-// Scanner de Câmera + Overlays
-// -------------------------------
+
 function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
 
@@ -228,7 +209,7 @@ function showScannerFeedback(type, message, sticky = false) {
     }
 }
 
-// V12 — Overlay de confirmação
+
 function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
@@ -236,7 +217,7 @@ function showScannerConfirm(decodedText, onYes, onNo) {
     dom.scannerConfirmText.textContent = decodedText;
     dom.scannerConfirmOverlay.classList.remove('hidden');
 
-    // Liga botões
+
     const yesHandler = () => {
         dom.scannerConfirmOverlay.classList.add('hidden');
         dom.scannerConfirmYesBtn.removeEventListener('click', yesHandler);
@@ -330,7 +311,7 @@ function createGlobalScannerModal() {
     dom.scannerFeedbackCloseBtn.addEventListener('click', stopGlobalScanner);
     dom.scannerCancelBtn.addEventListener('click', stopGlobalScanner);
 
-    // Atalhos dentro do scanner
+
     modal.addEventListener('keydown', (e) => {
         if (dom.scannerConfirmOverlay && !dom.scannerConfirmOverlay.classList.contains('hidden')) {
             if (e.key === 'Enter') {
@@ -379,7 +360,7 @@ function startGlobalScanner(targetModal) {
         dom._currentModal.setAttribute('aria-hidden', 'true');
     }
 
-    // Limpa overlays
+
     dom.scannerFeedbackOverlay?.classList.add('hidden');
     dom.scannerConfirmOverlay?.classList.add('hidden');
     state.pendingDecodedText = null;
@@ -460,9 +441,7 @@ function stopGlobalScanner() {
         });
 }
 
-// -------------------------------
-// Callbacks do Scanner (V12)
-// -------------------------------
+
 async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
@@ -470,35 +449,35 @@ async function onGlobalScanSuccess(decodedText) {
         return;
     }
 
-    // Pausa a leitura imediata e pede confirmação
+
     state.globalScannerInstance.pause(true);
 
     showScannerConfirm(
         decodedText,
-        // YES (Confirmar)
+
         () => {
             if (target === 'separacao') {
                 const input = dom.sepScan;
                 if (input) {
                     input.value = decodedText;
-                    stopGlobalScanner(); // volta ao modal
+                    stopGlobalScanner();
                     const enterEvent = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true});
                     input.dispatchEvent(enterEvent);
                 } else {
-                    // se não tiver input por algum motivo, apenas retoma
+
                     state.globalScannerInstance?.resume();
                 }
             } else if (target === 'carregamento') {
-                // No carregamento, validamos logo após confirmar (mantém lógica antiga de pause/validate/resume)
+
                 handleCarregamentoFromScanner(decodedText).finally(() => {
-                    // se o scanner ainda existir, retoma
+
                     state.globalScannerInstance?.resume();
                 });
             }
         },
-        // NO (Reescanear)
+
         () => {
-            // Limpa texto pendente e retoma a câmera
+
             state.pendingDecodedText = null;
             state.globalScannerInstance?.resume();
         }
@@ -506,10 +485,10 @@ async function onGlobalScanSuccess(decodedText) {
 }
 
 function onGlobalScanError(_) {
-    // Ignora "no QR code found"
+
 }
 
-// Aux para carregamento com confirmação
+
 async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
 
@@ -538,9 +517,7 @@ async function handleCarregamentoFromScanner(decodedText) {
     }
 }
 
-// -------------------------------
-// Dashboard
-// -------------------------------
+
 async function fetchDashboardData() {
     const now = new Date();
     now.setHours(now.getHours() - 24);
@@ -658,9 +635,7 @@ async function fetchAndRenderDashboard() {
     renderDashboard();
 }
 
-// -------------------------------
-// UI reorder
-// -------------------------------
+
 function reorderControlsOverDashboard() {
     const root = document.getElementById('tab-auditoria-mangas');
     if (!root) return;
@@ -681,9 +656,7 @@ function reorderControlsOverDashboard() {
     if (btn2.parentElement !== bar) bar.appendChild(btn2);
 }
 
-// -------------------------------
-// Separação (Passo 1)
-// -------------------------------
+
 function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
@@ -830,7 +803,7 @@ async function handleSeparaçãoSubmit(e) {
             renderDashboard();
         }
 
-        // V12 — fluxo contínuo: reabre a câmera para o próximo
+
         if (!state.globalScannerInstance) startGlobalScanner('separacao');
 
     } catch (err) {
@@ -841,7 +814,7 @@ async function handleSeparaçãoSubmit(e) {
 
         setSepStatus(friendly, {error: isDuplicateErrorMessage(err?.message) ? false : true});
 
-        // Após erro de duplicidade, já abre a câmera para o próximo
+
         if (isDuplicateErrorMessage(err?.message) && !state.globalScannerInstance) {
             startGlobalScanner('separacao');
         }
@@ -849,14 +822,12 @@ async function handleSeparaçãoSubmit(e) {
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
         dom.sepUser.disabled = false;
-        // Se o scanner foi reaberto, não precisa focar o input; senão, mantém a UX de teclado
+
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
 }
 
-// -------------------------------
-// Carregamento (Passo 2)
-// -------------------------------
+
 function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
@@ -1099,21 +1070,19 @@ async function handleCarregamentoSubmit(e) {
     }
 }
 
-// -------------------------------
-// Ciclo de Vida
-// -------------------------------
+
 let initOnce = false;
 
 export function init() {
     if (initOnce) return;
     initOnce = true;
 
-    // Dashboard
+
     dom.dashboard = document.getElementById('dashboard-stats');
     dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
 
-    // Modal Separação
+
     dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
     dom.sepUser = document.getElementById('sep-user-name');
@@ -1124,14 +1093,14 @@ export function init() {
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
     dom.sepPrintBtn = document.getElementById('sep-print-btn');
 
-    // Modal Carregamento
+
     dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
     dom.carStatus = document.getElementById('car-status');
 
-    // Ajustes de estilo botões
+
     if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4');
         dom.btnSeparação.classList.add('px-4', 'py-3');
@@ -1151,15 +1120,15 @@ export function init() {
         }
     }
 
-    // Scanner e Overlays
+
     createGlobalScannerModal();
     injectScannerButtons();
 
-    // Selects
+
     ensureDockSelect();
     ensureIlhaSelect();
 
-    // Botões → abre/reset
+
     dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
@@ -1175,7 +1144,7 @@ export function init() {
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
     });
 
-    // Fechar modais
+
     dom.modalSepClose?.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -1189,13 +1158,13 @@ export function init() {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
     });
 
-    // Entradas
+
     dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
     dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
 
-    // Print manual
+
     dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             await printEtiqueta();
@@ -1204,7 +1173,7 @@ export function init() {
         }
     });
 
-    // Atalho F6
+
     document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
@@ -1217,10 +1186,10 @@ export function init() {
         }
     });
 
-    // Reordenar UI
+
     reorderControlsOverDashboard();
 
-    // Dashboard
+
     fetchAndRenderDashboard();
 
     console.log('Módulo de Auditoria (Dashboard) inicializado [V12].');
@@ -1237,7 +1206,7 @@ export function destroy() {
     initOnce = false;
 }
 
-// Bootstrap
+
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
