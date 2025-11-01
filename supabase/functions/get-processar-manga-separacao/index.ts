@@ -1,4 +1,4 @@
-// index.ts - Supabase Edge Function (V2 - Otimizada com Cache)
+// index.ts - Supabase Edge Function (V3 - Suporte a Reimpressão de Duplicados)
 
 import {serve} from "https://deno.land/std@0.177.0/http/server.ts";
 import * as djwt from "https://deno.land/x/djwt@v2.8/mod.ts";
@@ -11,7 +11,7 @@ const GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token";
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
 const CACHE_TTL_SECONDS = 300; // 5 minutos para o cache da planilha
 
-// --- NOVO: Definição do Cache Global ---
+// --- Definição do Cache Global ---
 interface CacheState {
     googleAccessToken: string | null;
     tokenExpiry: number | null; // UNIX timestamp em segundos
@@ -33,7 +33,6 @@ const globalCache: CacheState = {
 
 
 function pemToBinary(pem: string): ArrayBuffer {
-    // (Nenhuma alteração nesta função)
     const base64 = pem
         .replace(/-----BEGIN PRIVATE KEY-----/g, "")
         .replace(/-----END PRIVATE KEY-----/g, "")
@@ -45,7 +44,7 @@ function pemToBinary(pem: string): ArrayBuffer {
     return bytes.buffer;
 }
 
-// --- AJUSTADO: getGoogleAccessToken (agora com cache) ---
+// --- getGoogleAccessToken (agora com cache) ---
 async function getGoogleAccessToken(
     clientEmail: string,
     privateKey: string,
@@ -53,14 +52,11 @@ async function getGoogleAccessToken(
     const now = Math.floor(Date.now() / 1000);
 
     // 1. Verifica o cache primeiro
-    // (Adiciona 60s de buffer de segurança)
     if (globalCache.googleAccessToken && globalCache.tokenExpiry && globalCache.tokenExpiry > (now + 60)) {
-        // console.log("Cache hit: Google Access Token");
         return globalCache.googleAccessToken;
     }
 
     // 2. Se o cache falhar, busca um novo token
-    // console.log("Cache miss: Buscando novo Google Access Token");
     try {
         const formattedPrivateKey = privateKey.replace(/\\n/g, "\n");
 
@@ -113,7 +109,7 @@ async function getGoogleAccessToken(
     }
 }
 
-// --- NOVO: Função para buscar e cachear a planilha ---
+// --- Função para buscar e cachear a planilha ---
 async function getPacoteMap(accessToken: string): Promise<Map<string, string>> {
     const now = Math.floor(Date.now() / 1000);
 
@@ -123,7 +119,6 @@ async function getPacoteMap(accessToken: string): Promise<Map<string, string>> {
         globalCache.mapLastFetched &&
         (now - globalCache.mapLastFetched < CACHE_TTL_SECONDS)
     ) {
-        // console.log("Cache hit: Mapa de Pacotes (Tempo)");
         return globalCache.packageMap;
     }
 
@@ -135,12 +130,10 @@ async function getPacoteMap(accessToken: string): Promise<Map<string, string>> {
         headers["If-None-Match"] = globalCache.sheetEtag;
     }
 
-    // console.log("Cache miss: Buscando/Validando Planilha Google");
     const sheetResponse = await fetch(endpoint, {headers});
 
     // 3. (Otimização) Planilha não mudou, servidor retornou 304
     if (sheetResponse.status === 304) {
-        // console.log("Cache hit: Mapa de Pacotes (ETag 304)");
         globalCache.mapLastFetched = now; // Atualiza o tempo do cache
         return globalCache.packageMap!; // Retorna o cache antigo (que ainda é válido)
     }
@@ -168,12 +161,11 @@ async function getPacoteMap(accessToken: string): Promise<Map<string, string>> {
     globalCache.sheetEtag = newEtag;
     globalCache.mapLastFetched = now;
 
-    // console.log(`Cache refresh: Mapa de pacotes reconstruído com ${newMap.size} itens.`);
     return newMap;
 }
 
 
-// --- Lógica Principal da Função (AJUSTADA) ---
+// --- Lógica Principal da Função (AJUSTADA PARA REIMPRESSÃO) ---
 serve(async (req) => {
     const corsHeaders = {
         "Access-Control-Allow-Origin": "*",
@@ -182,16 +174,17 @@ serve(async (req) => {
     };
     if (req.method === "OPTIONS") return new Response("ok", {headers: corsHeaders});
 
+    let idPacoteStr = ""; // Definido no escopo externo para uso no catch
+
     try {
         // --- 1. Captura e Conversão de Data ---
-        // (Nenhuma alteração nesta seção)
         const {id_pacote, data_scan, usuario_entrada} = await req.json();
 
         if (!id_pacote) throw new Error("ID do pacote não fornecido.");
         if (!data_scan) throw new Error("Data da bipagem (data_scan) não fornecida.");
         if (!usuario_entrada) throw new Error("Usuário (usuario_entrada) não fornecido.");
 
-        const idPacoteStr = String(id_pacote).trim();
+        idPacoteStr = String(id_pacote).trim(); // Armazena para o catch
         const usuarioEntradaStr = String(usuario_entrada).trim();
 
         const utcDate = new Date(data_scan);
@@ -214,13 +207,9 @@ serve(async (req) => {
         const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY");
         if (!clientEmail || !privateKey) throw new Error("Credenciais Google não configuradas.");
 
-        // Pega o token (do cache ou busca novo)
         const accessToken = await getGoogleAccessToken(clientEmail, privateKey);
-
-        // Pega o mapa (do cache ou busca novo)
         const packageMap = await getPacoteMap(accessToken);
 
-        // Busca O(1) no Mapa (em vez de O(N) no loop)
         const ilha: string | undefined = packageMap.get(idPacoteStr);
 
         if (!ilha) {
@@ -231,17 +220,14 @@ serve(async (req) => {
         }
 
         // --- 3. Gerar o novo ID da Manga ---
-        // (Nenhuma alteração nesta seção)
         const lastFourDigits = idPacoteStr.slice(-4);
         const numeracaoManga = `${ilha}_${lastFourDigits}`;
 
-        // --- 4. Salvar no Banco de Dados Supabase ---
-        // (Nenhuma alteração nesta seção)
+        // --- 4. Salvar no Banco de Dados Supabase (Tentar Inserir) ---
         const supabaseUrl = Deno.env.get("SUPABASE_URL");
-        const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-        if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
+        if (!supabaseUrl || !supabaseServiceKey) {
             throw new Error("Credenciais Supabase não configuradas.");
         }
 
@@ -259,19 +245,50 @@ serve(async (req) => {
             })
             .select();
 
+        // --- 5. Lidar com Erro (Verificar Duplicidade) ou Sucesso ---
+
         if (error) {
-            console.error("Erro Supabase:", error);
+            // Verifica se o erro é de duplicidade (PostgreSQL error code 23505)
+            if (error.code === "23505") {
+                // É um pacote duplicado. Busca os dados existentes para reimpressão.
+                const {data: existingData, error: findError} = await supabase
+                    .from("Carregamento")
+                    .select("NUMERACAO, ROTA, ID PACOTE")
+                    .eq("ID PACOTE", idPacoteStr)
+                    .single();
+
+                if (findError || !existingData) {
+                    // Isso não deveria acontecer se o erro 23505 foi disparado
+                    throw new Error(`Duplicidade detectada, mas falha ao buscar dados existentes: ${findError?.message}`);
+                }
+
+                // Retorna 200 OK com a flag de duplicidade
+                return new Response(
+                    JSON.stringify({
+                        message: "Pacote já bipado. Reimpressão permitida.",
+                        numeracao: existingData.NUMERACAO,
+                        ilha: existingData.ROTA,
+                        pacote: existingData["ID PACOTE"],
+                        isDuplicate: true, // A flag que o frontend vai usar
+                        insertedData: null
+                    }),
+                    {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 200}
+                );
+            }
+
+            // Se for qualquer outro erro, lança
+            console.error("Erro Supabase (insert):", error);
             throw new Error(`Erro ao salvar no banco: ${error.message}`);
         }
 
-        // --- 5. Retornar sucesso para o Front-end ---
-        // (Nenhuma alteração nesta seção)
+        // --- 6. Retornar sucesso (Pacote Novo) ---
         return new Response(
             JSON.stringify({
                 message: "Manga registrada com sucesso!",
                 numeracao: numeracaoManga,
                 ilha: ilha,
                 pacote: idPacoteStr,
+                isDuplicate: false, // Flag de sucesso
                 insertedData: data
             }),
             {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 200},

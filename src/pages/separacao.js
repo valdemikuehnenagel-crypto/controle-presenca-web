@@ -113,12 +113,12 @@ function waitForPaint() {
     });
 }
 
-// MELHORIA (Impressão Mobile): Adiciona função sleep
+// (Mantido) Adiciona função sleep
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// MELHORIA (Impressão Mobile): Adiciona delay para impressão no mobile
+// (Mantido) Adiciona delay para impressão no mobile
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
     dom.sepQrArea && dom.sepQrArea.offsetHeight; // Força reflow
@@ -224,7 +224,7 @@ function closeModal(modal) {
 // ==========================
 function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
-    if (dom.sepUser) dom.sepUser.value = '';
+    // Não limpamos o usuário de propósito
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
@@ -260,7 +260,7 @@ function showScannerFeedback(type, message, sticky = false) {
     if (type === 'success') {
         dom.scannerFeedbackOverlay.classList.add('bg-green-500');
         dom.scannerFeedbackCloseBtn.style.display = 'none';
-        // MELHORIA (Mensagem Rápida): Aumenta o tempo da mensagem de sucesso (Carregamento)
+        // (Mantido) Aumenta o tempo da mensagem de sucesso
         setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 2500);
     } else {
         dom.scannerFeedbackOverlay.classList.add('bg-red-500');
@@ -530,15 +530,11 @@ async function onGlobalScanSuccess(decodedText) {
     showScannerConfirm(
         labelForConfirm,
         () => {
-            // MELHORIA (Fluxo Câmera): Modificado o 'separacao'
+            // (Mantido) Fluxo de câmera modificado
             if (target === 'separacao') {
-                // Chama o novo handler que processa DENTRO do modal da câmera
-                // Este handler é responsável pelo feedback (tela cheia) e por resumir/parar a câmera
                 handleSeparacaoFromScanner(normalized || decodedText);
-
             } else if (target === 'carregamento') {
                 handleCarregamentoFromScanner(normalized || decodedText).finally(() => {
-                    // No carregamento, apenas resumimos após a tentativa
                     state.globalScannerInstance?.resume();
                 });
             }
@@ -556,7 +552,7 @@ function onGlobalScanError(_) {
 }
 
 // ==========================
-// MELHORIA (Fluxo Câmera): Nova função para processar Separação via Câmera
+// (MODIFICADO) Fluxo de Separação via Câmera
 // ==========================
 async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
@@ -577,47 +573,62 @@ async function handleSeparacaoFromScanner(idPacote) {
 
     try {
         // 2. Processa o pacote
+        // (ASSUMINDO QUE O BACKEND FOI ALTERADO para retornar 'isDuplicate: true' em vez de erro)
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
-        const {numeracao, ilha, insertedData, pacote} = result;
+        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
+
         if (!numeracao) throw new Error('Resposta não contém numeração');
 
-        // 3. Sucesso
+        // 3. (NOVO) Lógica de Duplicidade ou Sucesso
         const idPacoteParaQr = pacote || idPacote;
-        const successMsg = `Sucesso! Manga ${numeracao} (Rota ${ilha})`;
 
-        // Gera o QR Code (necessário para a impressão)
+        // GERA O QR CODE EM QUALQUER CASO (Sucesso ou Duplicado)
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
 
-        await printEtiqueta(); // Chama a impressão
+        // Tenta imprimir em QUALQUER CASO
+        await printEtiqueta();
 
-        // Atualiza o dashboard no fundo
-        if (insertedData && insertedData[0]) {
-            state.cacheData.unshift(insertedData[0]);
-            renderDashboard();
+        if (isDuplicate) {
+            // 3a. CASO DUPLICADO (ERRO)
+            const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
+
+            // Mostra feedback VERMELHO em tela cheia (sticky)
+            showScannerFeedback('error', friendly, true);
+
+            // Para a câmera e volta ao modal principal
+            stopGlobalScanner();
+
+            // Seta o erro no modal principal
+            setSepStatus(friendly, {error: true});
+            dom.sepScan.value = idPacote; // Coloca o código inválido no input
+            dom.sepScan.focus();
+
+        } else {
+            // 3b. CASO DE SUCESSO (NOVO PACOTE)
+            const successMsg = `Sucesso! Manga ${numeracao} (Rota ${ilha})`;
+
+            // Atualiza o dashboard no fundo
+            if (insertedData && insertedData[0]) {
+                state.cacheData.unshift(insertedData[0]);
+                renderDashboard();
+            }
+
+            // Mostra feedback VERDE em tela cheia
+            showScannerFeedback('success', successMsg);
+
+            // Resome a câmera para o próximo scan
+            state.globalScannerInstance?.resume();
         }
 
-        // Mostra feedback VERDE em tela cheia
-        showScannerFeedback('success', successMsg);
-
-        // Resome a câmera para o próximo scan
-        state.globalScannerInstance?.resume();
-
     } catch (err) {
-        // 4. Erro
+        // 4. Erro REAL (ex: falha de rede, erro 500)
         console.error('Erro Separação (Scanner):', err);
-        const friendly = isDuplicateErrorMessage(err?.message)
-            ? 'PACOTE JÁ BIPADO. TENTE O PRÓXIMO.'
-            : `ERRO: ${err.message || err}`;
+        const friendly = `ERRO: ${err.message || err}`;
 
-        // Mostra feedback VERMELHO em tela cheia (sticky)
         showScannerFeedback('error', friendly, true);
-
-        // Em caso de erro, paramos a câmera e voltamos ao modal principal
         stopGlobalScanner();
-
-        // Seta o erro no modal principal
         setSepStatus(friendly, {error: true});
-        dom.sepScan.value = idPacote; // Coloca o código inválido no input
+        dom.sepScan.value = idPacote;
         dom.sepScan.focus();
 
     } finally {
@@ -843,7 +854,17 @@ async function processarPacote(idPacote, dataScan, usuarioEntrada) {
         body: JSON.stringify(body),
     });
     const json = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(json?.error || 'Erro desconhecido');
+
+    // AJUSTE: Não trata 'isDuplicate' como um erro aqui, deixa o handler decidir
+    if (!response.ok) {
+        // Se o backend retornar um erro (ex: 400, 500), mas ainda enviar 'isDuplicate',
+        // nós o interceptamos e o tratamos como um "sucesso" de duplicidade
+        if (json?.isDuplicate) {
+            console.warn('Backend retornou erro, mas foi identificado como duplicidade.');
+            return json;
+        }
+        throw new Error(json?.error || 'Erro desconhecido');
+    }
     return json;
 }
 
@@ -875,13 +896,22 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
         setSepStatus(`Processando ${i + 1}/${total}: ${idPacote}...`);
         try {
             const dataScan = new Date().toISOString();
-            const {numeracao, ilha, insertedData, pacote} = await processarPacote(idPacote, dataScan, usuarioEntrada);
+            const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
+            const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
+
+            if (!numeracao) throw new Error('Resposta não contém numeração');
+
             const idPacoteParaQr = pacote || idPacote;
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
             await printEtiqueta();
 
-            if (insertedData && insertedData[0]) state.cacheData.unshift(insertedData[0]);
-            ok++;
+            if (isDuplicate) {
+                fail++; // Contamos como "falha" para o relatório final
+                setSepStatus(`Falhou ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
+            } else {
+                if (insertedData && insertedData[0]) state.cacheData.unshift(insertedData[0]);
+                ok++;
+            }
         } catch (err) {
             console.error('Erro em massa (separação):', err);
             fail++;
@@ -899,9 +929,8 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     dom.sepUser.disabled = false;
 }
 
-function isDuplicateErrorMessage(msg = '') {
-    return /duplicate key|unique constraint|Carregamento_pkay/i.test(String(msg));
-}
+// (Removido) - A função 'isDuplicateErrorMessage' não é mais necessária
+// O backend agora nos diz 'isDuplicate: true'
 
 // ==========================
 // Submit — Separação (Este handler agora é apenas para ENTRADA MANUAL e LOTE)
@@ -947,35 +976,42 @@ async function handleSeparaçãoSubmit(e) {
     clearSepQrCanvas();
 
     try {
+        // (ASSUMINDO QUE O BACKEND FOI ALTERADO)
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
-        const {numeracao, ilha, insertedData, pacote} = result;
+        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
+
         if (!numeracao) throw new Error('Resposta não contém numeração');
 
         const idPacoteParaQr = pacote || idPacote;
-        setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
-        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        dom.sepScan.value = '';
 
+        // GERA O QR CODE EM QUALQUER CASO
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+
+        // Tenta imprimir em QUALQUER CASO
         await printEtiqueta();
 
-        if (insertedData && insertedData[0]) {
-            state.cacheData.unshift(insertedData[0]);
-            renderDashboard();
+        dom.sepScan.value = ''; // Limpa o input
+
+        if (isDuplicate) {
+            // CASO DUPLICADO (ERRO)
+            const friendly = message || 'Pacote já bipado. Reimpressão solicitada.';
+            setSepStatus(friendly, {error: true});
+
+        } else {
+            // CASO DE SUCESSO (NOVO PACOTE)
+            setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
+
+            if (insertedData && insertedData[0]) {
+                state.cacheData.unshift(insertedData[0]);
+                renderDashboard();
+            }
         }
 
-        // MELHORIA (Fluxo Manual): Câmera NÃO abre sozinha no sucesso manual
-        // O usuário vê a mensagem verde e decide o próximo passo.
-
     } catch (err) {
+        // Erro REAL (falha de rede, etc.)
         console.error('Erro Separação:', err);
-        const friendly = isDuplicateErrorMessage(err?.message)
-            ? 'Pacote já bipado e atrelado, passe para próximo!'
-            : `Erro: ${err.message || err}`;
-
-        // MELHORIA (Duplicidade): Força o status de erro (vermelho)
+        const friendly = `Erro: ${err.message || err}`;
         setSepStatus(friendly, {error: true});
-
-        // MELHORIA (Duplicidade): Câmera NÃO abre sozinha no erro
 
     } finally {
         state.isSeparaçãoProcessing = false;
@@ -1298,16 +1334,23 @@ export function init() {
     ensureIlhaSelect();
 
     dom.btnSeparação?.addEventListener('click', () => {
+        // Não reseta o usuário, mas limpa o scan e o status
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
-        dom.sepUser?.focus();
+        // Foca no usuário se estiver vazio, senão foca no scan
+        if (dom.sepUser && !dom.sepUser.value) {
+            dom.sepUser.focus();
+        } else {
+            dom.sepScan?.focus();
+        }
     });
 
     dom.btnCarregamento?.addEventListener('click', () => {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
         populateIlhaSelect();
         openModal(dom.modalCarregamento);
-        if (!state.selectedDock) dom.carDockSelect?.focus();
+        if (dom.carUser && !dom.carUser.value) dom.carUser.focus();
+        else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
     });
@@ -1322,7 +1365,6 @@ export function init() {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
-        a
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
     });
 
@@ -1365,7 +1407,7 @@ export function init() {
     reorderControlsOverDashboard();
     fetchAndRenderDashboard();
 
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V13 - Fluxo de câmera otimizado].');
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V14 - Reimpressão em duplicidade].');
 }
 
 export function destroy() {
