@@ -113,18 +113,17 @@ function waitForPaint() {
     });
 }
 
-// (Mantido) Adiciona função sleep
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// (Mantido) Adiciona delay para impressão no mobile
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
     dom.sepQrArea && dom.sepQrArea.offsetHeight; // Força reflow
     await waitForPaint();
     await waitForPaint();
-    await sleep(150); // Delay de segurança para renderização do SVG no mobile
+    // MELHORIA (Impressão Rápida): Aumenta o delay para 300ms
+    await sleep(300); // Delay de segurança para renderização do SVG no mobile
     window.print();
 }
 
@@ -139,9 +138,9 @@ function extractElevenDigits(str) {
 }
 
 /**
-  * Recebe: JSON com {id:"..."}, textos com números, códigos puros (QR/1D).
-  * Retorna: 11 dígitos (string) quando possível; caso contrário, texto original.
-  */
+ * Recebe: JSON com {id:"..."}, textos com números, códigos puros (QR/1D).
+ * Retorna: 11 dígitos (string) quando possível; caso contrário, texto original.
+ */
 function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
@@ -224,7 +223,7 @@ function closeModal(modal) {
 // ==========================
 function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
-    // Não limpamos o usuário de propósito
+    // Não limpamos o usuário (mantém para agilidade)
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
@@ -311,47 +310,47 @@ function createGlobalScannerModal() {
     content.style.maxWidth = '600px';
 
     content.innerHTML = `
-    <div class="flex justify-between items-center mb-4 border-b pb-2">
-      <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>
-    </div>
+    <div class="flex justify-between items-center mb-4 border-b pb-2">
+      <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>
+    </div>
 
-    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
+    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
 
-    <button id="auditoria-scanner-cancel" type="button"
-      class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
-      Cancelar
-    </button>
+    <button id="auditoria-scanner-cancel" type="button"
+      class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
+      Cancelar
+    </button>
 
-        <div id="scanner-feedback-overlay"
-      class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
-      style="z-index: 10;">
-      <span class="text-white text-2xl font-bold text-center"></span>
-      <button id="scanner-feedback-close" type="button"
-        class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"
-        style="display: none;">
-        Fechar
-      </button>
-    </div>
+    <div id="scanner-feedback-overlay"
+      class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
+      style="z-index: 10;">
+      <span class="text-white text-2xl font-bold text-center"></span>
+      <button id="scanner-feedback-close" type="button"
+        class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"
+        style="display: none;">
+        Fechar
+      </button>
+    </div>
 
-        <div id="scanner-confirm-overlay"
-      class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
-      style="z-index: 20;">
-      <div class="text-white text-center">
-        <div class="text-lg opacity-80 mb-1">Confirmar código lido?</div>
-        <div id="scanner-confirm-text" class="text-2xl font-bold break-all"></div>
-      </div>
-      <div class="flex gap-3">
-        <button id="scanner-confirm-yes" type="button"
-          class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow hover:bg-green-700">
-          Confirmar (Enter)
-        </button>
-        <button id="scanner-confirm-no" type="button"
-          class="px-5 py-2 rounded-md bg-gray-300 text-gray-800 font-semibold shadow hover:bg-gray-400">
-          Reescanear (Esc)
-        </button>
-      </div>
-    </div>
-  `;
+    <div id="scanner-confirm-overlay"
+      class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
+      style="z-index: 20;">
+      <div class="text-white text-center">
+        <div class="text-lg opacity-80 mb-1">Confirmar código lido?</div>
+        <div id="scanner-confirm-text" class="text-2xl font-bold break-all"></div>
+      </div>
+      <div class="flex gap-3">
+        <button id="scanner-confirm-yes" type="button"
+          class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow hover:bg-green-700">
+          Confirmar (Enter)
+        </button>
+        <button id="scanner-confirm-no" type="button"
+          class="px-5 py-2 rounded-md bg-gray-300 text-gray-800 font-semibold shadow hover:bg-gray-400">
+          Reescanear (Esc)
+        </button>
+      </div>
+    </div>
+  `;
 
     modal.appendChild(content);
     document.body.appendChild(modal);
@@ -447,7 +446,8 @@ function startGlobalScanner(targetModal) {
                 scanner.start(
                     deviceId,
                     {
-                        fps: 8, // um pouco mais “calmo”
+                        // MELHORIA (Scanner Acelerado): FPS reduzido para 2
+                        fps: 2, // Mais lento (1 scan/500ms) para evitar leituras acidentais
                         qrbox: {width: 280, height: 280},
                         formatsToSupport: SUPPORTED_FORMATS,
                         experimentalFeatures: {useBarCodeDetectorIfSupported: true}
@@ -530,7 +530,6 @@ async function onGlobalScanSuccess(decodedText) {
     showScannerConfirm(
         labelForConfirm,
         () => {
-            // (Mantido) Fluxo de câmera modificado
             if (target === 'separacao') {
                 handleSeparacaoFromScanner(normalized || decodedText);
             } else if (target === 'carregamento') {
@@ -573,13 +572,13 @@ async function handleSeparacaoFromScanner(idPacote) {
 
     try {
         // 2. Processa o pacote
-        // (ASSUMINDO QUE O BACKEND FOI ALTERADO para retornar 'isDuplicate: true' em vez de erro)
+        // (ESPERANDO QUE O BACKEND RETORNE 'isDuplicate: true' E status 200)
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
 
         if (!numeracao) throw new Error('Resposta não contém numeração');
 
-        // 3. (NOVO) Lógica de Duplicidade ou Sucesso
+        // 3. Lógica de Duplicidade ou Sucesso
         const idPacoteParaQr = pacote || idPacote;
 
         // GERA O QR CODE EM QUALQUER CASO (Sucesso ou Duplicado)
@@ -621,7 +620,7 @@ async function handleSeparacaoFromScanner(idPacote) {
         }
 
     } catch (err) {
-        // 4. Erro REAL (ex: falha de rede, erro 500)
+        // 4. Erro REAL (ex: falha de rede, erro 500, pacote não encontrado 404)
         console.error('Erro Separação (Scanner):', err);
         const friendly = `ERRO: ${err.message || err}`;
 
@@ -726,37 +725,37 @@ function renderDashboard() {
     const {totalSeparacao, totalCarregamento, totalDocasAtivas} = calculateStats(state.cacheData);
 
     let html = `
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div>
-      </div>
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Carregamento Total (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalCarregamento}</div>
-      </div>
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Docas Ativas (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalDocasAtivas}</div>
-      </div>
-    </div>
-  `;
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div>
+      </div>
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Carregamento Total (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalCarregamento}</div>
+      </div>
+      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
+        <div class="text-xs font-medium text-gray-500">Docas Ativas (24h)</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalDocasAtivas}</div>
+      </div>
+    </div>
+  `;
 
     html += `
-    <div class="overflow-x-auto bg-white rounded-lg shadow border border-gray-200" style="max-height: 60vh; overflow-y: auto;">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rota</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Separado Por</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Separação</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carregado Por</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Finalizado</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-  `;
+    <div class="overflow-x-auto bg-white rounded-lg shadow border border-gray-200" style="max-height: 60vh; overflow-y: auto;">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rota</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Separado Por</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Separação</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carregado Por</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Finalizado</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+  `;
 
     for (const item of state.cacheData) {
         const isBipado = item.VALIDACAO === 'BIPADO';
@@ -764,22 +763,22 @@ function renderDashboard() {
         const statusText = isBipado ? 'Carregado' : 'Aguardando';
 
         html += `
-      <tr class="text-sm text-gray-700">
-        <td class="px-4 py-3 whitespace-nowrap font-medium">${item.ROTA || 'N/A'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_ENTRADA || '---'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_SAIDA || '---'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA_SAIDA)}</td>
-        <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
-      </tr>
-    `;
+      <tr class="text-sm text-gray-700">
+        <td class="px-4 py-3 whitespace-nowrap font-medium">${item.ROTA || 'N/A'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_ENTRADA || '---'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_SAIDA || '---'}</td>
+        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA_SAIDA)}</td>
+        <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
+      </tr>
+    `;
     }
 
     html += `
-        </tbody>
-      </table>
-    </div>
-  `;
+        </tbody>
+      </table>
+    </div>
+  `;
 
     container.innerHTML = html;
 }
@@ -855,16 +854,14 @@ async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     });
     const json = await response.json().catch(() => ({}));
 
-    // AJUSTE: Não trata 'isDuplicate' como um erro aqui, deixa o handler decidir
-    if (!response.ok) {
-        // Se o backend retornar um erro (ex: 400, 500), mas ainda enviar 'isDuplicate',
-        // nós o interceptamos e o tratamos como um "sucesso" de duplicidade
-        if (json?.isDuplicate) {
-            console.warn('Backend retornou erro, mas foi identificado como duplicidade.');
-            return json;
-        }
+    // (Lógica de reimpressão)
+    // Se a resposta NÃO foi OK (ex: 400, 500) E NÃO é uma duplicidade, lance o erro
+    if (!response.ok && !json?.isDuplicate) {
         throw new Error(json?.error || 'Erro desconhecido');
     }
+
+    // Se foi OK (200), ou se foi um erro de duplicidade (que o backend tratou e retornou 200),
+    // apenas retorne o JSON.
     return json;
 }
 
@@ -929,8 +926,7 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     dom.sepUser.disabled = false;
 }
 
-// (Removido) - A função 'isDuplicateErrorMessage' não é mais necessária
-// O backend agora nos diz 'isDuplicate: true'
+// (Removido) - 'isDuplicateErrorMessage' não é mais necessária
 
 // ==========================
 // Submit — Separação (Este handler agora é apenas para ENTRADA MANUAL e LOTE)
@@ -976,7 +972,7 @@ async function handleSeparaçãoSubmit(e) {
     clearSepQrCanvas();
 
     try {
-        // (ASSUMINDO QUE O BACKEND FOI ALTERADO)
+        // (ESPERANDO QUE O BACKEND RETORNE 'isDuplicate: true' E status 200)
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
 
@@ -1047,11 +1043,11 @@ function ensureDockSelect() {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-      <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
-      <div class="mt-1">
-        <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
-      </div>
-    `;
+      <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
+      <div class="mt-1">
+        <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
+      </div>
+    `;
 
         const sel = wrap.querySelector('#car-dock-select');
         const opt0 = document.createElement('option');
@@ -1096,13 +1092,13 @@ function ensureIlhaSelect() {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-      <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
-      <div class="mt-1">
-        <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
-          <option value="">Carregando ilhas...</option>
-        </select>
-      </div>
-    `;
+      <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
+      <div class="mt-1">
+        <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
+          <option value="">Carregando ilhas...</option>
+        </select>
+      </div>
+    `;
 
         const dockBlock = dockSelect.closest('.mt-4');
         if (dockBlock && dockBlock.parentElement) {
@@ -1334,10 +1330,8 @@ export function init() {
     ensureIlhaSelect();
 
     dom.btnSeparação?.addEventListener('click', () => {
-        // Não reseta o usuário, mas limpa o scan e o status
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
-        // Foca no usuário se estiver vazio, senão foca no scan
         if (dom.sepUser && !dom.sepUser.value) {
             dom.sepUser.focus();
         } else {
@@ -1407,7 +1401,16 @@ export function init() {
     reorderControlsOverDashboard();
     fetchAndRenderDashboard();
 
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V14 - Reimpressão em duplicidade].');
+    // MELHORIA (Pré-carregamento do Cache)
+    fetch(FUNC_SEPARACAO_URL, {
+        method: 'POST',
+        headers: buildFunctionHeaders(),
+        body: JSON.stringify({action: 'preload'}) // Envia um payload especial
+    }).catch(err => {
+        console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
+    });
+
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V15 - Pré-cache + Scan Lento + Reimpressão].');
 }
 
 export function destroy() {

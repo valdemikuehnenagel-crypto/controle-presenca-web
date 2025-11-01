@@ -1,4 +1,4 @@
-// index.ts - Supabase Edge Function (V3 - Suporte a Reimpressão de Duplicados)
+// index.ts - Supabase Edge Function (V3 - Suporte a Reimpressão e Pré-Cache)
 
 import {serve} from "https://deno.land/std@0.177.0/http/server.ts";
 import * as djwt from "https://deno.land/x/djwt@v2.8/mod.ts";
@@ -20,7 +20,6 @@ interface CacheState {
     mapLastFetched: number | null; // UNIX timestamp em segundos
 }
 
-// O cache global persiste entre invocações "quentes" da função
 const globalCache: CacheState = {
     googleAccessToken: null,
     tokenExpiry: null,
@@ -44,7 +43,7 @@ function pemToBinary(pem: string): ArrayBuffer {
     return bytes.buffer;
 }
 
-// --- getGoogleAccessToken (agora com cache) ---
+// --- getGoogleAccessToken (com cache) ---
 async function getGoogleAccessToken(
     clientEmail: string,
     privateKey: string,
@@ -132,13 +131,13 @@ async function getPacoteMap(accessToken: string): Promise<Map<string, string>> {
 
     const sheetResponse = await fetch(endpoint, {headers});
 
-    // 3. (Otimização) Planilha não mudou, servidor retornou 304
+    // 3. (Otimização) Planilha não mudou (304)
     if (sheetResponse.status === 304) {
         globalCache.mapLastFetched = now; // Atualiza o tempo do cache
-        return globalCache.packageMap!; // Retorna o cache antigo (que ainda é válido)
+        return globalCache.packageMap!; // Retorna o cache antigo
     }
 
-    // 4. (Download) Planilha mudou ou é a primeira vez
+    // 4. (Download) Planilha mudou
     if (!sheetResponse.ok) {
         throw new Error(`Erro ao buscar na planilha: ${await sheetResponse.text()}`);
     }
@@ -147,10 +146,9 @@ async function getPacoteMap(accessToken: string): Promise<Map<string, string>> {
     const sheetData = await sheetResponse.json();
     const rows: string[][] = (sheetData.values || []).slice(1); // Pula cabeçalho
 
-    // 5. Constrói o novo Mapa (O(N))
+    // 5. Constrói o novo Mapa
     const newMap = new Map<string, string>();
     for (const row of rows) {
-        // Coluna A (ID Pacote) -> Coluna C (Ilha/Rota)
         if (row[0] && row[0].trim() && row[2] && row[2].trim()) {
             newMap.set(row[0].trim(), row[2].trim());
         }
@@ -165,7 +163,7 @@ async function getPacoteMap(accessToken: string): Promise<Map<string, string>> {
 }
 
 
-// --- Lógica Principal da Função (AJUSTADA PARA REIMPRESSÃO) ---
+// --- Lógica Principal da Função (AJUSTADA PARA REIMPRESSÃO E PRELOAD) ---
 serve(async (req) => {
     const corsHeaders = {
         "Access-Control-Allow-Origin": "*",
@@ -177,8 +175,28 @@ serve(async (req) => {
     let idPacoteStr = ""; // Definido no escopo externo para uso no catch
 
     try {
+        const reqBody = await req.json(); // Lê o body uma única vez
+
+        // --- MELHORIA (Pré-carregamento do Cache) ---
+        if (reqBody.action === 'preload') {
+            console.log('Cache warm-up requested.');
+            const clientEmail = Deno.env.get("GOOGLE_CLIENT_EMAIL");
+            const privateKey = Deno.env.get("GOOGLE_PRIVATE_KEY");
+            if (!clientEmail || !privateKey) throw new Error("Credenciais Google não configuradas (preload).");
+
+            const accessToken = await getGoogleAccessToken(clientEmail, privateKey);
+            await getPacoteMap(accessToken); // Força o cache
+
+            return new Response(
+                JSON.stringify({success: true, message: "Cache pre-loaded."}),
+                {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 200}
+            );
+        }
+        // --- Fim da Melhoria ---
+
+
         // --- 1. Captura e Conversão de Data ---
-        const {id_pacote, data_scan, usuario_entrada} = await req.json();
+        const {id_pacote, data_scan, usuario_entrada} = reqBody;
 
         if (!id_pacote) throw new Error("ID do pacote não fornecido.");
         if (!data_scan) throw new Error("Data da bipagem (data_scan) não fornecida.");
@@ -253,12 +271,13 @@ serve(async (req) => {
                 // É um pacote duplicado. Busca os dados existentes para reimpressão.
                 const {data: existingData, error: findError} = await supabase
                     .from("Carregamento")
-                    .select("NUMERACAO, ROTA, ID PACOTE")
+                    // MELHORIA (Erro Longo): Adiciona aspas na coluna "ID PACOTE"
+                    .select("NUMERACAO, ROTA, \"ID PACOTE\"")
                     .eq("ID PACOTE", idPacoteStr)
                     .single();
 
                 if (findError || !existingData) {
-                    // Isso não deveria acontecer se o erro 23505 foi disparado
+                    // Se a correção acima funcionar, este erro não deve mais acontecer
                     throw new Error(`Duplicidade detectada, mas falha ao buscar dados existentes: ${findError?.message}`);
                 }
 
