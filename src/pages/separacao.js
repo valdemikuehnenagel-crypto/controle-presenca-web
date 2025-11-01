@@ -113,12 +113,12 @@ function waitForPaint() {
     });
 }
 
-// MELHORIA 2: Adiciona função sleep
+// MELHORIA (Impressão Mobile): Adiciona função sleep
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// MELHORIA 2: Adiciona delay para impressão no mobile
+// MELHORIA (Impressão Mobile): Adiciona delay para impressão no mobile
 async function printEtiqueta() {
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'block';
     dom.sepQrArea && dom.sepQrArea.offsetHeight; // Força reflow
@@ -260,7 +260,7 @@ function showScannerFeedback(type, message, sticky = false) {
     if (type === 'success') {
         dom.scannerFeedbackOverlay.classList.add('bg-green-500');
         dom.scannerFeedbackCloseBtn.style.display = 'none';
-        // MELHORIA 3: Aumenta o tempo da mensagem de sucesso
+        // MELHORIA (Mensagem Rápida): Aumenta o tempo da mensagem de sucesso (Carregamento)
         setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 2500);
     } else {
         dom.scannerFeedbackOverlay.classList.add('bg-red-500');
@@ -530,23 +530,21 @@ async function onGlobalScanSuccess(decodedText) {
     showScannerConfirm(
         labelForConfirm,
         () => {
+            // MELHORIA (Fluxo Câmera): Modificado o 'separacao'
             if (target === 'separacao') {
-                const input = dom.sepScan;
-                if (input) {
-                    input.value = normalized || decodedText;
-                    stopGlobalScanner();
-                    const enterEvent = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true});
-                    input.dispatchEvent(enterEvent);
-                } else {
-                    state.globalScannerInstance?.resume();
-                }
+                // Chama o novo handler que processa DENTRO do modal da câmera
+                // Este handler é responsável pelo feedback (tela cheia) e por resumir/parar a câmera
+                handleSeparacaoFromScanner(normalized || decodedText);
+
             } else if (target === 'carregamento') {
                 handleCarregamentoFromScanner(normalized || decodedText).finally(() => {
+                    // No carregamento, apenas resumimos após a tentativa
                     state.globalScannerInstance?.resume();
                 });
             }
         },
         () => {
+            // Usuário clicou em "Reescanear"
             state.pendingDecodedText = null;
             state.globalScannerInstance?.resume();
         }
@@ -556,6 +554,77 @@ async function onGlobalScanSuccess(decodedText) {
 function onGlobalScanError(_) {
     // ignoramos erros transitórios de leitura
 }
+
+// ==========================
+// MELHORIA (Fluxo Câmera): Nova função para processar Separação via Câmera
+// ==========================
+async function handleSeparacaoFromScanner(idPacote) {
+    if (state.isSeparaçãoProcessing) return;
+
+    const usuarioEntrada = dom.sepUser?.value?.trim();
+
+    // 1. Valida se o usuário foi preenchido no modal anterior
+    if (!usuarioEntrada) {
+        showScannerFeedback('error', 'Colaborador não definido. Feche a câmera e digite seu nome.', true);
+        stopGlobalScanner(); // Para a câmera
+        setSepStatus('Digite o nome do colaborador', {error: true}); // Seta erro no modal principal
+        dom.sepUser?.focus();
+        return;
+    }
+
+    state.isSeparaçãoProcessing = true;
+    const dataScan = new Date().toISOString();
+
+    try {
+        // 2. Processa o pacote
+        const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
+        const {numeracao, ilha, insertedData, pacote} = result;
+        if (!numeracao) throw new Error('Resposta não contém numeração');
+
+        // 3. Sucesso
+        const idPacoteParaQr = pacote || idPacote;
+        const successMsg = `Sucesso! Manga ${numeracao} (Rota ${ilha})`;
+
+        // Gera o QR Code (necessário para a impressão)
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+
+        await printEtiqueta(); // Chama a impressão
+
+        // Atualiza o dashboard no fundo
+        if (insertedData && insertedData[0]) {
+            state.cacheData.unshift(insertedData[0]);
+            renderDashboard();
+        }
+
+        // Mostra feedback VERDE em tela cheia
+        showScannerFeedback('success', successMsg);
+
+        // Resome a câmera para o próximo scan
+        state.globalScannerInstance?.resume();
+
+    } catch (err) {
+        // 4. Erro
+        console.error('Erro Separação (Scanner):', err);
+        const friendly = isDuplicateErrorMessage(err?.message)
+            ? 'PACOTE JÁ BIPADO. TENTE O PRÓXIMO.'
+            : `ERRO: ${err.message || err}`;
+
+        // Mostra feedback VERMELHO em tela cheia (sticky)
+        showScannerFeedback('error', friendly, true);
+
+        // Em caso de erro, paramos a câmera e voltamos ao modal principal
+        stopGlobalScanner();
+
+        // Seta o erro no modal principal
+        setSepStatus(friendly, {error: true});
+        dom.sepScan.value = idPacote; // Coloca o código inválido no input
+        dom.sepScan.focus();
+
+    } finally {
+        state.isSeparaçãoProcessing = false;
+    }
+}
+
 
 // ==========================
 // Carregamento via scanner
@@ -835,7 +904,7 @@ function isDuplicateErrorMessage(msg = '') {
 }
 
 // ==========================
-// Submit — Separação
+// Submit — Separação (Este handler agora é apenas para ENTRADA MANUAL e LOTE)
 // ==========================
 async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
@@ -861,11 +930,13 @@ async function handleSeparaçãoSubmit(e) {
     const idsRaw = parseBulkEntries(raw);
     const ids = idsRaw.map(normalizeScanned).filter(Boolean);
 
+    // Processamento em LOTE (múltiplos códigos colados)
     if (ids.length > 1) {
         await processarSeparacaoEmMassa(ids, usuarioEntrada);
         return;
     }
 
+    // Processamento de item ÚNICO (digitado)
     const idPacote = ids[0];
     const dataScan = new Date().toISOString();
 
@@ -892,8 +963,8 @@ async function handleSeparaçãoSubmit(e) {
             renderDashboard();
         }
 
-        // MELHORIA 3: Removido 'startGlobalScanner' automático no sucesso
-        // (O usuário verá a mensagem de sucesso e decidirá se quer bipar outro)
+        // MELHORIA (Fluxo Manual): Câmera NÃO abre sozinha no sucesso manual
+        // O usuário vê a mensagem verde e decide o próximo passo.
 
     } catch (err) {
         console.error('Erro Separação:', err);
@@ -901,11 +972,10 @@ async function handleSeparaçãoSubmit(e) {
             ? 'Pacote já bipado e atrelado, passe para próximo!'
             : `Erro: ${err.message || err}`;
 
-        // MELHORIA 1: Força o status de erro (vermelho) mesmo para duplicatas
+        // MELHORIA (Duplicidade): Força o status de erro (vermelho)
         setSepStatus(friendly, {error: true});
 
-        // MELHORIA 1: Removido 'startGlobalScanner' automático no erro de duplicidade
-        // (O usuário verá a mensagem de erro vermelha até agir)
+        // MELHORIA (Duplicidade): Câmera NÃO abre sozinha no erro
 
     } finally {
         state.isSeparaçãoProcessing = false;
@@ -1295,7 +1365,7 @@ export function init() {
     reorderControlsOverDashboard();
     fetchAndRenderDashboard();
 
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V12 + leitura QR/Barra + normalização 11 dígitos].');
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V13 - Fluxo de câmera otimizado].');
 }
 
 export function destroy() {
