@@ -1484,7 +1484,8 @@ h3 {
     padding: 1.25rem;
     border-radius: 16px;
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
+    /* *** ESTA É A ALTERAÇÃO PRINCIPAL PARA O CORTE *** */
+    overflow: visible;
 }
 
 #hc-analise-abs .hcabs-card--full {
@@ -1520,6 +1521,32 @@ h3 {
     max-width: 250px;
     aspect-ratio: 1 / 1;
 }
+
+/* *** INÍCIO DAS NOVAS REGRAS PARA O GRÁFICO DE BARRAS "ACHATADO" *** */
+#hc-analise-abs .hcabs-bar-item {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+#hc-analise-abs .hcabs-bar-item h3 {
+    font-size: 1rem;
+    margin-bottom: 0;
+    text-align: center;
+}
+
+/* Regra mais importante: remove o aspect-ratio do gráfico de barras */
+#hc-analise-abs .hcabs-bar-item .hcabs-canvas-wrap {
+    position: relative;
+    width: 100%;
+    flex: 1 1 auto;
+    /* Dá uma altura mínima para o gráfico de barras não ficar achatado */
+    min-height: 280px;
+}
+/* *** FIM DAS NOVAS REGRAS *** */
+
 
 #hc-analise-abs .hcabs-canvas-wrap {
     position: relative;

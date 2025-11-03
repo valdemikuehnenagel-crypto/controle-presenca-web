@@ -36,16 +36,13 @@
         <button data-page="colaboradores" class="tab-btn active">Colaboradores</button>
         <button data-page="controle-diario" class="tab-btn">Controle Diário</button>
         <button data-page="hc-consolidado" class="tab-btn">HC Consolidado</button>
-        <button data-page="efetivacoes" class="tab-btn">Efetivações</button>
+        <button data-page="efetivacoes" class="tab-btn">Recursos Humanos</button>
         <button data-page="diarista" class="tab-btn">Diarista</button>
         <button data-page="painel-gerencial" class="tab-btn">Painel Gerencial</button>
         <button data-page="efetividade" class="tab-btn">Preenchimento</button>
         <button data-page="dados-operacionais" class="tab-btn">Dados Op.</button>
         <button data-page="gerotmeli" class="tab-btn">Gerot Meli</button>
-        <button data-page="separacao" class="tab-btn">Auditoria Mangas</button>
-
-
-    </div>
+       </div>
 
     <main id="content-area" class="flex-grow min-h-0 flex flex-col"></main>
 </div>
@@ -80,14 +77,14 @@
         <form id="editUserForm">
             <div class="form-grid">
                 <div class="form-group"><label for="editUserNome">Nome Completo</label><input type="text"
-                                                                                              id="editUserNome"
-                                                                                              required/></div>
+                                                                                             id="editUserNome"
+                                                                                             required/></div>
                 <div class="form-group"><label for="editUserUsuario">Usuário (Login)</label><input type="text"
-                                                                                                   id="editUserUsuario"
-                                                                                                   required/></div>
+                                                                                                 id="editUserUsuario"
+                                                                                                 required/></div>
                 <div class="form-group"><label for="editUserPin">Alterar PIN (deixe em branco para não
                     mudar)</label><input type="password" id="editUserPin" placeholder="Novo PIN de 6 dígitos"
-                                         maxlength="6"/></div>
+                                     maxlength="6"/></div>
                 <div class="form-group"><label for="editUserAprovacao">Status de Aprovação</label><select
                         id="editUserAprovacao" required>
                     <option value="SIM">Ativo</option>
@@ -132,7 +129,7 @@
         <form id="gestorForm">
             <div class="form-grid" style="grid-template-columns: 1fr;">
                 <div class="form-group"><label for="gestorNome">Nome Completo</label><input type="text" id="gestorNome"
-                                                                                            required/></div>
+                                                                                             required/></div>
                 <div class="form-group"><label>Selecione as Matrizes</label>
                     <div id="gestorMatrizesCheckbox" class="checkbox-container"><span>Carregando matrizes...</span>
                     </div>
@@ -355,9 +352,11 @@
                     <button type="button" id="editHistoricoBtn" class="btn-cancelar"
                             style="background:#2563eb;color:#fff;">Histórico
                     </button>
+
                     <button type="button" id="editEfetivarKnBtn" class="btn-cancelar"
                             style="background-color: #003369; color: #dbeafe;">Efetivar KN
                     </button>
+
                     <button type="button" id="editFeriasBtn" class="btn-cancelar"
                             style="background:#00a884;color:#fff;">Férias
                     </button>
@@ -702,29 +701,51 @@
     </div>
 </div>
 
-<div id="efetivarKnModal"
+<div id="fluxoEfetivacaoModal"
      class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="container !h-auto !w-auto max-w-2xl">
-        <h3>Efetivar Colaborador</h3>
-        <form id="efetivarKnForm">
-            <div class="form-grid" style="grid-template-columns: 1fr;">
+    <div class="container !h-auto !w-auto max-w-3xl">
+        <h3>Gerenciar Fluxo de Efetivação KN</h3>
+        <form id="fluxoEfetivacaoForm">
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
                 <div class="form-group">
-                    <label for="efetivarKnNome">Colaborador</label>
-                    <input type="text" id="efetivarKnNome" readonly>
+                    <label for="fluxoEfetivacaoNome">Colaborador</label>
+                    <input type="text" id="fluxoEfetivacaoNome" readonly class="bg-gray-100">
                 </div>
                 <div class="form-group">
-                    <label for="efetivarKnData">Data de Efetivação (Admissão KN)</label>
-                    <input type="date" id="efetivarKnData" required>
+                    <label for="fluxoNumero">Número do Fluxo</label>
+                    <input type="text" id="fluxoNumero" placeholder="Insira o nº do fluxo...">
+                </div>
+                <div class="form-group">
+                    <label for="fluxoDataAbertura">Data de Abertura do Fluxo</label>
+                    <input type="date" id="fluxoDataAbertura">
+                </div>
+                <div class="form-group">
+                    <label for="fluxoAdmissaoKnData">Data de Admissão KN (para finalizar)</label>
+                    <input type="date" id="fluxoAdmissaoKnData">
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label for="fluxoObservacao">Observação</label>
+                    <textarea id="fluxoObservacao" rows="3" placeholder="Documentação pendente, etc..."></textarea>
                 </div>
             </div>
-            <div class="form-actions" style="justify-content:flex-end;">
-                <button type="button" id="efetivarKnCancelarBtn" class="btn-cancelar">Cancelar</button>
-                <button type="submit" class="btn-salvar">Confirmar Efetivação</button>
+
+            <div class="form-actions" style="justify-content:space-between; margin-top: 16px;">
+                <div class="actions-left">
+                    <button type="button" id="fluxoCancelarBtn" class="btn-cancelar"
+                            style="background:#D81D1D; color:#fff;">Cancelar Fluxo
+                    </button>
+                </div>
+                <div class="actions-right" style="display:flex; gap:8px;">
+                    <button type="button" id="fluxoCancelarEfetivacaoBtn" class="btn-cancelar">Sair (Sem Salvar)</button>
+                    <button type="button" id="fluxoGerarBtn" class="btn-salvar"
+                            style="background-color: #003369; color: #dbeafe;">Gerar Fluxo
+                    </button>
+                    <button type="button" id="fluxoFinalizarBtn" class="btn-salvar">Finalizar Fluxo</button>
+                </div>
             </div>
         </form>
     </div>
 </div>
-
 <div id="dsrModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="container !h-auto !w-auto max-w-lg">
         <h3>Selecione os Dias de DSR</h3>

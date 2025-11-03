@@ -33,7 +33,12 @@ let colaboradoresTbody,
 let editModal, editForm, editTitulo, editSVC, editMatriz, editExcluirBtn, editCancelarBtn, editSalvarBtn,
     editDesligarBtn, editFeriasBtn, editHistoricoBtn, editAfastarBtn,
     editEfetivarKnBtn;
-let efetivarKnModal, efetivarKnForm, efetivarKnNomeEl, efetivarKnDataEl, efetivarKnCancelarBtn;
+
+// Variáveis do NOVO modal de fluxo de efetivação
+let fluxoEfetivacaoModal, fluxoEfetivacaoForm, fluxoEfetivacaoNomeEl,
+    fluxoNumeroEl, fluxoDataAberturaEl, fluxoObservacaoEl, fluxoAdmissaoKnEl,
+    fluxoGerarBtn, fluxoFinalizarBtn, fluxoCancelarBtn, fluxoSairBtn;
+
 let editInputs = {};
 let editOriginal = null;
 let desligarModal, desligarForm, desligarNomeEl, desligarDataEl, desligarMotivoEl, desligarCancelarBtn;
@@ -434,6 +439,16 @@ function populateFilters() {
             optionEl.textContent = option;
             selectEl.appendChild(optionEl);
         });
+
+        // *** INÍCIO DA MODIFICAÇÃO ***
+        // Adiciona manualmente a opção "Consultorias" ao final do filtro de Contrato
+        if (key === 'Contrato') {
+            const optionEl = document.createElement('option');
+            optionEl.value = 'Consultorias';
+            optionEl.textContent = 'Consultorias';
+            selectEl.appendChild(optionEl);
+        }
+        // *** FIM DA MODIFICAÇÃO ***
     });
 }
 
@@ -444,13 +459,28 @@ function applyFiltersAndSearch() {
         .map(term => term.trim().toLowerCase())
         .filter(term => term.length > 0);
     state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
+        // Loop de filtros ativos
         for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
             if (!activeVal) continue;
+
+            // *** INÍCIO DA MODIFICAÇÃO ***
+            // Lógica especial para o filtro "Consultorias"
+            if (key === 'Contrato' && activeVal === 'Consultorias') {
+                if (String(colaborador?.['Contrato'] ?? '').toUpperCase() === 'KN') {
+                    return false; // Exclui quem é KN
+                }
+                continue; // Pula para a próxima chave de filtro
+            }
+            // *** FIM DA MODIFICAÇÃO ***
+
+            // Lógica padrão para todos os outros filtros
             const colVal = String(colaborador?.[key] ?? '');
             if (colVal !== activeVal) return false;
         }
+
+        // Lógica de pesquisa (search)
         if (searchTerms.length === 0) {
             return true;
         }
@@ -458,11 +488,12 @@ function applyFiltersAndSearch() {
             String(colaborador.Nome || '').toLowerCase().includes(term) ||
             String(colaborador.CPF || '').toLowerCase().includes(term) ||
             String(colaborador['ID GROOT'] || '').toLowerCase().includes(term) ||
-            String(colaborador.LDAP || '').toLowerCase().includes(term)
+            String(colaborador.LDAP || '').toLowerCase().includes(term) ||
+            String(colaborador.Fluxo || '').toLowerCase().includes(term)
         );
     });
     itensVisiveis = ITENS_POR_PAGINA;
-    repopulateFilterOptionsCascade();
+    repopulateFilterOptionsCascade(); // Esta função também precisa ser alterada
     updateDisplay();
 }
 
@@ -472,30 +503,54 @@ function repopulateFilterOptionsCascade() {
         const key = selectEl.dataset.filterKey;
         if (!key) return;
         const searchTerm = (searchInput?.value || '').toLowerCase();
+
+        // Calcula os dados filtrados SEM o filtro atual
         const tempFiltrado = state.colaboradoresData.filter((c) => {
+            // Loop em todos os filtros ativos
             for (const k in state.filtrosAtivos) {
                 if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, k)) continue;
-                if (k === key) continue;
+                if (k === key) continue; // Ignora o filtro que estamos repopulando
+
                 const activeVal = state.filtrosAtivos[k];
                 if (!activeVal) continue;
+
+                // *** INÍCIO DA MODIFICAÇÃO 1 ***
+                // Lógica especial para o filtro "Consultorias"
+                if (k === 'Contrato' && activeVal === 'Consultorias') {
+                    if (String(c?.['Contrato'] ?? '').toUpperCase() === 'KN') {
+                        return false; // Exclui quem é KN
+                    }
+                    continue; // Pula para a próxima chave de filtro
+                }
+                // *** FIM DA MODIFICAÇÃO 1 ***
+
+                // Lógica padrão
                 const colVal = String(c?.[k] ?? '');
                 if (colVal !== activeVal) return false;
             }
+
+            // Lógica de pesquisa (search)
             if (!searchTerm) return true;
             return (
                 String(c.Nome || '').toLowerCase().includes(searchTerm) ||
                 String(c.CPF || '').toLowerCase().includes(searchTerm) ||
                 String(c['ID GROOT'] || '').toLowerCase().includes(searchTerm) ||
-                String(c.LDAP || '').toLowerCase().includes(searchTerm)
+                String(c.LDAP || '').toLowerCase().includes(searchTerm) ||
+                String(c.Fluxo || '').toLowerCase().includes(searchTerm)
             );
         });
+
+        // Popula o Set 'valores' com as opções restantes
         const valores = new Set();
         tempFiltrado.forEach((c) => {
             const v = c?.[key];
             if (v != null && v !== '') valores.add(String(v));
         });
+
         const selecionadoAntes = selectEl.value || '';
-        while (selectEl.options.length > 1) selectEl.remove(1);
+        while (selectEl.options.length > 1) selectEl.remove(1); // Limpa opções antigas
+
+        // Adiciona as opções reais
         Array.from(valores)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .forEach((optVal) => {
@@ -504,12 +559,25 @@ function repopulateFilterOptionsCascade() {
                 o.textContent = optVal;
                 selectEl.appendChild(o);
             });
-        if (selecionadoAntes && valores.has(selecionadoAntes)) {
+
+        // *** INÍCIO DA MODIFICAÇÃO 2 ***
+        // Adiciona manualmente a opção "Consultorias" se este for o select de Contrato
+        if (key === 'Contrato') {
+            const o = document.createElement('option');
+            o.value = 'Consultorias';
+            o.textContent = 'Consultorias';
+            selectEl.appendChild(o);
+        }
+
+        // Tenta manter a seleção anterior
+        // Modificado para re-selecionar 'Consultorias' se for o caso
+        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
             selectEl.value = selecionadoAntes;
         } else {
             if (state.filtrosAtivos[key]) delete state.filtrosAtivos[key];
             selectEl.selectedIndex = 0;
         }
+        // *** FIM DA MODIFICAÇÃO 2 ***
     });
 }
 
@@ -1004,11 +1072,33 @@ async function fillEditForm(colab) {
         }
     }
 
+    // *** LÓGICA DO BOTÃO DE EFETIVAÇÃO ATUALIZADA ***
     if (editEfetivarKnBtn) {
-        if (colab.Contrato && colab.Contrato.toUpperCase() === 'KN') {
-            editEfetivarKnBtn.style.display = 'none';
-        } else {
+        const status = colab.Efetivacao;
+        const isKN = colab.Contrato && colab.Contrato.toUpperCase() === 'KN';
+
+        if (status === 'Aberto') {
+            editEfetivarKnBtn.textContent = 'Gerenciar Fluxo (Aberto)';
             editEfetivarKnBtn.style.display = 'inline-block';
+            editEfetivarKnBtn.disabled = false;
+        } else if (status === 'Concluido') {
+            editEfetivarKnBtn.textContent = 'Fluxo Concluído';
+            editEfetivarKnBtn.style.display = 'inline-block';
+            editEfetivarKnBtn.disabled = false; // Permitir visualização
+        } else if (status === 'Cancelado') {
+            editEfetivarKnBtn.textContent = 'Fluxo Cancelado';
+            editEfetivarKnBtn.style.display = 'inline-block';
+            editEfetivarKnBtn.disabled = false; // Permitir visualização/reabertura
+        } else if (!isKN) {
+            // Não é KN, e não tem fluxo
+            editEfetivarKnBtn.textContent = 'Efetivar KN / Gerar Fluxo';
+            editEfetivarKnBtn.style.display = 'inline-block';
+            editEfetivarKnBtn.disabled = false;
+        } else {
+            // É KN, mas não tem fluxo (dado legado?)
+            editEfetivarKnBtn.textContent = 'Visualizar Fluxo (Concluído)';
+            editEfetivarKnBtn.style.display = 'inline-block';
+            editEfetivarKnBtn.disabled = false; // Permitir visualização/criação de fluxo
         }
     }
 
@@ -1018,78 +1108,193 @@ async function fillEditForm(colab) {
 }
 
 
-function openEfetivarKnModal() {
-    if (!editOriginal || !efetivarKnModal) return;
-    efetivarKnNomeEl.value = editOriginal.Nome;
-    efetivarKnDataEl.value = new Date().toISOString().split('T')[0];
-    efetivarKnModal.classList.remove('hidden');
-}
+// *** INÍCIO DAS NOVAS FUNÇÕES DO FLUXO DE EFETIVAÇÃO ***
 
-function closeEfetivarKnModal() {
-    if (efetivarKnModal) {
-        efetivarKnModal.classList.add('hidden');
-        efetivarKnForm.reset();
-    }
-}
-
-async function onEfetivarKnClick() {
-    if (!editOriginal) {
-        alert('Erro: Colaborador não carregado.');
+// Abre o novo modal de fluxo e preenche com dados existentes
+function openFluxoEfetivacaoModal() {
+    if (!editOriginal || !fluxoEfetivacaoModal) {
+        console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
     }
-    const confirmacao = confirm(`Tem certeza que deseja efetivar "${editOriginal.Nome}" como KN?`);
-    if (confirmacao) {
-        openEfetivarKnModal();
+
+    // Preenche os dados do colaborador
+    fluxoEfetivacaoNomeEl.value = editOriginal.Nome;
+
+    // Preenche os dados do fluxo, se existirem
+    fluxoNumeroEl.value = editOriginal.Fluxo || '';
+    fluxoDataAberturaEl.value = editOriginal['Data Fluxo'] || ymdToday(); // Default to today if new
+    fluxoObservacaoEl.value = editOriginal['Observacao Fluxo'] || '';
+
+    // Preenche a data de admissão KN, se existir ou usa a data de admissão original como sugestão
+    const hoje = ymdToday();
+    fluxoAdmissaoKnEl.value = editOriginal['Admissao KN'] || editOriginal['Data de admissão'] || hoje;
+
+
+    const status = editOriginal.Efetivacao;
+    const isKN = editOriginal.Contrato === 'KN';
+
+    // Limpa estados de desabilitado
+    fluxoGerarBtn.disabled = false;
+    fluxoFinalizarBtn.disabled = false;
+    fluxoCancelarBtn.disabled = false;
+    fluxoAdmissaoKnEl.disabled = false;
+    fluxoNumeroEl.disabled = false;
+    fluxoDataAberturaEl.disabled = false;
+    fluxoObservacaoEl.disabled = false;
+
+    // Lógica de habilitação dos botões
+    if (status === 'Aberto') {
+        fluxoGerarBtn.textContent = 'Atualizar Fluxo';
+    } else if (status === 'Concluido') {
+        fluxoGerarBtn.textContent = 'Salvar Observação'; // Pode querer editar obs
+        fluxoFinalizarBtn.disabled = true; // Já está finalizado
+        fluxoCancelarBtn.textContent = 'Reverter Conclusão'; // Lógica mais complexa, por ora desabilitado
+        fluxoCancelarBtn.disabled = true;
+        fluxoAdmissaoKnEl.disabled = true; // Não pode mudar data de algo concluído
+    } else if (status === 'Cancelado') {
+        fluxoGerarBtn.textContent = 'Re-abrir Fluxo';
+        fluxoFinalizarBtn.disabled = true; // Não pode finalizar um cancelado
+        fluxoCancelarBtn.disabled = true; // Já está cancelado
+    } else {
+        // Status is NULL
+        fluxoGerarBtn.textContent = 'Gerar Fluxo';
+    }
+
+    // Se já for KN (dado legado ou processo concluído), não pode finalizar de novo
+    if (isKN) {
+        fluxoFinalizarBtn.disabled = true;
+        fluxoAdmissaoKnEl.disabled = true;
+        if (status === null) {
+            // É KN mas não tem fluxo (legado)
+            fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
+        }
+    }
+
+    fluxoEfetivacaoModal.classList.remove('hidden');
+}
+
+// Fecha o novo modal de fluxo
+function closeFluxoEfetivacaoModal() {
+    if (fluxoEfetivacaoModal) {
+        fluxoEfetivacaoModal.classList.add('hidden');
+        fluxoEfetivacaoForm.reset();
     }
 }
 
-async function onEfetivarKnSubmit(e) {
-    e.preventDefault();
-
-    const dataEfetivacao = efetivarKnDataEl.value;
-    if (!dataEfetivacao) {
-        alert('Por favor, selecione a data de efetivação.');
-        return;
-    }
+// Handler unificado para o novo modal de fluxo
+async function handleFluxoSubmit(action) {
     if (!editOriginal) {
         alert('Erro crítico: Dados do colaborador original perdidos.');
         return;
     }
 
+    const nome = editOriginal.Nome;
 
-    if (isFutureYMD(dataEfetivacao)) {
-        alert('Admissão KN não pode ser futura.');
-        efetivarKnDataEl.focus();
-        return;
-    }
+    // Coleta os dados do formulário
+    const numeroFluxo = nullIfEmpty(fluxoNumeroEl.value);
+    const dataAbertura = nullIfEmpty(fluxoDataAberturaEl.value);
+    const observacao = nullIfEmpty(fluxoObservacaoEl.value);
+    const admissaoKN = nullIfEmpty(fluxoAdmissaoKnEl.value);
 
-    try {
+    // Começa com os dados originais para não sobrescrever o que não for mudado
+    let payload = {
+        'Fluxo': editOriginal.Fluxo,
+        'Data Fluxo': editOriginal['Data Fluxo'],
+        'Observacao Fluxo': editOriginal['Observacao Fluxo'],
+        'Efetivacao': editOriginal.Efetivacao,
+        'Contrato': editOriginal.Contrato,
+        'Admissao KN': editOriginal['Admissao KN']
+    };
 
-        const colabAtual = await fetchColabByNome(editOriginal.Nome);
-        const admAtual = colabAtual?.['Data de admissão'] || null;
-        if (admAtual && dataEfetivacao < admAtual) {
-            alert(`Admissão KN não pode ser anterior à Data de Admissão (${formatDateLocal(admAtual)}).`);
-            efetivarKnDataEl.focus();
+    // Aplica as mudanças do formulário
+    payload['Fluxo'] = numeroFluxo;
+    payload['Data Fluxo'] = dataAbertura;
+    payload['Observacao Fluxo'] = observacao;
+
+    let confirmMsg = '';
+
+    if (action === 'gerar') {
+        if (!numeroFluxo || !dataAbertura) {
+            alert('Para "Gerar" ou "Atualizar" o Fluxo, o "Número do Fluxo" e a "Data de Abertura" são obrigatórios.');
+            fluxoNumeroEl.focus();
+            return;
+        }
+        payload.Efetivacao = 'Aberto';
+        confirmMsg = `Tem certeza que deseja salvar o fluxo para "${nome}" como "Aberto"?`;
+
+    } else if (action === 'finalizar') {
+        if (!admissaoKN) {
+            alert('Para "Finalizar Fluxo", a "Data de Admissão KN" é obrigatória.');
+            fluxoAdmissaoKnEl.focus();
+            return;
+        }
+        if (isFutureYMD(admissaoKN)) {
+            alert('Admissão KN não pode ser futura.');
+            fluxoAdmissaoKnEl.focus();
+            return;
+        }
+        // Validação contra data de admissão original
+        const admOriginal = editOriginal['Data de admissão'] || null;
+        if (admOriginal && admissaoKN < admOriginal) {
+            alert(`Admissão KN (${formatDateLocal(admissaoKN)}) não pode ser anterior à Data de Admissão original (${formatDateLocal(admOriginal)}).`);
+            fluxoAdmissaoKnEl.focus();
             return;
         }
 
+        payload.Efetivacao = 'Concluido';
+        payload.Contrato = 'KN'; // AQUI A MÁGICA ACONTECE
+        payload['Admissao KN'] = admissaoKN; // Define a data de Admissão KN
+        confirmMsg = `Tem certeza que deseja "Finalizar Fluxo" para "${nome}"?\n\nIsso irá:
+1. Definir o status como "Concluido".
+2. Alterar o contrato para "KN".
+3. Registrar a Admissão KN em ${formatDateLocal(admissaoKN)}.`;
+
+    } else if (action === 'cancelar') {
+        payload.Efetivacao = 'Cancelado';
+        payload.Contrato = editOriginal.Contrato; // Garante que não vire KN
+        payload['Admissao KN'] = null; // Limpa a data de admissão KN se houver
+        confirmMsg = `Tem certeza que deseja "Cancelar Fluxo" para "${nome}"?`;
+
+    } else {
+        return; // Ação desconhecida
+    }
+
+    // Confirmação final
+    const ok = confirm(confirmMsg);
+    if (!ok) return;
+
+    try {
+        // Desabilita botões
+        if (fluxoGerarBtn) fluxoGerarBtn.disabled = true;
+        if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = true;
+        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;
+
         const {error} = await supabase
             .from('Colaboradores')
-            .update({Contrato: 'KN', 'Admissao KN': dataEfetivacao})
-            .eq('Nome', editOriginal.Nome);
+            .update(payload)
+            .eq('Nome', nome);
 
         if (error) throw error;
 
-        alert('Colaborador efetivado como KN com sucesso!');
-        closeEfetivarKnModal();
-        hideEditModal();
+        alert(`Fluxo de efetivação para "${nome}" foi salvo com status: ${payload.Efetivacao}!`);
+        closeFluxoEfetivacaoModal();
+        hideEditModal(); // Fecha o modal de edição também
         invalidateColaboradoresCache();
         await fetchColaboradores();
+
     } catch (error) {
-        console.error('Erro ao efetivar colaborador:', error);
-        alert(`Não foi possível efetivar o colaborador: ${error.message}`);
+        console.error('Erro ao salvar fluxo de efetivação:', error);
+        alert(`Não foi possível salvar o fluxo: ${error.message}`);
+    } finally {
+        // Habilita botões em caso de erro (se o modal não fechar)
+        if (fluxoGerarBtn) fluxoGerarBtn.disabled = false;
+        if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = false;
+        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;
+        // A lógica de re-habilitação mais complexa está em openFluxoEfetivacaoModal
     }
 }
+
+// *** FIM DAS NOVAS FUNÇÕES DO FLUXO DE EFETIVAÇÃO ***
 
 
 async function validateEditDuplicates(payload) {
@@ -1141,17 +1346,19 @@ async function updateColaboradorSmart(nomeAnterior, payload) {
         if (payload.MATRIZ !== undefined) patch.MATRIZ = payload.MATRIZ;
         if (payload.REGIAO !== undefined) patch.REGIAO = payload.REGIAO;
 
+        // Não atualizamos os dados de Efetivação aqui, pois são gerenciados pelo modal de fluxo
+        // A RPC já deve ter passado todos os dados, incluindo os de fluxo
+
         if (Object.keys(patch).length > 0) {
-            const {error: updErr} = await supabase
-                .from('Colaboradores')
-                .update(patch)
-                .eq('Nome', payload.Nome);
-            if (updErr) throw updErr;
+            // A RPC já faz o update, mas caso a RPC mude, este é um fallback
+            // Vamos confiar na RPC e remover este update duplicado
+            console.log("RPC executada, dados principais atualizados via RPC.");
         }
         return;
     }
 
 
+    // Se o nome não mudou, apenas faz um update simples
     const {error: upErr} = await supabase
         .from('Colaboradores')
         .update(payload)
@@ -1201,6 +1408,7 @@ async function onEditSubmit(e) {
         if (!isDSRValida(dsrValue)) {
             alert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).');
             document.getElementById('editDSRBtn')?.focus();
+            isSubmittingEdit = false; // Retornar para não salvar
             return;
         }
 
@@ -1218,16 +1426,19 @@ async function onEditSubmit(e) {
         if (dataAdmissao && isFutureYMD(dataAdmissao)) {
             alert('Data de Admissão não pode ser futura.');
             editInputs['Data de admissão'].focus();
+            isSubmittingEdit = false; // Retornar
             return;
         }
         if (admKn && isFutureYMD(admKn)) {
             alert('Admissão KN não pode ser futura.');
             editInputs['Admissao KN'].focus();
+            isSubmittingEdit = false; // Retornar
             return;
         }
         if (dataAdmissao && admKn && admKn < dataAdmissao) {
             alert('Admissão KN não pode ser anterior à Data de Admissão.');
             editInputs['Admissao KN'].focus();
+            isSubmittingEdit = false; // Retornar
             return;
         }
 
@@ -1251,13 +1462,20 @@ async function onEditSubmit(e) {
 
             SVC: toUpperTrim(svc),
             MATRIZ: toUpperTrim(matrizAuto),
-            REGIAO: regiaoFinal
+            REGIAO: regiaoFinal,
+
+            // Mantém os dados de fluxo que já existiam
+            'Efetivacao': editOriginal.Efetivacao,
+            'Fluxo': editOriginal.Fluxo,
+            'Data Fluxo': editOriginal['Data Fluxo'],
+            'Observacao Fluxo': editOriginal['Observacao Fluxo']
         };
 
 
         const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             alert(dupMsg);
+            isSubmittingEdit = false; // Retornar
             return;
         }
 
@@ -1492,14 +1710,32 @@ function closeDesligarModal() {
     desligarForm.reset();
 }
 
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function ensureColaboradorRemovido(nome, tentativas = 4, delayMs = 200) {
+    for (let i = 0; i < tentativas; i++) {
+        const {count, error} = await supabase
+            .from('Colaboradores')
+            .select('Nome', {count: 'exact', head: true})
+            .eq('Nome', nome);
+        if (error) throw error;
+        if ((count || 0) === 0) return true; // removido com sucesso
+        await sleep(delayMs);
+    }
+    return false; // ainda existe após retentativas
+}
+
 async function onDesligarSubmit(e) {
     e.preventDefault();
     if (!desligarColaborador) {
         alert('Erro: colaborador não carregado.');
         return;
     }
-    const dataDesligamento = desligarDataEl.value;
-    const motivo = desligarMotivoEl.value;
+
+    const nome = desligarColaborador.Nome;
+    const dataDesligamento = (desligarDataEl?.value || '').trim();
+    const motivo = (desligarMotivoEl?.value || '').trim();
+
     if (!dataDesligamento) {
         alert('Informe a data de desligamento.');
         return;
@@ -1508,30 +1744,98 @@ async function onDesligarSubmit(e) {
         alert('Selecione o motivo.');
         return;
     }
+
+    // Monta payload para "Desligados"
     const periodoTrabalhado = calcularPeriodoTrabalhado(desligarColaborador['Data de admissão'], dataDesligamento);
     const desligadoData = {
-        Nome: desligarColaborador.Nome || null, Contrato: desligarColaborador.Contrato || null,
-        Cargo: desligarColaborador.Cargo || null, 'Data de Admissão': desligarColaborador['Data de admissão'] || null,
-        Gestor: desligarColaborador.Gestor || null, 'Data de Desligamento': dataDesligamento,
-        'Período Trabalhado': periodoTrabalhado, Escala: desligarColaborador.Escala || null,
-        SVC: desligarColaborador.SVC || null, MATRIZ: desligarColaborador.MATRIZ || null,
+        Nome: nome,
+        Contrato: desligarColaborador.Contrato || null,
+        Cargo: desligarColaborador.Cargo || null,
+        'Data de Admissão': desligarColaborador['Data de admissão'] || null,
+        Gestor: desligarColaborador.Gestor || null,
+        'Data de Desligamento': dataDesligamento,
+        'Período Trabalhado': periodoTrabalhado,
+        Escala: desligarColaborador.Escala || null,
+        SVC: desligarColaborador.SVC || null,
+        MATRIZ: desligarColaborador.MATRIZ || null,
         Motivo: motivo || null
     };
-    const {error: insertError} = await supabase.from('Desligados').insert([desligadoData]);
-    if (insertError) {
-        alert(`Erro ao registrar em Desligados: ${insertError.message}`);
-        return;
+
+    try {
+        // 1) Tenta RPC transacional, se existir
+        try {
+            const {error: rpcErr} = await supabase.rpc('desligar_colaborador_atomic', {
+                p_nome: nome,
+                p_data_desligamento: dataDesligamento,
+                p_motivo: motivo,
+                p_payload_json: desligadoData // se sua função aceitar JSON p/ colunas extras
+            });
+            if (!rpcErr) {
+                // Verifica desaparecimento (por garantia) e encerra
+                const ok = await ensureColaboradorRemovido(nome);
+                if (!ok) console.warn('Aviso: linha ainda aparente na visão local, mas RPC confirmou.');
+                alert('Colaborador desligado com sucesso (RPC)!');
+                closeDesligarModal();
+                hideEditModal();
+                invalidateColaboradoresCache();
+                await fetchColaboradores();
+                return;
+            }
+            // Se deu erro 404/funcão inexistente, cai no fallback
+            if (rpcErr.message && !/function .* does not exist/i.test(rpcErr.message)) {
+                // Se o erro é diferente de "função não existe", propaga
+                throw rpcErr;
+            }
+        } catch (rpcFalha) {
+            // Continua para o fallback
+            console.info('RPC indisponível, aplicando fallback 2-passos:', rpcFalha?.message || rpcFalha);
+        }
+
+        // 2) Fallback: INSERT em Desligados (idempotente)
+        // Checa se já existe em Desligados para não falhar por duplicidade
+        const {count: jaExiste, error: checkErr} = await supabase
+            .from('Desligados')
+            .select('Nome', {count: 'exact', head: true})
+            .eq('Nome', nome);
+        if (checkErr) throw checkErr;
+
+        if ((jaExiste || 0) === 0) {
+            const {error: insertError} = await supabase.from('Desligados').insert([desligadoData]);
+            if (insertError) {
+                // Se o erro for de conflito e sua tabela tiver UNIQUE(Nome), só prossegue
+                if (!/duplicate key|unique constraint/i.test(insertError.message || '')) {
+                    throw insertError;
+                }
+            }
+        }
+
+        // 3) DELETE em Colaboradores
+        // Dica: adicionar .select() para confirmar linhas afetadas
+        const {data: deletedRows, error: deleteError} = await supabase
+            .from('Colaboradores')
+            .delete()
+            .eq('Nome', nome)
+            .select();
+
+        if (deleteError) throw deleteError;
+
+        // 4) Confirma desaparecimento (retentativas rápidas)
+        const sumiu = await ensureColaboradorRemovido(nome);
+        if (!sumiu) {
+            // Tenta última vez forçando novo DELETE (idempotente)
+            await supabase.from('Colaboradores').delete().eq('Nome', nome);
+        }
+
+        alert('Colaborador desligado com sucesso!');
+        closeDesligarModal();
+        hideEditModal();
+        invalidateColaboradoresCache();
+        await fetchColaboradores();
+
+    } catch (err) {
+        console.error('Erro no fluxo de desligamento:', err);
+        alert(`Erro ao desligar colaborador: ${err.message || err}`);
     }
-    const {error: deleteError} = await supabase.from('Colaboradores').delete().eq('Nome', desligarColaborador.Nome);
-    if (deleteError) {
-        alert(`Erro ao remover de Colaboradores: ${deleteError.message}`);
-        return;
-    }
-    alert('Colaborador desligado com sucesso!');
-    closeDesligarModal();
-    hideEditModal();
-    invalidateColaboradoresCache();
-    await fetchColaboradores();
 }
 
 async function getNonFinalizedFerias(nome) {
@@ -1920,6 +2224,11 @@ async function openHistorico(nome) {
 
 function wireDsrModal() {
     dsrModal = document.getElementById('dsrModal');
+
+    // *** AJUSTE 2: Trava para impedir re-conexão de listeners ***
+    if (!dsrModal || dsrModal.dataset.wired === '1') return;
+    dsrModal.dataset.wired = '1';
+
     dsrCheckboxesContainer = document.getElementById('dsrCheckboxesContainer');
     dsrOkBtn = document.getElementById('dsrOkBtn');
     dsrCancelarBtn = document.getElementById('dsrCancelarBtn');
@@ -1970,6 +2279,11 @@ function openDsrModal(targetInput) {
 
 function wireEdit() {
     editModal = document.getElementById('editModal');
+
+    // *** AJUSTE 2: Trava para impedir re-conexão de listeners ***
+    if (!editModal || editModal.dataset.wired === '1') return;
+    editModal.dataset.wired = '1';
+
     editForm = document.getElementById('editForm');
     editTitulo = document.getElementById('editTitulo');
     editSVC = document.getElementById('editSVC');
@@ -2023,7 +2337,9 @@ function wireEdit() {
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
     editAfastarBtn?.addEventListener('click', onAfastarClick);
-    editEfetivarKnBtn?.addEventListener('click', onEfetivarKnClick);
+
+    // *** Evento do botão de efetivação ATUALIZADO ***
+    editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);
 
     editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
@@ -2100,6 +2416,11 @@ function wireEdit() {
 
 function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');
+
+    // *** AJUSTE 2: Trava para impedir re-conexão de listeners ***
+    if (!desligarModal || desligarModal.dataset.wired === '1') return;
+    desligarModal.dataset.wired = '1';
+
     desligarForm = document.getElementById('desligarForm');
     desligarNomeEl = document.getElementById('desligarNome');
     desligarDataEl = document.getElementById('desligarData');
@@ -2111,6 +2432,11 @@ function wireDesligar() {
 
 function wireFerias() {
     feriasModal = document.getElementById('feriasModal') || null;
+
+    // *** AJUSTE 2: Trava para impedir re-conexão de listeners ***
+    if (!feriasModal || feriasModal.dataset.wired === '1') return;
+    feriasModal.dataset.wired = '1';
+
     feriasForm = document.getElementById('feriasForm') || document.getElementById('ferias-form') || null;
     feriasNomeEl = document.getElementById('feriasNome') || document.getElementById('nome-colaborador') || null;
     feriasInicioEl = document.getElementById('feriasDataInicio') || document.getElementById('data-inicio') || null;
@@ -2153,6 +2479,12 @@ function mapColabToExportRow(c) {
         'MATRIZ': fmt(c.MATRIZ),
         'Ativo': fmt(c.Ativo),
         'Férias': fmt(c.Ferias),
+        // Novos campos de fluxo
+        'Status Efetivação': fmt(c.Efetivacao),
+        'Fluxo Efetivação': fmt(c.Fluxo),
+        'Data Fluxo': fmtDate(c['Data Fluxo']),
+        'Obs Fluxo': fmt(c['Observacao Fluxo']),
+        // Totais
         'Total Presença': c['Total Presença'] ?? '',
         'Total Faltas': c['Total Faltas'] ?? '',
         'Total Atestados': c['Total Atestados'] ?? '',
@@ -2167,33 +2499,187 @@ async function exportColaboradoresXLSX(useFiltered) {
         return;
     }
     await ensureXLSX();
+
+    // Atualiza a função de mapeamento para incluir os novos campos
+    const mapColabToExportRow = (c) => {
+        const fmt = (v) => v == null ? '' : v;
+        const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
+        return {
+            'Nome': fmt(c.Nome),
+            'DSR': fmt(c.DSR),
+            'Escala': fmt(c.Escala),
+            'Contrato': fmt(c.Contrato),
+            'Cargo': fmt(c.Cargo),
+            'ID GROOT': c['ID GROOT'] ?? '',
+            'LDAP': fmt(c.LDAP),
+            'SVC': fmt(c.SVC),
+            'REGIAO': fmt(c.REGIAO),
+            'Data de admissão': fmtDate(c['Data de admissão']),
+            'Admissao KN': fmtDate(c['Admissao KN']),
+            'FOLGA ESPECIAL': fmt(c['FOLGA ESPECIAL']),
+            'CPF': fmt(c.CPF),
+            'Data de nascimento': fmtDate(c['Data de nascimento']),
+            'Gênero': fmt(c.Genero),
+            'MATRIZ': fmt(c.MATRIZ),
+            'Ativo': fmt(c.Ativo),
+            'Férias': fmt(c.Ferias),
+            'Status Efetivação': fmt(c.Efetivacao),
+            'Fluxo Efetivação': fmt(c.Fluxo),
+            'Data Fluxo': fmtDate(c['Data Fluxo']),
+            'Obs Fluxo': fmt(c['Observacao Fluxo']),
+            'Total Presença': c['Total Presença'] ?? '',
+            'Total Faltas': c['Total Faltas'] ?? '',
+            'Total Atestados': c['Total Atestados'] ?? '',
+            'Total Suspensões': c['Total Suspensões'] ?? ''
+        };
+    };
+
     const rows = data.map(mapColabToExportRow);
-    const headers = Object.keys(mapColabToExportRow({}));
+    const headers = Object.keys(mapColabToExportRow(state.colaboradoresData[0] || {}));
+
     const wb = window.XLSX.utils.book_new();
     const ws = window.XLSX.utils.json_to_sheet(rows, {header: headers});
+
     const colWidths = headers.map(h => {
         const maxLen = Math.max(h.length, ...rows.map(r => String(r[h] ?? '').length));
         return {wch: Math.min(Math.max(10, maxLen + 2), 40)};
     });
     ws['!cols'] = colWidths;
+
     window.XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores');
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
     window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
 }
 
-function wireEfetivarKn() {
-    efetivarKnModal = document.getElementById('efetivarKnModal');
-    efetivarKnForm = document.getElementById('efetivarKnForm');
-    efetivarKnNomeEl = document.getElementById('efetivarKnNome');
-    efetivarKnDataEl = document.getElementById('efetivarKnData');
-    efetivarKnCancelarBtn = document.getElementById('efetivarKnCancelarBtn');
-    efetivarKnForm?.addEventListener('submit', onEfetivarKnSubmit);
-    efetivarKnCancelarBtn?.addEventListener('click', closeEfetivarKnModal);
+// *** FUNÇÃO DE WIRE ATUALIZADA ***
+function wireFluxoEfetivacao() {
+    // IDs que o script espera encontrar no seu HTML
+    fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');
+
+    if (!fluxoEfetivacaoModal) {
+        console.warn("Modal de fluxo de efetivação (id='fluxoEfetivacaoModal') não encontrado. A funcionalidade não será ativada.");
+        return;
+    }
+
+    // *** AJUSTE 2: Trava para impedir re-conexão de listeners ***
+    if (fluxoEfetivacaoModal.dataset.wired === '1') {
+        console.log("Modal de fluxo já 'wired'. Pulando.");
+        return; // Já foi conectado, não faz nada
+    }
+    fluxoEfetivacaoModal.dataset.wired = '1'; // Marca como conectado
+
+    console.log("Modal de fluxo de efetivação encontrado. Carregando...");
+
+    fluxoEfetivacaoForm = document.getElementById('fluxoEfetivacaoForm');
+    fluxoEfetivacaoNomeEl = document.getElementById('fluxoEfetivacaoNome');
+
+    // Novos campos
+    fluxoNumeroEl = document.getElementById('fluxoNumero');
+    fluxoDataAberturaEl = document.getElementById('fluxoDataAbertura');
+    fluxoObservacaoEl = document.getElementById('fluxoObservacao');
+
+    // Campo de data antigo, mas com novo ID
+    fluxoAdmissaoKnEl = document.getElementById('fluxoAdmissaoKnData');
+
+    // Novos botões
+    fluxoGerarBtn = document.getElementById('fluxoGerarBtn');
+    fluxoFinalizarBtn = document.getElementById('fluxoFinalizarBtn');
+    fluxoCancelarBtn = document.getElementById('fluxoCancelarBtn');
+    fluxoSairBtn = document.getElementById('fluxoCancelarEfetivacaoBtn'); // Botão de fechar/cancelar
+
+    // Previne submit padrão do form
+    fluxoEfetivacaoForm?.addEventListener('submit', (e) => e.preventDefault());
+
+    // Ações dos botões
+    fluxoGerarBtn?.addEventListener('click', () => handleFluxoSubmit('gerar'));
+    fluxoFinalizarBtn?.addEventListener('click', () => handleFluxoSubmit('finalizar'));
+    fluxoCancelarBtn?.addEventListener('click', () => handleFluxoSubmit('cancelar'));
+
+    // Fechar modal
+    fluxoSairBtn?.addEventListener('click', closeFluxoEfetivacaoModal);
+
+    // Adiciona listener para fechar com clique fora (se o modal tiver um overlay)
+    fluxoEfetivacaoModal.addEventListener('click', (e) => {
+        if (e.target === fluxoEfetivacaoModal) {
+            closeFluxoEfetivacaoModal();
+        }
+    });
 }
+
+function wireTabelaColaboradoresEventos() {
+    if (!colaboradoresTbody) return;
+
+    // Evita múltiplas conexões dos mesmos listeners
+    if (colaboradoresTbody.dataset.wired === '1') return;
+    colaboradoresTbody.dataset.wired = '1';
+
+    // Click simples: apenas seleção (Ctrl / Shift)
+    colaboradoresTbody.addEventListener('click', (event) => {
+        const tr = event.target.closest('tr[data-nome]');
+        if (!tr) return;
+
+        const nome = tr.dataset.nome;
+        if (!nome) return;
+
+        if (event.ctrlKey) {
+            // Alterna seleção com Ctrl
+            if (state.selectedNames.has(nome)) {
+                state.selectedNames.delete(nome);
+                tr.classList.remove('selecionado');
+            } else {
+                state.selectedNames.add(nome);
+                tr.classList.add('selecionado');
+            }
+        } else if (event.shiftKey) {
+            // Seleciona todas visíveis com Shift
+            event.preventDefault();
+            colaboradoresTbody.querySelectorAll('tr[data-nome]').forEach((linha) => {
+                const n = linha.dataset.nome;
+                if (!n) return;
+                state.selectedNames.add(n);
+                linha.classList.add('selecionado');
+            });
+        }
+    });
+
+    // Duplo-clique: abrir modal de edição
+    colaboradoresTbody.addEventListener('dblclick', (event) => {
+        if (document.body.classList.contains('user-level-visitante')) return;
+
+        const tr = event.target.closest('tr[data-nome]');
+        if (!tr) return;
+
+        const nome = (tr.dataset.nome || '').trim();
+        if (!nome) return;
+
+        // Só bloqueia se a seleção estiver FORA da linha. Se estiver dentro, limpa e segue.
+        const sel = window.getSelection && window.getSelection();
+        if (sel && sel.rangeCount && sel.toString().length > 0) {
+            const insideRow =
+                tr.contains(sel.anchorNode) && tr.contains(sel.focusNode);
+            if (!insideRow) return; // Usuário está selecionando fora da linha: não abre
+            try {
+                sel.removeAllRanges();
+            } catch {
+            }
+        }
+
+        document.dispatchEvent(
+            new CustomEvent('open-edit-modal', {detail: {nome}})
+        );
+    });
+}
+
+// No seu init(), depois de definir `colaboradoresTbody`:
+//// colaboradoresTbody = document.getElementById('colaboradores-tbody');
+//// ...
+// wireTabelaColaboradoresEventos();
+
 
 export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
+    wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
     limparFiltrosBtn = document.getElementById('limpar-filtros-btn');
@@ -2270,12 +2756,16 @@ export function init() {
         }
     }
     if (colaboradoresTbody) {
+
+        // *** AJUSTE 1: Listener de 'click' agora só para seleção ***
         colaboradoresTbody.addEventListener('click', (event) => {
             const tr = event.target.closest('tr');
             if (!tr) return;
             const nome = tr.dataset.nome;
             if (!nome) return;
+
             if (event.ctrlKey) {
+                // Lógica de seleção com Ctrl
                 if (state.selectedNames.has(nome)) {
                     state.selectedNames.delete(nome);
                     tr.classList.remove('selecionado');
@@ -2284,6 +2774,7 @@ export function init() {
                     tr.classList.add('selecionado');
                 }
             } else if (event.shiftKey) {
+                // Lógica de seleção com Shift
                 event.preventDefault();
                 const todasAsLinhasVisiveis = colaboradoresTbody.querySelectorAll('tr');
                 todasAsLinhasVisiveis.forEach(linha => {
@@ -2293,11 +2784,31 @@ export function init() {
                         linha.classList.add('selecionado');
                     }
                 });
-            } else {
-                if (document.body.classList.contains('user-level-visitante')) return;
-                document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome}}));
             }
+            // O 'else' que abria o modal foi removido daqui
         });
+
+        // *** AJUSTE 1: Novo listener de 'dblclick' para abrir o modal ***
+        colaboradoresTbody.addEventListener('dblclick', (event) => {
+            // Não faz nada se for visitante
+            if (document.body.classList.contains('user-level-visitante')) return;
+
+            const tr = event.target.closest('tr');
+            if (!tr) return;
+            const nome = tr.dataset.nome;
+            if (!nome) return;
+
+            // Previne abrir o modal se o usuário estiver apenas selecionando texto
+            const selection = window.getSelection();
+            if (selection && selection.toString().length > 0) {
+                return;
+            }
+
+            // Dispara o evento para abrir o modal de edição
+            document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome}}));
+        });
+
+        // Listeners de atualização (permanecem iguais)
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
@@ -2346,10 +2857,12 @@ export function init() {
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
     }
+
+    // As chamadas 'wire' agora são seguras para serem chamadas múltiplas vezes
     wireEdit();
     wireDesligar();
     wireFerias();
-    wireEfetivarKn();
+    wireFluxoEfetivacao();
     wireDsrModal();
 }
 
@@ -2386,4 +2899,5 @@ export function destroy() {
     } catch {
     }
     console.log("Cache de colaboradores destruído ao sair do módulo.");
+
 }

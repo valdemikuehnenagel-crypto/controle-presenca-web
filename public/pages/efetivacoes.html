@@ -99,6 +99,8 @@
             display: none;
             flex-direction: column;
             animation: fadeIn .2s ease-out both;
+            /* Adicionado para garantir que a view filha cresça */
+            height: 100%;
         }
 
         .efet-view.active {
@@ -159,7 +161,59 @@
             margin-bottom: 0;
         }
 
+        /* Estilos para a nova tabela (baseado no style.css global) */
+        .table-container-wrapper {
+            flex-grow: 1;
+            overflow: hidden;
+            border-radius: 14px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+            display: flex;
+            flex-direction: column;
+        }
 
+        .table-container {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: #fff;
+        }
+
+        .table-container table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+        }
+
+        .table-container th,
+        .table-container td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .table-container th {
+            background-color: #f9fafb;
+            font-weight: 700;
+            color: #003369;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .table-container td {
+            color: #333;
+        }
+
+        .table-container tr:hover {
+            background-color: #f6f9ff;
+        }
+
+        .table-container .text-center {
+            text-align: center;
+        }
 
     </style>
 
@@ -173,6 +227,10 @@
                 </button>
                 <button class="hc-subtab-btn efet-subtab-btn" data-view="efet-visao-regional">
                     Visão Regional
+                </button>
+
+                <button class="hc-subtab-btn efet-subtab-btn" data-view="efet-em-efetivacao">
+                    Em Efetivação
                 </button>
             </div>
 
@@ -192,6 +250,7 @@
             </div>
 
         </div>
+
         <div class="efet-view-container">
 
             <div id="efet-visao-service" class="efet-view active">
@@ -271,6 +330,31 @@
                         <div class="hcidx-canvas-wrap">
                             <canvas id="reg-aux-30-60-90-bar"></canvas>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="efet-em-efetivacao" class="efet-view">
+                <div class="table-container-wrapper">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Fluxo</th>
+                                <th>Status</th>
+                                <th>Nome do Colaborador</th>
+                                <th>Data do Fluxo</th>
+                                <th>Observação</th>
+                                <th>SVC</th>
+                                <th>Região</th>
+                            </tr>
+                            </thead>
+                            <tbody id="efet-table-tbody">
+                            <tr>
+                                <td colspan="7" class="text-center p-4">Carregando...</td>
+                            </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

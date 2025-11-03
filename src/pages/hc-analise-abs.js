@@ -26,7 +26,10 @@ import {supabase} from '../supabaseClient.js';
     const root = () => document.documentElement;
     const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
     const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
-    const DOW_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+    // Legendas abreviadas
+    const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+
     const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 
@@ -111,7 +114,6 @@ import {supabase} from '../supabaseClient.js';
     }
 
 
-
     function palette() {
         return ['#02B1EE', '#003369', '#69D4FF', '#2677C7', '#A9E7FF', '#225B9E', '#7FB8EB', '#99CCFF'];
     }
@@ -129,11 +131,12 @@ import {supabase} from '../supabaseClient.js';
     }
 
 
-
     function handleChartClick(chart, clickedIndex, filterType) {
         const clickedLabel = chart.data.labels[clickedIndex];
         let filterValue = clickedLabel;
+
         if (filterType === 'dow') filterValue = DOW_LABELS.indexOf(clickedLabel);
+
         state.interactiveFilters[filterType] = state.interactiveFilters[filterType] === filterValue ? null : filterValue;
         applyFiltersAndUpdate();
     }
@@ -168,16 +171,16 @@ import {supabase} from '../supabaseClient.js';
             const overlay = document.createElement('div');
             overlay.id = 'abs-period-overlay';
             overlay.innerHTML = `<div>
-                        <h3>Selecionar Período</h3>
-                        <div class="dates-grid">
-                            <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
-                            <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
-                        </div>
-                        <div class="form-actions">
-                            <button id="abs-period-cancel" class="btn">Cancelar</button>
-                            <button id="abs-period-apply" class="btn-add">Aplicar</button>
-                        </div>
-                    </div>`;
+                                <h3>Selecionar Período</h3>
+                                <div class="dates-grid">
+                                    <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
+                                    <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
+                                </div>
+                                <div class="form-actions">
+                                    <button id="abs-period-cancel" class="btn">Cancelar</button>
+                                    <button id="abs-period-apply" class="btn-add">Aplicar</button>
+                                </div>
+                            </div>`;
             document.body.appendChild(overlay);
             const close = () => overlay.remove();
             overlay.addEventListener('click', e => {
@@ -201,25 +204,27 @@ import {supabase} from '../supabaseClient.js';
         const host = document.querySelector(HOST_SEL);
         if (!host.querySelector('.hcabs-root')) {
             host.innerHTML = `<div class="hcabs-root">
-                    <div class="abs-toolbar"></div>
-                    <div class="hcabs-grid">
-                        <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
-                        <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
-                        <div class="hcabs-card hcabs-card--full">
-                            <div class="hcabs-doughnut-container">
-                                <div class="hcabs-doughnut-item"><h3>Dia da Semana (%)</h3><canvas id="abs-dow-doughnut"></canvas></div>
-                                <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
-                                <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
+                        <div class="abs-toolbar"></div>
+                        <div class="hcabs-grid">
+                            <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
+                            <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
+                            <div class="hcabs-card hcabs-card--full">
+                                <div class="hcabs-doughnut-container">
+                                
+                                    <div class="hcabs-bar-item"><h3>Dia da Semana</h3><canvas id="abs-dow-doughnut"></canvas></div>
+                                    
+                                    <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
+                                    <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
+                                </div>
+                            </div>
+                            <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
+                            <div class="hcabs-card">
+                                <h3>Top 5 Ofensores</h3>
+                                <canvas id="abs-top5-bar"></canvas>
                             </div>
                         </div>
-                        <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
-                        <div class="hcabs-card">
-                            <h3>Top 5 Ofensores</h3>
-                            <canvas id="abs-top5-bar"></canvas>
-                        </div>
-                    </div>
-                    <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
-                </div>`;
+                        <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
+                    </div>`;
         }
         ensureCanvasWrappers();
         setupPeriodFilter(host);
@@ -227,7 +232,7 @@ import {supabase} from '../supabaseClient.js';
     }
 
     function ensureCanvasWrappers() {
-        const elementsWithCanvas = document.querySelectorAll('#hc-analise-abs .hcabs-card, #hc-analise-abs .hcabs-doughnut-item');
+        const elementsWithCanvas = document.querySelectorAll('#hc-analise-abs .hcabs-card, #hc-analise-abs .hcabs-doughnut-item, #hc-analise-abs .hcabs-bar-item'); // <--- Adicionada a nova classe
         elementsWithCanvas.forEach(el => {
             const canvas = el.querySelector('canvas');
             if (!canvas || (canvas.parentElement && canvas.parentElement.classList.contains('hcabs-canvas-wrap'))) return;
@@ -287,7 +292,6 @@ import {supabase} from '../supabaseClient.js';
             scheduleRefresh(true);
         })
     );
-
 
 
     function showBusy(f) {
@@ -384,13 +388,16 @@ import {supabase} from '../supabaseClient.js';
             evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
         },
     });
+
+    // *** ALTERAÇÃO 2: Removido 'grace: 10%' da escala Y ***
+    // O valor máximo será definido dinamicamente na função updateChartsNow
     const barLineOpts = (onClick) => ({
         ...baseChartOpts(onClick),
-        layout: {padding: {top: 25, left: 8, right: 8, bottom: 8}},
+        layout: {padding: {top: 25, left: 8, right: 8, bottom: 8}}, // Mantém o padding de 25px no topo
         plugins: {
             legend: {display: false},
             datalabels: {
-                clamp: true,
+                clamp: false, // Permitir que o rótulo saia um pouco
                 display: 'auto',
                 anchor: 'end',
                 align: 'end',
@@ -403,8 +410,12 @@ import {supabase} from '../supabaseClient.js';
             },
             tooltip: {displayColors: false, callbacks: {label: (ctx) => `Total: ${ctx.parsed.y || ctx.parsed.x}`}}
         },
-        scales: {x: {grid: {display: false}}, y: {beginAtZero: true, grid: {display: false}}}
+        scales: {
+            x: {grid: {display: false}},
+            y: {beginAtZero: true, grid: {display: false}} // <-- 'grace' removido
+        }
     });
+
     const doughnutOpts = (onClick) => ({
         ...baseChartOpts(onClick),
         layout: {padding: 8},
@@ -426,6 +437,7 @@ import {supabase} from '../supabaseClient.js';
         },
         cutout: '40%'
     });
+
     const top5BarOpts = () => {
         const opts = barLineOpts(() => {
         });
@@ -438,6 +450,50 @@ import {supabase} from '../supabaseClient.js';
         opts.plugins.datalabels.align = 'end';
         opts.plugins.datalabels.anchor = 'end';
         opts.plugins.datalabels.formatter = v => v;
+        return opts;
+    };
+
+    // *** ALTERAÇÃO 3: Removido 'grace: 10%' da escala X ***
+    // O valor máximo será definido dinamicamente
+    const dowHorizontalBarOpts = (onClick) => {
+        const opts = baseChartOpts(onClick);
+        opts.indexAxis = 'y';
+        opts.layout = {padding: {top: 8, left: 8, right: 40, bottom: 8}};
+        opts.plugins = {
+            legend: {display: false},
+            datalabels: {
+                clamp: false, // Permitir que o rótulo saia um pouco
+                display: 'auto',
+                anchor: 'end',
+                align: 'end',
+                font: {weight: 'bold', size: 16},
+                color: css(root(), '--hcidx-primary', '#003369'),
+                formatter: (value, context) => {
+                    const rawCounts = context.chart.data.datasets[0]._rawCounts || [];
+                    const total = rawCounts.reduce((a, b) => a + b, 0);
+                    const percentage = total > 0 ? (value / total) * 100 : 0;
+
+                    if (value === 0) return null;
+
+                    return `${Math.round(percentage)}% (${value})`;
+                }
+            },
+            tooltip: {
+                displayColors: false,
+                callbacks: {
+                    label: (ctx) => {
+                        const rawCounts = ctx.chart.data.datasets[0]._rawCounts || [];
+                        const total = rawCounts.reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? (ctx.parsed.x / total) * 100 : 0;
+                        return `${ctx.label}: ${ctx.parsed.x} ocorrências (${Math.round(percentage)}%)`;
+                    }
+                }
+            }
+        };
+        opts.scales = {
+            x: {beginAtZero: true, grid: {display: false}}, // <-- 'grace' removido
+            y: {grid: {display: false}}
+        };
         return opts;
     };
 
@@ -454,10 +510,12 @@ import {supabase} from '../supabaseClient.js';
             type: 'bar',
             options: barLineOpts((c, i) => handleChartClick(c, i, 'week'))
         });
+
         state.charts.diaDaSemana = new Chart(document.getElementById('abs-dow-doughnut').getContext('2d'), {
-            type: 'doughnut',
-            options: doughnutOpts((c, i) => handleChartClick(c, i, 'dow'))
+            type: 'bar',
+            options: dowHorizontalBarOpts((c, i) => handleChartClick(c, i, 'dow'))
         });
+
         state.charts.genero = new Chart(document.getElementById('abs-genero-doughnut').getContext('2d'), {
             type: 'doughnut',
             options: doughnutOpts((c, i) => handleChartClick(c, i, 'gender'))
@@ -476,29 +534,45 @@ import {supabase} from '../supabaseClient.js';
         });
     }
 
+    // *** ALTERAÇÃO 4: Função 'updateChartsNow' com cálculo de 'max' ***
     function updateChartsNow(dataToRender) {
         const pal = palette();
         const totalAbs = dataToRender.length || 1;
         const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
-        {
+
+        // Função helper para calcular o teto
+        const getSafeMax = (dataValues, multiplier = 1.15) => {
+             // Se não houver dados, define um teto de 10
+            if (!dataValues || dataValues.length === 0) return 10;
+            const maxData = Math.max(...dataValues);
+             // Se o valor máximo for 0, define o teto como 10
+            if (maxData === 0) return 10;
+             // Caso contrário, usa o multiplicador (ex: 1.15 para 15% de folga)
+            return maxData * multiplier;
+        };
+
+        { // Visão Mensal
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = d.Data.substring(0, 7);
                 counts.set(key, (counts.get(key) || 0) + 1);
             });
             const sorted = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+            const dataValues = sorted.map(e => e[1]); // Pega os valores
+
             const ch = state.charts.totalPorMes;
             const ctx = ch.ctx;
             const gradient = ctx.createLinearGradient(0, 0, 0, ch.height);
             gradient.addColorStop(0, createOpacity(pal[1], 0.4));
             gradient.addColorStop(1, createOpacity(pal[1], 0));
+
             ch.data = {
                 labels: sorted.map(e => {
                     const [y, m] = e[0].split('-');
                     return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y.slice(-2)}`;
                 }),
                 datasets: [{
-                    data: sorted.map(e => e[1]),
+                    data: dataValues,
                     fill: true,
                     borderColor: pal[1],
                     backgroundColor: gradient,
@@ -506,9 +580,12 @@ import {supabase} from '../supabaseClient.js';
                     borderWidth: 2.5
                 }]
             };
+
+            // Define o 'max' do eixo Y dinamicamente
+            ch.options.scales.y.max = getSafeMax(dataValues);
             ch.update();
         }
-        {
+        { // Visão Semanal
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = getWeekOfYear(parseDateMaybe(d.Data));
@@ -516,27 +593,37 @@ import {supabase} from '../supabaseClient.js';
             });
             const weekLabels = [...new Set(state.absenteeismData.map(d => getWeekOfYear(parseDateMaybe(d.Data))))].sort();
             const weekData = weekLabels.map(w => counts.get(w) || 0);
+
             const ch = state.charts.totalPorWeek;
             ch.data.labels = weekLabels;
             ch.data.datasets = [{
                 data: weekData,
                 backgroundColor: weekLabels.map(l => state.interactiveFilters.week === l ? pal[0] : pal[1])
             }];
+
+            // Define o 'max' do eixo Y dinamicamente
+            ch.options.scales.y.max = getSafeMax(weekData);
             ch.update();
         }
-        {
+
+        { // Dia da Semana
             const counts = Array(7).fill(0);
             dataToRender.forEach(d => counts[parseDateMaybe(d.Data).getDay()]++);
+
             const ch = state.charts.diaDaSemana;
             ch.data.labels = DOW_LABELS;
             ch.data.datasets = [{
-                data: counts.map(c => (c * 100) / totalAbs),
-                backgroundColor: DOW_LABELS.map((l, i) => state.interactiveFilters.dow === i ? pal[0] : pal[i % pal.length]),
+                data: counts,
+                backgroundColor: DOW_LABELS.map((l, i) => state.interactiveFilters.dow === i ? pal[0] : pal[1]),
                 _rawCounts: counts
             }];
+
+            // Define o 'max' do eixo X (horizontal) com 20% de folga para o rótulo
+            ch.options.scales.x.max = getSafeMax(counts, 1.20);
             ch.update();
         }
-        {
+
+        { // Gênero
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = mapGeneroLabel(d.colaborador.Genero);
@@ -560,7 +647,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-        {
+        { // Contrato
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = mapContratoAgg(d.colaborador.Contrato);
@@ -579,7 +666,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-        {
+        { // Faixa Etária
             const counts = new Map(AGE_BUCKETS.map(k => [k, 0]));
             dataToRender.forEach(d => {
                 const key = ageBucket(calcAgeFromStr(getNascimento(d.colaborador)));
@@ -587,15 +674,19 @@ import {supabase} from '../supabaseClient.js';
             });
             const labels = AGE_BUCKETS;
             const ageData = labels.map(age => counts.get(age) || 0);
+
             const ch = state.charts.faixaEtaria;
             ch.data.labels = labels;
             ch.data.datasets = [{
                 data: ageData,
                 backgroundColor: labels.map(l => state.interactiveFilters.age === l ? pal[0] : pal[5])
             }];
+
+            // Define o 'max' do eixo Y dinamicamente
+            ch.options.scales.y.max = getSafeMax(ageData);
             ch.update();
         }
-        {
+        { // Top 5 Ofensores
             const counts = new Map();
             dataToRender.forEach(d => {
                 const nome = d.colaborador.Nome;
@@ -604,12 +695,18 @@ import {supabase} from '../supabaseClient.js';
             const top5 = [...counts.entries()]
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5);
+
+            const dataValues = top5.map(item => item[1]);
+
             const ch = state.charts.top5;
             ch.data.labels = top5.map(item => item[0]);
             ch.data.datasets = [{
-                data: top5.map(item => item[1]),
+                data: dataValues,
                 backgroundColor: pal[1]
             }];
+
+            // Define o 'max' do eixo Y dinamicamente
+            ch.options.scales.y.max = getSafeMax(dataValues);
             ch.update();
         }
     }
