@@ -80,30 +80,101 @@ import {supabase} from '../supabaseClient.js';
         return !!document.querySelector('#hc-relatorio-abs.hc-view.active');
     }
 
-
     function defaultCurrentMonth() {
         const today = new Date();
         const start = new Date(today.getFullYear(), today.getMonth(), 1);
         return {start: toISO(start), end: toISO(today)};
     }
 
+    /* ---------------------------
+       Paginação genérica (helpers)
+    ---------------------------- */
+    async function fetchAllPagesGeneric(query, pageSize = 1000) {
+        let from = 0;
+        const all = [];
+        while (true) {
+            const {data, error} = await query.range(from, from + pageSize - 1);
+            if (error) throw error;
+            const batch = Array.isArray(data) ? data : [];
+            all.push(...batch);
+            if (batch.length < pageSize) break;
+            from += pageSize;
+        }
+        return all;
+    }
+
     var _colabIdx = null;
 
+    /**
+     * Índice unificado de dados cadastrais por Nome:
+     * - Colaboradores (ativos)
+     * - Desligados (últimos dados antes do desligamento)
+     * Regras:
+     *   - Se o nome existir nas duas, o ATIVO prevalece.
+     *   - Caso contrário, usamos o do DESLIGADOS.
+     */
     async function getColabIndex() {
         if (_colabIdx) return _colabIdx;
+
         const matrizesPermitidas = getMatrizesPermitidas();
-        let query = supabase.from('Colaboradores').select('Nome, SVC, MATRIZ, Escala, Cargo');
-        if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
-        if (state.matriz) query = query.eq('MATRIZ', state.matriz);
-        if (state.svc) query = query.eq('SVC', state.svc);
-        const {data, error} = await query;
-        if (error) throw error;
+
+        // Base (ativos)
+        let qAtivos = supabase
+            .from('Colaboradores')
+            .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor')
+            .order('Nome', {ascending: true});
+
+        if (matrizesPermitidas !== null) qAtivos = qAtivos.in('MATRIZ', matrizesPermitidas);
+        if (state.matriz) qAtivos = qAtivos.eq('MATRIZ', state.matriz);
+        if (state.svc) qAtivos = qAtivos.eq('SVC', state.svc);
+
+        // Desligados (histórico)
+        // Campos esperados (exemplo do Hugo): Nome, Contrato, Cargo, Data de Desligamento, Período Trabalhado,
+        // Escala, SVC, MATRIZ, Gestor, Motivo...
+        let qDeslig = supabase
+            .from('Desligados')
+            .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento"')
+            .order('Nome', {ascending: true});
+
+        if (matrizesPermitidas !== null) qDeslig = qDeslig.in('MATRIZ', matrizesPermitidas);
+        if (state.matriz) qDeslig = qDeslig.eq('MATRIZ', state.matriz);
+        if (state.svc) qDeslig = qDeslig.eq('SVC', state.svc);
+
+        const [ativos, desligados] = await Promise.all([
+            fetchAllPagesGeneric(qAtivos, 1000),
+            fetchAllPagesGeneric(qDeslig, 1000)
+        ]);
+
+        // Monta índice com prioridade para ATIVOS
         const map = new Map();
-        (Array.isArray(data) ? data : []).forEach(c => {
-            map.set(String(c.Nome || ''), {
-                SVC: c.SVC ?? null, MATRIZ: c.MATRIZ ?? null, Escala: c.Escala ?? null, Cargo: c.Cargo ?? null
+        (Array.isArray(desligados) ? desligados : []).forEach(d => {
+            const nome = String(d.Nome || '');
+            if (!nome) return;
+            map.set(nome, {
+                SVC: d.SVC ?? null,
+                MATRIZ: d.MATRIZ ?? null,
+                Escala: d.Escala ?? null,
+                Cargo: d.Cargo ?? null,
+                Gestor: d.Gestor ?? null,
+                _origem: 'Desligados',
+                _data_desligamento: d['Data de Desligamento'] || null
             });
         });
+        (Array.isArray(ativos) ? ativos : []).forEach(c => {
+            const nome = String(c.Nome || '');
+            if (!nome) return;
+            // Ativo sobrescreve o que veio do desligado se houver duplicidade
+            map.set(nome, {
+                SVC: c.SVC ?? (map.get(nome)?.SVC ?? null),
+                MATRIZ: c.MATRIZ ?? (map.get(nome)?.MATRIZ ?? null),
+                Escala: c.Escala ?? (map.get(nome)?.Escala ?? null),
+                Cargo: c.Cargo ?? (map.get(nome)?.Cargo ?? null),
+                Gestor: c.Gestor ?? (map.get(nome)?.Gestor ?? null),
+                _origem: 'Colaboradores',
+                _data_desligamento: map.get(nome)?._data_desligamento ?? null
+            });
+        });
+
         _colabIdx = map;
         return _colabIdx;
     }
@@ -245,7 +316,6 @@ import {supabase} from '../supabaseClient.js';
             });
         }
 
-
         if (state.firstLoad) {
             const cur = defaultCurrentMonth();
             state.periodo.start = cur.start;
@@ -269,7 +339,6 @@ import {supabase} from '../supabaseClient.js';
         var start = state.periodo.start, end = state.periodo.end;
         b.textContent = (start && end) ? ('Período: ' + fmtBR(start) + ' → ' + fmtBR(end)) : 'Selecionar período';
     }
-
 
     async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
         let from = 0;
@@ -305,7 +374,6 @@ import {supabase} from '../supabaseClient.js';
         }
         tbody.innerHTML = '<tr><td colspan="9" class="muted">Carregando…</td></tr>';
 
-
         var startISO = parseAnyDateToISO(state.periodo.start);
         var endStr = parseAnyDateToISO(state.periodo.end);
         var endISONextDay;
@@ -319,11 +387,13 @@ import {supabase} from '../supabaseClient.js';
         }
 
         try {
+            // Índice unificado (Ativos + Desligados)
             const colabIndex = await getColabIndex();
 
-
+            // Busca Controle Diário (inclui históricos de desligados)
             const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);
 
+            // Enriquecimento com SVC/MATRIZ/Escala/Cargo do índice unificado
             const transformedRows = (controleRows || []).map(row => {
                 const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
                 return {
@@ -331,7 +401,7 @@ import {supabase} from '../supabaseClient.js';
                     Nome: row.Nome,
                     Data: row.Data,
                     Absenteismo: row.Atestado > 0 ? 'Justificado' : 'Injustificado',
-                    Escala: row.Turno,
+                    Escala: row.Turno,                    // do ControleDiario do dia
                     Entrevista: row.Entrevista,
                     Acao: row.Acao,
                     Observacao: row.Observacao,
@@ -339,10 +409,12 @@ import {supabase} from '../supabaseClient.js';
                     TipoAtestado: row.TipoAtestado,
                     SVC: colabInfo.SVC || null,
                     MATRIZ: colabInfo.MATRIZ || null,
-                    Cargo: colabInfo.Cargo || null
+                    Cargo: colabInfo.Cargo || null,
+                    _origemCadastro: colabInfo._origem || null // debug opcional
                 };
             });
 
+            // Filtros por cargo/SVC/MATRIZ (mantidos)
             const filteredRows = transformedRows.filter(r => {
                 const cargo = norm(r.Cargo);
                 if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
@@ -390,17 +462,21 @@ import {supabase} from '../supabaseClient.js';
             updateCounters([]);
             return;
         }
+
         var s = stripAccents(state.search || '').toLowerCase();
         var filtered = (state.rows || []).filter(function (r) {
             var nm = stripAccents(String(r.Nome || '')).toLowerCase();
             if (s && nm.indexOf(s) === -1) return false;
             return true;
         });
+
         updateCounters(filtered);
+
         if (!filtered.length) {
             tbody.innerHTML = '<tr><td colspan="9" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
             return;
         }
+
         var frag = document.createDocumentFragment();
         filtered.forEach(function (row) {
             var tr = document.createElement('tr');
