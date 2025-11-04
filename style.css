@@ -1545,6 +1545,7 @@ h3 {
     /* Dá uma altura mínima para o gráfico de barras não ficar achatado */
     min-height: 280px;
 }
+
 /* *** FIM DAS NOVAS REGRAS *** */
 
 
@@ -2719,6 +2720,9 @@ h3 {
     font-weight: bold;
 }
 
+/* =========================
+   Variáveis & Layout base
+========================= */
 #efetividade-page {
     --d-primary: #003369;
     --d-accent: #02B1EE;
@@ -2726,34 +2730,37 @@ h3 {
     --d-border: #eceff5;
     --d-muted: #6b7280;
     --d-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+    --status-stripe: 2px; /* <- ajuste da espessura da faixa */
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
 }
 
-#efetividade-page .efetividade-header {
-    margin-bottom: 1rem;
-}
-
+/* Barra de filtros alinhada à esquerda */
 #efetividade-page .filter-bar {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start; /* esquerda */
     align-items: center;
     position: relative;
-    padding: 4px 0;
+    padding: 6px 0;
+    gap: 8px;
+    flex-wrap: wrap;
     flex-shrink: 0;
 }
 
+/* Contêiner dos controles (selects/botão) */
 #efetividade-page .efetividade-actions {
     display: flex;
     gap: 8px;
     align-items: center;
-    position: absolute;
-    right: 0;
+    position: relative; /* nada de absolute/right aqui */
 }
 
-#efetividade-page #efet-matriz-filter {
+/* =========================
+   Estilo dos Selects (pílula)
+========================= */
+#efetividade-page .efetividade-actions select {
     padding: 8px 12px;
     padding-right: 2.5em;
     border: 1px solid #ddd;
@@ -2765,18 +2772,29 @@ h3 {
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
+    min-width: 150px;
+    transition: background-color 0.2s, box-shadow .2s, border-color .2s;
+
+    /* caret */
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 0.7em top 50%;
     background-size: 0.65em auto;
-    transition: background-color 0.2s;
-    min-width: 120px;
 }
 
-#efetividade-page #efet-matriz-filter:hover {
+#efetividade-page .efetividade-actions select:hover {
     background-color: #f5f5f5;
 }
 
+#efetividade-page .efetividade-actions select:focus {
+    outline: none;
+    border-color: var(--d-accent);
+    box-shadow: 0 0 0 3px rgba(2, 177, 238, .15);
+}
+
+/* =========================
+   Botão de Período
+========================= */
 #efetividade-page .efetividade-filters button {
     padding: 8px 16px;
     border: none;
@@ -2785,55 +2803,47 @@ h3 {
     font-weight: 700;
     cursor: pointer;
     transition: all .2s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
 }
 
-#efetividade-page #efet-period-btn {
+#efet-period-btn {
     background-color: var(--d-primary);
     color: #fff;
-    border-radius: 20px !important;
     white-space: nowrap;
 }
 
-#efetividade-page #efet-period-btn:hover {
+#efet-period-btn:hover {
     background-color: var(--d-accent);
     transform: translateY(-2px);
 }
 
-#efetividade-page .subtabs {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: center;
-    flex-grow: 1;
-    margin: 0 auto;
+/* =========================
+   Loader (spinner)
+========================= */
+#efet-loader.loading-overlay {
+    position: relative;
+    min-height: 80px;
 }
 
-#efetividade-page .subtabs button {
-    background-color: #e4e6eb;
-    color: #4b4f56;
-    padding: 8px 16px;
-    border: none;
-    border-radius: 26px;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all .2s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    white-space: nowrap;
+#efet-loader .spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid #e5e7eb;
+    border-top-color: #2563eb;
+    animation: spin 0.9s linear infinite;
+    margin: 12px auto;
 }
 
-#efetividade-page .subtabs button:hover {
-    background-color: #d8dadf;
-    transform: translateY(-2px);
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
-#efetividade-page .subtabs button.active {
-    background-color: var(--d-accent);
-    color: #fff;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 14px rgba(2, 177, 238, 0.25);
-}
-
+/* =========================
+   Tabela de resultados
+========================= */
 #efet-result {
     display: flex;
     flex-direction: column;
@@ -2893,6 +2903,7 @@ h3 {
     text-overflow: ellipsis;
 }
 
+/* Primeira coluna sticky */
 #efet-result .main-table th:first-child,
 #efet-result .main-table td:first-child {
     position: sticky;
@@ -2912,6 +2923,7 @@ h3 {
     background: var(--d-surface);
 }
 
+/* Alternância/hover somente na 1ª coluna */
 #efet-result .main-table tbody tr:nth-child(even) td:first-child {
     background-color: #f9f9f9;
 }
@@ -2920,35 +2932,67 @@ h3 {
     background-color: #e8f7ff;
 }
 
+/* =========================
+   Estados (pastéis + faixa esquerda mais fina)
+========================= */
 #efet-result .main-table td.status-ok {
-    background-color: #d4edda !important;
-    color: #155724 !important;
+    background: #ecfdf5 !important;
+    color: #065f46 !important;
+    font-weight: 700;
+    text-align: center;
+    border-left: var(--status-stripe) solid #10b981;
 }
 
 #efet-result .main-table td.status-pendente {
-    background-color: #fff3cd !important;
-    color: #856404 !important;
+    background: #fffbeb !important;
+    color: #92400e !important;
+    font-weight: 700;
+    text-align: center;
+    border-left: var(--status-stripe) solid #f59e0b;
 }
 
 #efet-result .main-table td.status-nok {
-    background-color: #f8d7da !important;
-    color: #721c24 !important;
+    background: #fef2f2 !important;
+    color: #991b1b !important;
+    font-weight: 700;
+    text-align: center;
+    border-left: var(--status-stripe) solid #ef4444;
 }
 
 #efet-result .main-table td.status-na {
-    background-color: #e9ecef !important;
-    color: #495057 !important;
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+    text-align: center;
+    border-left: var(--status-stripe) solid #e5e7eb;
 }
 
 #efet-result .main-table td.status-empty {
     background-color: #fff !important;
 }
 
+/* Interação nas pendências (drilldown) */
 #efet-result .main-table td.status-pendente,
 #efet-result .main-table td.status-nok {
     cursor: pointer;
 }
 
+/* =========================
+   Responsividade
+========================= */
+@media (max-width: 640px) {
+    #efetividade-page .efetividade-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    #efetividade-page .efetividade-actions select {
+        min-width: 130px;
+    }
+}
+
+/* ===============================
+   DADOS OPERACIONAIS – LAYOUT BASE
+================================ */
 #dados-op-page {
     --d-primary: #003369;
     --d-accent: #02B1EE;
@@ -2956,6 +3000,7 @@ h3 {
     --d-border: #eceff5;
     --d-muted: #6b7280;
     --d-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+    --status-stripe: 2px; /* <- faixa mais fina */
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -2965,44 +3010,105 @@ h3 {
 #dados-op-page .dados-op-header {
     margin-bottom: 1rem;
     display: flex;
-    justify-content: flex-start;
-    align-items: center;
+    flex-direction: column;
+    gap: 10px;
     flex-shrink: 0;
 }
 
-#dados-op-page .legend-container {
-    display: flex;
-    gap: 1.5rem;
-    font-size: 0.8rem;
-    color: black;
-    font-weight: bold;
-}
-
-#dados-op-page .legend-item {
+/* ===============================
+   BARRA DE FILTROS (padrão gerencial)
+================================ */
+#dados-op-page .dados-op-filters {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 4px 0;
+    flex-wrap: wrap;
 }
 
-#dados-op-page .legend-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+/* Selects padrão pílula */
+#dados-op-page .dados-op-filters select,
+#dados-op-page .dados-op-filter {
+    padding: 8px 12px;
+    padding-right: 2.5em;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    background: #fff;
+    font-weight: 600;
+    color: #333;
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 150px;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.7em top 50%;
+    background-size: 0.65em auto;
+    transition: background-color .2s, box-shadow .2s, border-color .2s;
 }
 
-#dados-op-page .legend-dot.status-ok {
-    background-color: #d4edda;
+#dados-op-page .dados-op-filters select:hover,
+#dados-op-page .dados-op-filter:hover {
+    background-color: #f5f5f5;
 }
 
-#dados-op-page .legend-dot.status-pendente {
-    background-color: #fff3cd;
+#dados-op-page .dados-op-filters select:focus,
+#dados-op-page .dados-op-filter:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
 }
 
-#dados-op-page .legend-dot.status-nok {
-    background-color: #f8d7da;
+/* Botão "Limpar" */
+#dados-op-page #dados-op-clear-filters,
+#dados-op-page .dados-op-filters .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 26px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s ease;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+    background-color: #6c757d;
+    color: #fff;
 }
 
+#dados-op-page #dados-op-clear-filters:hover,
+#dados-op-page .dados-op-filters .btn:hover {
+    background-color: #5a6268;
+    transform: translateY(-2px);
+}
+
+/* ===============================
+   LOADER
+================================ */
+#dados-op-page .loading-overlay {
+    position: relative;
+    min-height: 80px;
+}
+
+#dados-op-page .loading-overlay .spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid #e5e7eb;
+    border-top-color: #2563eb;
+    animation: dadosop-spin 0.9s linear infinite;
+    margin: 12px auto;
+}
+
+@keyframes dadosop-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ===============================
+   TABELA
+================================ */
 #dados-op-result {
     display: flex;
     flex-direction: column;
@@ -3028,6 +3134,7 @@ h3 {
     border-spacing: 0;
 }
 
+/* Cabeçalho sticky */
 #dados-op-result .main-table thead th {
     position: sticky;
     top: 0;
@@ -3051,6 +3158,7 @@ h3 {
     border-top-right-radius: 14px;
 }
 
+/* Corpo */
 #dados-op-result .main-table tbody td {
     padding: 8px 10px;
     border-bottom: 1px solid var(--d-border);
@@ -3062,6 +3170,7 @@ h3 {
     text-overflow: ellipsis;
 }
 
+/* Primeira coluna sticky */
 #dados-op-result .main-table th:first-child,
 #dados-op-result .main-table td:first-child {
     position: sticky;
@@ -3078,6 +3187,7 @@ h3 {
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* Alternância/hover só na 1ª coluna */
 #dados-op-result .main-table tbody td:first-child {
     background: var(--d-surface);
 }
@@ -3090,38 +3200,58 @@ h3 {
     background-color: #e8f7ff;
 }
 
+/* ===============================
+   Estados (pastéis + faixa esquerda mais fina)
+================================ */
 #dados-op-result .main-table td.status-ok {
-    background-color: #d4edda !important;
-    color: #155724 !important;
+    background: #ecfdf5 !important;
+    color: #065f46 !important;
+    font-weight: 700;
+    text-align: center;
+    border-left: var(--status-stripe) solid #10b981;
 }
 
 #dados-op-result .main-table td.status-pendente {
-    background-color: #fff3cd !important;
-    color: #856404 !important;
+    background: #fffbeb !important;
+    color: #92400e !important;
+    font-weight: 700;
+    text-align: center;
+    border-left: var(--status-stripe) solid #f59e0b;
 }
 
 #dados-op-result .main-table td.status-nok {
-    background-color: #f8d7da !important;
-    color: #721c24 !important;
+    background: #fef2f2 !important;
+    color: #991b1b !important;
+    font-weight: 700;
+    text-align: center;
+    border-left: var(--status-stripe) solid #ef4444;
 }
 
 #dados-op-result .main-table td.status-na {
-    background-color: #e9ecef !important;
-    color: #495057 !important;
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+    text-align: center;
+    border-left: var(--status-stripe) solid #e5e7eb;
 }
 
+/* Drilldown */
 #dados-op-result .main-table td[data-svc] {
     cursor: pointer;
 }
 
-.details-list {
-    list-style: disc;
-    padding-left: 20px;
+/* ===============================
+   RESPONSIVO
+================================ */
+@media (max-width: 900px) {
+    #dados-op-page .dados-op-filters {
+        gap: 8px;
+    }
+
+    #dados-op-result .main-table {
+        min-width: 900px;
+    }
 }
 
-.details-list li {
-    margin-bottom: 4px;
-}
 
 :root {
     --wr-header-1-h: 38px;
@@ -4112,8 +4242,6 @@ html, body {
         box-shadow: none !important;
     }
 }
-
-
 
 
 .modal-overlay {

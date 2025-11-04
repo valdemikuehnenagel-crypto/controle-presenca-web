@@ -129,20 +129,20 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         }
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
 
-        // *** INÍCIO DA ALTERAÇÃO ***
-        // Buscar afastamentos ativos para a data
+
+
         const {data: afastamentosHoje, error: afastamentosError} = await supabase
             .from('Afastamentos')
-            .select('NOME') // Coluna 'NOME' conforme seu exemplo
-            .lte('"DATA INICIO"', dateISO) // O afastamento começou em ou antes de hoje
-            .gt('"DATA RETORNO"', dateISO); // O retorno é *depois* de hoje (hoje ainda está afastado)
+            .select('NOME')
+            .lte('"DATA INICIO"', dateISO)
+            .gt('"DATA RETORNO"', dateISO);
 
         if (afastamentosError) {
             console.warn("Erro ao buscar afastamentos do dia:", afastamentosError);
         }
-        // Normaliza os nomes vindos da tabela 'Afastamentos' para comparação
+
         const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));
-        // *** FIM DA ALTERAÇÃO ***
+
 
 
         let dsrLogs = [];
@@ -215,10 +215,10 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                 if (dataAdmissao && dataAdmissao > dateISO) return false;
                 if (nomesEmFeriasHoje.has(c.Nome)) return false;
 
-                // *** INÍCIO DA ALTERAÇÃO ***
-                // Verifica se o colaborador está no Set de afastados (usando nomes normalizados)
+
+
                 if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) return false;
-                // *** FIM DA ALTERAÇÃO ***
+
 
                 const isDSR = checkDSR(c);
                 return !isDSR;

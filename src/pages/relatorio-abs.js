@@ -1,7 +1,5 @@
 import {getMatrizesPermitidas} from '../session.js';
-import {supabase} from '../supabaseClient.js';
-
-(function () {
+import {supabase} from '../supabaseClient.js';(function () {
     var HOST_SEL = '#hc-relatorio-abs';
     var state = {
         periodo: {start: '', end: ''},
@@ -15,13 +13,9 @@ import {supabase} from '../supabaseClient.js';
         dirty: false,
         firstLoad: true,
         showDebug: false
-    };
-
-    function pad2(n) {
+    };    function pad2(n) {
         return (n < 10 ? '0' + n : '' + n);
-    }
-
-    function toISO(v) {
+    }    function toISO(v) {
         if (v && v instanceof Date) return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
         var s = String(v || '');
         var m = s.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -33,9 +27,7 @@ import {supabase} from '../supabaseClient.js';
             return y + '-' + pad2(mo) + '-' + pad2(d);
         }
         return s.slice(0, 10);
-    }
-
-    function parseAnyDateToISO(val) {
+    }    function parseAnyDateToISO(val) {
         if (!val) return '';
         var s = String(val);
         var mISO = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -52,44 +44,25 @@ import {supabase} from '../supabaseClient.js';
         } catch (_) {
         }
         return toISO(s);
-    }
-
-    function fmtBR(iso) {
+    }    function fmtBR(iso) {
         if (!iso) return '';
         var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
         return m ? (m[3] + '/' + m[2] + '/' + m[1]) : iso;
-    }
-
-    function esc(s) {
+    }    function esc(s) {
         return String(s == null ? '' : s);
-    }
-
-    function norm(v) {
+    }    function norm(v) {
         return String(v == null ? '' : v).trim().toUpperCase();
-    }
-
-    function clean(v) {
+    }    function clean(v) {
         return String(v == null ? '' : v).trim().replace(/\s+/g, ' ');
-    }
-
-    function stripAccents(s) {
+    }    function stripAccents(s) {
         return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    }
-
-    function isActiveView() {
+    }    function isActiveView() {
         return !!document.querySelector('#hc-relatorio-abs.hc-view.active');
-    }
-
-    function defaultCurrentMonth() {
+    }    function defaultCurrentMonth() {
         const today = new Date();
         const start = new Date(today.getFullYear(), today.getMonth(), 1);
         return {start: toISO(start), end: toISO(today)};
-    }
-
-    /* ---------------------------
-       Paginação genérica (helpers)
-    ---------------------------- */
-    async function fetchAllPagesGeneric(query, pageSize = 1000) {
+    }    async function fetchAllPagesGeneric(query, pageSize = 1000) {
         let from = 0;
         const all = [];
         while (true) {
@@ -101,52 +74,21 @@ import {supabase} from '../supabaseClient.js';
             from += pageSize;
         }
         return all;
-    }
-
-    var _colabIdx = null;
-
-    /**
-     * Índice unificado de dados cadastrais por Nome:
-     * - Colaboradores (ativos)
-     * - Desligados (últimos dados antes do desligamento)
-     * Regras:
-     *   - Se o nome existir nas duas, o ATIVO prevalece.
-     *   - Caso contrário, usamos o do DESLIGADOS.
-     */
-    async function getColabIndex() {
-        if (_colabIdx) return _colabIdx;
-
-        const matrizesPermitidas = getMatrizesPermitidas();
-
-        // Base (ativos)
-        let qAtivos = supabase
+    }    var _colabIdx = null;    async function getColabIndex() {
+        if (_colabIdx) return _colabIdx;        const matrizesPermitidas = getMatrizesPermitidas();        let qAtivos = supabase
             .from('Colaboradores')
             .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor')
-            .order('Nome', {ascending: true});
-
-        if (matrizesPermitidas !== null) qAtivos = qAtivos.in('MATRIZ', matrizesPermitidas);
+            .order('Nome', {ascending: true});        if (matrizesPermitidas !== null) qAtivos = qAtivos.in('MATRIZ', matrizesPermitidas);
         if (state.matriz) qAtivos = qAtivos.eq('MATRIZ', state.matriz);
-        if (state.svc) qAtivos = qAtivos.eq('SVC', state.svc);
-
-        // Desligados (histórico)
-        // Campos esperados (exemplo do Hugo): Nome, Contrato, Cargo, Data de Desligamento, Período Trabalhado,
-        // Escala, SVC, MATRIZ, Gestor, Motivo...
-        let qDeslig = supabase
+        if (state.svc) qAtivos = qAtivos.eq('SVC', state.svc);        let qDeslig = supabase
             .from('Desligados')
             .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento"')
-            .order('Nome', {ascending: true});
-
-        if (matrizesPermitidas !== null) qDeslig = qDeslig.in('MATRIZ', matrizesPermitidas);
+            .order('Nome', {ascending: true});        if (matrizesPermitidas !== null) qDeslig = qDeslig.in('MATRIZ', matrizesPermitidas);
         if (state.matriz) qDeslig = qDeslig.eq('MATRIZ', state.matriz);
-        if (state.svc) qDeslig = qDeslig.eq('SVC', state.svc);
-
-        const [ativos, desligados] = await Promise.all([
+        if (state.svc) qDeslig = qDeslig.eq('SVC', state.svc);        const [ativos, desligados] = await Promise.all([
             fetchAllPagesGeneric(qAtivos, 1000),
             fetchAllPagesGeneric(qDeslig, 1000)
-        ]);
-
-        // Monta índice com prioridade para ATIVOS
-        const map = new Map();
+        ]);        const map = new Map();
         (Array.isArray(desligados) ? desligados : []).forEach(d => {
             const nome = String(d.Nome || '');
             if (!nome) return;
@@ -162,9 +104,7 @@ import {supabase} from '../supabaseClient.js';
         });
         (Array.isArray(ativos) ? ativos : []).forEach(c => {
             const nome = String(c.Nome || '');
-            if (!nome) return;
-            // Ativo sobrescreve o que veio do desligado se houver duplicidade
-            map.set(nome, {
+            if (!nome) return;            map.set(nome, {
                 SVC: c.SVC ?? (map.get(nome)?.SVC ?? null),
                 MATRIZ: c.MATRIZ ?? (map.get(nome)?.MATRIZ ?? null),
                 Escala: c.Escala ?? (map.get(nome)?.Escala ?? null),
@@ -173,22 +113,16 @@ import {supabase} from '../supabaseClient.js';
                 _origem: 'Colaboradores',
                 _data_desligamento: map.get(nome)?._data_desligamento ?? null
             });
-        });
-
-        _colabIdx = map;
+        });        _colabIdx = map;
         return _colabIdx;
-    }
-
-    function scheduleRefresh(invalidate = false) {
+    }    function scheduleRefresh(invalidate = false) {
         if (invalidate) _colabIdx = null;
         if (!state.mounted) {
             state.dirty = true;
             return;
         }
         if (isActiveView()) fetchAndRender(); else state.dirty = true;
-    }
-
-    window.addEventListener('hc-filters-changed', function (ev) {
+    }    window.addEventListener('hc-filters-changed', function (ev) {
         var f = (ev && ev.detail) ? ev.detail : {};
         var mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
         var mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
@@ -198,16 +132,12 @@ import {supabase} from '../supabaseClient.js';
             state.paging.offset = 0;
             scheduleRefresh(true);
         }
-    });
-
-    ['hc-refresh', 'controle-diario-saved', 'cd-saved', 'cd-bulk-saved'].forEach(evt => {
+    });    ['hc-refresh', 'controle-diario-saved', 'cd-saved', 'cd-bulk-saved'].forEach(evt => {
         window.addEventListener(evt, () => scheduleRefresh(false));
     });
     ['colaborador-added'].forEach(evt => {
         window.addEventListener(evt, () => scheduleRefresh(true));
-    });
-
-    window.addEventListener('hc-activated', function (ev) {
+    });    window.addEventListener('hc-activated', function (ev) {
         if (ev && ev.detail && ev.detail.view === 'relatorio-abs') {
             ensureMounted(true);
             state.dirty = false;
@@ -217,9 +147,7 @@ import {supabase} from '../supabaseClient.js';
         if (document.visibilityState === 'visible' && isActiveView() && state.mounted) {
             if (state.dirty) fetchAndRender();
         }
-    });
-
-    function watchActivation() {
+    });    function watchActivation() {
         var host = document.querySelector(HOST_SEL);
         if (!host) return;
         var mo = new MutationObserver(function () {
@@ -229,17 +157,13 @@ import {supabase} from '../supabaseClient.js';
             }
         });
         mo.observe(host, {attributes: true, attributeFilter: ['class']});
-    }
-
-    function ensureMounted(forceEnsure) {
+    }    function ensureMounted(forceEnsure) {
         if (forceEnsure !== true) forceEnsure = false;
         var host = document.querySelector(HOST_SEL);
         if (!host) return;
         if (typeof state.cargo !== 'string') state.cargo = '';
         var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
-        if (state.mounted && hasTable && !forceEnsure) return;
-
-        host.innerHTML =
+        if (state.mounted && hasTable && !forceEnsure) return;        host.innerHTML =
             '<div class="abs-toolbar">' +
             '  <div class="abs-left">' +
             '    <input id="abs-search" type="search" placeholder="Pesquisar por nome..." />' +
@@ -281,18 +205,10 @@ import {supabase} from '../supabaseClient.js';
             '    </thead>' +
             '    <tbody id="abs-tbody"></tbody>' +
             '  </table>' +
-            '</div>';
-
-        state.mounted = true;
-
-        document.getElementById('abs-export')?.addEventListener('click', handleExport);
-        document.getElementById('abs-period')?.addEventListener('click', openPeriodModal);
-
-        const elSearch = document.getElementById('abs-search');
+            '</div>';        state.mounted = true;        document.getElementById('abs-export')?.addEventListener('click', handleExport);
+        document.getElementById('abs-period')?.addEventListener('click', openPeriodModal);        const elSearch = document.getElementById('abs-search');
         const elEscala = document.getElementById('abs-filter-escala');
-        const elCargo = document.getElementById('abs-filter-cargo');
-
-        elSearch?.addEventListener('input', function () {
+        const elCargo = document.getElementById('abs-filter-cargo');        elSearch?.addEventListener('input', function () {
             state.search = elSearch.value;
             renderRows();
         });
@@ -303,9 +219,7 @@ import {supabase} from '../supabaseClient.js';
         elCargo?.addEventListener('change', function () {
             state.cargo = elCargo.value;
             fetchAndRender();
-        });
-
-        const tbody = document.getElementById('abs-tbody');
+        });        const tbody = document.getElementById('abs-tbody');
         if (tbody) {
             tbody.addEventListener('dblclick', function (ev) {
                 const tr = ev.target?.closest ? ev.target.closest('tr.abs-row') : null;
@@ -314,33 +228,23 @@ import {supabase} from '../supabaseClient.js';
                 const row = (state.rows || [])[idx];
                 if (row) openEditModal(row);
             });
-        }
-
-        if (state.firstLoad) {
+        }        if (state.firstLoad) {
             const cur = defaultCurrentMonth();
             state.periodo.start = cur.start;
             state.periodo.end = cur.end;
             state.firstLoad = false;
         }
-        updatePeriodButton();
-
-        if (window.__HC_GLOBAL_FILTERS) {
+        updatePeriodButton();        if (window.__HC_GLOBAL_FILTERS) {
             state.matriz = window.__HC_GLOBAL_FILTERS.matriz || '';
             state.svc = window.__HC_GLOBAL_FILTERS.svc || '';
-        }
-
-        requestAnimationFrame(fetchAndRender);
+        }        requestAnimationFrame(fetchAndRender);
         watchActivation();
-    }
-
-    function updatePeriodButton() {
+    }    function updatePeriodButton() {
         var b = document.getElementById('abs-period');
         if (!b) return;
         var start = state.periodo.start, end = state.periodo.end;
         b.textContent = (start && end) ? ('Período: ' + fmtBR(start) + ' → ' + fmtBR(end)) : 'Selecionar período';
-    }
-
-    async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
+    }    async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
         let from = 0;
         const all = [];
         while (true) {
@@ -351,30 +255,18 @@ import {supabase} from '../supabaseClient.js';
                 .lt('Data', baseFilters.endISONextDay)
                 .or('Falta.gt.0,Atestado.gt.0')
                 .order('Data', {ascending: false})
-                .range(from, from + pageSize - 1);
-
-            if (state.escala) q = q.eq('Turno', state.escala);
-
-            const {data, error} = await q;
-            if (error) throw error;
-
-            const batch = Array.isArray(data) ? data : [];
-            all.push(...batch);
-
-            if (batch.length < pageSize) break;
+                .range(from, from + pageSize - 1);            if (state.escala) q = q.eq('Turno', state.escala);            const {data, error} = await q;
+            if (error) throw error;            const batch = Array.isArray(data) ? data : [];
+            all.push(...batch);            if (batch.length < pageSize) break;
             from += pageSize;
         }
         return all;
-    }
-
-    async function fetchAndRender() {
+    }    async function fetchAndRender() {
         var tbody = document.getElementById('abs-tbody');
         if (!tbody) {
             return;
         }
-        tbody.innerHTML = '<tr><td colspan="9" class="muted">Carregando…</td></tr>';
-
-        var startISO = parseAnyDateToISO(state.periodo.start);
+        tbody.innerHTML = '<tr><td colspan="9" class="muted">Carregando…</td></tr>';        var startISO = parseAnyDateToISO(state.periodo.start);
         var endStr = parseAnyDateToISO(state.periodo.end);
         var endISONextDay;
         if (endStr) {
@@ -384,24 +276,14 @@ import {supabase} from '../supabaseClient.js';
             endISONextDay = toISO(endDate);
         } else {
             endISONextDay = endStr;
-        }
-
-        try {
-            // Índice unificado (Ativos + Desligados)
-            const colabIndex = await getColabIndex();
-
-            // Busca Controle Diário (inclui históricos de desligados)
-            const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);
-
-            // Enriquecimento com SVC/MATRIZ/Escala/Cargo do índice unificado
-            const transformedRows = (controleRows || []).map(row => {
+        }        try {            const colabIndex = await getColabIndex();            const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);            const transformedRows = (controleRows || []).map(row => {
                 const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
                 return {
                     Numero: row.Numero,
                     Nome: row.Nome,
                     Data: row.Data,
                     Absenteismo: row.Atestado > 0 ? 'Justificado' : 'Injustificado',
-                    Escala: row.Turno,                    // do ControleDiario do dia
+                    Escala: row.Turno,
                     Entrevista: row.Entrevista,
                     Acao: row.Acao,
                     Observacao: row.Observacao,
@@ -410,23 +292,16 @@ import {supabase} from '../supabaseClient.js';
                     SVC: colabInfo.SVC || null,
                     MATRIZ: colabInfo.MATRIZ || null,
                     Cargo: colabInfo.Cargo || null,
-                    _origemCadastro: colabInfo._origem || null // debug opcional
+                    _origemCadastro: colabInfo._origem || null
                 };
-            });
-
-            // Filtros por cargo/SVC/MATRIZ (mantidos)
-            const filteredRows = transformedRows.filter(r => {
+            });            const filteredRows = transformedRows.filter(r => {
                 const cargo = norm(r.Cargo);
                 if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
                 if (state.cargo && cargo !== norm(state.cargo)) return false;
                 if (state.svc && norm(r.SVC) !== norm(state.svc)) return false;
                 if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
                 return true;
-            });
-
-            filteredRows.sort((a, b) => (b.Data || '').localeCompare(a.Data || ''));
-
-            state.rows = filteredRows;
+            });            filteredRows.sort((a, b) => (b.Data || '').localeCompare(a.Data || ''));            state.rows = filteredRows;
             state.dirty = false;
             renderRows();
         } catch (e) {
@@ -435,9 +310,7 @@ import {supabase} from '../supabaseClient.js';
             if (tb) tb.innerHTML = '<tr><td colspan="9" class="muted">Erro ao carregar. Veja o console.</td></tr>';
             updateCounters([]);
         }
-    }
-
-    function updateCounters(filtered) {
+    }    function updateCounters(filtered) {
         var el = document.getElementById('abs-counts');
         if (!el) return;
         filtered = Array.isArray(filtered) ? filtered : [];
@@ -454,30 +327,20 @@ import {supabase} from '../supabaseClient.js';
             ' <span class="sep">|</span> Justificado: ' + just +
             ' <span class="sep">|</span> ABS Total: ' + total +
             ' <span class="sep">|</span> Entrevistas feitas: ' + entrevistas;
-    }
-
-    function renderRows() {
+    }    function renderRows() {
         var tbody = document.getElementById('abs-tbody');
         if (!tbody) {
             updateCounters([]);
             return;
-        }
-
-        var s = stripAccents(state.search || '').toLowerCase();
+        }        var s = stripAccents(state.search || '').toLowerCase();
         var filtered = (state.rows || []).filter(function (r) {
             var nm = stripAccents(String(r.Nome || '')).toLowerCase();
             if (s && nm.indexOf(s) === -1) return false;
             return true;
-        });
-
-        updateCounters(filtered);
-
-        if (!filtered.length) {
+        });        updateCounters(filtered);        if (!filtered.length) {
             tbody.innerHTML = '<tr><td colspan="9" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
             return;
-        }
-
-        var frag = document.createDocumentFragment();
+        }        var frag = document.createDocumentFragment();
         filtered.forEach(function (row) {
             var tr = document.createElement('tr');
             tr.tabIndex = 0;
@@ -498,9 +361,7 @@ import {supabase} from '../supabaseClient.js';
             frag.appendChild(tr);
         });
         tbody.replaceChildren(frag);
-    }
-
-    function openEditModal(row) {
+    }    function openEditModal(row) {
         var overlay = document.createElement('div');
         overlay.className = 'abs-modal-overlay';
         overlay.setAttribute('role', 'dialog');
@@ -577,9 +438,7 @@ import {supabase} from '../supabaseClient.js';
             '  <button class="btn-add" id="abs-save" style="padding:8px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;">Salvar</button>' +
             '</div>';
         overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-
-        var radioSim = modal.querySelector('input[value="SIM"]');
+        document.body.appendChild(overlay);        var radioSim = modal.querySelector('input[value="SIM"]');
         var radioNao = modal.querySelector('input[value="NAO"]');
         var selAcao = modal.querySelector('#abs-acao');
         var entrevistaDetails = modal.querySelector('#abs-entrevista-details');
@@ -589,9 +448,7 @@ import {supabase} from '../supabaseClient.js';
         var selTipoAtestado = modal.querySelector('#abs-tipo-atestado');
         var inputObsJustificado = modal.querySelector('#abs-obs-justificado');
         var cidContainer = modal.querySelector('#abs-cid-container');
-        var cidInput = modal.querySelector('#abs-cid-input');
-
-        function toggleConditionalFields() {
+        var cidInput = modal.querySelector('#abs-cid-input');        function toggleConditionalFields() {
             var entrevistaSim = radioSim.checked;
             entrevistaDetails.style.display = entrevistaSim ? 'flex' : 'none';
             if (entrevistaSim) {
@@ -612,9 +469,7 @@ import {supabase} from '../supabaseClient.js';
                 justificadoFields.style.display = 'none';
                 cidContainer.style.display = 'none';
             }
-        }
-
-        radioSim.addEventListener('change', toggleConditionalFields);
+        }        radioSim.addEventListener('change', toggleConditionalFields);
         radioNao.addEventListener('change', toggleConditionalFields);
         selTipoAtestado.addEventListener('change', toggleConditionalFields);
         if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true; else radioNao.checked = true;
@@ -626,16 +481,12 @@ import {supabase} from '../supabaseClient.js';
         } else {
             selObsInjustificado.value = row.Observacao || '';
         }
-        toggleConditionalFields();
-
-        modal.querySelector('#abs-cancel')?.addEventListener('click', () => {
+        toggleConditionalFields();        modal.querySelector('#abs-cancel')?.addEventListener('click', () => {
             document.body.removeChild(overlay);
         });
         overlay.addEventListener('click', function (ev) {
             if (ev.target === overlay) document.body.removeChild(overlay);
-        });
-
-        var btnSave = modal.querySelector('#abs-save');
+        });        var btnSave = modal.querySelector('#abs-save');
         if (btnSave) btnSave.addEventListener('click', async function () {
             btnSave.disabled = true;
             btnSave.textContent = 'Salvando...';
@@ -666,9 +517,7 @@ import {supabase} from '../supabaseClient.js';
                 btnSave.textContent = 'Salvar';
             }
         });
-    }
-
-    function openPeriodModal() {
+    }    function openPeriodModal() {
         var overlay = document.createElement('div');
         overlay.id = 'cd-period-overlay';
         overlay.innerHTML =
@@ -705,9 +554,7 @@ import {supabase} from '../supabaseClient.js';
             close();
             fetchAndRender();
         });
-    }
-
-    async function handleExport() {
+    }    async function handleExport() {
         if (!state.periodo.start || !state.periodo.end) {
             alert('Selecione um período antes de exportar.');
             return;
@@ -738,15 +585,11 @@ import {supabase} from '../supabaseClient.js';
                     'SVC': r.SVC || ''
                 };
             });
-            var keys = Object.keys(csvRows[0] || {});
-
-            function escv(v) {
+            var keys = Object.keys(csvRows[0] || {});            function escv(v) {
                 if (v == null) return '';
                 var s = String(v);
                 return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-            }
-
-            var header = keys.join(',');
+            }            var header = keys.join(',');
             var body = csvRows.map(r => keys.map(k => escv(r[k])).join(',')).join('\n');
             var csv = header + '\n' + body;
             var blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
@@ -762,9 +605,7 @@ import {supabase} from '../supabaseClient.js';
             console.error('Export fallback erro', e);
             alert('Falha ao exportar. Veja o console.');
         }
-    }
-
-    window.ensureHCRelatorioMountedOnce = function () {
+    }    window.ensureHCRelatorioMountedOnce = function () {
         ensureMounted(true);
         if (state.dirty || isActiveView()) fetchAndRender();
     };

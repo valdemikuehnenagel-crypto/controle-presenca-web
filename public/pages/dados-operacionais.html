@@ -1,20 +1,34 @@
 <div class="page-container" id="dados-op-page">
-    <div class="dados-op-header">
-        <div class="action-bar">
-            <div class="legend-container">
-                <div class="legend-item"><span class="legend-dot status-ok"></span>100%</div>
-                <div class="legend-item"><span class="legend-dot status-pendente"></span>Parcial</div>
-                <div class="legend-item"><span class="legend-dot status-nok"></span>0%</div>
-                <div class="legend-item"><span class="legend-dot status-na"></span>N/A</div>
-            </div>
-            <div class="actions">
-                </div>
-        </div>
+  <div class="dados-op-header">
+
+
+    <div id="dados-op-filters" class="dados-op-filters">
+
+              <select id="dados-op-filter-svc" class="dados-op-filter">
+        <option value="">SVC</option>
+
+      </select>
+      <select id="dados-op-filter-matriz" class="dados-op-filter">
+        <option value="">Matriz</option>
+
+      </select>
+
+      <select id="dados-op-filter-gerente" class="dados-op-filter">
+        <option value="">Gerentes</option>
+
+      </select>
+
+      <button id="dados-op-clear-filters" class="btn">
+        Limpar
+      </button>
     </div>
 
-    <div id="dados-op-loader" class="loading-overlay" style="display: none;">
-        <div class="spinner"></div>
+
+    <div id="dados-op-loader" class="loading-overlay">
+      <div class="spinner"></div>
     </div>
-    <div id="dados-op-result">
-        </div>
+
+
+    <div id="dados-op-result"></div>
+  </div>
 </div>

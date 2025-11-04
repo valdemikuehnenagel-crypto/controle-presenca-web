@@ -1,5 +1,5 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';/* ============ Util / Datas (fuso BR) ============ */
+import {getMatrizesPermitidas} from '../session.js';
 const TZ = 'America/Sao_Paulo';
 const pad2 = n => String(n).padStart(2, '0');function todayISO_BR() {
     const parts = new Intl.DateTimeFormat('en-CA', {timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit'})
@@ -36,7 +36,7 @@ const pad2 = n => String(n).padStart(2, '0');function todayISO_BR() {
     const iso = diaristaToISO(dLike);
     if (!iso) return NaN;    const [y, m, d] = iso.split('-').map(Number);
     return new Date(`${y}-${pad2(m)}-${pad2(d)}T12:00:00`).getTime();
-};/* ============ Util / Texto & Sessão ============ */
+};
 function readCurrentSession() {
     try {
         if (window.currentSession && typeof window.currentSession === 'object') return window.currentSession;
@@ -62,7 +62,7 @@ const normalizeNameForMatch = s =>
 const formatNomeComId = (nome, id) => {
     const n = String(nome || '').trim(), g = String(id || '').trim();
     return g ? `${n} (${g})` : n;
-};/* ============ Estado ============ */
+};
 const state = {
     mounted: false,
     svcToMatriz: new Map(),
@@ -89,7 +89,7 @@ const setText = (id, v) => {
 const isGerenciarOpen = () => {
     const o = document.getElementById('gerenciar-modal');
     return o && !o.classList.contains('hidden');
-};/* ============ Base (BancoDiaristas) ============ */
+};
 async function loadBaseDiaristas() {
     if (state.baseLoaded) return;
     const matrizesPermitidas = getMatrizesPermitidas();
@@ -146,7 +146,7 @@ async function loadBaseDiaristas() {
         }
     }
     return '';
-}/* ============ Matrizes & Combos ============ */
+}
 async function loadMatrizInfo() {
     state.svcToMatriz.clear();
     state.matrizInfoMap.clear();
@@ -224,7 +224,7 @@ async function loadMatrizInfo() {
     } catch (e) {
         console.error('Erro loadMatrizInfo:', e);
     }
-}/* ============ Carrega lançamentos Diarista ============ */
+}
 async function loadDiaristas() {
     const CHUNK = 1000;
     let from = 0, all = [];
@@ -263,7 +263,7 @@ async function loadDiaristas() {
         console.warn('Falha loadDiaristas', e);
         state.records = [];
     }
-}/* ============ Filtros & Render ============ */
+}
 function filteredRows() {
     const s = state.filters;
     const tStart = safeTime(s.start);
@@ -322,7 +322,7 @@ function filteredRows() {
         const m = /(.*?)(?:\s*\(([^()]*)\))?$/.exec(pair);
         return {nome: (m?.[1] || '').trim(), id: (m?.[2] || '').trim()};
     }).filter(p => p.nome);
-}/* —— garante o cabeçalho “Ajuste” na tabela —— */
+}
 function ensureAjusteHeader() {
     const tbody = document.getElementById('diaristas-tbody');
     if (!tbody) return;
@@ -364,7 +364,7 @@ function ensureAjusteHeader() {
     });
     tbody.innerHTML = '';
     tbody.appendChild(frag);
-}/* ============ Popover de nomes ============ */
+}
 function ensurePopoverStyles() {
     if (document.getElementById('diaristas-names-popover-style')) return;
     const css = `
@@ -402,7 +402,7 @@ function ensurePopoverStyles() {
     document.body.appendChild(pop);
     state._popover = pop;
     pop.querySelector('.pop-close')?.addEventListener('click', closeNamesPopover);
-}/* ============ UI (wire) ============ */
+}
 function openPeriodModalDiarista() {
     const overlay = document.createElement('div');
     Object.assign(overlay.style, {
@@ -595,9 +595,7 @@ function openPeriodModalDiarista() {
         if (state._popover && !state._popover.contains(e.target) && !e.target.closest('.btn-nomes')) closeNamesPopover();
     }, {passive: true});
     window.addEventListener('scroll', closeNamesPopover, {passive: true});
-}/* ============ Lifecycle ============
-   init/destroy expostos
-==================================== */
+}
 export async function init() {
     if (state.mounted) return;
     state.mounted = true;
@@ -616,7 +614,7 @@ export async function init() {
     state._listeners = [];
     state.mounted = false;
     closeNamesPopover();
-}/* ============ Modal de Lançamento ============ */
+}
 function openModal() {
     if (document.body.classList.contains('user-level-visitante')) return;
     document.getElementById('f-quantidade').value = 1;
@@ -645,7 +643,7 @@ function openModal() {
     document.getElementById('diarista-modal').classList.add('hidden');
     const fMtz = document.getElementById('f-matriz');
     if (fMtz) fMtz.disabled = false;
-}/* ============ Submit Lançamento (AJUSTADA com validação de duplicados) ============ */
+}
 async function onSubmitForm(ev) {
     ev.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) return alert('Ação não permitida. Você está em modo de visualização.');    const qtd = Math.max(1, parseInt(document.getElementById('f-quantidade').value, 10) || 1);
@@ -970,7 +968,7 @@ async function onSubmitForm(ev) {
     btnSave.addEventListener('click', () => saveEditDiarista(record.Numero));    iQtd.addEventListener('input', () => updateEditNameInputs(true));
     iQtd.addEventListener('change', () => updateEditNameInputs(true));    updateEditNameInputs(false);
     setTimeout(() => iEmp?.focus(), 0);
-}/* ============ Salvar Edição (AJUSTADA com validação de duplicados) ============ */
+}
 async function saveEditDiarista(numero) {
     if (document.body.classList.contains('user-level-visitante')) return alert('Ação não permitida. Você está em modo de visualização.');    const tipo = await getUserTipo();
     if (!['SUPERVISOR', 'GERENTE'].includes(tipo)) {
@@ -1023,7 +1021,7 @@ async function saveEditDiarista(numero) {
 }function closeEditDiaristaModal() {
     const o = document.getElementById('diarista-edit-modal');
     if (o) o.remove();
-}/* ============ Registrar Diarista (Base) ============ */
+}
 function openRegistrarModal() {
     if (document.body.classList.contains('user-level-visitante')) return;
     const regOverlay = document.getElementById('registrar-diarista-modal');
@@ -1106,7 +1104,7 @@ function openRegistrarModal() {
         console.error('Falha onSubmitRegistrarForm:', e);
         alert(`Erro: ${e.message}`);
     }
-}/* ============ Export XLSX (somente XLSX, 1 linha por diarista) ============ */
+}
 async function ensureXLSXLoaded() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
@@ -1147,7 +1145,7 @@ async function ensureXLSXLoaded() {
     XLSX.utils.book_append_sheet(wb, ws, 'Diaristas');    const start = state.filters.start || '';
     const end = state.filters.end || '';
     XLSX.writeFile(wb, `diaristas_${start}_a_${end}.xlsx`);
-}/* ============ GERENCIAR (Base) ============ */
+}
 function ensureGerenciarStyles() {
     if (document.getElementById('gerenciar-style')) return;
     const css = `
@@ -1247,7 +1245,7 @@ function ensureGerenciarStyles() {
     const $i = document.getElementById('gerenciar-search-input');
     if ($i) $i.value = '';
     state.gerenciar.searchRaw = '';
-}/* BancoDiaristas cache */
+}
 async function ensureBancoDiaristasLoaded() {
     if (state.gerenciar.loaded) return;
     const matrizesPermitidas = getMatrizesPermitidas();
@@ -1357,7 +1355,7 @@ async function ensureBancoDiaristasLoaded() {
     }
     state.gerenciar.filtered = results.slice(0, 10000);
     renderGerenciarTable();
-}/* ============ Editar / Excluir (Gerenciar) ============ */
+}
 function openGerenciarEditModal(entity) {
     closeGerenciarEditModal();
     const overlay = document.createElement('div');

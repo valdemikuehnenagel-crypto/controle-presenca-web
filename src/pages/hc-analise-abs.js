@@ -1,7 +1,5 @@
 import {getMatrizesPermitidas} from '../session.js';
-import {supabase} from '../supabaseClient.js';
-
-(function () {
+import {supabase} from '../supabaseClient.js';(function () {
     const HOST_SEL = '#hc-analise-abs';
     const state = {
         mounted: false,
@@ -12,6 +10,7 @@ import {supabase} from '../supabaseClient.js';
             diaDaSemana: null,
             genero: null,
             contrato: null,
+            turno: null,
             faixaEtaria: null,
             top5: null
         },
@@ -20,39 +19,25 @@ import {supabase} from '../supabaseClient.js';
         inicioISO: null,
         fimISO: null,
         absenteeismData: [],
-        interactiveFilters: {week: null, gender: null, contract: null, dow: null, age: null}
+        interactiveFilters: {week: null, gender: null, contract: null, dow: null, age: null, turno: null}
     };
     const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const root = () => document.documentElement;
     const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
-    const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
-
-    // Legendas abreviadas
-    const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
-
-    const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-
-    let _colabCache = null;
-
-    function parseDateMaybe(s) {
+    const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];    const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];    const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];    let _colabCache = null;    function parseDateMaybe(s) {
         if (!s) return null;
         const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(String(s).trim());
         if (m) return new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0);
         const d = new Date(s);
         return Number.isNaN(d.getTime()) ? null : d;
-    }
-
-    function calcAgeFromStr(s) {
+    }    function calcAgeFromStr(s) {
         const d = parseDateMaybe(s);
         if (!d) return null;
         let a = new Date().getFullYear() - d.getFullYear();
         const m = new Date().getMonth() - d.getMonth();
         if (m < 0 || (m === 0 && new Date().getDate() < d.getDate())) a--;
         return a;
-    }
-
-    function ageBucket(a) {
+    }    function ageBucket(a) {
         if (a == null) return 'N/D';
         if (a < 20) return '<20';
         if (a < 30) return '20-29';
@@ -60,102 +45,62 @@ import {supabase} from '../supabaseClient.js';
         if (a < 50) return '40-49';
         if (a < 60) return '50-59';
         return '60+';
-    }
-
-    function getNascimento(c) {
+    }    function getNascimento(c) {
         return c?.['Data de Nascimento'] || c?.['Data de nascimento'] || c?.Nascimento || '';
-    }
-
-    function mapGeneroLabel(raw) {
+    }    function mapGeneroLabel(raw) {
         const n = norm(raw);
         if (n.startsWith('MASC')) return 'Masculino';
         if (n.startsWith('FEM')) return 'Feminino';
         return n ? 'Outros' : 'N/D';
-    }
-
-    function mapContratoAgg(raw) {
+    }    function mapContratoAgg(raw) {
         return norm(raw).includes('KN') ? 'Efetivo' : 'Temporário';
-    }
-
-    function getWeekOfYear(d) {
+    }    function mapTurnoLabel(raw) {
+        const n = norm(raw);
+        if (n === 'T1') return 'T1';
+        if (n === 'T2') return 'T2';
+        if (n === 'T3') return 'T3';
+        return 'Outros';
+    }    function getWeekOfYear(d) {
         d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
         var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
         var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
         return `W${String(weekNo).padStart(2, '0')}`;
-    }
-
-
-    async function getColaboradoresCache() {
-
-        if (_colabCache) {
+    }    async function getColaboradoresCache() {        if (_colabCache) {
             return _colabCache;
-        }
-
-
-        const matrizesPermitidas = getMatrizesPermitidas();
-        let colabQuery = supabase.from('Colaboradores').select('Nome, Genero, Contrato, "Data de nascimento"').eq('Ativo', 'SIM');
-
-        if (matrizesPermitidas) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
-
-
-        if (state.matriz) colabQuery = colabQuery.eq('MATRIZ', state.matriz);
-        if (state.svc) colabQuery = colabQuery.eq('SVC', state.svc);
-
-        const colabs = await fetchAllWithPagination(colabQuery);
-
-        const colabMap = new Map();
+        }        const matrizesPermitidas = getMatrizesPermitidas();        let colabQuery = supabase
+            .from('Colaboradores')
+            .select('Nome, Genero, Contrato, "Data de nascimento", "Escala"')
+            .eq('Ativo', 'SIM');        if (matrizesPermitidas) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);        if (state.matriz) colabQuery = colabQuery.eq('MATRIZ', state.matriz);
+        if (state.svc) colabQuery = colabQuery.eq('SVC', state.svc);        const colabs = await fetchAllWithPagination(colabQuery);        const colabMap = new Map();
         if (colabs && colabs.length > 0) {
             colabs.forEach(c => colabMap.set(norm(c.Nome), c));
-        }
-
-        _colabCache = {list: colabs || [], map: colabMap};
+        }        _colabCache = {list: colabs || [], map: colabMap};
         return _colabCache;
-    }
-
-
-    function palette() {
+    }    function palette() {
         return ['#02B1EE', '#003369', '#69D4FF', '#2677C7', '#A9E7FF', '#225B9E', '#7FB8EB', '#99CCFF'];
-    }
-
-
-    function scheduleRefresh(invalidateCache = false) {
+    }    function scheduleRefresh(invalidateCache = false) {
         if (invalidateCache) {
             _colabCache = null;
-        }
-
-
-        if (state.mounted) {
+        }        if (state.mounted) {
             refresh();
         }
-    }
-
-
-    function handleChartClick(chart, clickedIndex, filterType) {
+    }    function handleChartClick(chart, clickedIndex, filterType) {
         const clickedLabel = chart.data.labels[clickedIndex];
-        let filterValue = clickedLabel;
-
-        if (filterType === 'dow') filterValue = DOW_LABELS.indexOf(clickedLabel);
-
-        state.interactiveFilters[filterType] = state.interactiveFilters[filterType] === filterValue ? null : filterValue;
+        let filterValue = clickedLabel;        if (filterType === 'dow') filterValue = DOW_LABELS.indexOf(clickedLabel);        state.interactiveFilters[filterType] = state.interactiveFilters[filterType] === filterValue ? null : filterValue;
         applyFiltersAndUpdate();
-    }
-
-    function applyFiltersAndUpdate() {
+    }    function applyFiltersAndUpdate() {
         const filteredData = state.absenteeismData.filter(d => {
             const date = parseDateMaybe(d.Data);
             if (!date) return false;
             if (state.interactiveFilters.week && getWeekOfYear(date) !== state.interactiveFilters.week) return false;
             if (state.interactiveFilters.gender && mapGeneroLabel(d.colaborador.Genero) !== state.interactiveFilters.gender) return false;
-            if (state.interactiveFilters.contract && mapContratoAgg(d.colaborador.Contrato) !== state.interactiveFilters.contract) return false;
-            if (state.interactiveFilters.age && ageBucket(calcAgeFromStr(getNascimento(d.colaborador))) !== state.interactiveFilters.age) return false;
+            if (state.interactiveFilters.contract && mapContratoAgg(d.colaborador.Contrato) !== state.interactiveFilters.contract) return false;            if (state.interactiveFilters.turno && mapTurnoLabel(d.colaborador.Escala) !== state.interactiveFilters.turno) return false;            if (state.interactiveFilters.age && ageBucket(calcAgeFromStr(getNascimento(d.colaborador))) !== state.interactiveFilters.age) return false;
             if (state.interactiveFilters.dow != null && date.getDay() !== state.interactiveFilters.dow) return false;
             return true;
         });
         updateChartsNow(filteredData);
-    }
-
-    function setupPeriodFilter(host) {
+    }    function setupPeriodFilter(host) {
         const toolbar = host.querySelector('.abs-toolbar');
         if (!toolbar || toolbar.querySelector('#abs-period-btn')) return;
         const btn = document.createElement('button');
@@ -171,16 +116,16 @@ import {supabase} from '../supabaseClient.js';
             const overlay = document.createElement('div');
             overlay.id = 'abs-period-overlay';
             overlay.innerHTML = `<div>
-                                <h3>Selecionar Período</h3>
-                                <div class="dates-grid">
-                                    <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
-                                    <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
-                                </div>
-                                <div class="form-actions">
-                                    <button id="abs-period-cancel" class="btn">Cancelar</button>
-                                    <button id="abs-period-apply" class="btn-add">Aplicar</button>
-                                </div>
-                            </div>`;
+                                        <h3>Selecionar Período</h3>
+                                        <div class="dates-grid">
+                                            <div><label>Início</label><input id="abs-period-start" type="date" value="${curStart}"></div>
+                                            <div><label>Fim</label><input id="abs-period-end" type="date" value="${curEnd}"></div>
+                                        </div>
+                                        <div class="form-actions">
+                                            <button id="abs-period-cancel" class="btn">Cancelar</button>
+                                            <button id="abs-period-apply" class="btn-add">Aplicar</button>
+                                        </div>
+                                    </div>`;
             document.body.appendChild(overlay);
             const close = () => overlay.remove();
             overlay.addEventListener('click', e => {
@@ -197,42 +142,34 @@ import {supabase} from '../supabaseClient.js';
                 close();
             };
         };
-    }
-
-    function ensureMounted() {
+    }    function ensureMounted() {
         if (state.mounted) return;
         const host = document.querySelector(HOST_SEL);
-        if (!host.querySelector('.hcabs-root')) {
-            host.innerHTML = `<div class="hcabs-root">
-                        <div class="abs-toolbar"></div>
-                        <div class="hcabs-grid">
-                            <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
-                            <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
-                            <div class="hcabs-card hcabs-card--full">
-                                <div class="hcabs-doughnut-container">
-                                
-                                    <div class="hcabs-bar-item"><h3>Dia da Semana</h3><canvas id="abs-dow-doughnut"></canvas></div>
-                                    
-                                    <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
-                                    <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
+        if (!host.querySelector('.hcabs-root')) {            host.innerHTML = `<div class="hcabs-root">
+                                <div class="abs-toolbar"></div>
+                                <div class="hcabs-grid">
+                                    <div class="hcabs-card"><h3>Visão Mensal</h3><canvas id="abs-mes-line"></canvas></div>
+                                    <div class="hcabs-card"><h3>Visão Semanal</h3><canvas id="abs-week-bar"></canvas></div>
+                                    <div class="hcabs-card hcabs-card--full">
+                                        <div class="hcabs-doughnut-container">                                            <div class="hcabs-bar-item"><h3>Dia da Semana</h3><canvas id="abs-dow-doughnut"></canvas></div>                                            <div class="hcabs-doughnut-item"><h3>Gênero (%)</h3><canvas id="abs-genero-doughnut"></canvas></div>
+                                            <div class="hcabs-doughnut-item"><h3>Contrato (%)</h3><canvas id="abs-contrato-doughnut"></canvas></div>
+                                            <div class="hcabs-doughnut-item"><h3>Turno (%)</h3><canvas id="abs-turno-doughnut"></canvas></div>
+                                        </div>
+                                    </div>
+                                    <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
+                                    <div class="hcabs-card">
+                                        <h3>Top 5 Ofensores</h3>
+                                        <canvas id="abs-top5-bar"></canvas>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="hcabs-card"><h3>Faixa Etária</h3><canvas id="abs-idade-bar"></canvas></div>
-                            <div class="hcabs-card">
-                                <h3>Top 5 Ofensores</h3>
-                                <canvas id="abs-top5-bar"></canvas>
-                            </div>
-                        </div>
-                        <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
-                    </div>`;
+                                <div id="hcabs-busy" class="hcabs-loading" style="display:none;">Carregando…</div>
+                            </div>`;
         }
         ensureCanvasWrappers();
         setupPeriodFilter(host);
         state.mounted = true;
-    }
-
-    function ensureCanvasWrappers() {
-        const elementsWithCanvas = document.querySelectorAll('#hc-analise-abs .hcabs-card, #hc-analise-abs .hcabs-doughnut-item, #hc-analise-abs .hcabs-bar-item'); // <--- Adicionada a nova classe
+    }    function ensureCanvasWrappers() {
+        const elementsWithCanvas = document.querySelectorAll('#hc-analise-abs .hcabs-card, #hc-analise-abs .hcabs-doughnut-item, #hc-analise-abs .hcabs-bar-item');
         elementsWithCanvas.forEach(el => {
             const canvas = el.querySelector('canvas');
             if (!canvas || (canvas.parentElement && canvas.parentElement.classList.contains('hcabs-canvas-wrap'))) return;
@@ -241,9 +178,7 @@ import {supabase} from '../supabaseClient.js';
             canvas.parentNode.insertBefore(wrap, canvas);
             wrap.appendChild(canvas);
         });
-    }
-
-    async function ensureChartLib() {
+    }    async function ensureChartLib() {
         if (!window.Chart) await loadJs('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
         if (!window.ChartDataLabels) await loadJs('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js');
         try {
@@ -253,9 +188,7 @@ import {supabase} from '../supabaseClient.js';
         Chart.defaults.responsive = true;
         Chart.defaults.maintainAspectRatio = false;
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
-    }
-
-    function loadJs(src) {
+    }    function loadJs(src) {
         return new Promise((res, rej) => {
             const s = document.createElement('script');
             s.src = src;
@@ -263,43 +196,25 @@ import {supabase} from '../supabaseClient.js';
             s.onerror = rej;
             document.head.appendChild(s);
         });
-    }
-
-
-    window.addEventListener('hc-filters-changed', (ev) => {
+    }    window.addEventListener('hc-filters-changed', (ev) => {
         const f = ev?.detail || {};
         const mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
-        const mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
-
-        if (mudouMatriz) state.matriz = f.matriz;
-        if (mudouSvc) state.svc = f.svc;
-
-        if (mudouMatriz || mudouSvc) {
+        const mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);        if (mudouMatriz) state.matriz = f.matriz;
+        if (mudouSvc) state.svc = f.svc;        if (mudouMatriz || mudouSvc) {
             scheduleRefresh(true);
         }
-    });
-
-
-    ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'hc-refresh'].forEach(evt =>
+    });    ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'hc-refresh'].forEach(evt =>
         window.addEventListener(evt, () => {
             scheduleRefresh(false);
         })
-    );
-
-
-    ['colaborador-added'].forEach(evt =>
+    );    ['colaborador-added'].forEach(evt =>
         window.addEventListener(evt, () => {
             scheduleRefresh(true);
         })
-    );
-
-
-    function showBusy(f) {
+    );    function showBusy(f) {
         const el = document.getElementById('hcabs-busy');
         if (el) el.style.display = f ? 'flex' : 'none';
-    }
-
-    async function fetchAllWithPagination(queryBuilder) {
+    }    async function fetchAllWithPagination(queryBuilder) {
         let allData = [];
         let page = 0;
         const pageSize = 1000;
@@ -315,9 +230,7 @@ import {supabase} from '../supabaseClient.js';
             }
         }
         return allData;
-    }
-
-    async function refresh() {
+    }    async function refresh() {
         if (state.loading) return;
         state.loading = true;
         showBusy(true);
@@ -336,40 +249,25 @@ import {supabase} from '../supabaseClient.js';
                 endDate = toISO(end);
                 state.inicioISO = startDate;
                 state.fimISO = endDate;
-            }
-
-
-            const cache = await getColaboradoresCache();
+            }            const cache = await getColaboradoresCache();
             const colabs = cache.list;
-            const colabMap = cache.map;
-
-
-            if (!colabs || colabs.length === 0) {
+            const colabMap = cache.map;            if (!colabs || colabs.length === 0) {
                 state.absenteeismData = [];
                 ensureChartsCreated();
                 applyFiltersAndUpdate();
                 state.loading = false;
                 showBusy(false);
                 return;
-            }
-
-
-            const {data: diario, error: diarioError} = await supabase
+            }            const {data: diario, error: diarioError} = await supabase
                 .rpc('get_abs_para_analise', {
                     nomes: colabs.map(c => c.Nome),
                     data_inicio: startDate,
                     data_fim: endDate
                 });
-            if (diarioError) throw diarioError;
-
-
-            state.absenteeismData = diario.map(record => ({
+            if (diarioError) throw diarioError;            state.absenteeismData = diario.map(record => ({
                 ...record,
                 colaborador: colabMap.get(norm(record.Nome)) || {}
-            })).filter(d => d.colaborador && d.colaborador.Nome);
-
-            ensureChartsCreated();
-            state.interactiveFilters = {week: null, gender: null, contract: null, dow: null, age: null};
+            })).filter(d => d.colaborador && d.colaborador.Nome);            ensureChartsCreated();            state.interactiveFilters = {week: null, gender: null, contract: null, dow: null, age: null, turno: null};
             applyFiltersAndUpdate();
         } catch (e) {
             console.error('Análise ABS erro', e);
@@ -378,26 +276,20 @@ import {supabase} from '../supabaseClient.js';
             state.loading = false;
             showBusy(false);
         }
-    }
-
-    const animationConfig = {duration: 800, easing: 'easeOutQuart', delay: (ctx) => ctx.dataIndex * 25};
+    }    const animationConfig = {duration: 800, easing: 'easeOutQuart', delay: (ctx) => ctx.dataIndex * 25};
     const baseChartOpts = (onClick) => ({
         animation: animationConfig, onClick: (evt, elements, chart) => {
             if (elements.length > 0 && onClick) onClick(chart, elements[0].index);
         }, onHover: (evt, elements) => {
             evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
         },
-    });
-
-    // *** ALTERAÇÃO 2: Removido 'grace: 10%' da escala Y ***
-    // O valor máximo será definido dinamicamente na função updateChartsNow
-    const barLineOpts = (onClick) => ({
+    });    const barLineOpts = (onClick) => ({
         ...baseChartOpts(onClick),
-        layout: {padding: {top: 25, left: 8, right: 8, bottom: 8}}, // Mantém o padding de 25px no topo
+        layout: {padding: {top: 25, left: 8, right: 8, bottom: 8}},
         plugins: {
             legend: {display: false},
             datalabels: {
-                clamp: false, // Permitir que o rótulo saia um pouco
+                clamp: false,
                 display: 'auto',
                 anchor: 'end',
                 align: 'end',
@@ -412,11 +304,9 @@ import {supabase} from '../supabaseClient.js';
         },
         scales: {
             x: {grid: {display: false}},
-            y: {beginAtZero: true, grid: {display: false}} // <-- 'grace' removido
+            y: {beginAtZero: true, grid: {display: false}}
         }
-    });
-
-    const doughnutOpts = (onClick) => ({
+    });    const doughnutOpts = (onClick) => ({
         ...baseChartOpts(onClick),
         layout: {padding: 8},
         plugins: {
@@ -436,9 +326,7 @@ import {supabase} from '../supabaseClient.js';
             }
         },
         cutout: '40%'
-    });
-
-    const top5BarOpts = () => {
+    });    const top5BarOpts = () => {
         const opts = barLineOpts(() => {
         });
         opts.scales.x.ticks = {
@@ -451,18 +339,14 @@ import {supabase} from '../supabaseClient.js';
         opts.plugins.datalabels.anchor = 'end';
         opts.plugins.datalabels.formatter = v => v;
         return opts;
-    };
-
-    // *** ALTERAÇÃO 3: Removido 'grace: 10%' da escala X ***
-    // O valor máximo será definido dinamicamente
-    const dowHorizontalBarOpts = (onClick) => {
+    };    const dowHorizontalBarOpts = (onClick) => {
         const opts = baseChartOpts(onClick);
         opts.indexAxis = 'y';
         opts.layout = {padding: {top: 8, left: 8, right: 40, bottom: 8}};
         opts.plugins = {
             legend: {display: false},
             datalabels: {
-                clamp: false, // Permitir que o rótulo saia um pouco
+                clamp: false,
                 display: 'auto',
                 anchor: 'end',
                 align: 'end',
@@ -471,11 +355,7 @@ import {supabase} from '../supabaseClient.js';
                 formatter: (value, context) => {
                     const rawCounts = context.chart.data.datasets[0]._rawCounts || [];
                     const total = rawCounts.reduce((a, b) => a + b, 0);
-                    const percentage = total > 0 ? (value / total) * 100 : 0;
-
-                    if (value === 0) return null;
-
-                    return `${Math.round(percentage)}% (${value})`;
+                    const percentage = total > 0 ? (value / total) * 100 : 0;                    if (value === 0) return null;                    return `${Math.round(percentage)}% (${value})`;
                 }
             },
             tooltip: {
@@ -491,13 +371,11 @@ import {supabase} from '../supabaseClient.js';
             }
         };
         opts.scales = {
-            x: {beginAtZero: true, grid: {display: false}}, // <-- 'grace' removido
+            x: {beginAtZero: true, grid: {display: false}},
             y: {grid: {display: false}}
         };
         return opts;
-    };
-
-    function ensureChartsCreated() {
+    };    function ensureChartsCreated() {
         if (state.charts.totalPorMes) return;
         state.charts.totalPorMes = new Chart(document.getElementById('abs-mes-line').getContext('2d'), {
             type: 'line',
@@ -509,22 +387,20 @@ import {supabase} from '../supabaseClient.js';
         state.charts.totalPorWeek = new Chart(document.getElementById('abs-week-bar').getContext('2d'), {
             type: 'bar',
             options: barLineOpts((c, i) => handleChartClick(c, i, 'week'))
-        });
-
-        state.charts.diaDaSemana = new Chart(document.getElementById('abs-dow-doughnut').getContext('2d'), {
+        });        state.charts.diaDaSemana = new Chart(document.getElementById('abs-dow-doughnut').getContext('2d'), {
             type: 'bar',
             options: dowHorizontalBarOpts((c, i) => handleChartClick(c, i, 'dow'))
-        });
-
-        state.charts.genero = new Chart(document.getElementById('abs-genero-doughnut').getContext('2d'), {
+        });        state.charts.genero = new Chart(document.getElementById('abs-genero-doughnut').getContext('2d'), {
             type: 'doughnut',
             options: doughnutOpts((c, i) => handleChartClick(c, i, 'gender'))
         });
         state.charts.contrato = new Chart(document.getElementById('abs-contrato-doughnut').getContext('2d'), {
             type: 'doughnut',
             options: doughnutOpts((c, i) => handleChartClick(c, i, 'contract'))
-        });
-        state.charts.faixaEtaria = new Chart(document.getElementById('abs-idade-bar').getContext('2d'), {
+        });        state.charts.turno = new Chart(document.getElementById('abs-turno-doughnut').getContext('2d'), {
+            type: 'doughnut',
+            options: doughnutOpts((c, i) => handleChartClick(c, i, 'turno'))
+        });        state.charts.faixaEtaria = new Chart(document.getElementById('abs-idade-bar').getContext('2d'), {
             type: 'bar',
             options: barLineOpts((c, i) => handleChartClick(c, i, 'age'))
         });
@@ -532,41 +408,26 @@ import {supabase} from '../supabaseClient.js';
             type: 'bar',
             options: top5BarOpts()
         });
-    }
-
-    // *** ALTERAÇÃO 4: Função 'updateChartsNow' com cálculo de 'max' ***
-    function updateChartsNow(dataToRender) {
+    }    function updateChartsNow(dataToRender) {
         const pal = palette();
         const totalAbs = dataToRender.length || 1;
-        const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
-
-        // Função helper para calcular o teto
-        const getSafeMax = (dataValues, multiplier = 1.15) => {
-             // Se não houver dados, define um teto de 10
+        const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');        const getSafeMax = (dataValues, multiplier = 1.15) => {
             if (!dataValues || dataValues.length === 0) return 10;
             const maxData = Math.max(...dataValues);
-             // Se o valor máximo for 0, define o teto como 10
             if (maxData === 0) return 10;
-             // Caso contrário, usa o multiplicador (ex: 1.15 para 15% de folga)
             return maxData * multiplier;
-        };
-
-        { // Visão Mensal
+        };        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = d.Data.substring(0, 7);
                 counts.set(key, (counts.get(key) || 0) + 1);
             });
             const sorted = [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-            const dataValues = sorted.map(e => e[1]); // Pega os valores
-
-            const ch = state.charts.totalPorMes;
+            const dataValues = sorted.map(e => e[1]);            const ch = state.charts.totalPorMes;
             const ctx = ch.ctx;
             const gradient = ctx.createLinearGradient(0, 0, 0, ch.height);
             gradient.addColorStop(0, createOpacity(pal[1], 0.4));
-            gradient.addColorStop(1, createOpacity(pal[1], 0));
-
-            ch.data = {
+            gradient.addColorStop(1, createOpacity(pal[1], 0));            ch.data = {
                 labels: sorted.map(e => {
                     const [y, m] = e[0].split('-');
                     return `${MONTH_LABELS[parseInt(m, 10) - 1]}/${y.slice(-2)}`;
@@ -579,51 +440,34 @@ import {supabase} from '../supabaseClient.js';
                     pointBackgroundColor: pal[1],
                     borderWidth: 2.5
                 }]
-            };
-
-            // Define o 'max' do eixo Y dinamicamente
-            ch.options.scales.y.max = getSafeMax(dataValues);
+            };            ch.options.scales.y.max = getSafeMax(dataValues);
             ch.update();
         }
-        { // Visão Semanal
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = getWeekOfYear(parseDateMaybe(d.Data));
                 counts.set(key, (counts.get(key) || 0) + 1);
             });
             const weekLabels = [...new Set(state.absenteeismData.map(d => getWeekOfYear(parseDateMaybe(d.Data))))].sort();
-            const weekData = weekLabels.map(w => counts.get(w) || 0);
-
-            const ch = state.charts.totalPorWeek;
+            const weekData = weekLabels.map(w => counts.get(w) || 0);            const ch = state.charts.totalPorWeek;
             ch.data.labels = weekLabels;
             ch.data.datasets = [{
                 data: weekData,
                 backgroundColor: weekLabels.map(l => state.interactiveFilters.week === l ? pal[0] : pal[1])
-            }];
-
-            // Define o 'max' do eixo Y dinamicamente
-            ch.options.scales.y.max = getSafeMax(weekData);
+            }];            ch.options.scales.y.max = getSafeMax(weekData);
             ch.update();
-        }
-
-        { // Dia da Semana
+        }        {
             const counts = Array(7).fill(0);
-            dataToRender.forEach(d => counts[parseDateMaybe(d.Data).getDay()]++);
-
-            const ch = state.charts.diaDaSemana;
+            dataToRender.forEach(d => counts[parseDateMaybe(d.Data).getDay()]++);            const ch = state.charts.diaDaSemana;
             ch.data.labels = DOW_LABELS;
             ch.data.datasets = [{
                 data: counts,
                 backgroundColor: DOW_LABELS.map((l, i) => state.interactiveFilters.dow === i ? pal[0] : pal[1]),
                 _rawCounts: counts
-            }];
-
-            // Define o 'max' do eixo X (horizontal) com 20% de folga para o rótulo
-            ch.options.scales.x.max = getSafeMax(counts, 1.20);
+            }];            ch.options.scales.x.max = getSafeMax(counts, 1.20);
             ch.update();
-        }
-
-        { // Gênero
+        }        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = mapGeneroLabel(d.colaborador.Genero);
@@ -647,7 +491,7 @@ import {supabase} from '../supabaseClient.js';
             }];
             ch.update();
         }
-        { // Contrato
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = mapContratoAgg(d.colaborador.Contrato);
@@ -665,28 +509,39 @@ import {supabase} from '../supabaseClient.js';
                 _rawCounts: rawCounts
             }];
             ch.update();
-        }
-        { // Faixa Etária
+        }        {
+            const counts = new Map();
+            dataToRender.forEach(d => {
+                const key = mapTurnoLabel(d.colaborador.Escala);
+                counts.set(key, (counts.get(key) || 0) + 1);
+            });
+            const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+            const labels = sorted.map(e => e[0]);
+            const rawCounts = sorted.map(e => e[1]);
+            const colors = palette();            const ch = state.charts.turno;
+            ch.data.labels = labels;
+            ch.data.datasets = [{
+                data: rawCounts.map(c => (c * 100) / totalAbs),
+                backgroundColor: labels.map((l, i) => state.interactiveFilters.turno === l ? pal[0] : colors[i % colors.length]),
+                _rawCounts: rawCounts
+            }];
+            ch.update();
+        }        {
             const counts = new Map(AGE_BUCKETS.map(k => [k, 0]));
             dataToRender.forEach(d => {
                 const key = ageBucket(calcAgeFromStr(getNascimento(d.colaborador)));
                 counts.set(key, (counts.get(key) || 0) + 1);
             });
             const labels = AGE_BUCKETS;
-            const ageData = labels.map(age => counts.get(age) || 0);
-
-            const ch = state.charts.faixaEtaria;
+            const ageData = labels.map(age => counts.get(age) || 0);            const ch = state.charts.faixaEtaria;
             ch.data.labels = labels;
             ch.data.datasets = [{
                 data: ageData,
                 backgroundColor: labels.map(l => state.interactiveFilters.age === l ? pal[0] : pal[5])
-            }];
-
-            // Define o 'max' do eixo Y dinamicamente
-            ch.options.scales.y.max = getSafeMax(ageData);
+            }];            ch.options.scales.y.max = getSafeMax(ageData);
             ch.update();
         }
-        { // Top 5 Ofensores
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const nome = d.colaborador.Nome;
@@ -694,24 +549,15 @@ import {supabase} from '../supabaseClient.js';
             });
             const top5 = [...counts.entries()]
                 .sort((a, b) => b[1] - a[1])
-                .slice(0, 5);
-
-            const dataValues = top5.map(item => item[1]);
-
-            const ch = state.charts.top5;
+                .slice(0, 5);            const dataValues = top5.map(item => item[1]);            const ch = state.charts.top5;
             ch.data.labels = top5.map(item => item[0]);
             ch.data.datasets = [{
                 data: dataValues,
                 backgroundColor: pal[1]
-            }];
-
-            // Define o 'max' do eixo Y dinamicamente
-            ch.options.scales.y.max = getSafeMax(dataValues);
+            }];            ch.options.scales.y.max = getSafeMax(dataValues);
             ch.update();
         }
-    }
-
-    function resetState() {
+    }    function resetState() {
         state.mounted = false;
         Object.keys(state.charts).forEach(key => {
             if (state.charts[key]) {
@@ -719,9 +565,7 @@ import {supabase} from '../supabaseClient.js';
                 state.charts[key] = null;
             }
         });
-    }
-
-    window.buildHCAnaliseABS = function () {
+    }    window.buildHCAnaliseABS = function () {
         const host = document.querySelector(HOST_SEL);
         if (!host) return;
         if (!state.mounted) ensureMounted();
@@ -734,13 +578,13 @@ import {supabase} from '../supabaseClient.js';
             Object.values(state.charts).forEach(chart => {
                 if (chart) chart.destroy()
             });
-            state.mounted = false;
-            state.charts = {
+            state.mounted = false;            state.charts = {
                 totalPorWeek: null,
                 totalPorMes: null,
                 diaDaSemana: null,
                 genero: null,
                 contrato: null,
+                turno: null,
                 faixaEtaria: null,
                 top5: null
             };

@@ -1,10 +1,5 @@
 import {getMatrizesPermitidas} from '../session.js';
-import {supabase} from '../supabaseClient.js';
-
-/* =========================================
- * Cache util (in-memory, com coalescing)
- * ========================================= */
-const _cache = new Map();
+import {supabase} from '../supabaseClient.js';const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
 
@@ -42,12 +37,7 @@ function invalidateCache(keys = []) {
         return;
     }
     keys.forEach(k => _cache.delete(k));
-}
-
-/* =========================================
- * Helpers/Supabase
- * ========================================= */
-async function fetchAllWithPagination(queryBuilder) {
+}async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -63,12 +53,7 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
     return allData;
-}
-
-/* =========================================
- * Estado / Constantes
- * ========================================= */
-const HOST_SEL = '#hc-indice';
+}const HOST_SEL = '#hc-indice';
 const state = {
     mounted: false,
     loading: false,
@@ -128,12 +113,9 @@ function parseDateMaybe(s) {
     if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
-}
-
-// *** FUNÇÃO ADICIONADA: Formatador de data ***
-function formatDateLocal(iso) {
+}function formatDateLocal(iso) {
     if (!iso) return '';
-    // Data pode estar como YYYY-MM-DDTHH:MM... ou só YYYY-MM-DD
+
     const datePart = iso.split('T')[0];
     const [y, m, d] = datePart.split('-');
     if (!y || !m || !d) return '';
@@ -190,25 +172,15 @@ function mapCargoLabel(raw) {
     if (n === 'AUXILIAR') return 'Auxiliar';
     if (n === 'CONFERENTE') return 'Conferente';
     return 'Outros';
-}
-
-/**
- * Agrupa SVCs específicos (SBA2/4 e SBA3/7) para exibição nos gráficos.
- * @param {string} rawSvc O SVC original do colaborador.
- * @returns {string} O SVC agrupado ou o original.
- */
-function mapSvcLabel(rawSvc) {
-    const svc = String(rawSvc || 'N/D').toUpperCase(); // Garante que é string e maiúscula
+}function mapSvcLabel(rawSvc) {
+    const svc = String(rawSvc || 'N/D').toUpperCase();
 
     if (svc === 'SBA2' || svc === 'SBA4') {
         return 'SBA2/4';
     }
     if (svc === 'SBA3' || svc === 'SBA7') {
         return 'SBA3/7';
-    }
-
-    // Se não for nenhum desses, retorna o original
-    return svc;
+    }    return svc;
 }
 
 function mapDSR(raw) {
@@ -262,17 +234,9 @@ function wireResizeObserver() {
     _resizeObs = new ResizeObserver(() => setResponsiveHeights());
     _resizeObs.observe(rootEl);
     window.addEventListener('resize', setResponsiveHeights);
-}
-
-/**
- * Apenas conecta listeners aos elementos do HTML.
- */
-function ensureMounted() {
+}function ensureMounted() {
     const host = document.querySelector(HOST_SEL);
-    if (!host || state.mounted) return;
-
-
-    ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
+    if (!host || state.mounted) return;    ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
         .forEach(evt => window.addEventListener(evt, () => {
             invalidateCache([cacheKeyForColabs()]);
 
@@ -364,12 +328,7 @@ function populateFilters(allColabs) {
         if (state.regiao) selR.value = state.regiao;
     }
     _filtersPopulated = true;
-}
-
-/* ======================================================
- * Loader com cache: Colaboradores (permitidos p/ sessão)
- * ====================================================== */
-async function loadColabsCached() {
+}async function loadColabsCached() {
     const key = cacheKeyForColabs();
     return fetchOnce(key, async () => {
         const mp = getMatrizesPermitidas();
@@ -381,12 +340,7 @@ async function loadColabsCached() {
         rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
         return rows;
     });
-}
-
-/**
- * Carregamento e roteamento por sub-aba ativa.
- */
-async function refresh() {
+}async function refresh() {
     if (!state.mounted || state.loading) {
         if (state.loading) console.warn("Refresh chamado enquanto já estava carregando.");
         return;
@@ -394,16 +348,7 @@ async function refresh() {
     state.loading = true;
     showBusy(true);
     try {
-        await ensureChartLib();
-
-
-        const allRows = await loadColabsCached();
-
-
-        populateFilters(allRows);
-
-
-        state.colabs = allRows.filter(c => {
+        await ensureChartLib();        const allRows = await loadColabsCached();        populateFilters(allRows);        state.colabs = allRows.filter(c => {
             if (norm(c?.Ativo || 'SIM') !== 'SIM') return false;
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (state.svc && c?.SVC !== state.svc) return false;
@@ -412,10 +357,7 @@ async function refresh() {
         });
 
         const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
-        const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
-
-        // *** INÍCIO DA MODIFICAÇÃO: Checar a nova aba ***
-        const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
+        const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');        const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
 
         if (visaoServiceAtiva) {
             ensureChartsCreatedService();
@@ -423,40 +365,25 @@ async function refresh() {
         } else if (visaoRegionalAtiva) {
             ensureChartsCreatedRegional();
             updateRegionalChartsNow();
-        } else if (visaoEmEfetivacaoAtiva) { // *** NOVO ELSE IF ***
-            // Não precisa criar gráficos, apenas popular a tabela
+        } else if (visaoEmEfetivacaoAtiva) {
+
             updateEmEfetivacaoTable();
         } else {
             console.log("Gráficos não atualizados: nenhuma sub-aba (Service/Regional/EmEfetivacao) está ativa.");
-        }
-        // *** FIM DA MODIFICAÇÃO ***
-
-    } catch (e) {
+        }    } catch (e) {
         console.error('Efetivações (Índice) erro', e);
         alert('Falha ao carregar Efetivações. Veja o console.');
     } finally {
         state.loading = false;
         showBusy(false);
     }
-}
-
-/**
- * Sub-abas
- */
-function wireSubtabs() {
+}function wireSubtabs() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
-    const subButtons = host.querySelectorAll('.efet-subtab-btn');
-
-    // *** INÍCIO DA MODIFICAÇÃO: Trava para não conectar listeners duas vezes ***
-    // Se o primeiro botão já tiver um listener, assumimos que todos têm.
-    if (subButtons.length > 0 && subButtons[0].dataset.wired === '1') {
+    const subButtons = host.querySelectorAll('.efet-subtab-btn');    if (subButtons.length > 0 && subButtons[0].dataset.wired === '1') {
         return;
-    }
-    // *** FIM DA MODIFICAÇÃO ***
+    }    subButtons.forEach(btn => {
 
-    subButtons.forEach(btn => {
-        // Marca o botão como "conectado"
         btn.dataset.wired = '1';
 
         btn.addEventListener('click', () => {
@@ -469,15 +396,9 @@ function wireSubtabs() {
             btn.classList.add('active');
             if (nextView) {
                 nextView.classList.add('active');
-            }
-
-            // *** INÍCIO DA MODIFICAÇÃO: Atualiza a lógica para incluir a nova aba ***
-            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao') {
+            }            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao') {
                 refresh();
-            }
-            // *** FIM DA MODIFICAÇÃO ***
-
-            setResponsiveHeights();
+            }            setResponsiveHeights();
         });
     });
 }
@@ -552,11 +473,8 @@ function baseOpts(canvas, onClick, axis = 'x') {
             datalabels: {
                 display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) > (isHorizontal ? 5 : 10),
                 clamp: true,
-                font: {size: baseSize, weight: 'bold'},
+                font: {size: baseSize, weight: 'bold'},                color: (ctx) => {
 
-                // *** INÍCIO DA MODIFICAÇÃO: Cor do rótulo da barra verde ***
-                color: (ctx) => {
-                    // Pedido especial: forçar branco no 'Potencial' (verde)
                     if (ctx.dataset.label === 'Potencial (>90d)') {
                         return '#fff';
                     }
@@ -564,10 +482,7 @@ function baseOpts(canvas, onClick, axis = 'x') {
                         ? ctx.dataset.backgroundColor[ctx.dataIndex]
                         : ctx.dataset.backgroundColor;
                     return bestLabel(bg);
-                },
-                // *** FIM DA MODIFICAÇÃO ***
-
-                formatter: (value, ctx) => {
+                },                formatter: (value, ctx) => {
                     const percentage = Math.round(value);
                     if (percentage <= 1) return '';
                     return `${percentage}% (${ctx.dataset._rawCounts?.[ctx.dataIndex] ?? '—'})`;
@@ -838,20 +753,14 @@ function updateChartsNow() {
         }
     }
     {
-        // *** INÍCIO DA MODIFICAÇÃO: Gráfico 'ind-contrato-bar' ***
-        const {labels, groups} = splitByTurno(colabsAuxiliares);
 
-        // 1. Definir as 4 categorias e 4 cores
-        const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
+        const {labels, groups} = splitByTurno(colabsAuxiliares);        const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
         const colors = [
-            css(root(), '--hcidx-p-2', '#003369'), // Efetivo (Azul escuro)
-            '#FCB803',                               // Em efetivação (Amarelo/Ouro)
-            css(root(), '--hcidx-p-success', '#28a745'), // Potencial (Verde)
-            css(root(), '--hcidx-p-3', '#69D4FF')      // Temporário (Azul claro)
-        ];
-
-        // 2. Mapear contagens com a nova lógica
-        const counts = groups.map(g => {
+            css(root(), '--hcidx-p-2', '#003369'),
+            '#FCB803',
+            css(root(), '--hcidx-p-success', '#28a745'),
+            css(root(), '--hcidx-p-3', '#69D4FF')
+        ];        const counts = groups.map(g => {
             const m = new Map(cats.map(k => [k, 0]));
             g.forEach(c => {
                 if (norm(c.Contrato).includes('KN')) {
@@ -868,10 +777,7 @@ function updateChartsNow() {
                 }
             });
             return m;
-        });
-
-        // 3. O resto da lógica se adapta automaticamente
-        const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
+        });        const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = cats.map((cat, i) => {
             const raw = counts.map(m => m.get(cat) || 0);
             const data = raw.map((v, x) => (v * 100) / totals[x]);
@@ -888,20 +794,17 @@ function updateChartsNow() {
             ch.data.datasets = datasets;
             ch.update();
         }
-        // *** FIM DA MODIFICAÇÃO: Gráfico 'ind-contrato-bar' ***
+
     }
     {
-        // *** INÍCIO DA MODIFICAÇÃO: Gráfico 'ind-contrato-svc-bar' ***
+
         const bySvc = new Map();
         colabsAuxiliares.forEach(c => {
-            const k = mapSvcLabel(c?.SVC); // Usa a função de agrupamento
+            const k = mapSvcLabel(c?.SVC);
             if (!bySvc.has(k)) bySvc.set(k, []);
             bySvc.get(k).push(c);
-        });
-
-        // 1. Mapear contagens com a nova lógica
-        const rows = [...bySvc.entries()].map(([svc, arr]) => {
-            const counts = {efetivo: 0, emEfetivacao: 0, temp90: 0, potencial: 0}; // Adicionada 'emEfetivacao'
+        });        const rows = [...bySvc.entries()].map(([svc, arr]) => {
+            const counts = {efetivo: 0, emEfetivacao: 0, temp90: 0, potencial: 0};
             arr.forEach(c => {
                 if (norm(c.Contrato).includes('KN')) {
                     counts.efetivo++;
@@ -920,11 +823,11 @@ function updateChartsNow() {
             return {
                 svc: combinedLabel,
                 pctEfetivo: (counts.efetivo * 100) / total,
-                pctEmEfetivacao: (counts.emEfetivacao * 100) / total, // Nova
+                pctEmEfetivacao: (counts.emEfetivacao * 100) / total,
                 pctTemp90: (counts.temp90 * 100) / total,
                 pctPotencial: (counts.potencial * 100) / total,
                 rawEfetivo: counts.efetivo,
-                rawEmEfetivacao: counts.emEfetivacao, // Nova
+                rawEmEfetivacao: counts.emEfetivacao,
                 rawTemp90: counts.temp90,
                 rawPotencial: counts.potencial,
                 total
@@ -932,10 +835,7 @@ function updateChartsNow() {
         });
 
         rows.sort((a, b) => b.pctEfetivo - a.pctEfetivo || a.svc.localeCompare(b.svc));
-        const totalG = colabsAuxiliares.length || 1;
-
-        // 2. Reduzir para o 'GERAL' com a nova lógica
-        const countsG = colabsAuxiliares.reduce((acc, c) => {
+        const totalG = colabsAuxiliares.length || 1;        const countsG = colabsAuxiliares.reduce((acc, c) => {
             if (norm(c.Contrato).includes('KN')) {
                 acc.efetivo++;
             } else if (norm(c.Efetivacao) === 'ABERTO') {
@@ -944,12 +844,12 @@ function updateChartsNow() {
                 (daysSinceAdmission(c) > 90) ? acc.potencial++ : acc.temp90++;
             }
             return acc;
-        }, {efetivo: 0, emEfetivacao: 0, temp90: 0, potencial: 0}); // Adicionada 'emEfetivacao'
+        }, {efetivo: 0, emEfetivacao: 0, temp90: 0, potencial: 0});
 
         const lbls = rows.map(r => r.svc);
         const dsData = {
             efetivo: {pct: rows.map(r => r.pctEfetivo), raw: rows.map(r => r.rawEfetivo)},
-            emEfetivacao: {pct: rows.map(r => r.pctEmEfetivacao), raw: rows.map(r => r.rawEmEfetivacao)}, // Nova
+            emEfetivacao: {pct: rows.map(r => r.pctEmEfetivacao), raw: rows.map(r => r.rawEmEfetivacao)},
             temp90: {pct: rows.map(r => r.pctTemp90), raw: rows.map(r => r.rawTemp90)},
             potencial: {pct: rows.map(r => r.pctPotencial), raw: rows.map(r => r.rawPotencial)}
         };
@@ -957,26 +857,23 @@ function updateChartsNow() {
         lbls.push('GERAL');
         dsData.efetivo.pct.push((countsG.efetivo * 100) / totalG);
         dsData.efetivo.raw.push(countsG.efetivo);
-        dsData.emEfetivacao.pct.push((countsG.emEfetivacao * 100) / totalG); // Nova
-        dsData.emEfetivacao.raw.push(countsG.emEfetivacao); // Nova
+        dsData.emEfetivacao.pct.push((countsG.emEfetivacao * 100) / totalG);
+        dsData.emEfetivacao.raw.push(countsG.emEfetivacao);
         dsData.temp90.pct.push((countsG.temp90 * 100) / totalG);
         dsData.temp90.raw.push(countsG.temp90);
         dsData.potencial.pct.push((countsG.potencial * 100) / totalG);
-        dsData.potencial.raw.push(countsG.potencial);
-
-        // 3. Definir as 4 cores
-        const colors = [
-            css(root(), '--hcidx-p-2', '#003369'), // Efetivo
-            '#FCB803',                               // Em efetivação
-            css(root(), '--hcidx-p-success', '#28a745'), // Potencial
-            css(root(), '--hcidx-p-3', '#69D4FF')      // Temporário
+        dsData.potencial.raw.push(countsG.potencial);        const colors = [
+            css(root(), '--hcidx-p-2', '#003369'),
+            '#FCB803',
+            css(root(), '--hcidx-p-success', '#28a745'),
+            css(root(), '--hcidx-p-3', '#69D4FF')
         ];
 
         const ch = state.charts.contratoSvc;
         if (ch) {
             setDynamicChartHeight(ch, lbls);
             ch.data.labels = lbls;
-            // 4. Criar os 4 datasets
+
             ch.data.datasets = [
                 {
                     label: 'Efetivo',
@@ -986,7 +883,7 @@ function updateChartsNow() {
                     borderWidth: 0
                 },
                 {
-                    label: 'Em efetivação', // Novo
+                    label: 'Em efetivação',
                     data: dsData.emEfetivacao.pct,
                     backgroundColor: colors[1],
                     _rawCounts: dsData.emEfetivacao.raw,
@@ -1009,13 +906,13 @@ function updateChartsNow() {
             ];
             ch.update();
         }
-        // *** FIM DA MODIFICAÇÃO: Gráfico 'ind-contrato-svc-bar' ***
+
     }
     {
         const relevantColabs = baseColabs.filter(c => ['AUXILIAR', 'CONFERENTE'].includes(norm(c?.Cargo)));
         const bySvc = new Map();
         relevantColabs.forEach(c => {
-            const k = mapSvcLabel(c?.SVC); // Usa a função de agrupamento
+            const k = mapSvcLabel(c?.SVC);
             if (!bySvc.has(k)) bySvc.set(k, []);
             bySvc.get(k).push(c);
         });
@@ -1076,7 +973,7 @@ function updateChartsNow() {
         const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
         const bySvc = new Map();
         colabsAuxNaoKN.forEach(c => {
-            const k = mapSvcLabel(c?.SVC); // Usa a função de agrupamento
+            const k = mapSvcLabel(c?.SVC);
             if (!bySvc.has(k)) bySvc.set(k, []);
             bySvc.get(k).push(c);
         });
@@ -1218,20 +1115,14 @@ function updateRegionalChartsNow() {
         }
     }
     {
-        // *** INÍCIO DA MODIFICAÇÃO: Gráfico 'ind-contrato-regiao-bar' ***
-        const {labels, groups} = splitByRegiao(colabsAuxiliares);
 
-        // 1. Definir as 4 categorias e 4 cores
-        const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
+        const {labels, groups} = splitByRegiao(colabsAuxiliares);        const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
         const colors = [
-            css(root(), '--hcidx-p-2', '#003369'), // Efetivo
-            '#FCB803',                               // Em efetivação
-            css(root(), '--hcidx-p-success', '#28a745'), // Potencial
-            css(root(), '--hcidx-p-3', '#69D4FF')      // Temporário
-        ];
-
-        // 2. Mapear contagens com a nova lógica
-        const counts = groups.map(g => {
+            css(root(), '--hcidx-p-2', '#003369'),
+            '#FCB803',
+            css(root(), '--hcidx-p-success', '#28a745'),
+            css(root(), '--hcidx-p-3', '#69D4FF')
+        ];        const counts = groups.map(g => {
             const m = new Map(cats.map(k => [k, 0]));
             g.forEach(c => {
                 if (norm(c.Contrato).includes('KN')) {
@@ -1248,10 +1139,7 @@ function updateRegionalChartsNow() {
                 }
             });
             return m;
-        });
-
-        // 3. O resto da lógica se adapta
-        const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
+        });        const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = cats.map((cat, i) => {
             const raw = counts.map(m => m.get(cat) || 0);
             const data = raw.map((v, x) => (v * 100) / totals[x]);
@@ -1264,7 +1152,7 @@ function updateRegionalChartsNow() {
             ch.data.datasets = datasets;
             ch.update();
         }
-        // *** FIM DA MODIFICAÇÃO: Gráfico 'ind-contrato-regiao-bar' ***
+
     }
     {
         const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
@@ -1313,44 +1201,25 @@ function updateRegionalChartsNow() {
             ch.update();
         }
     }
-}
-
-// *** INÍCIO DA MODIFICAÇÃO: Nova função para popular a tabela ***
-/**
- * Popula a tabela 'Em Efetivação' com dados filtrados.
- */
-function updateEmEfetivacaoTable() {
+}function updateEmEfetivacaoTable() {
     const tbody = document.getElementById('efet-table-tbody');
     if (!tbody) {
         console.warn("Elemento #efet-table-tbody não encontrado. A tabela 'Em Efetivação' não pode ser populada.");
         return;
-    }
+    }    const colabsEmEfetivacao = state.colabs.filter(c => norm(c.Efetivacao) === 'ABERTO');    colabsEmEfetivacao.sort((a, b) => {
 
-    // 1. Filtrar colaboradores com Efetivacao == 'Aberto'
-    // state.colabs já está filtrado por Matriz/SVC/Regiao
-    const colabsEmEfetivacao = state.colabs.filter(c => norm(c.Efetivacao) === 'ABERTO');
-
-    // 2. Ordenar por data de fluxo, da mais antiga para a mais nova
-    colabsEmEfetivacao.sort((a, b) => {
-        // Trata datas nulas ou inválidas, colocando-as no final
         const dateA = a['Data Fluxo'] ? new Date(a['Data Fluxo']) : new Date('2999-12-31');
         const dateB = b['Data Fluxo'] ? new Date(b['Data Fluxo']) : new Date('2999-12-31');
-        return dateA - dateB; // Mais antigo primeiro
-    });
+        return dateA - dateB;
+    });    tbody.innerHTML = '';    if (colabsEmEfetivacao.length === 0) {
 
-    // 3. Limpar a tabela
-    tbody.innerHTML = '';
-
-    // 4. Popular a tabela
-    if (colabsEmEfetivacao.length === 0) {
-        // Colspan atualizado para 7
         tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">Nenhum colaborador com fluxo "Aberto" encontrado.</td></tr>';
         return;
     }
 
     colabsEmEfetivacao.forEach(c => {
         const tr = document.createElement('tr');
-        // Linha da tabela atualizada para incluir o Status
+
         tr.innerHTML = `
             <td>${c.Fluxo || ''}</td>
             <td>${c.Efetivacao || ''}</td>
@@ -1362,12 +1231,7 @@ function updateEmEfetivacaoTable() {
         `;
         tbody.appendChild(tr);
     });
-}
-
-// *** FIM DA MODIFICAÇÃO ***
-
-
-export async function init() {
+}export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         console.warn('Host #hc-indice não encontrado.');
