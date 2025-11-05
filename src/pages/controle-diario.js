@@ -14,11 +14,8 @@ const pick = (o, ...keys) => {
 };
 const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();
 
-
 const CACHE_DURATION_MS = 5 * 60 * 1000;
-
 const cachedDailyData = new Map();
-
 const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;
 
 function getFromCache(turno, dateISO) {
@@ -32,10 +29,18 @@ function getFromCache(turno, dateISO) {
     return hit.data;
 }
 
+
+async function refresh() {
+    state.filtered = applyFilters(state.baseList);
+    repopulateFilterOptionsCascade();
+    await renderRows(state.filtered);
+    computeSummary(state.filtered, state.meta);
+}
+
+
 function setCache(turno, dateISO, data) {
     cachedDailyData.set(cacheKey(turno, dateISO), {ts: Date.now(), data});
 }
-
 
 function invalidateCacheForDate(dateISO) {
     ['T1', 'T2', 'T3', 'GERAL'].forEach(t => {
@@ -104,46 +109,29 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         .from('Colaboradores')
         .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')
         .eq('Ativo', 'SIM');
-    if (!turno || turno === 'GERAL') {
-        q = q.in('Escala', ['T1', 'T2', 'T3']);
-    } else {
-        q = q.eq('Escala', turno);
-    }
-    if (matrizesPermitidas && matrizesPermitidas.length) {
-        q = q.in('MATRIZ', matrizesPermitidas);
-    }
+    if (!turno || turno === 'GERAL') q = q.in('Escala', ['T1', 'T2', 'T3']);
+    else q = q.eq('Escala', turno);
+    if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);
     q = q.order('Nome', {ascending: true});
+
     try {
         const cols = await fetchAllWithPagination(q);
         const all = cols || [];
         const nomesColabs = all.map(c => c.Nome);
 
-
-        const {data: feriasHoje, error: feriasError} = await supabase
+        const {data: feriasHoje} = await supabase
             .from('Ferias')
             .select('Nome')
             .lte('"Data Inicio"', dateISO)
             .gte('"Data Final"', dateISO);
-        if (feriasError) {
-            console.warn("Erro ao buscar férias do dia:", feriasError);
-        }
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
 
-
-
-        const {data: afastamentosHoje, error: afastamentosError} = await supabase
+        const {data: afastamentosHoje} = await supabase
             .from('Afastamentos')
             .select('NOME')
             .lte('"DATA INICIO"', dateISO)
             .gt('"DATA RETORNO"', dateISO);
-
-        if (afastamentosError) {
-            console.warn("Erro ao buscar afastamentos do dia:", afastamentosError);
-        }
-
         const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));
-
-
 
         let dsrLogs = [];
         const chunkSize = 200;
@@ -158,36 +146,25 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                         .in('Name', chunk)
                 );
             }
-            try {
-                const results = await Promise.all(promises);
-                for (const {data, error} of results) {
-                    if (error) throw error;
-                    if (data) dsrLogs = dsrLogs.concat(data);
-                }
-            } catch (dsrError) {
-                console.warn("Erro ao buscar histórico de DSR (em chunks):", dsrError);
+            const results = await Promise.all(promises);
+            for (const {data, error} of results) {
+                if (error) throw error;
+                if (data) dsrLogs = dsrLogs.concat(data);
             }
         }
-
-
         const dsrHistoryMap = new Map();
         for (const log of dsrLogs) {
             const nameNorm = NORM(log.Name);
-            if (!dsrHistoryMap.has(nameNorm)) {
-                dsrHistoryMap.set(nameNorm, []);
-            }
+            if (!dsrHistoryMap.has(nameNorm)) dsrHistoryMap.set(nameNorm, []);
             dsrHistoryMap.get(nameNorm).push(log);
         }
         for (const history of dsrHistoryMap.values()) {
             history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
         }
-
         const getDSRForDate = (colaborador) => {
             const nameNorm = NORM(colaborador.Nome);
             const history = dsrHistoryMap.get(nameNorm);
-            if (!history || history.length === 0) {
-                return colaborador.DSR;
-            }
+            if (!history || history.length === 0) return colaborador.DSR;
             let applicableDSR = null;
             for (let i = history.length - 1; i >= 0; i--) {
                 if (history[i].DataAlteracao.slice(0, 10) <= dateISO) {
@@ -198,28 +175,20 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             if (applicableDSR === null) applicableDSR = history[0].DsrAnterior;
             return applicableDSR;
         };
-
         const checkDSR = (colaborador) => {
             const historicalDSR = getDSRForDate(colaborador);
             const colaboradorDSRs = (historicalDSR || '').toString().toUpperCase().split(',').map(d => d.trim());
             return colaboradorDSRs.includes(dia);
         };
 
-        const dsrList = all
-            .filter(c => checkDSR(c))
-            .map(c => c.Nome);
+        const dsrList = all.filter(c => checkDSR(c)).map(c => c.Nome);
 
         const elegiveis = all
             .filter(c => {
                 const dataAdmissao = c['Data de admissão'];
                 if (dataAdmissao && dataAdmissao > dateISO) return false;
                 if (nomesEmFeriasHoje.has(c.Nome)) return false;
-
-
-
                 if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) return false;
-
-
                 const isDSR = checkDSR(c);
                 return !isDSR;
             })
@@ -251,12 +220,9 @@ async function getMarksFor(dateISO, nomes) {
     return map;
 }
 
-
 async function fetchList(turno, dateISO) {
-
     const cacheHit = getFromCache(turno, dateISO);
     if (cacheHit) return cacheHit;
-
 
     if (turno === 'GERAL') {
         const parts = await Promise.all(['T1', 'T2', 'T3'].map(t => fetchList(t, dateISO)));
@@ -272,7 +238,6 @@ async function fetchList(turno, dateISO) {
         setCache('GERAL', dateISO, combined);
         return combined;
     }
-
 
     const {elegiveis, dsrList} = await getColaboradoresElegiveis(turno, dateISO);
     const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));
@@ -438,9 +403,7 @@ function passFilters(x) {
         const searchTermNorm = NORM(f.search);
         const nomeNorm = NORM(x.Nome);
         const ldapNorm = NORM(x.LDAP);
-        if (!nomeNorm.includes(searchTermNorm) && !ldapNorm.includes(searchTermNorm)) {
-            return false;
-        }
+        if (!nomeNorm.includes(searchTermNorm) && !ldapNorm.includes(searchTermNorm)) return false;
     }
     if (f.gestor && (x.Gestor || '') !== f.gestor) return false;
     if (f.cargo && (x.Cargo || '') !== f.cargo) return false;
@@ -502,7 +465,6 @@ function fillPreserving(sel, values, placeholder, current, onInvalid) {
     }
 }
 
-
 function repopulateFilterOptionsCascade() {
     const cur = {
         gestor: state.filters.gestor,
@@ -525,41 +487,32 @@ function repopulateFilterOptionsCascade() {
     fillPreserving(ui.selMatriz, opts.matriz, 'Matriz', cur.matriz, () => (state.filters.matriz = ''));
 }
 
-function fill(sel, values, placeholder) {
-    if (!sel) return;
-    const prev = sel.value;
-    sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
-    sel.value = values.includes(prev) ? prev : '';
-}
-
 async function renderRows(list) {
     ui.tbody.innerHTML = '';
     const dsrNamesRaw = (state.meta?.dsrList || []).slice();
     if (!dsrNamesRaw.length && list.length === 0) {
         ui.tbody.innerHTML = '<tr><td colspan="7">Nenhum colaborador previsto para hoje.</td></tr>';
-
         state.dsrInfoList = [];
+        updateFooterCounts();
         return;
     }
 
     let dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
     try {
         if (dsrNamesRaw.length > 0) {
-            const {data: info, error} = await supabase
+            const {data: info} = await supabase
                 .from('Colaboradores')
                 .select('Nome, Cargo, SVC, Gestor, Contrato, MATRIZ, LDAP')
                 .in('Nome', dsrNamesRaw);
-            if (!error && Array.isArray(info)) {
+            if (Array.isArray(info)) {
                 const byName = new Map(info.map(x => [x.Nome, x]));
                 dsrInfos = dsrNamesRaw.map(n => byName.get(n) || {Nome: n});
             }
         }
-    } catch (_) {
+    } catch {
     }
 
-
     state.dsrInfoList = dsrInfos;
-
 
     const dsrFiltered = dsrInfos
         .filter(passFilters)
@@ -596,25 +549,19 @@ async function renderRows(list) {
             const tdAcoes = document.createElement('td');
             tdAcoes.className = 'status-actions';
             tdAcoes.innerHTML = btnsHTML(item);
-
             const tdLDAP = document.createElement('td');
             tdLDAP.textContent = item.LDAP || '—';
-
             const tdCargo = document.createElement('td');
             tdCargo.textContent = item.Cargo || '';
-
             const tdSVC = document.createElement('td');
             tdSVC.textContent = item.SVC || '';
-
             const tdGestor = document.createElement('td');
             tdGestor.textContent = item.Gestor || '';
-
             const tdDSR = document.createElement('td');
             tdDSR.textContent = dsrName;
 
             tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
         } else {
-
             const dash = () => {
                 const td = document.createElement('td');
                 td.textContent = '—';
@@ -628,48 +575,81 @@ async function renderRows(list) {
     }
 
     ui.tbody.replaceChildren(frag);
+
+    updateFooterCounts();
 }
 
+function updateFooterCounts() {
+    if (ui.footerCount) {
+        const totalVisiveis = state.filtered.length;
+        ui.footerCount.textContent = `${totalVisiveis} colaboradores visíveis`;
+    }
+    if (ui.showMoreBtn) {
+        ui.showMoreBtn.style.display = 'none';
+        ui.showMoreBtn.onclick = (e) => {
+            e?.preventDefault?.();
+            return false;
+        };
+    }
+}
+
+function injectTableClampStyles() {
+    if (document.getElementById('cd-table-scroll-style')) return;
+    const st = document.createElement('style');
+    st.id = 'cd-table-scroll-style';
+    st.textContent = `
+      table.cd-scroll-12 { border-collapse: separate; border-spacing: 0; width: 100%; }
+      table.cd-scroll-12 thead, table.cd-scroll-12 tbody tr { display: table; width: 100%; table-layout: fixed; }
+      table.cd-scroll-12 thead { width: 100%; }
+      table.cd-scroll-12 tbody { display: block; overflow-y: auto; max-height: var(--cd-max-table-h, 520px); }
+      table.cd-scroll-12 thead::-webkit-scrollbar { display: none; }
+    `;
+    document.head.appendChild(st);
+}
+
+function enforce12RowViewport() {
+    const table = ui.tbody?.closest('table');
+    if (!table) return;
+    injectTableClampStyles();
+    table.classList.add('cd-scroll-12');
+
+    const rows = Array.from(ui.tbody.querySelectorAll('tr'));
+    const sample = rows.slice(0, 12);
+    let totalH = 12 * 42;
+    if (sample.length > 0) {
+        totalH = sample.reduce((acc, tr) => acc + tr.getBoundingClientRect().height, 0);
+        totalH = Math.ceil(totalH + 4);
+    }
+    table.style.setProperty('--cd-max-table-h', `${totalH}px`);
+}
 
 function computeSummary(list, meta) {
     const isConf = x => String(x.Cargo || '').toUpperCase() === 'CONFERENTE';
-
-
     const hcPrevisto = list.filter(x => !isConf(x)).length;
     const hcReal = list.filter(x => !isConf(x) && x.Marcacao === 'PRESENCA').length;
-
-
     const confReal = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
-
-
     const pend = list.filter(x => !x.Marcacao).length;
     const faltas = list.filter(x => x.Marcacao === 'FALTA').length;
     const atest = list.filter(x => x.Marcacao === 'ATESTADO').length;
     const fesp = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
     const fer = list.filter(x => x.Marcacao === 'FERIADO').length;
     const susp = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
-
     const quadroTotal = hcReal + confReal;
 
-
-    let dsrCount = 0;
-    let dsrPS = 0;
+    let dsrCount = 0, dsrPS = 0;
     const dsrInfo = Array.isArray(state.dsrInfoList) ? state.dsrInfoList : [];
-
     if (dsrInfo.length) {
         const dsrFiltrados = dsrInfo.filter(passFilters);
-        dsrCount = dsrFiltrados.length;
         dsrPS = dsrFiltrados.filter(isConf).length;
+        dsrCount = dsrFiltrados.length - dsrPS; // <-- AJUSTE AQUI
     } else if (meta?.dsrList?.length) {
-
         const dsrColabs = meta.dsrList.map(nome =>
             state.baseList.find(c => c.Nome === nome) ||
-            state.colabMap.get(nome) ||
-            {Nome: nome}
+            state.colabMap.get(nome) || {Nome: nome}
         );
         const dsrFiltrados = dsrColabs.filter(passFilters);
-        dsrCount = dsrFiltrados.length;
         dsrPS = dsrFiltrados.filter(isConf).length;
+        dsrCount = dsrFiltrados.length - dsrPS; // <-- AJUSTE AQUI
     }
 
     const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
@@ -690,7 +670,6 @@ function computeSummary(list, meta) {
     `;
 }
 
-
 async function carregar(full = false) {
     const dateISO = ui.date.value;
     if (!dateISO) return;
@@ -706,7 +685,7 @@ async function carregar(full = false) {
         state.meta = meta;
 
         repopulateFilterOptionsCascade();
-        refresh();
+        await refresh();
     } catch (e) {
         console.error(e);
         toast('Erro ao carregar dados', 'error');
@@ -718,9 +697,7 @@ async function carregar(full = false) {
 }
 
 async function onRowClick(ev) {
-    if (document.body.classList.contains('user-level-visitante')) {
-        return;
-    }
+    if (document.body.classList.contains('user-level-visitante')) return;
     if (state.isProcessing) {
         toast('Aguarde, processando marcação anterior...', 'info');
         return;
@@ -740,16 +717,12 @@ async function onRowClick(ev) {
     showLoading(true);
     try {
         const novoTipo = tipo === 'LIMPAR' ? null : tipo;
-        if (novoTipo) {
-            const turno = state.turnoAtual === 'GERAL' ? null : state.turnoAtual;
-            await upsertMarcacao({nome, turno, dateISO: dataISO, tipo: novoTipo});
-        } else {
-            await deleteMarcacao({nome, dateISO: dataISO});
-        }
+        const turno = state.turnoAtual === 'GERAL' ? null : state.turnoAtual;
+        if (novoTipo) await upsertMarcacao({nome, turno, dateISO: dataISO, tipo: novoTipo});
+        else await deleteMarcacao({nome, dateISO: dataISO});
 
         applyMarkToRow(tr, novoTipo);
         toast(novoTipo ? 'Marcação registrada' : 'Marcação removida', 'success');
-
 
         invalidateCacheForDate(dataISO);
 
@@ -773,8 +746,7 @@ async function onRowClick(ev) {
 async function marcarTodosPresentes() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
-    const pendTrs = Array.from(ui.tbody.querySelectorAll('tr'))
-        .filter(tr => tr.dataset.nome && (tr.dataset.mark || 'NONE') === 'NONE');
+    const pendTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => tr.dataset.nome && (tr.dataset.mark || 'NONE') === 'NONE');
     if (!pendTrs.length) return toast('Não há colaboradores pendentes visíveis para marcar.', 'info');
     if (!confirm(`Marcar ${pendTrs.length} colaboradores visíveis como "Presente"?`)) return;
     const nomes = pendTrs.map(tr => tr.dataset.nome);
@@ -821,7 +793,6 @@ async function marcarTodosPresentes() {
             .upsert(rowsToUpsert, {onConflict: 'Nome, Data'});
         if (error) throw error;
 
-
         pendTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, 'PRESENCA');
@@ -829,10 +800,8 @@ async function marcarTodosPresentes() {
             if (item) item.Marcacao = 'PRESENCA';
         });
 
-
         invalidateCacheForDate(dataISO);
-
-        refresh();
+        await refresh();
         toast(`${nomes.length} colaboradores marcados como "Presente"!`, 'success');
     } catch (e) {
         console.error('Erro na marcação em massa:', e);
@@ -849,8 +818,7 @@ async function marcarTodosPresentes() {
 async function limparTodas() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
-    const marcadosTrs = Array.from(ui.tbody.querySelectorAll('tr'))
-        .filter(tr => (tr.dataset.mark || 'NONE') !== 'NONE');
+    const marcadosTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => (tr.dataset.mark || 'NONE') !== 'NONE');
     if (!marcadosTrs.length) return toast('Não há marcações visíveis.', 'info');
     if (!confirm(`Limpar marcações de ${marcadosTrs.length} colaboradores visíveis?`)) return;
     const nomes = marcadosTrs.map(tr => tr.dataset.nome);
@@ -866,7 +834,6 @@ async function limparTodas() {
             .in('Nome', nomes);
         if (eDel) throw eDel;
 
-
         marcadosTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, null);
@@ -874,10 +841,8 @@ async function limparTodas() {
             if (item) item.Marcacao = null;
         });
 
-
         invalidateCacheForDate(dataISO);
-
-        refresh();
+        await refresh();
         toast('Marcações limpas!', 'success');
     } catch (e) {
         console.error(e);
@@ -924,11 +889,18 @@ function autoColWidths(headers, rows) {
     });
 }
 
+function clampEndToToday(startISO, endISO) {
+    if (!startISO || !endISO) return [startISO, endISO];
+    const today = new Date();
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const todayISO = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+    return [startISO, endISO > todayISO ? todayISO : endISO];
+}
 
 async function exportXLSX() {
-    const {start, end} = state.period;
-    if (!start || !end) return toast('Selecione o período.', 'info');
-    if (!confirm(`Exportar dados filtrados (${start} → ${end}) em XLSX?`)) return;
+    const [start, endClamped] = clampEndToToday(state.period.start, state.period.end);
+    if (!start || !endClamped) return toast('Selecione o período.', 'info');
+    if (!confirm(`Exportar dados filtrados (${start} → ${endClamped}) em XLSX?`)) return;
     try {
         showLoading(true);
         ui.exportBtn.disabled = true;
@@ -938,10 +910,10 @@ async function exportXLSX() {
         const HEADERS = ['Nome', 'Cargo', 'Presença', 'Falta', 'Atestado', 'Folga Especial', 'Suspensao', 'Feriado', 'Data', 'Turno', 'SVC', 'Gestor', 'Contrato', 'Matriz'];
         const rows = [];
 
-        for (const dateISO of listDates(start, end)) {
+        for (const dateISO of listDates(start, endClamped)) {
             const {list} = await fetchList(state.turnoAtual, dateISO);
             const filtered = applyFilters(list);
-            filtered.sort((a, b) => collator.compare(a.Nome, b.Nome));
+            filtered.sort((a, b) => collator.compare(a, b));
             for (const x of filtered) {
                 const pres = x.Marcacao === 'PRESENCA' ? 1 : 0;
                 const fal = x.Marcacao === 'FALTA' ? 1 : 0;
@@ -978,7 +950,7 @@ async function exportXLSX() {
         ws['!cols'] = autoColWidths(HEADERS, rows);
         window.XLSX.utils.book_append_sheet(wb, ws, 'Controle Diário');
         const slugTurno = state.turnoAtual === 'GERAL' ? 'GERAL' : state.turnoAtual;
-        const fileName = `controle-diario_filtrado_${slugTurno}_${start}_a_${end}.xlsx`;
+        const fileName = `controle-diario_filtrado_${slugTurno}_${start}_a_${endClamped}.xlsx`;
         window.XLSX.writeFile(wb, fileName);
         toast('Exportação concluída', 'success');
     } catch (e) {
@@ -991,95 +963,128 @@ async function exportXLSX() {
     }
 }
 
-function formatDateBR(iso) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
-    return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-}
-
 function updatePeriodLabel() {
     ui.periodBtn.textContent = 'Selecionar Período';
 }
 
 function openPeriodModal() {
+    const today = new Date();
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+    const curStart = state.period.start || toISO(new Date(today.getFullYear(), today.getMonth(), 1));
+    const curEnd = state.period.end || toISO(today);
+
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+
     const overlay = document.createElement('div');
-    Object.assign(overlay.style, {
-        position: 'fixed',
-        inset: '0',
-        background: 'rgba(0,0,0,.45)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: '9997'
-    });
-    const modal = document.createElement('div');
-    Object.assign(modal.style, {
-        background: '#fff',
-        borderRadius: '12px',
-        padding: '16px',
-        minWidth: '420px',
-        boxShadow: '0 10px 30px rgba(0,0,0,.25)'
-    });
-    const h3 = document.createElement('h3');
-    h3.textContent = 'Selecionar Período';
-    h3.style.margin = '0 0 12px 0';
-    const grid = document.createElement('div');
-    Object.assign(grid.style, {display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px'});
-    const l1 = document.createElement('label');
-    l1.textContent = 'Início';
-    l1.style.display = 'block';
-    const i1 = document.createElement('input');
-    i1.type = 'date';
-    i1.value = state.period.start || '';
-    i1.style.width = '100%';
-    const l2 = document.createElement('label');
-    l2.textContent = 'Fim';
-    l2.style.display = 'block';
-    const i2 = document.createElement('input');
-    i2.type = 'date';
-    i2.value = state.period.end || '';
-    i2.style.width = '100%';
-    const left = document.createElement('div');
-    left.append(l1, i1);
-    const right = document.createElement('div');
-    right.append(l2, i2);
-    grid.append(left, right);
-    const actions = document.createElement('div');
-    actions.style.display = 'flex';
-    actions.style.justifyContent = 'flex-end';
-    actions.style.gap = '8px';
-    const cancel = document.createElement('button');
-    cancel.textContent = 'Cancelar';
-    cancel.className = 'btn-cancelar';
-    const ok = document.createElement('button');
-    ok.textContent = 'Aplicar';
-    ok.className = 'btn-salvar';
-    actions.append(cancel, ok);
-    modal.append(h3, grid, actions);
-    overlay.appendChild(modal);
+    overlay.id = 'cd-period-overlay';
+    overlay.innerHTML = `
+      <div class="cdp-card">
+        <h3>Selecionar Período</h3>
+
+        <div class="cdp-shortcuts">
+          <button id="cdp-today"   class="btn-salvar">Hoje</button>
+          <button id="cdp-yday"    class="btn-salvar">Ontem</button>
+          <button id="cdp-prevmo" class="btn-salvar">Mês anterior</button>
+        </div>
+
+        <div class="dates-grid">
+          <div><label>Início</label><input id="cdp-period-start" type="date" value="${curStart}"></div>
+          <div><label>Fim</label><input id="cdp-period-end"   type="date" value="${curEnd}"></div>
+        </div>
+
+        <div class="form-actions">
+          <button id="cdp-cancel" class="btn">Cancelar</button>
+          <button id="cdp-apply"  class="btn-add">Aplicar</button>
+        </div>
+      </div>`;
+
+    const cssId = 'cdp-style';
+    if (!document.getElementById(cssId)) {
+        const st = document.createElement('style');
+        st.id = cssId;
+        st.textContent = `
+            #cd-period-overlay, #cd-period-overlay * { box-sizing: border-box; }
+            #cd-period-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+            #cd-period-overlay .cdp-card { background: #fff; border-radius: 12px; padding: 16px; min-width: 480px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+            #cd-period-overlay h3 { margin: 0 0 12px; text-align: center; color: #003369; }
+            #cd-period-overlay .cdp-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
+            #cd-period-overlay .dates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+            #cd-period-overlay .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+          `;
+        document.head.appendChild(st);
+    }
+
     document.body.appendChild(overlay);
-    cancel.addEventListener('click', () => document.body.removeChild(overlay));
-    ok.addEventListener('click', () => {
-        if (!i1.value || !i2.value) return toast('Selecione as duas datas.', 'info');
-        state.period.start = i1.value;
-        state.period.end = i2.value;
+
+    const elStart = overlay.querySelector('#cdp-period-start');
+    const elEnd = overlay.querySelector('#cdp-period-end');
+    const btnCancel = overlay.querySelector('#cdp-cancel');
+    const btnApply = overlay.querySelector('#cdp-apply');
+    const close = () => overlay.remove();
+
+    overlay.addEventListener('click', (ev) => {
+        if (ev.target === overlay) close();
+    });
+    btnCancel.onclick = close;
+
+    overlay.querySelector('#cdp-today').onclick = () => {
+        const iso = toISO(today);
+        [state.period.start, state.period.end] = [iso, iso];
         updatePeriodLabel();
-        document.body.removeChild(overlay);
-    });
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) document.body.removeChild(overlay);
-    });
+        if (ui.date) ui.date.value = iso;
+        close();
+        carregar(true);
+    };
+    overlay.querySelector('#cdp-yday').onclick = () => {
+        const iso = toISO(yesterday);
+        [state.period.start, state.period.end] = [iso, iso];
+        updatePeriodLabel();
+        if (ui.date) ui.date.value = iso;
+        close();
+        carregar(true);
+    };
+    overlay.querySelector('#cdp-prevmo').onclick = () => {
+        const s = toISO(prevStart);
+        const e = toISO(prevEnd);
+        const [cs, ce] = clampEndToToday(s, e);
+        state.period.start = cs;
+        state.period.end = ce;
+        updatePeriodLabel();
+        close();
+    };
+
+    btnApply.onclick = () => {
+        let sVal = (elStart?.value || '').slice(0, 10);
+        let eVal = (elEnd?.value || '').slice(0, 10);
+        if (!sVal || !eVal) {
+            toast('Selecione as duas datas.', 'info');
+            return;
+        }
+        [sVal, eVal] = clampEndToToday(sVal, eVal);
+        state.period.start = sVal;
+        state.period.end = eVal;
+        updatePeriodLabel();
+        close();
+    };
 }
 
 function injectSummaryStyles() {
     const style = document.createElement('style');
     style.textContent = `
+        /* O container pai agora só organiza os itens (botão e sumário) */
         #cd-summary {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 4px;
+            gap: 8px; /* Aumentei o espaço entre o botão e o card */
             margin-bottom: 1rem;
         }
+
+        /* Estilos do botão "Pendentes" (sem alteração) */
         .summary-pending {
             font-size: 1.2em;
             font-weight: bold;
@@ -1089,15 +1094,29 @@ function injectSummaryStyles() {
             transition: all 0.2s ease;
             cursor: pointer;
         }
-        .summary-pending:hover {
-            transform: scale(1.05);
-        }
+        .summary-pending:hover { transform: scale(1.05); }
         .summary-pending.active {
             box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
             transform: translateY(1px);
         }
         .summary-pending.status-orange { background-color: #f59e0b; }
-        .summary-pending.status-green { background-color: #10b981; }
+        .summary-pending.status-green  { background-color: #10b981; }
+
+        /* AQUI A MUDANÇA: */
+        /* Aplicamos o card branco SÓ no texto do sumário */
+        .summary-main {
+            background-color: #ffffff; /* Fundo branco */
+            border-radius: 12px; /* Cantos arredondados */
+            padding: 10px 15px; /* Espaçamento interno */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* Sombra suave */
+            color: #333; /* Cor do texto para contraste */
+            font-size: 0.95em;
+            font-weight: 700;
+            text-align: center;
+            /* Garante que o texto quebre se a tela for pequena */
+            max-width: 100%; 
+            word-wrap: break-word;
+        }
     `;
     document.head.appendChild(style);
 }
@@ -1121,6 +1140,8 @@ export async function init() {
         selContrato: document.getElementById('cd-filter-contrato'),
         selSVC: document.getElementById('cd-filter-svc'),
         selMatriz: document.getElementById('cd-filter-matriz'),
+        footerCount: document.getElementById('cd-list-footer'),
+        showMoreBtn: document.getElementById('cd-show-more'),
     };
     const hoje = localISO(new Date());
     const firstOfMonth = (() => {
@@ -1196,12 +1217,6 @@ export async function init() {
     await carregar(true);
 }
 
-function refresh() {
-    state.filtered = applyFilters(state.baseList);
-    repopulateFilterOptionsCascade();
-    renderRows(state.filtered);
-    computeSummary(state.filtered, state.meta);
-}
 
 export function destroy() {
 }

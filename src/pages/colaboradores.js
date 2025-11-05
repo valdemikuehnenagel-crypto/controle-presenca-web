@@ -1,5 +1,7 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let state = {
+import {getMatrizesPermitidas} from '../session.js';
+
+let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
@@ -30,9 +32,11 @@ let colaboradoresTbody,
     addForm;
 let editModal, editForm, editTitulo, editSVC, editMatriz, editExcluirBtn, editCancelarBtn, editSalvarBtn,
     editDesligarBtn, editFeriasBtn, editHistoricoBtn, editAfastarBtn,
-    editEfetivarKnBtn;let fluxoEfetivacaoModal, fluxoEfetivacaoForm, fluxoEfetivacaoNomeEl,
+    editEfetivarKnBtn;
+let fluxoEfetivacaoModal, fluxoEfetivacaoForm, fluxoEfetivacaoNomeEl,
     fluxoNumeroEl, fluxoDataAberturaEl, fluxoObservacaoEl, fluxoAdmissaoKnEl,
-    fluxoGerarBtn, fluxoFinalizarBtn, fluxoCancelarBtn, fluxoSairBtn;let editInputs = {};
+    fluxoGerarBtn, fluxoFinalizarBtn, fluxoCancelarBtn, fluxoSairBtn;
+let editInputs = {};
 let editOriginal = null;
 let desligarModal, desligarForm, desligarNomeEl, desligarDataEl, desligarMotivoEl, desligarCancelarBtn;
 let desligarColaborador = null;
@@ -42,12 +46,16 @@ let isSubmittingFerias = false;
 let isSubmittingEdit = false;
 let dsrModal, dsrCheckboxesContainer, dsrOkBtn, dsrCancelarBtn;
 let currentDsrInputTarget = null;
-const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];function invalidateColaboradoresCache() {
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
+
+function invalidateColaboradoresCache() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
     console.log("Cache de colaboradores e férias invalidado.");
-}function checkUserAdminStatus() {
+}
+
+function checkUserAdminStatus() {
     const sessionString = localStorage.getItem('userSession');
     if (!sessionString) {
         console.warn('Sessão do usuário não encontrada. Permissões de admin não concedidas.');
@@ -67,26 +75,40 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
     }
-}function promptForDate(title, defaultDate) {
-    return new Promise((resolve) => {        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';        const modal = document.createElement('div');
-        modal.style.cssText = 'background:white; padding:20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width: 300px;';        const titleEl = document.createElement('h3');
+}
+
+function promptForDate(title, defaultDate) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background:white; padding:20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width: 300px;';
+        const titleEl = document.createElement('h3');
         titleEl.textContent = title;
-        titleEl.style.cssText = 'margin-top:0; margin-bottom:15px; font-size:18px; color: #333;';        const inputEl = document.createElement('input');
+        titleEl.style.cssText = 'margin-top:0; margin-bottom:15px; font-size:18px; color: #333;';
+        const inputEl = document.createElement('input');
         inputEl.type = 'date';
         inputEl.value = defaultDate;
-        inputEl.style.cssText = 'width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing: border-box;';        const actionsEl = document.createElement('div');
-        actionsEl.style.cssText = 'margin-top:20px; display:flex; justify-content:flex-end; gap:10px;';        const cancelBtn = document.createElement('button');
+        inputEl.style.cssText = 'width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; box-sizing: border-box;';
+        const actionsEl = document.createElement('div');
+        actionsEl.style.cssText = 'margin-top:20px; display:flex; justify-content:flex-end; gap:10px;';
+        const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
-        cancelBtn.textContent = 'Cancelar';        cancelBtn.className = 'btn-cancelar';        const okBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancelar';
+        cancelBtn.className = 'btn-cancelar';
+        const okBtn = document.createElement('button');
         okBtn.type = 'button';
-        okBtn.textContent = 'Confirmar';        okBtn.className = 'btn-salvar';        actionsEl.append(cancelBtn, okBtn);
+        okBtn.textContent = 'Confirmar';
+        okBtn.className = 'btn-salvar';
+        actionsEl.append(cancelBtn, okBtn);
         modal.append(titleEl, inputEl, actionsEl);
         overlay.appendChild(modal);
-        document.body.appendChild(overlay);        const close = (value) => {
+        document.body.appendChild(overlay);
+        const close = (value) => {
             document.body.removeChild(overlay);
             resolve(value);
-        };        okBtn.onclick = () => {
+        };
+        okBtn.onclick = () => {
             if (!inputEl.value) {
                 alert('Por favor, selecione uma data.');
                 return;
@@ -98,7 +120,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             if (e.target === overlay) close(null);
         };
     });
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -117,32 +141,48 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return allData;
-}function ymdToday() {
+}
+
+function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}function isFutureYMD(yyyyMmDd) {
+}
+
+function isFutureYMD(yyyyMmDd) {
     if (!yyyyMmDd) return false;
     return yyyyMmDd > ymdToday();
-}function normalizeCPF(raw) {
+}
+
+function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
-}function toUpperNoTrim(str) {
+}
+
+function toUpperNoTrim(str) {
     return typeof str === 'string' ? str.toUpperCase() : str;
-}function toUpperTrim(str) {
+}
+
+function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}function nullIfEmpty(v) {
+}
+
+function nullIfEmpty(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s === '' ? null : s;
-}function numberOrNull(v) {
+}
+
+function numberOrNull(v) {
     const s = nullIfEmpty(v);
     if (s === null) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
-}function toStartOfDay(dateish) {
+}
+
+function toStartOfDay(dateish) {
     if (!dateish) return NaN;
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
@@ -154,11 +194,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}function formatDateLocal(iso) {
+}
+
+function formatDateLocal(iso) {
     if (!iso) return '';
     const [y, m, d] = String(iso).split('-');
     return `${d}/${m}/${y}`;
-}function attachUppercaseHandlers() {
+}
+
+function attachUppercaseHandlers() {
     if (!addForm || addForm.dataset.upperBound === '1') return;
     addForm.dataset.upperBound = '1';
     const uppercaseOnInput = (el) => {
@@ -183,7 +227,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}async function populateContratoSelect(selectElement) {
+}
+
+async function populateContratoSelect(selectElement) {
     if (!selectElement) return;
     const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
@@ -197,7 +243,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
-}function attachUpperHandlersTo(form) {
+}
+
+function attachUpperHandlersTo(form) {
     if (!form || form.dataset.upperBound === '1') return;
     form.dataset.upperBound = '1';
     const textInputs = form.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="tel"], input:not([type]), textarea');
@@ -220,7 +268,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     form.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+}
+
+function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -252,7 +302,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
-}function toUpperObject(obj) {
+}
+
+function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
@@ -284,7 +336,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return out;
-}function renderTable(dataToRender) {
+}
+
+function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
     colaboradoresTbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
@@ -324,13 +378,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         `;
         colaboradoresTbody.appendChild(tr);
     });
-}function updateDisplay() {
+}
+
+function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
     renderTable(dataSlice);
     if (mostrarMenosBtn) mostrarMenosBtn.classList.toggle('hidden', itensVisiveis <= ITENS_POR_PAGINA);
     if (mostrarMaisBtn) mostrarMaisBtn.classList.toggle('hidden', itensVisiveis >= state.dadosFiltrados.length);
     if (contadorVisiveisEl) contadorVisiveisEl.textContent = `${dataSlice.length} de ${state.dadosFiltrados.length} colaboradores visíveis`;
-}function populateFilters() {
+}
+
+function populateFilters() {
     if (!filtrosSelect) return;
     const filtros = {
         Contrato: new Set(), Cargo: new Set(), Escala: new Set(), DSR: new Set(),
@@ -357,29 +415,37 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             optionEl.value = option;
             optionEl.textContent = option;
             selectEl.appendChild(optionEl);
-        });        if (key === 'Contrato') {
+        });
+        if (key === 'Contrato') {
             const optionEl = document.createElement('option');
             optionEl.value = 'Consultorias';
             optionEl.textContent = 'Consultorias';
             selectEl.appendChild(optionEl);
-        }    });
-}function applyFiltersAndSearch() {
+        }
+    });
+}
+
+function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
         .map(term => term.trim().toLowerCase())
         .filter(term => term.length > 0);
-    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {        for (const key in state.filtrosAtivos) {
+    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
+        for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
-            if (!activeVal) continue;            if (key === 'Contrato' && activeVal === 'Consultorias') {
+            if (!activeVal) continue;
+            if (key === 'Contrato' && activeVal === 'Consultorias') {
                 if (String(colaborador?.['Contrato'] ?? '').toUpperCase() === 'KN') {
                     return false;
                 }
                 continue;
-            }            const colVal = String(colaborador?.[key] ?? '');
+            }
+            const colVal = String(colaborador?.[key] ?? '');
             if (colVal !== activeVal) return false;
-        }        if (searchTerms.length === 0) {
+        }
+        if (searchTerms.length === 0) {
             return true;
         }
         return searchTerms.some(term =>
@@ -393,22 +459,30 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
     updateDisplay();
-}function repopulateFilterOptionsCascade() {
+}
+
+function repopulateFilterOptionsCascade() {
     if (!filtrosSelect || !filtrosSelect.length) return;
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
         if (!key) return;
-        const searchTerm = (searchInput?.value || '').toLowerCase();        const tempFiltrado = state.colaboradoresData.filter((c) => {            for (const k in state.filtrosAtivos) {
+        const searchTerm = (searchInput?.value || '').toLowerCase();
+        const tempFiltrado = state.colaboradoresData.filter((c) => {
+            for (const k in state.filtrosAtivos) {
                 if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, k)) continue;
-                if (k === key) continue;                 const activeVal = state.filtrosAtivos[k];
-                if (!activeVal) continue;                if (k === 'Contrato' && activeVal === 'Consultorias') {
+                if (k === key) continue;
+                const activeVal = state.filtrosAtivos[k];
+                if (!activeVal) continue;
+                if (k === 'Contrato' && activeVal === 'Consultorias') {
                     if (String(c?.['Contrato'] ?? '').toUpperCase() === 'KN') {
                         return false;
                     }
                     continue;
-                }                const colVal = String(c?.[k] ?? '');
+                }
+                const colVal = String(c?.[k] ?? '');
                 if (colVal !== activeVal) return false;
-            }            if (!searchTerm) return true;
+            }
+            if (!searchTerm) return true;
             return (
                 String(c.Nome || '').toLowerCase().includes(searchTerm) ||
                 String(c.CPF || '').toLowerCase().includes(searchTerm) ||
@@ -416,30 +490,38 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 String(c.LDAP || '').toLowerCase().includes(searchTerm) ||
                 String(c.Fluxo || '').toLowerCase().includes(searchTerm)
             );
-        });        const valores = new Set();
+        });
+        const valores = new Set();
         tempFiltrado.forEach((c) => {
             const v = c?.[key];
             if (v != null && v !== '') valores.add(String(v));
-        });        const selecionadoAntes = selectEl.value || '';
-        while (selectEl.options.length > 1) selectEl.remove(1);         Array.from(valores)
+        });
+        const selecionadoAntes = selectEl.value || '';
+        while (selectEl.options.length > 1) selectEl.remove(1);
+        Array.from(valores)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .forEach((optVal) => {
                 const o = document.createElement('option');
                 o.value = optVal;
                 o.textContent = optVal;
                 selectEl.appendChild(o);
-            });        if (key === 'Contrato') {
+            });
+        if (key === 'Contrato') {
             const o = document.createElement('option');
             o.value = 'Consultorias';
             o.textContent = 'Consultorias';
             selectEl.appendChild(o);
-        }        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
+        }
+        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
             selectEl.value = selecionadoAntes;
         } else {
             if (state.filtrosAtivos[key]) delete state.filtrosAtivos[key];
             selectEl.selectedIndex = 0;
-        }    });
-}function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+        }
+    });
+}
+
+function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
     state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
@@ -448,7 +530,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (bySvc) return toUpperTrim(bySvc);
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
-}async function fetchColaboradores() {
+}
+
+async function fetchColaboradores() {
     const now = Date.now();
     if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
         console.log("Usando cache de colaboradores.");
@@ -490,7 +574,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         let query = supabase
             .from('Colaboradores')
             .select('*')
+            .neq('Ativo', 'NÃO') // <-- CORREÇÃO AQUI: Não busca quem está com 'NÃO'
             .order('Nome');
+
         if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
         }
@@ -521,7 +607,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         cachedFeriasStatus = null;
         lastFetchTimestamp = 0;
     }
-}async function gerarJanelaDeQRCodes() {
+}
+
+async function gerarJanelaDeQRCodes() {
     if (state.selectedNames.size === 0) {
         alert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.');
         return;
@@ -608,7 +696,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
-}async function loadSVCsParaFormulario() {
+}
+
+async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
     if (state.matrizesData.length > 0 && svcSelect.options.length > 1) {
@@ -640,7 +730,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         svcSelect.appendChild(opt);
     });
-}async function loadGestoresParaFormulario() {
+}
+
+async function loadGestoresParaFormulario() {
     if (state.gestoresData.length > 0) return;
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
@@ -649,7 +741,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return;
     }
     state.gestoresData = data || [];
-}function populateGestorSelect(selectedSvc) {
+}
+
+function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -678,7 +772,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-}function isDSRValida(dsrStr) {
+}
+
+function isDSRValida(dsrStr) {
     const raw = (dsrStr || '').toUpperCase().trim();
     if (!raw) return false;
     const dias = raw.split(',').map(d => d.trim()).filter(Boolean);
@@ -686,7 +782,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
     permitidos.add('SABADO');
     return dias.every(d => permitidos.has(d));
-}async function handleAddSubmit(event) {
+}
+
+async function handleAddSubmit(event) {
     event.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         alert('Ação não permitida. Você está em modo de visualização.');
@@ -779,8 +877,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     alert('Colaborador adicionado com sucesso!');
     if (addForm) {
         addForm.reset();
+
+        // --- INÍCIO DA CORREÇÃO DO BUG (linha 879) ---
         const dsrBtn = document.getElementById('addDSRBtn');
-        if (dsrBtn) dsrBtn.querySelector('span').textContent = 'CLIQUE PARA SELECIONAR OS DIAS...';
+        if (dsrBtn) {
+            // O erro era porque #addDSRBtn é um INPUT, não um botão com SPAN.
+            // Devemos limpar o 'value' e resetar o 'placeholder'.
+            dsrBtn.value = '';
+            dsrBtn.placeholder = 'CLIQUE PARA SELECIONAR OS DIAS...';
+        }
+        // --- FIM DA CORREÇÃO DO BUG ---
     }
     const gestorSelect = document.getElementById('addGestor');
     if (gestorSelect) {
@@ -790,7 +896,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}async function loadServiceMatrizForEdit() {
+}
+
+async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
     if (state.matrizesData.length > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
@@ -820,31 +928,45 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         editSVC.appendChild(opt);
     });
-}async function fetchColabByNome(nome) {
+}
+
+async function fetchColabByNome(nome) {
     const {data, error} = await supabase.from('Colaboradores').select('*').eq('Nome', nome).maybeSingle();
     if (error) throw error;
     return data;
-}function showEditModal() {
+}
+
+function showEditModal() {
     editModal?.classList.remove('hidden');
-}function hideEditModal() {
+}
+
+function hideEditModal() {
     editModal?.classList.add('hidden');
     editOriginal = null;
     editForm?.reset();
-}async function fillEditForm(colab) {
+}
+
+async function fillEditForm(colab) {
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
-    await loadGestoresParaFormulario();    const setVal = (el, v) => {
+    await loadGestoresParaFormulario();
+    const setVal = (el, v) => {
         if (el) el.value = v ?? '';
-    };    if (editTitulo) editTitulo.textContent = colab.Nome || 'Colaborador';    setVal(editInputs.Nome, colab.Nome || '');
+    };
+    if (editTitulo) editTitulo.textContent = colab.Nome || 'Colaborador';
+    setVal(editInputs.Nome, colab.Nome || '');
     setVal(editInputs.CPF, colab.CPF || '');
     setVal(editInputs.Contrato, colab.Contrato || '');
-    setVal(editInputs.Cargo, colab.Cargo || '');    const dsrValue = colab.DSR || '';
+    setVal(editInputs.Cargo, colab.Cargo || '');
+    const dsrValue = colab.DSR || '';
     setVal(document.getElementById('editDSR'), dsrValue);
     const editDsrBtn = document.getElementById('editDSRBtn');
-    if (editDsrBtn) editDsrBtn.value = dsrValue || '';    setVal(editInputs.Escala, colab.Escala || '');
+    if (editDsrBtn) editDsrBtn.value = dsrValue || '';
+    setVal(editInputs.Escala, colab.Escala || '');
     setVal(editInputs['FOLGA ESPECIAL'], colab['FOLGA ESPECIAL'] || '');
     setVal(editInputs.LDAP, colab.LDAP ?? '');
-    setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');    setVal(
+    setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');
+    setVal(
         editInputs['Data de nascimento'],
         colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : ''
     );
@@ -855,18 +977,25 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     setVal(
         editInputs['Admissao KN'],
         colab['Admissao KN'] ? new Date(colab['Admissao KN']).toISOString().split('T')[0] : ''
-    );    editMatriz = document.getElementById('editMatriz');
-    const editRegiao = document.getElementById('editRegiao');    if (editSVC) {
-        const svc = colab.SVC ? String(colab.SVC).toUpperCase() : '';        if (svc && !Array.from(editSVC.options).some(o => o.value === svc)) {
+    );
+    editMatriz = document.getElementById('editMatriz');
+    const editRegiao = document.getElementById('editRegiao');
+    if (editSVC) {
+        const svc = colab.SVC ? String(colab.SVC).toUpperCase() : '';
+        if (svc && !Array.from(editSVC.options).some(o => o.value === svc)) {
             const opt = document.createElement('option');
             opt.value = svc;
             opt.textContent = svc;
             editSVC.appendChild(opt);
         }
-        editSVC.value = svc || '';        const matrizUi = colab.MATRIZ || (svc ? (state.serviceMatrizMap.get(svc) || '') : '');
-        if (editMatriz) editMatriz.value = matrizUi || '';        const regUi = computeRegiaoFromSvcMatriz(svc, matrizUi) || colab.REGIAO || '';
-        if (editRegiao) editRegiao.value = regUi || '';        populateGestorSelectForEdit(svc, colab.Gestor);
-    }    if (editAfastarBtn) {
+        editSVC.value = svc || '';
+        const matrizUi = colab.MATRIZ || (svc ? (state.serviceMatrizMap.get(svc) || '') : '');
+        if (editMatriz) editMatriz.value = matrizUi || '';
+        const regUi = computeRegiaoFromSvcMatriz(svc, matrizUi) || colab.REGIAO || '';
+        if (editRegiao) editRegiao.value = regUi || '';
+        populateGestorSelectForEdit(svc, colab.Gestor);
+    }
+    if (editAfastarBtn) {
         if (colab.Ativo === 'SIM') {
             editAfastarBtn.textContent = 'Afastar Colaborador';
             editAfastarBtn.style.display = 'inline-block';
@@ -876,9 +1005,11 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         } else {
             editAfastarBtn.style.display = 'none';
         }
-    }    if (editEfetivarKnBtn) {
+    }
+    if (editEfetivarKnBtn) {
         const status = colab.Efetivacao;
-        const isKN = colab.Contrato && colab.Contrato.toUpperCase() === 'KN';        if (status === 'Aberto') {
+        const isKN = colab.Contrato && colab.Contrato.toUpperCase() === 'KN';
+        if (status === 'Aberto') {
             editEfetivarKnBtn.textContent = 'Gerenciar Fluxo (Aberto)';
             editEfetivarKnBtn.style.display = 'inline-block';
             editEfetivarKnBtn.disabled = false;
@@ -890,31 +1021,42 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             editEfetivarKnBtn.textContent = 'Fluxo Cancelado';
             editEfetivarKnBtn.style.display = 'inline-block';
             editEfetivarKnBtn.disabled = false;
-        } else if (!isKN) {            editEfetivarKnBtn.textContent = 'Efetivar KN / Gerar Fluxo';
+        } else if (!isKN) {
+            editEfetivarKnBtn.textContent = 'Efetivar KN / Gerar Fluxo';
             editEfetivarKnBtn.style.display = 'inline-block';
             editEfetivarKnBtn.disabled = false;
-        } else {            editEfetivarKnBtn.textContent = 'Visualizar Fluxo (Concluído)';
+        } else {
+            editEfetivarKnBtn.textContent = 'Visualizar Fluxo (Concluído)';
             editEfetivarKnBtn.style.display = 'inline-block';
             editEfetivarKnBtn.disabled = false;
         }
-    }    if (editExcluirBtn) {
+    }
+    if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
-}function openFluxoEfetivacaoModal() {
+}
+
+function openFluxoEfetivacaoModal() {
     if (!editOriginal || !fluxoEfetivacaoModal) {
         console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
-    }    fluxoEfetivacaoNomeEl.value = editOriginal.Nome;    fluxoNumeroEl.value = editOriginal.Fluxo || '';
+    }
+    fluxoEfetivacaoNomeEl.value = editOriginal.Nome;
+    fluxoNumeroEl.value = editOriginal.Fluxo || '';
     fluxoDataAberturaEl.value = editOriginal['Data Fluxo'] || ymdToday();
-    fluxoObservacaoEl.value = editOriginal['Observacao Fluxo'] || '';    const hoje = ymdToday();
-    fluxoAdmissaoKnEl.value = editOriginal['Admissao KN'] || editOriginal['Data de admissão'] || hoje;    const status = editOriginal.Efetivacao;
-    const isKN = editOriginal.Contrato === 'KN';    fluxoGerarBtn.disabled = false;
+    fluxoObservacaoEl.value = editOriginal['Observacao Fluxo'] || '';
+    const hoje = ymdToday();
+    fluxoAdmissaoKnEl.value = editOriginal['Admissao KN'] || editOriginal['Data de admissão'] || hoje;
+    const status = editOriginal.Efetivacao;
+    const isKN = editOriginal.Contrato === 'KN';
+    fluxoGerarBtn.disabled = false;
     fluxoFinalizarBtn.disabled = false;
     fluxoCancelarBtn.disabled = false;
     fluxoAdmissaoKnEl.disabled = false;
     fluxoNumeroEl.disabled = false;
     fluxoDataAberturaEl.disabled = false;
-    fluxoObservacaoEl.disabled = false;    if (status === 'Aberto') {
+    fluxoObservacaoEl.disabled = false;
+    if (status === 'Aberto') {
         fluxoGerarBtn.textContent = 'Atualizar Fluxo';
     } else if (status === 'Concluido') {
         fluxoGerarBtn.textContent = 'Salvar Observação';
@@ -926,80 +1068,110 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         fluxoGerarBtn.textContent = 'Re-abrir Fluxo';
         fluxoFinalizarBtn.disabled = true;
         fluxoCancelarBtn.disabled = true;
-    } else {        fluxoGerarBtn.textContent = 'Gerar Fluxo';
-    }    if (isKN) {
+    } else {
+        fluxoGerarBtn.textContent = 'Gerar Fluxo';
+    }
+    if (isKN) {
         fluxoFinalizarBtn.disabled = true;
         fluxoAdmissaoKnEl.disabled = true;
-        if (status === null) {            fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
+        if (status === null) {
+            fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
         }
-    }    fluxoEfetivacaoModal.classList.remove('hidden');
-}function closeFluxoEfetivacaoModal() {
+    }
+    fluxoEfetivacaoModal.classList.remove('hidden');
+}
+
+function closeFluxoEfetivacaoModal() {
     if (fluxoEfetivacaoModal) {
         fluxoEfetivacaoModal.classList.add('hidden');
         fluxoEfetivacaoForm.reset();
     }
-}async function handleFluxoSubmit(action) {
+}
+
+async function handleFluxoSubmit(action) {
     if (!editOriginal) {
         alert('Erro crítico: Dados do colaborador original perdidos.');
         return;
-    }    const nome = editOriginal.Nome;    const numeroFluxo = nullIfEmpty(fluxoNumeroEl.value);
+    }
+    const nome = editOriginal.Nome;
+    const numeroFluxo = nullIfEmpty(fluxoNumeroEl.value);
     const dataAbertura = nullIfEmpty(fluxoDataAberturaEl.value);
     const observacao = nullIfEmpty(fluxoObservacaoEl.value);
-    const admissaoKN = nullIfEmpty(fluxoAdmissaoKnEl.value);    let payload = {
+    const admissaoKN = nullIfEmpty(fluxoAdmissaoKnEl.value);
+    let payload = {
         'Fluxo': editOriginal.Fluxo,
         'Data Fluxo': editOriginal['Data Fluxo'],
         'Observacao Fluxo': editOriginal['Observacao Fluxo'],
         'Efetivacao': editOriginal.Efetivacao,
         'Contrato': editOriginal.Contrato,
         'Admissao KN': editOriginal['Admissao KN']
-    };    payload['Fluxo'] = numeroFluxo;
+    };
+    payload['Fluxo'] = numeroFluxo;
     payload['Data Fluxo'] = dataAbertura;
-    payload['Observacao Fluxo'] = observacao;    let confirmMsg = '';    if (action === 'gerar') {
+    payload['Observacao Fluxo'] = observacao;
+    let confirmMsg = '';
+    if (action === 'gerar') {
         if (!numeroFluxo || !dataAbertura) {
             alert('Para "Gerar" ou "Atualizar" o Fluxo, o "Número do Fluxo" e a "Data de Abertura" são obrigatórios.');
             fluxoNumeroEl.focus();
             return;
         }
         payload.Efetivacao = 'Aberto';
-        confirmMsg = `Tem certeza que deseja salvar o fluxo para "${nome}" como "Aberto"?`;    } else if (action === 'finalizar') {
+        confirmMsg = `Tem certeza que deseja salvar o fluxo para "${nome}" como "Aberto"?`;
+    } else if (action === 'finalizar') {
         if (!admissaoKN) {
             alert('Para "Finalizar Fluxo", a "Data de Admissão KN" é obrigatória.');
             fluxoAdmissaoKnEl.focus();
             return;
-        }        const admOriginal = editOriginal['Data de admissão'] || null;
+        }
+        const admOriginal = editOriginal['Data de admissão'] || null;
         if (admOriginal && admissaoKN < admOriginal) {
             alert(`Admissão KN (${formatDateLocal(admissaoKN)}) não pode ser anterior à Data de Admissão original (${formatDateLocal(admOriginal)}).`);
             fluxoAdmissaoKnEl.focus();
             return;
-        }        payload.Efetivacao = 'Concluido';
+        }
+        payload.Efetivacao = 'Concluido';
         payload.Contrato = 'KN';
         payload['Admissao KN'] = admissaoKN;
         confirmMsg = `Tem certeza que deseja "Finalizar Fluxo" para "${nome}"?\n\nIsso irá:
 1. Definir o status como "Concluido".
 2. Alterar o contrato para "KN".
-3. Registrar a Admissão KN em ${formatDateLocal(admissaoKN)}.`;    } else if (action === 'cancelar') {
+3. Registrar a Admissão KN em ${formatDateLocal(admissaoKN)}.`;
+    } else if (action === 'cancelar') {
         payload.Efetivacao = 'Cancelado';
         payload.Contrato = editOriginal.Contrato;
         payload['Admissao KN'] = null;
-        confirmMsg = `Tem certeza que deseja "Cancelar Fluxo" para "${nome}"?`;    } else {
+        confirmMsg = `Tem certeza que deseja "Cancelar Fluxo" para "${nome}"?`;
+    } else {
         return;
-    }    const ok = confirm(confirmMsg);
-    if (!ok) return;    try {        if (fluxoGerarBtn) fluxoGerarBtn.disabled = true;
+    }
+    const ok = confirm(confirmMsg);
+    if (!ok) return;
+    try {
+        if (fluxoGerarBtn) fluxoGerarBtn.disabled = true;
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = true;
-        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;        const {error} = await supabase
+        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;
+        const {error} = await supabase
             .from('Colaboradores')
             .update(payload)
-            .eq('Nome', nome);        if (error) throw error;        alert(`Fluxo de efetivação para "${nome}" foi salvo com status: ${payload.Efetivacao}!`);
+            .eq('Nome', nome);
+        if (error) throw error;
+        alert(`Fluxo de efetivação para "${nome}" foi salvo com status: ${payload.Efetivacao}!`);
         closeFluxoEfetivacaoModal();
         hideEditModal();
         invalidateColaboradoresCache();
-        await fetchColaboradores();    } catch (error) {
+        await fetchColaboradores();
+    } catch (error) {
         console.error('Erro ao salvar fluxo de efetivação:', error);
         alert(`Não foi possível salvar o fluxo: ${error.message}`);
-    } finally {        if (fluxoGerarBtn) fluxoGerarBtn.disabled = false;
+    } finally {
+        if (fluxoGerarBtn) fluxoGerarBtn.disabled = false;
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = false;
-        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;    }
-}async function validateEditDuplicates(payload) {
+        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;
+    }
+}
+
+async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
         const {count, error} = await supabase.from('Colaboradores').select('Nome', {
             count: 'exact',
@@ -1017,15 +1189,20 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if ((count || 0) > 0) return 'Já existe um colaborador com esse CPF.';
     }
     return null;
-}async function updateColaboradorSmart(nomeAnterior, payload) {    if (payload.Nome && payload.Nome !== nomeAnterior) {
+}
+
+async function updateColaboradorSmart(nomeAnterior, payload) {
+    if (payload.Nome && payload.Nome !== nomeAnterior) {
         const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
             nome_antigo: nomeAnterior,
             novos_dados: payload
         });
-        if (rpcError) throw rpcError;        const patch = {};
+        if (rpcError) throw rpcError;
+        const patch = {};
         if (payload['Data de admissão'] !== undefined) patch['Data de admissão'] = payload['Data de admissão'];
         if (payload['Admissao KN'] !== undefined) patch['Admissao KN'] = payload['Admissao KN'];
-        if (payload['Data de nascimento'] !== undefined) patch['Data de nascimento'] = payload['Data de nascimento'];        if (payload.DSR !== undefined) patch.DSR = payload.DSR;
+        if (payload['Data de nascimento'] !== undefined) patch['Data de nascimento'] = payload['Data de nascimento'];
+        if (payload.DSR !== undefined) patch.DSR = payload.DSR;
         if (payload.Escala !== undefined) patch.Escala = payload.Escala;
         if (payload['FOLGA ESPECIAL'] !== undefined) patch['FOLGA ESPECIAL'] = payload['FOLGA ESPECIAL'];
         if (payload.Contrato !== undefined) patch.Contrato = payload.Contrato;
@@ -1035,55 +1212,70 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (payload['ID GROOT'] !== undefined) patch['ID GROOT'] = payload['ID GROOT'];
         if (payload.SVC !== undefined) patch.SVC = payload.SVC;
         if (payload.MATRIZ !== undefined) patch.MATRIZ = payload.MATRIZ;
-        if (payload.REGIAO !== undefined) patch.REGIAO = payload.REGIAO;        if (Object.keys(patch).length > 0) {            console.log("RPC executada, dados principais atualizados via RPC.");
+        if (payload.REGIAO !== undefined) patch.REGIAO = payload.REGIAO;
+        if (Object.keys(patch).length > 0) {
+            console.log("RPC executada, dados principais atualizados via RPC.");
         }
         return;
-    }    const {error: upErr} = await supabase
+    }
+    const {error: upErr} = await supabase
         .from('Colaboradores')
         .update(payload)
         .eq('Nome', nomeAnterior);
     if (upErr) throw upErr;
-}async function onEditSubmit(e) {
-    e.preventDefault();    if (document.body.classList.contains('user-level-visitante')) {
+}
+
+async function onEditSubmit(e) {
+    e.preventDefault();
+    if (document.body.classList.contains('user-level-visitante')) {
         alert('Ação não permitida. Você está em modo de visualização.');
         return;
     }
     if (isSubmittingEdit) return;
-    isSubmittingEdit = true;    if (!editOriginal) {
+    isSubmittingEdit = true;
+    if (!editOriginal) {
         alert('Erro: Não há dados originais do colaborador.');
         isSubmittingEdit = false;
         return;
-    }    const Nome = toUpperTrim(editInputs.Nome.value || '');
+    }
+    const Nome = toUpperTrim(editInputs.Nome.value || '');
     if (!Nome) {
         alert('Informe o NOME.');
         editInputs.Nome.focus();
         isSubmittingEdit = false;
         return;
-    }    if (editSalvarBtn) {
+    }
+    if (editSalvarBtn) {
         editSalvarBtn.disabled = true;
         editSalvarBtn.textContent = 'Salvando...';
-    }    try {
+    }
+    try {
         const nomeAnterior = editOriginal.Nome;
         const CPF = normalizeCPF(editInputs.CPF.value || '');
         const svc = nullIfEmpty(editSVC.value);
-        const matrizAuto = svc ? (state.serviceMatrizMap.get(String(svc).toUpperCase()) || null) : null;        const dsrRaw = document.getElementById('editDSR').value;
+        const matrizAuto = svc ? (state.serviceMatrizMap.get(String(svc).toUpperCase()) || null) : null;
+        const dsrRaw = document.getElementById('editDSR').value;
         const dsrValue = toUpperTrim(nullIfEmpty(dsrRaw));
         if (!isDSRValida(dsrValue)) {
             alert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).');
             document.getElementById('editDSRBtn')?.focus();
             isSubmittingEdit = false;
             return;
-        }        const regiaoInputEl = document.getElementById('editRegiao');
+        }
+        const regiaoInputEl = document.getElementById('editRegiao');
         const regiaoFromInput = toUpperTrim(nullIfEmpty(regiaoInputEl?.value));
         const regiaoAuto = computeRegiaoFromSvcMatriz(svc, matrizAuto);
-        const regiaoFinal = toUpperTrim(nullIfEmpty(regiaoAuto)) || regiaoFromInput || null;        const dataNasc = editInputs['Data de nascimento']?.value || null;
+        const regiaoFinal = toUpperTrim(nullIfEmpty(regiaoAuto)) || regiaoFromInput || null;
+        const dataNasc = editInputs['Data de nascimento']?.value || null;
         const dataAdmissao = editInputs['Data de admissão']?.value || null;
-        const admKn = editInputs['Admissao KN']?.value || null;        if (dataAdmissao && admKn && admKn < dataAdmissao) {
+        const admKn = editInputs['Admissao KN']?.value || null;
+        if (dataAdmissao && admKn && admKn < dataAdmissao) {
             alert('Admissão KN não pode ser anterior à Data de Admissão.');
             editInputs['Admissao KN'].focus();
             isSubmittingEdit = false;
             return;
-        }        const payload = {
+        }
+        const payload = {
             Nome,
             CPF,
             Contrato: toUpperTrim(editInputs.Contrato.value || ''),
@@ -1093,19 +1285,23 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             Escala: toUpperTrim(nullIfEmpty(editInputs.Escala.value)),
             'FOLGA ESPECIAL': toUpperTrim(nullIfEmpty(editInputs['FOLGA ESPECIAL'].value)),
             LDAP: nullIfEmpty(editInputs.LDAP.value),
-            'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),            'Data de nascimento': dataNasc,
+            'ID GROOT': numberOrNull(editInputs['ID GROOT'].value), 'Data de nascimento': dataNasc,
             'Data de admissão': dataAdmissao,
-            'Admissao KN': admKn,            SVC: toUpperTrim(svc),
+            'Admissao KN': admKn, SVC: toUpperTrim(svc),
             MATRIZ: toUpperTrim(matrizAuto),
-            REGIAO: regiaoFinal,            'Efetivacao': editOriginal.Efetivacao,
+            REGIAO: regiaoFinal, 'Efetivacao': editOriginal.Efetivacao,
             'Fluxo': editOriginal.Fluxo,
             'Data Fluxo': editOriginal['Data Fluxo'],
-            'Observacao Fluxo': editOriginal['Observacao Fluxo']        };        const dupMsg = await validateEditDuplicates(payload);
+            'Observacao Fluxo': editOriginal['Observacao Fluxo']
+        };
+        const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             alert(dupMsg);
             isSubmittingEdit = false;
             return;
-        }        await updateColaboradorSmart(nomeAnterior, payload);        const dsrAnterior = editOriginal.DSR || null;
+        }
+        await updateColaboradorSmart(nomeAnterior, payload);
+        const dsrAnterior = editOriginal.DSR || null;
         const dsrAtual = payload.DSR || null;
         if (dsrAnterior !== dsrAtual) {
             try {
@@ -1130,13 +1326,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             } catch (e) {
                 console.warn('Falha ao registrar log de DSR:', e);
             }
-        }        invalidateColaboradoresCache();
-        await fetchColaboradores();        try {
+        }
+        invalidateColaboradoresCache();
+        await fetchColaboradores();
+        try {
             const recarregado = await fetchColabByNome(payload.Nome);
             if (recarregado) await fillEditForm(recarregado);
         } catch {
-        }        alert('Colaborador atualizado com sucesso em todas as tabelas!');
-        hideEditModal();        document.dispatchEvent(new CustomEvent('colaborador-edited', {
+        }
+        alert('Colaborador atualizado com sucesso em todas as tabelas!');
+        hideEditModal();
+        document.dispatchEvent(new CustomEvent('colaborador-edited', {
             detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
         }));
     } catch (err) {
@@ -1149,74 +1349,105 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             editSalvarBtn.textContent = 'Salvar Alterações';
         }
     }
-}async function onAfastarClick() {
+}
+
+async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
         alert('Erro: Colaborador não identificado.');
         return;
-    }    let colab;
-    try {        colab = await fetchColabByNome(editOriginal.Nome);
+    }
+    let colab;
+    try {
+        colab = await fetchColabByNome(editOriginal.Nome);
     } catch (fetchError) {
         console.error("Erro ao buscar colaborador para afastamento:", fetchError);
         alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
         return;
-    }    if (!colab) {
+    }
+    if (!colab) {
         alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
         return;
-    }    const currentStatus = colab.Ativo;
-    const hojeISO = new Date().toISOString().split('T')[0];    if (currentStatus === 'SIM') {        const dataInicio = await promptForDate("Selecione a data de INÍCIO do afastamento:", hojeISO);        if (!dataInicio) return;        const confirmationMessage = `Tem certeza que deseja AFASTAR "${colab.Nome}" a partir de ${formatDateLocal(dataInicio)}?`;
+    }
+    const currentStatus = colab.Ativo;
+    const hojeISO = new Date().toISOString().split('T')[0];
+    if (currentStatus === 'SIM') {
+        const dataInicio = await promptForDate("Selecione a data de INÍCIO do afastamento:", hojeISO);
+        if (!dataInicio) return;
+        const confirmationMessage = `Tem certeza que deseja AFASTAR "${colab.Nome}" a partir de ${formatDateLocal(dataInicio)}?`;
         const ok = confirm(confirmationMessage);
-        if (!ok) return;        const newAfastamento = {
+        if (!ok) return;
+        const newAfastamento = {
             NOME: colab.Nome,
             SVC: colab.SVC || null,
             MATRIZ: colab.MATRIZ || null,
             REGIAO: colab.REGIAO || null,
             "DATA INICIO": dataInicio,
             "DATA RETORNO": null
-        };        const {error: insertError} = await supabase.from('Afastamentos').insert(newAfastamento);
+        };
+        const {error: insertError} = await supabase.from('Afastamentos').insert(newAfastamento);
         if (insertError) {
             alert(`Erro ao criar registro de afastamento: ${insertError.message}`);
             return;
-        }        const {error: updateError} = await supabase
+        }
+        const {error: updateError} = await supabase
             .from('Colaboradores')
             .update({Ativo: 'AFAS'})
-            .eq('Nome', colab.Nome);        if (updateError) {
+            .eq('Nome', colab.Nome);
+        if (updateError) {
             alert(`Erro ao atualizar o status do colaborador: ${updateError.message}`);
             return;
-        }        alert('Colaborador afastado com sucesso!');    } else if (currentStatus === 'AFAS') {        const dataRetorno = await promptForDate("Selecione a data de RETORNO do colaborador:", hojeISO);        if (!dataRetorno) return;        const {data: ultimoAfastamento, error: findError} = await supabase
+        }
+        alert('Colaborador afastado com sucesso!');
+    } else if (currentStatus === 'AFAS') {
+        const dataRetorno = await promptForDate("Selecione a data de RETORNO do colaborador:", hojeISO);
+        if (!dataRetorno) return;
+        const {data: ultimoAfastamento, error: findError} = await supabase
             .from('Afastamentos')
             .select('"DATA INICIO"')
             .eq('NOME', colab.Nome)
             .is('DATA RETORNO', null)
             .order('"DATA INICIO"', {ascending: false})
             .limit(1)
-            .maybeSingle();        if (findError) {
+            .maybeSingle();
+        if (findError) {
             alert('Erro ao verificar data de início do afastamento: ' + findError.message);
             return;
-        }        if (ultimoAfastamento && ultimoAfastamento["DATA INICIO"] > dataRetorno) {
+        }
+        if (ultimoAfastamento && ultimoAfastamento["DATA INICIO"] > dataRetorno) {
             alert(`Data de retorno inválida. O afastamento iniciou em ${formatDateLocal(ultimoAfastamento["DATA INICIO"])}.`);
             return;
-        }        const confirmationMessage = `Tem certeza que deseja registrar o RETORNO de "${colab.Nome}" em ${formatDateLocal(dataRetorno)}?`;
+        }
+        const confirmationMessage = `Tem certeza que deseja registrar o RETORNO de "${colab.Nome}" em ${formatDateLocal(dataRetorno)}?`;
         const ok = confirm(confirmationMessage);
-        if (!ok) return;        const {error: updateAfastamentoError} = await supabase
+        if (!ok) return;
+        const {error: updateAfastamentoError} = await supabase
             .from('Afastamentos')
             .update({"DATA RETORNO": dataRetorno})
             .eq('NOME', colab.Nome)
-            .is('DATA RETORNO', null);        if (updateAfastamentoError) {
+            .is('DATA RETORNO', null);
+        if (updateAfastamentoError) {
             alert(`Erro ao atualizar o registro de afastamento: ${updateAfastamentoError.message}`);
             return;
-        }        const {error: updateColabError} = await supabase
+        }
+        const {error: updateColabError} = await supabase
             .from('Colaboradores')
             .update({Ativo: 'SIM'})
-            .eq('Nome', colab.Nome);        if (updateColabError) {
+            .eq('Nome', colab.Nome);
+        if (updateColabError) {
             alert(`Erro ao atualizar o status do colaborador: ${updateColabError.message}`);
             return;
-        }        alert('Retorno do colaborador registrado com sucesso!');    } else {
+        }
+        alert('Retorno do colaborador registrado com sucesso!');
+    } else {
         alert(`Ação não permitida para o status atual "${currentStatus}".`);
         return;
-    }    hideEditModal();
+    }
+    hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+}
+
+function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -1236,7 +1467,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}function openDesligarModalFromColab(colab) {
+}
+
+function openDesligarModalFromColab(colab) {
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
     const hoje = new Date();
@@ -1245,36 +1478,56 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     desligarDataEl.value = iso;
     desligarMotivoEl.selectedIndex = 0;
     desligarModal.classList.remove('hidden');
-}function closeDesligarModal() {
+}
+
+function closeDesligarModal() {
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function ensureColaboradorRemovido(nome, tentativas = 4, delayMs = 200) {
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function ensureColaboradorInativado(nome, tentativas = 4, delayMs = 200) {
     for (let i = 0; i < tentativas; i++) {
-        const {count, error} = await supabase
+        const {data, error} = await supabase
             .from('Colaboradores')
-            .select('Nome', {count: 'exact', head: true})
-            .eq('Nome', nome);
+            .select('Ativo')
+            .eq('Nome', nome)
+            .maybeSingle();
+
         if (error) throw error;
-        if ((count || 0) === 0) return true;
+
+        // Se o colaborador foi inativado (Ativo = 'NÃO'), sucesso.
+        if (data && data.Ativo === 'NÃO') return true;
+
+        // Se o colaborador não for encontrado (porque a RPC o deletou, se existir), sucesso também.
+        if (!data) return true;
+
+        // Se ainda estiver 'SIM', espera e tenta de novo.
         await sleep(delayMs);
     }
-    return false;
-}async function onDesligarSubmit(e) {
+    return false; // Falhou em confirmar a inativação
+}
+
+async function onDesligarSubmit(e) {
     e.preventDefault();
     if (!desligarColaborador) {
         alert('Erro: colaborador não carregado.');
         return;
-    }    const nome = desligarColaborador.Nome;
+    }
+    const nome = desligarColaborador.Nome;
     const dataDesligamento = (desligarDataEl?.value || '').trim();
-    const motivo = (desligarMotivoEl?.value || '').trim();    if (!dataDesligamento) {
+    const motivo = (desligarMotivoEl?.value || '').trim();
+    if (!dataDesligamento) {
         alert('Informe a data de desligamento.');
         return;
     }
     if (!motivo) {
         alert('Selecione o motivo.');
         return;
-    }    const periodoTrabalhado = calcularPeriodoTrabalhado(desligarColaborador['Data de admissão'], dataDesligamento);
+    }
+    const periodoTrabalhado = calcularPeriodoTrabalhado(desligarColaborador['Data de admissão'], dataDesligamento);
     const desligadoData = {
         Nome: nome,
         Contrato: desligarColaborador.Contrato || null,
@@ -1287,49 +1540,82 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         SVC: desligarColaborador.SVC || null,
         MATRIZ: desligarColaborador.MATRIZ || null,
         Motivo: motivo || null
-    };    try {        try {
+    };
+    try {
+        // Tentar RPC (vai falhar, com base no seu log)
+        try {
             const {error: rpcErr} = await supabase.rpc('desligar_colaborador_atomic', {
                 p_nome: nome,
                 p_data_desligamento: dataDesligamento,
                 p_motivo: motivo,
                 p_payload_json: desligadoData
             });
-            if (!rpcErr) {                const ok = await ensureColaboradorRemovido(nome);
-                if (!ok) console.warn('Aviso: linha ainda aparente na visão local, mas RPC confirmou.');
+            if (!rpcErr) {
+                // Se um dia a RPC existir e funcionar, ela fará o trabalho
+                const ok = await ensureColaboradorInativado(nome); // Usando a nova função de verificação
+                if (!ok) console.warn('Aviso: RPC executada, mas status do colaborador não verificado como "NÃO".');
                 alert('Colaborador desligado com sucesso (RPC)!');
                 closeDesligarModal();
                 hideEditModal();
                 invalidateColaboradoresCache();
                 await fetchColaboradores();
                 return;
-            }            if (rpcErr.message && !/function .* does not exist/i.test(rpcErr.message)) {                throw rpcErr;
             }
-        } catch (rpcFalha) {            console.info('RPC indisponível, aplicando fallback 2-passos:', rpcFalha?.message || rpcFalha);
-        }        const {count: jaExiste, error: checkErr} = await supabase
+            if (rpcErr.message && !/function .* does not exist/i.test(rpcErr.message)) {
+                throw rpcErr;
+            }
+        } catch (rpcFalha) {
+            console.info('RPC indisponível, aplicando fallback 2-passos:', rpcFalha?.message || rpcFalha);
+        }
+
+        // --- INÍCIO DA CORREÇÃO (Fallback Manual) ---
+
+        // 1. Garante que o registro existe em 'Desligados'
+        const {count: jaExiste, error: checkErr} = await supabase
             .from('Desligados')
             .select('Nome', {count: 'exact', head: true})
             .eq('Nome', nome);
-        if (checkErr) throw checkErr;        if ((jaExiste || 0) === 0) {
+        if (checkErr) throw checkErr;
+
+        if ((jaExiste || 0) === 0) {
             const {error: insertError} = await supabase.from('Desligados').insert([desligadoData]);
-            if (insertError) {                if (!/duplicate key|unique constraint/i.test(insertError.message || '')) {
+            if (insertError) {
+                // Ignora erro de "chave duplicada" se houver corrida, mas joga outros erros
+                if (!/duplicate key|unique constraint/i.test(insertError.message || '')) {
                     throw insertError;
                 }
             }
-        }        const {data: deletedRows, error: deleteError} = await supabase
+        }
+
+        // 2. Em vez de deletar, ATUALIZA o colaborador para Ativo = 'NÃO'
+        const {error: updateError} = await supabase
             .from('Colaboradores')
-            .delete()
-            .eq('Nome', nome)
-            .select();        if (deleteError) throw deleteError;        const sumiu = await ensureColaboradorRemovido(nome);
-        if (!sumiu) {            await supabase.from('Colaboradores').delete().eq('Nome', nome);
-        }        alert('Colaborador desligado com sucesso!');
+            .update({Ativo: 'NÃO'}) // <-- A MUDANÇA ESTÁ AQUI
+            .eq('Nome', nome);
+
+        if (updateError) throw updateError;
+
+        // 3. Verifica se a inativação funcionou
+        const inativado = await ensureColaboradorInativado(nome);
+        if (!inativado) {
+            // Tenta forçar de novo se a verificação falhar
+            await supabase.from('Colaboradores').update({Ativo: 'NÃO'}).eq('Nome', nome);
+        }
+
+        // --- FIM DA CORREÇÃO ---
+
+        alert('Colaborador desligado (inativado) com sucesso!');
         closeDesligarModal();
         hideEditModal();
         invalidateColaboradoresCache();
-        await fetchColaboradores();    } catch (err) {
+        await fetchColaboradores();
+    } catch (err) {
         console.error('Erro no fluxo de desligamento:', err);
         alert(`Erro ao desligar colaborador: ${err.message || err}`);
     }
-}async function getNonFinalizedFerias(nome) {
+}
+
+async function getNonFinalizedFerias(nome) {
     const {data, error} = await supabase
         .from('Ferias')
         .select('Numero, Status, "Data Final"')
@@ -1339,7 +1625,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .limit(1);
     if (error) return {error};
     return {data: (data && data.length > 0) ? data[0] : null};
-}async function agendarFerias(info) {
+}
+
+async function agendarFerias(info) {
     const {colaborador, dataInicio, dataFinal} = info;
     const {data: feriasPendentes, error: feriasCheckError} = await getNonFinalizedFerias(colaborador.Nome);
     if (feriasCheckError) {
@@ -1383,7 +1671,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     invalidateColaboradoresCache();
     await updateAllVacationStatuses();
     return {success: true};
-}async function updateAllVacationStatuses() {
+}
+
+async function updateAllVacationStatuses() {
     const {data: feriasList, error} = await supabase.from('Ferias').select('*').order('Numero', {ascending: true});
     if (error || !feriasList) return;
     const today = toStartOfDay(new Date());
@@ -1423,7 +1713,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (needsColabUpdate) {
         invalidateColaboradoresCache();
     }
-}function openFeriasModalFromColab(colab) {
+}
+
+function openFeriasModalFromColab(colab) {
     feriasColaborador = colab;
     if (!feriasModal) return;
     if (feriasNomeEl) feriasNomeEl.value = colab?.Nome || '';
@@ -1433,12 +1725,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (feriasInicioEl && !feriasInicioEl.value) feriasInicioEl.value = iso;
     if (feriasFinalEl && !feriasFinalEl.value) feriasFinalEl.value = iso;
     feriasModal.classList.remove('hidden');
-}function closeFeriasModal() {
+}
+
+function closeFeriasModal() {
     if (!feriasModal) return;
     feriasModal.classList.add('hidden');
     feriasColaborador = null;
     feriasForm?.reset();
-}async function onFeriasSubmit(e) {
+}
+
+async function onFeriasSubmit(e) {
     e.preventDefault();
     if (isSubmittingFerias) return;
     try {
@@ -1486,7 +1782,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             submitButton.textContent = 'Confirmar';
         }
     }
-}const HIST = {
+}
+
+const HIST = {
     nome: null, ano: new Date().getFullYear(), marks: new Map(), dsrDates: new Set(),
     initialized: false, els: {modal: null, title: null, yearSel: null, months: null, fecharBtn: null,}
 };
@@ -1516,7 +1814,9 @@ const firstWeekdayIndex = (year, month0) => {
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';function ensureHistoricoDomRefs() {
+const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';
+
+function ensureHistoricoDomRefs() {
     if (HIST.initialized) return;
     HIST.els.modal = document.getElementById('historicoModal');
     HIST.els.title = document.getElementById('hist-title');
@@ -1551,10 +1851,14 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         }
     });
     HIST.initialized = true;
-}function putHistoricoTitle() {
+}
+
+function putHistoricoTitle() {
     if (!HIST.els.title) return;
     HIST.els.title.textContent = HIST.nome ? `Histórico – ${HIST.nome}` : 'Histórico';
-}function renderHistoricoCalendar() {
+}
+
+function renderHistoricoCalendar() {
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
     monthsEl.innerHTML = '';
@@ -1602,7 +1906,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
-}async function computeDsrDatesForYear(nome, ano) {
+}
+
+async function computeDsrDatesForYear(nome, ano) {
     try {
         const {data: colab, error} = await supabase.from('Colaboradores').select('DSR').eq('Nome', nome).maybeSingle();
         if (error) throw error;
@@ -1636,7 +1942,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         console.error('computeDsrDatesForYear error:', e);
         return new Set();
     }
-}async function loadHistoricoIntoModal() {
+}
+
+async function loadHistoricoIntoModal() {
     if (!HIST.nome) return;
     if (HIST.els.months) {
         HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
@@ -1672,7 +1980,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#e55353;">Erro ao carregar histórico.</div>';
         }
     }
-}async function openHistorico(nome) {
+}
+
+async function openHistorico(nome) {
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
         alert('Não foi possível abrir o histórico (elementos do modal não encontrados).');
@@ -1687,9 +1997,13 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     putHistoricoTitle();
     await loadHistoricoIntoModal();
     HIST.els.modal.classList.remove('hidden');
-}function wireDsrModal() {
-    dsrModal = document.getElementById('dsrModal');    if (!dsrModal || dsrModal.dataset.wired === '1') return;
-    dsrModal.dataset.wired = '1';    dsrCheckboxesContainer = document.getElementById('dsrCheckboxesContainer');
+}
+
+function wireDsrModal() {
+    dsrModal = document.getElementById('dsrModal');
+    if (!dsrModal || dsrModal.dataset.wired === '1') return;
+    dsrModal.dataset.wired = '1';
+    dsrCheckboxesContainer = document.getElementById('dsrCheckboxesContainer');
     dsrOkBtn = document.getElementById('dsrOkBtn');
     dsrCancelarBtn = document.getElementById('dsrCancelarBtn');
     if (!dsrModal || !dsrCheckboxesContainer || !dsrOkBtn || !dsrCancelarBtn) {
@@ -1724,7 +2038,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         dsrModal.classList.add('hidden');
         currentDsrInputTarget = null;
     });
-}function openDsrModal(targetInput) {
+}
+
+function openDsrModal(targetInput) {
     if (!dsrModal) return;
     currentDsrInputTarget = targetInput;
     const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -1733,9 +2049,13 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         checkbox.checked = currentValueSet.has(checkbox.value);
     });
     dsrModal.classList.remove('hidden');
-}function wireEdit() {
-    editModal = document.getElementById('editModal');    if (!editModal || editModal.dataset.wired === '1') return;
-    editModal.dataset.wired = '1';    editForm = document.getElementById('editForm');
+}
+
+function wireEdit() {
+    editModal = document.getElementById('editModal');
+    if (!editModal || editModal.dataset.wired === '1') return;
+    editModal.dataset.wired = '1';
+    editForm = document.getElementById('editForm');
     editTitulo = document.getElementById('editTitulo');
     editSVC = document.getElementById('editSVC');
     editExcluirBtn = document.getElementById('editExcluirBtn');
@@ -1747,7 +2067,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     editAfastarBtn = document.getElementById('editAfastarBtn');
     editEfetivarKnBtn = document.getElementById('editEfetivarKnBtn');
     editMatriz = document.getElementById('editMatriz');
-    const editRegiao = document.getElementById('editRegiao');    editInputs = {
+    const editRegiao = document.getElementById('editRegiao');
+    editInputs = {
         Nome: document.getElementById('editNome'),
         CPF: document.getElementById('editCPF'),
         Contrato: document.getElementById('editContrato'),
@@ -1760,7 +2081,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         'Data de nascimento': document.getElementById('editDataNascimento'),
         'Data de admissão': document.getElementById('editDataAdmissao'),
         'Admissao KN': document.getElementById('editAdmissaoKn')
-    };    attachUpperHandlersTo(editForm);    if (editSVC) {
+    };
+    attachUpperHandlersTo(editForm);
+    if (editSVC) {
         editSVC.addEventListener('change', () => {
             const svc = (editSVC.value || '').toString().toUpperCase();
             const matrizAuto = svc ? (state.serviceMatrizMap.get(svc) || '') : '';
@@ -1769,21 +2092,26 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             if (editRegiao) editRegiao.value = regAuto || '';
             populateGestorSelectForEdit(editSVC.value);
         });
-    }    const editDSRBtn = document.getElementById('editDSRBtn');
+    }
+    const editDSRBtn = document.getElementById('editDSRBtn');
     if (editDSRBtn) {
         editDSRBtn.addEventListener('click', () => {
             openDsrModal(document.getElementById('editDSR'));
         });
-    }    editForm?.addEventListener('submit', onEditSubmit);
+    }
+    editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
-    editAfastarBtn?.addEventListener('click', onAfastarClick);    editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);    editExcluirBtn?.addEventListener('click', async () => {
+    editAfastarBtn?.addEventListener('click', onAfastarClick);
+    editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);
+    editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
             alert('Apenas administradores podem excluir colaboradores.');
             return;
         }
         if (!editOriginal) return;
         const ok = confirm('Tem certeza que deseja excluir este colaborador? ESTA AÇÃO É IRREVERSÍVEL!');
-        if (!ok) return;        try {
+        if (!ok) return;
+        try {
             editExcluirBtn.disabled = true;
             editExcluirBtn.textContent = 'Excluindo...';
             const {error} = await supabase.from('Colaboradores').delete().eq('Nome', editOriginal.Nome);
@@ -1800,7 +2128,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             editExcluirBtn.disabled = false;
             editExcluirBtn.textContent = 'Excluir Colaborador';
         }
-    });    editDesligarBtn?.addEventListener('click', async () => {
+    });
+    editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
         if (!colab) {
@@ -1808,7 +2137,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             return;
         }
         openDesligarModalFromColab(colab);
-    });    editFeriasBtn?.addEventListener('click', async () => {
+    });
+    editFeriasBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
         if (!colab) {
@@ -1816,10 +2146,12 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             return;
         }
         openFeriasModalFromColab(colab);
-    });    editHistoricoBtn?.addEventListener('click', () => {
+    });
+    editHistoricoBtn?.addEventListener('click', () => {
         if (!editOriginal?.Nome) return;
         openHistorico(editOriginal.Nome);
-    });    document.addEventListener('open-edit-modal', async (evt) => {
+    });
+    document.addEventListener('open-edit-modal', async (evt) => {
         const nome = evt.detail?.nome;
         if (!nome) return;
         try {
@@ -1836,25 +2168,35 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             alert('Erro ao carregar colaborador para edição.');
         }
     });
-}function wireDesligar() {
-    desligarModal = document.getElementById('desligarModal');    if (!desligarModal || desligarModal.dataset.wired === '1') return;
-    desligarModal.dataset.wired = '1';    desligarForm = document.getElementById('desligarForm');
+}
+
+function wireDesligar() {
+    desligarModal = document.getElementById('desligarModal');
+    if (!desligarModal || desligarModal.dataset.wired === '1') return;
+    desligarModal.dataset.wired = '1';
+    desligarForm = document.getElementById('desligarForm');
     desligarNomeEl = document.getElementById('desligarNome');
     desligarDataEl = document.getElementById('desligarData');
     desligarMotivoEl = document.getElementById('desligarMotivo');
     desligarCancelarBtn = document.getElementById('desligarCancelarBtn');
     desligarCancelarBtn?.addEventListener('click', closeDesligarModal);
     desligarForm?.addEventListener('submit', onDesligarSubmit);
-}function wireFerias() {
-    feriasModal = document.getElementById('feriasModal') || null;    if (!feriasModal || feriasModal.dataset.wired === '1') return;
-    feriasModal.dataset.wired = '1';    feriasForm = document.getElementById('feriasForm') || document.getElementById('ferias-form') || null;
+}
+
+function wireFerias() {
+    feriasModal = document.getElementById('feriasModal') || null;
+    if (!feriasModal || feriasModal.dataset.wired === '1') return;
+    feriasModal.dataset.wired = '1';
+    feriasForm = document.getElementById('feriasForm') || document.getElementById('ferias-form') || null;
     feriasNomeEl = document.getElementById('feriasNome') || document.getElementById('nome-colaborador') || null;
     feriasInicioEl = document.getElementById('feriasDataInicio') || document.getElementById('data-inicio') || null;
     feriasFinalEl = document.getElementById('feriasDataFinal') || document.getElementById('data-final') || null;
     feriasCancelarBtn = document.getElementById('feriasCancelarBtn') || document.getElementById('cancelarBtn') || null;
     feriasCancelarBtn?.addEventListener('click', closeFeriasModal);
     feriasForm?.addEventListener('submit', onFeriasSubmit);
-}async function ensureXLSX() {
+}
+
+async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -1863,7 +2205,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}function mapColabToExportRow(c) {
+}
+
+function mapColabToExportRow(c) {
     const fmt = (v) => v == null ? '' : v;
     const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
     return {
@@ -1884,21 +2228,24 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         'Gênero': fmt(c.Genero),
         'MATRIZ': fmt(c.MATRIZ),
         'Ativo': fmt(c.Ativo),
-        'Férias': fmt(c.Ferias),        'Status Efetivação': fmt(c.Efetivacao),
+        'Férias': fmt(c.Ferias), 'Status Efetivação': fmt(c.Efetivacao),
         'Fluxo Efetivação': fmt(c.Fluxo),
         'Data Fluxo': fmtDate(c['Data Fluxo']),
-        'Obs Fluxo': fmt(c['Observacao Fluxo']),        'Total Presença': c['Total Presença'] ?? '',
+        'Obs Fluxo': fmt(c['Observacao Fluxo']), 'Total Presença': c['Total Presença'] ?? '',
         'Total Faltas': c['Total Faltas'] ?? '',
         'Total Atestados': c['Total Atestados'] ?? '',
         'Total Suspensões': c['Total Suspensões'] ?? ''
     };
-}async function exportColaboradoresXLSX(useFiltered) {
+}
+
+async function exportColaboradoresXLSX(useFiltered) {
     const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
     if (!data || data.length === 0) {
         alert('Não há dados para exportar.');
         return;
     }
-    await ensureXLSX();    const mapColabToExportRow = (c) => {
+    await ensureXLSX();
+    const mapColabToExportRow = (c) => {
         const fmt = (v) => v == null ? '' : v;
         const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
         return {
@@ -1929,49 +2276,75 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             'Total Atestados': c['Total Atestados'] ?? '',
             'Total Suspensões': c['Total Suspensões'] ?? ''
         };
-    };    const rows = data.map(mapColabToExportRow);
-    const headers = Object.keys(mapColabToExportRow(state.colaboradoresData[0] || {}));    const wb = window.XLSX.utils.book_new();
-    const ws = window.XLSX.utils.json_to_sheet(rows, {header: headers});    const colWidths = headers.map(h => {
+    };
+    const rows = data.map(mapColabToExportRow);
+    const headers = Object.keys(mapColabToExportRow(state.colaboradoresData[0] || {}));
+    const wb = window.XLSX.utils.book_new();
+    const ws = window.XLSX.utils.json_to_sheet(rows, {header: headers});
+    const colWidths = headers.map(h => {
         const maxLen = Math.max(h.length, ...rows.map(r => String(r[h] ?? '').length));
         return {wch: Math.min(Math.max(10, maxLen + 2), 40)};
     });
-    ws['!cols'] = colWidths;    window.XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores');
+    ws['!cols'] = colWidths;
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores');
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
     window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
-}function wireFluxoEfetivacao() {    fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');    if (!fluxoEfetivacaoModal) {
+}
+
+function wireFluxoEfetivacao() {
+    fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');
+    if (!fluxoEfetivacaoModal) {
         console.warn("Modal de fluxo de efetivação (id='fluxoEfetivacaoModal') não encontrado. A funcionalidade não será ativada.");
         return;
-    }    if (fluxoEfetivacaoModal.dataset.wired === '1') {
+    }
+    if (fluxoEfetivacaoModal.dataset.wired === '1') {
         console.log("Modal de fluxo já 'wired'. Pulando.");
         return;
     }
-    fluxoEfetivacaoModal.dataset.wired = '1';     console.log("Modal de fluxo de efetivação encontrado. Carregando...");    fluxoEfetivacaoForm = document.getElementById('fluxoEfetivacaoForm');
-    fluxoEfetivacaoNomeEl = document.getElementById('fluxoEfetivacaoNome');    fluxoNumeroEl = document.getElementById('fluxoNumero');
+    fluxoEfetivacaoModal.dataset.wired = '1';
+    console.log("Modal de fluxo de efetivação encontrado. Carregando...");
+    fluxoEfetivacaoForm = document.getElementById('fluxoEfetivacaoForm');
+    fluxoEfetivacaoNomeEl = document.getElementById('fluxoEfetivacaoNome');
+    fluxoNumeroEl = document.getElementById('fluxoNumero');
     fluxoDataAberturaEl = document.getElementById('fluxoDataAbertura');
-    fluxoObservacaoEl = document.getElementById('fluxoObservacao');    fluxoAdmissaoKnEl = document.getElementById('fluxoAdmissaoKnData');    fluxoGerarBtn = document.getElementById('fluxoGerarBtn');
+    fluxoObservacaoEl = document.getElementById('fluxoObservacao');
+    fluxoAdmissaoKnEl = document.getElementById('fluxoAdmissaoKnData');
+    fluxoGerarBtn = document.getElementById('fluxoGerarBtn');
     fluxoFinalizarBtn = document.getElementById('fluxoFinalizarBtn');
     fluxoCancelarBtn = document.getElementById('fluxoCancelarBtn');
-    fluxoSairBtn = document.getElementById('fluxoCancelarEfetivacaoBtn');     fluxoEfetivacaoForm?.addEventListener('submit', (e) => e.preventDefault());    fluxoGerarBtn?.addEventListener('click', () => handleFluxoSubmit('gerar'));
+    fluxoSairBtn = document.getElementById('fluxoCancelarEfetivacaoBtn');
+    fluxoEfetivacaoForm?.addEventListener('submit', (e) => e.preventDefault());
+    fluxoGerarBtn?.addEventListener('click', () => handleFluxoSubmit('gerar'));
     fluxoFinalizarBtn?.addEventListener('click', () => handleFluxoSubmit('finalizar'));
-    fluxoCancelarBtn?.addEventListener('click', () => handleFluxoSubmit('cancelar'));    fluxoSairBtn?.addEventListener('click', closeFluxoEfetivacaoModal);    fluxoEfetivacaoModal.addEventListener('click', (e) => {
+    fluxoCancelarBtn?.addEventListener('click', () => handleFluxoSubmit('cancelar'));
+    fluxoSairBtn?.addEventListener('click', closeFluxoEfetivacaoModal);
+    fluxoEfetivacaoModal.addEventListener('click', (e) => {
         if (e.target === fluxoEfetivacaoModal) {
             closeFluxoEfetivacaoModal();
         }
     });
-}function wireTabelaColaboradoresEventos() {
-    if (!colaboradoresTbody) return;    if (colaboradoresTbody.dataset.wired === '1') return;
-    colaboradoresTbody.dataset.wired = '1';    colaboradoresTbody.addEventListener('click', (event) => {
+}
+
+function wireTabelaColaboradoresEventos() {
+    if (!colaboradoresTbody) return;
+    if (colaboradoresTbody.dataset.wired === '1') return;
+    colaboradoresTbody.dataset.wired = '1';
+    colaboradoresTbody.addEventListener('click', (event) => {
         const tr = event.target.closest('tr[data-nome]');
-        if (!tr) return;        const nome = tr.dataset.nome;
-        if (!nome) return;        if (event.ctrlKey) {            if (state.selectedNames.has(nome)) {
+        if (!tr) return;
+        const nome = tr.dataset.nome;
+        if (!nome) return;
+        if (event.ctrlKey) {
+            if (state.selectedNames.has(nome)) {
                 state.selectedNames.delete(nome);
                 tr.classList.remove('selecionado');
             } else {
                 state.selectedNames.add(nome);
                 tr.classList.add('selecionado');
             }
-        } else if (event.shiftKey) {            event.preventDefault();
+        } else if (event.shiftKey) {
+            event.preventDefault();
             colaboradoresTbody.querySelectorAll('tr[data-nome]').forEach((linha) => {
                 const n = linha.dataset.nome;
                 if (!n) return;
@@ -1979,10 +2352,14 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 linha.classList.add('selecionado');
             });
         }
-    });    colaboradoresTbody.addEventListener('dblclick', (event) => {
-        if (document.body.classList.contains('user-level-visitante')) return;        const tr = event.target.closest('tr[data-nome]');
-        if (!tr) return;        const nome = (tr.dataset.nome || '').trim();
-        if (!nome) return;        const sel = window.getSelection && window.getSelection();
+    });
+    colaboradoresTbody.addEventListener('dblclick', (event) => {
+        if (document.body.classList.contains('user-level-visitante')) return;
+        const tr = event.target.closest('tr[data-nome]');
+        if (!tr) return;
+        const nome = (tr.dataset.nome || '').trim();
+        if (!nome) return;
+        const sel = window.getSelection && window.getSelection();
         if (sel && sel.rangeCount && sel.toString().length > 0) {
             const insideRow =
                 tr.contains(sel.anchorNode) && tr.contains(sel.focusNode);
@@ -1991,11 +2368,14 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 sel.removeAllRanges();
             } catch {
             }
-        }        document.dispatchEvent(
+        }
+        document.dispatchEvent(
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}export function init() {
+}
+
+export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
@@ -2073,34 +2453,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
         }
     }
-    if (colaboradoresTbody) {        colaboradoresTbody.addEventListener('click', (event) => {
-            const tr = event.target.closest('tr');
-            if (!tr) return;
-            const nome = tr.dataset.nome;
-            if (!nome) return;            if (event.ctrlKey) {                if (state.selectedNames.has(nome)) {
-                    state.selectedNames.delete(nome);
-                    tr.classList.remove('selecionado');
-                } else {
-                    state.selectedNames.add(nome);
-                    tr.classList.add('selecionado');
-                }
-            } else if (event.shiftKey) {                event.preventDefault();
-                const todasAsLinhasVisiveis = colaboradoresTbody.querySelectorAll('tr');
-                todasAsLinhasVisiveis.forEach(linha => {
-                    const nomeDaLinha = linha.dataset.nome;
-                    if (nomeDaLinha) {
-                        state.selectedNames.add(nomeDaLinha);
-                        linha.classList.add('selecionado');
-                    }
-                });
-            }        });        colaboradoresTbody.addEventListener('dblclick', (event) => {            if (document.body.classList.contains('user-level-visitante')) return;            const tr = event.target.closest('tr');
-            if (!tr) return;
-            const nome = tr.dataset.nome;
-            if (!nome) return;            const selection = window.getSelection();
-            if (selection && selection.toString().length > 0) {
-                return;
-            }            document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome}}));
-        });        document.addEventListener('colaborador-edited', async (e) => {
+    if (colaboradoresTbody) {
+        document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
             } else {
@@ -2147,12 +2501,15 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
-    }    wireEdit();
+    }
+    wireEdit();
     wireDesligar();
     wireFerias();
     wireFluxoEfetivacao();
     wireDsrModal();
-}export function destroy() {
+}
+
+export function destroy() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
@@ -2184,4 +2541,5 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         state.feriasAtivasMap?.clear?.();
     } catch {
     }
-    console.log("Cache de colaboradores destruído ao sair do módulo.");}
+    console.log("Cache de colaboradores destruído ao sair do módulo.");
+}

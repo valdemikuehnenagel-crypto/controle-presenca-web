@@ -4,10 +4,17 @@ const contentArea = document.getElementById('content-area');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const addModal = document.getElementById('addModal');
 const cancelBtn = document.getElementById('cancelBtn');
-let currentModule = null;
+const menuToggleBtn = document.getElementById('menu-toggle');
+const sidebarOverlay = document.getElementById('sidebar-overlay');let currentModule = null;
 let isLoadingPage = false;
 let loadToken = 0;
-const pageModules = import.meta.glob('/src/pages/*.js');function checkSession() {
+const pageModules = import.meta.glob('/src/pages/*.js');if (menuToggleBtn) {
+    menuToggleBtn.addEventListener('click', () => {        document.body.classList.toggle('sidebar-collapsed');
+    });
+}if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', () => {        document.body.classList.add('sidebar-collapsed');
+    });
+}document.body.classList.add('sidebar-collapsed');function checkSession() {
     const userDataString = localStorage.getItem('userSession');
     if (!userDataString) {
         window.location.href = '/index.html';
@@ -114,7 +121,7 @@ const pageModules = import.meta.glob('/src/pages/*.js');function checkSession() 
         tabButtons.forEach((btn) => btn.classList.remove('active'));
         button.classList.add('active');
         const page = button.dataset.page;
-        loadPage(page);
+        loadPage(page);        document.body.classList.add('sidebar-collapsed');
     });
 });
 if (logoutBtn) {

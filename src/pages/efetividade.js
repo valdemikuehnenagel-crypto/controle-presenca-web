@@ -1,7 +1,5 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';
-
-let ui;
+import {getMatrizesPermitidas} from '../session.js';let ui;
 const state = {
     turnoAtual: 'GERAL',
     detailedResults: new Map(),
@@ -18,16 +16,12 @@ const state = {
 const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
-};
-
-function _ymdLocal(dateObj) {
+};function _ymdLocal(dateObj) {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}
-
-async function copyTableToClipboard(tableElement) {
+}async function copyTableToClipboard(tableElement) {
     if (!tableElement) {
         console.warn('Função copyTableToClipboard chamada sem um elemento de tabela.');
         return;
@@ -52,9 +46,7 @@ async function copyTableToClipboard(tableElement) {
         console.error('Falha ao copiar tabela: ', err);
         alert('FALHA AO COPIAR TEXTO:\n\nErro: ' + err.message);
     }
-}
-
-async function exportModalAsPNG(fileName) {
+}async function exportModalAsPNG(fileName) {
     const modalContent = document.getElementById('efetividade-details-modal');
     if (!modalContent) return;
     const exportButton = document.getElementById('export-png-btn');
@@ -90,9 +82,7 @@ async function exportModalAsPNG(fileName) {
             scrollableContent.style.border = originalStyles.border || '';
         }
     }
-}
-
-async function copyTableAsImage() {
+}async function copyTableAsImage() {
     const resultContainer = document.getElementById('efet-result');
     if (!resultContainer) return;
     const tableElement = resultContainer.querySelector('.main-table');
@@ -122,9 +112,7 @@ async function copyTableAsImage() {
     } finally {
         showLoading(false);
     }
-}
-
-function ensureEfetividadeModalStyles() {
+}function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
     const css = `
  .filter-bar.efetividade-filters { display:flex; justify-content:space-between; align-items:center; width:100%; }
@@ -161,9 +149,7 @@ function ensureEfetividadeModalStyles() {
     style.id = 'efetividade-details-modal-style';
     style.textContent = css;
     document.head.appendChild(style);
-}
-
-function showDetailsModal(groupKey, date) {
+}function showDetailsModal(groupKey, date) {
     ensureEfetividadeModalStyles();
     const details = state.detailedResults.get(groupKey)?.get(date);
     if (!details) return;
@@ -220,19 +206,13 @@ function showDetailsModal(groupKey, date) {
         const fileName = `pendentes_${groupKey.replace(/\s+/g, '_')}_${date.replace(/-/g, '')}`;
         exportModalAsPNG(fileName);
     });
-}
-
-function showLoading(on = true) {
+}function showLoading(on = true) {
     if (ui?.loader) ui.loader.style.display = on ? 'flex' : 'none';
-}
-
-function weekdayPT(iso) {
+}function weekdayPT(iso) {
     const d = new Date(iso + 'T00:00:00');
     const dias = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
     return dias[d.getDay()];
-}
-
-function listDates(startISO, endISO) {
+}function listDates(startISO, endISO) {
     const [y1, m1, d1] = startISO.split('-').map(Number);
     const [y2, m2, d2] = endISO.split('-').map(Number);
     let start = new Date(y1, m1 - 1, d1);
@@ -241,13 +221,9 @@ function listDates(startISO, endISO) {
     const out = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(_ymdLocal(d));
     return out;
-}
-
-function updatePeriodLabel() {
+}function updatePeriodLabel() {
     if (ui?.periodBtn) ui.periodBtn.textContent = 'Selecionar Período';
-}
-
-function openPeriodModal() {
+}function openPeriodModal() {
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
     overlay.innerHTML = `
@@ -302,15 +278,11 @@ function openPeriodModal() {
             endInput.value = _ymdLocal(ultimoDiaMesAnterior);
         }
     });
-}
-
-function chunkArray(arr, size) {
+}function chunkArray(arr, size) {
     const chunks = [];
     for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
     return chunks;
-}
-
-async function fetchAllPages(query) {
+}async function fetchAllPages(query) {
     const pageSize = 1000;
     let allData = [];
     let page = 0;
@@ -327,9 +299,7 @@ async function fetchAllPages(query) {
         if (data && data.length < pageSize) keep = false;
     }
     return allData;
-}
-
-async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
+}async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
     if (!names || names.length === 0) return [];
     const chunks = chunkArray(names, chunkSize);
     const results = await Promise.all(chunks.map(async (subset, idx) => {
@@ -359,13 +329,9 @@ async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
         }
     }
     return merged;
-}
-
-function endOfLocalDayISO(dateYMD) {
+}function endOfLocalDayISO(dateYMD) {
     return new Date(`${dateYMD}T23:59:59-03:00`);
-}
-
-async function fetchData(startDate, endDate, turno) {
+}async function fetchData(startDate, endDate, turno) {
     const matrizesPermitidas = getMatrizesPermitidas();
     const [y, m, d] = endDate.split('-').map(Number);
     const endDateObj = new Date(y, m - 1, d);
@@ -423,9 +389,7 @@ async function fetchData(startDate, endDate, turno) {
         fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
     ]);
     return {colaboradores: filteredColaboradores, preenchimentos, ferias, dsrLogs, afastamentos};
-}
-
-function processEfetividade(
+}function processEfetividade(
     colaboradores,
     preenchimentos,
     dates,
@@ -443,9 +407,7 @@ function processEfetividade(
     }
     for (const history of dsrHistoryMap.values()) {
         history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-    }
-
-    function getDSRForDate(colaborador, dateYMD, historyMap) {
+    }    function getDSRForDate(colaborador, dateYMD, historyMap) {
         const name = normalizeString(colaborador.Nome);
         const history = historyMap.get(name);
         const fallbackCadastro = (colaborador.DSR && String(colaborador.DSR).trim()) || null;
@@ -467,9 +429,7 @@ function processEfetividade(
         const first = history[0];
         if (first?.DsrAnterior && String(first.DsrAnterior).trim()) return first.DsrAnterior;
         return fallbackCadastro;
-    }
-
-    const feriasPorDia = new Map();
+    }    const feriasPorDia = new Map();
     for (const r of ferias) {
         if (r.Nome && r['Data Inicio'] && r['Data Final']) {
             for (const dia of listDates(r['Data Inicio'], r['Data Final'])) {
@@ -534,9 +494,7 @@ function processEfetividade(
         }
     }
     return {groupKeys, results, detailedResults};
-}
-
-function getStatusClass(status) {
+}function getStatusClass(status) {
     switch (status) {
         case 'OK':
             return 'status-ok';
@@ -551,9 +509,7 @@ function getStatusClass(status) {
         default:
             return '';
     }
-}
-
-function renderTable(groupKeys, dates, results, groupHeader) {
+}function renderTable(groupKeys, dates, results, groupHeader) {
     if (!ui?.resultContainer) return;
     const formattedDates = dates.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
     const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;
@@ -577,9 +533,7 @@ function renderTable(groupKeys, dates, results, groupHeader) {
             showDetailsModal(cell.dataset.groupKey, cell.dataset.date);
         });
     }
-}
-
-async function generateReport() {
+}async function generateReport() {
     const myRun = (state._runId = (state._runId || 0) + 1);
     const startDate = state.period.start;
     const endDate = state.period.end;
@@ -649,9 +603,7 @@ async function generateReport() {
         if (myRun !== state._runId) return;
         showLoading(false);
     }
-}
-
-async function fetchFilterData() {
+}async function fetchFilterData() {
     try {
         const {data: colabMatrizes, error: colabError} = await supabase
             .from('Colaboradores')
@@ -677,9 +629,7 @@ async function fetchFilterData() {
         state.allMatrizes = [];
         state.allGerentes = [];
     }
-}
-
-function populateMatrizFilter() {
+}function populateMatrizFilter() {
     if (!ui?.matrizFilterSelect) return;
     while (ui.matrizFilterSelect.options.length > 1) ui.matrizFilterSelect.remove(1);
     state.allMatrizes.forEach((matriz) => {
@@ -688,9 +638,7 @@ function populateMatrizFilter() {
         option.textContent = matriz;
         ui.matrizFilterSelect.appendChild(option);
     });
-}
-
-function populateGerenteFilter() {
+}function populateGerenteFilter() {
     if (!ui?.gerenteFilterSelect) {
         console.warn('Elemento #efet-gerente-filter não encontrado.');
         return;
@@ -702,9 +650,7 @@ function populateGerenteFilter() {
         option.textContent = gerente;
         ui.gerenteFilterSelect.appendChild(option);
     });
-}
-
-export async function init() {
+}export async function init() {
     if (state._inited) return;
     state._inited = true;
     ui = {
@@ -821,9 +767,7 @@ export async function init() {
     populateGerenteFilter();
     updatePeriodLabel();
     generateReport();
-}
-
-export function destroy() {
+}export function destroy() {
     state._runId = (state._runId || 0) + 1;
     try {
         ui?.periodBtn?.removeEventListener('click', state._handlers?.onPeriodClick);

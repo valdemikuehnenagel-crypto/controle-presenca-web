@@ -11,13 +11,40 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
-<div class="container">
+
+<nav id="sidebar">
+    <div class="sidebar-header">
+        <img src="/imagens/kn.gif" alt="Logo KN Conecta" class="h-10">
+        <h1 class="text-xl font-bold">
+            <span class="text-white">KN</span><span class="text-[#55B8F2]">Conecta</span>
+        </h1>
+    </div>
+
+    <div class="tabs-root">
+        <button data-page="colaboradores" class="tab-btn active">Colaboradores</button>
+        <button data-page="controle-diario" class="tab-btn">Controle Diário</button>
+        <button data-page="hc-consolidado" class="tab-btn">HC Consolidado</button>
+        <button data-page="efetivacoes" class="tab-btn">Recursos Humanos</button>
+        <button data-page="diarista" class="tab-btn">Diarista</button>
+        <button data-page="painel-gerencial" class="tab-btn">Painel Gerencial</button>
+        <button data-page="efetividade" class="tab-btn">Preenchimento</button>
+        <button data-page="dados-operacionais" class="tab-btn">Dados Op.</button>
+        <button data-page="gerotmeli" class="tab-btn">Gerot Meli</button>
+    </div>
+</nav>
+
+<div class="container" id="main-content">
     <header class="flex justify-between items-center p-2">
 
         <div class="flex items-center gap-1">
 
-            <img src="/imagens/kn.gif" alt="Logo KN Conecta" class="h-10">
+            <button id="menu-toggle" class="text-[#003369]">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
 
+            <img src="/imagens/kn.gif" alt="Logo KN Conecta" class="h-10">
             <h1 class="text-xl font-bold" style="text-shadow: 5px 2px 4px rgba(0, 0, 0, 0.1);">
                 <span class="text-[#003369]">KN</span><span class="text-[#55B8F2]">Conecta</span>
             </h1>
@@ -31,18 +58,6 @@
             </button>
         </div>
     </header>
-
-    <div class="tabs-root">
-        <button data-page="colaboradores" class="tab-btn active">Colaboradores</button>
-        <button data-page="controle-diario" class="tab-btn">Controle Diário</button>
-        <button data-page="hc-consolidado" class="tab-btn">HC Consolidado</button>
-        <button data-page="efetivacoes" class="tab-btn">Recursos Humanos</button>
-        <button data-page="diarista" class="tab-btn">Diarista</button>
-        <button data-page="painel-gerencial" class="tab-btn">Painel Gerencial</button>
-        <button data-page="efetividade" class="tab-btn">Preenchimento</button>
-        <button data-page="dados-operacionais" class="tab-btn">Dados Op.</button>
-        <button data-page="gerotmeli" class="tab-btn">Gerot Meli</button>
-       </div>
 
     <main id="content-area" class="flex-grow min-h-0 flex flex-col"></main>
 </div>
@@ -800,6 +815,8 @@
         </div>
     </div>
 </div>
+
+<div id="sidebar-overlay"></div>
 
 <script type="module" src="/dashboard.js"></script>
 </body>

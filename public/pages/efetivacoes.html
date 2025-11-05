@@ -1,4 +1,4 @@
-<div class="p-2">
+<div class="p-2 efetivacoes-component-root">
     <style>
 
         .hc-actions {
@@ -52,10 +52,7 @@
             z-index: 10;
         }
 
-        /* * ==========================================
-         * NOVOS ESTILOS (Inspirados no HC Consolidado)
-         * ==========================================
-        */
+
         .hc-subtabs {
             display: flex;
             align-items: center;
@@ -99,7 +96,7 @@
             display: none;
             flex-direction: column;
             animation: fadeIn .2s ease-out both;
-            /* Adicionado para garantir que a view filha cresça */
+
             height: 100%;
         }
 
@@ -161,7 +158,7 @@
             margin-bottom: 0;
         }
 
-        /* Estilos para a nova tabela (baseado no style.css global) */
+
         .table-container-wrapper {
             flex-grow: 1;
             overflow: hidden;
@@ -213,6 +210,41 @@
 
         .table-container .text-center {
             text-align: center;
+        }
+
+
+
+
+        .efetivacoes-component-root {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            min-height: 0;
+        }
+
+
+        .efetivacoes-component-root > #hc-indice.hcidx-root {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            min-height: 0;
+            padding: 8px;
+        }
+
+
+        .efetivacoes-component-root .efet-header-bar {
+            flex-shrink: 0;
+        }
+
+
+        .efetivacoes-component-root #efet-em-efetivacao .table-wrapper {
+            margin-top: 0;
+        }
+
+
+        .container.travar-scroll-pagina {
+            overflow-y: hidden !important;
         }
 
     </style>
@@ -335,10 +367,11 @@
             </div>
 
             <div id="efet-em-efetivacao" class="efet-view">
-                <div class="table-container-wrapper">
-                    <div class="table-container">
-                        <table>
-                            <thead>
+
+                <div class="table-wrapper">
+
+                    <table>
+                        <thead>
                             <tr>
                                 <th>Fluxo</th>
                                 <th>Status</th>
@@ -348,16 +381,16 @@
                                 <th>SVC</th>
                                 <th>Região</th>
                             </tr>
-                            </thead>
-                            <tbody id="efet-table-tbody">
+                        </thead>
+                        <tbody id="efet-table-tbody">
                             <tr>
                                 <td colspan="7" class="text-center p-4">Carregando...</td>
                             </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+
         </div>
 
         <div id="hcidx-busy" class="hcidx-loading" style="display:none;">Carregando…</div>

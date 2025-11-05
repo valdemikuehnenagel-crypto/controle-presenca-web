@@ -1,7 +1,5 @@
 import {getMatrizesPermitidas} from '../session.js';
-import {supabase} from '../supabaseClient.js';
-
-async function fetchAllWithPagination(queryBuilder) {
+import {supabase} from '../supabaseClient.js';async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -17,13 +15,9 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
     return allData;
-}
-
-const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const root = () => document.documentElement;
-const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
-
-function parseRGB(str) {
+const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;function parseRGB(str) {
     if (!str) return {r: 0, g: 0, b: 0};
     const s = String(str).trim();
     if (s.startsWith('#')) {
@@ -32,37 +26,17 @@ function parseRGB(str) {
     }
     const m = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(s);
     return m ? {r: +m[1], g: +m[2], b: +m[3]} : {r: 30, g: 64, b: 124};
-}
-
-const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+}const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
-const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
-
-function parseDateMaybe(s) {
-}
-
-function daysBetween(d1, d2) {
-}
-
-function daysSinceAdmission(c) {
-}
-
-function calcAgeFromStr(s) {
-}
-
-function ageBucket(a) {
-}
-
-function getNascimento(c) {
-}
-
-function mapGeneroLabel(raw) {
-}
-
-function palette() {
-}
-
-const REGIONAL_HOST_SEL = '#efet-visao-regional';
+const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];function parseDateMaybe(s) {
+}function daysBetween(d1, d2) {
+}function daysSinceAdmission(c) {
+}function calcAgeFromStr(s) {
+}function ageBucket(a) {
+}function getNascimento(c) {
+}function mapGeneroLabel(raw) {
+}function palette() {
+}const REGIONAL_HOST_SEL = '#efet-visao-regional';
 const GLOBAL_LOADING_SEL = '#hcidx-busy';
 const regionalState = {
     mounted: false,
@@ -76,9 +50,7 @@ const regionalState = {
     svc: '', colabs: [],
     filteredColabs: []
 };
-let _regionalResizeObs = null;
-
-function setRegionalResponsiveHeights() {
+let _regionalResizeObs = null;function setRegionalResponsiveHeights() {
     if (window.Chart && Chart.instances) {
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
         Object.values(regionalState.charts).forEach(ch => {
@@ -91,9 +63,7 @@ function setRegionalResponsiveHeights() {
             }
         });
     }
-}
-
-function wireRegionalResizeObserver() {
+}function wireRegionalResizeObserver() {
     if (_regionalResizeObs) return;
     const rootEl = document.querySelector('#hc-indice .hcidx-root');
     if (!rootEl) return;
@@ -102,31 +72,19 @@ function wireRegionalResizeObserver() {
     });
     _regionalResizeObs.observe(rootEl);
     window.addEventListener('resize', setRegionalResponsiveHeights);
-}
-
-async function ensureChartLib() {
-}
-
-function loadJs(src) {
-}
-
-function showBusyRegional(f) {
+}async function ensureChartLib() {
+}function loadJs(src) {
+}function showBusyRegional(f) {
     const el = document.getElementById(GLOBAL_LOADING_SEL.substring(1));
     if (el) el.style.display = f ? 'flex' : 'none';
-}
-
-const uniqueNonEmptySorted = (v) => Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
-const escapeHtml = s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-
-function readGlobalFilters() {
+}const uniqueNonEmptySorted = (v) => Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
+const escapeHtml = s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');function readGlobalFilters() {
     const selM = document.getElementById('efet-filter-matriz');
     const selS = document.getElementById('efet-filter-svc');
     regionalState.matriz = selM ? selM.value : '';
     regionalState.svc = selS ? selS.value : '';
     console.log(`Visão Regional lendo filtros: Matriz=${regionalState.matriz}, SVC=${regionalState.svc}`);
-}
-
-function applyRegionalFiltersAndUpdateCharts() {
+}function applyRegionalFiltersAndUpdateCharts() {
     readGlobalFilters();
     console.log("Aplicando filtros da UI (Regional)...");
     regionalState.filteredColabs = regionalState.colabs.filter(c => {
@@ -137,9 +95,7 @@ function applyRegionalFiltersAndUpdateCharts() {
     });
     console.log(`Dados filtrados (Regional): ${regionalState.filteredColabs.length} colaboradores.`);
     updateRegionalCharts();
-}
-
-async function refreshRegional() {
+}async function refreshRegional() {
     const regionalViewActive = document.querySelector(`${REGIONAL_HOST_SEL}.active`);
     if (!regionalState.mounted || regionalState.loading || !regionalViewActive) {
         if (regionalState.loading) console.warn("RefreshRegional chamado enquanto já estava carregando.");
@@ -175,9 +131,7 @@ async function refreshRegional() {
         showBusyRegional(false);
         console.log("RefreshRegional concluído.");
     }
-}
-
-function ensureRegionalChartsCreated() {
+}function ensureRegionalChartsCreated() {
     if (regionalState.charts.regIdadeRegiao) {
         return;
     }
@@ -217,9 +171,7 @@ function ensureRegionalChartsCreated() {
     regionalState.charts.regContratoRegiao = createStackedRegional('reg-contrato-regiao-bar', 'y');
     regionalState.charts.regAuxPrazoRegiao = createStackedRegional('reg-aux-prazo-regiao-bar', 'y');
     console.log("Gráficos regionais criados (instâncias não nulas):", JSON.stringify(Object.keys(regionalState.charts).filter(k => regionalState.charts[k])));
-}
-
-function updateRegionalCharts() {
+}function updateRegionalCharts() {
     const anyRegionalChartExists = Object.values(regionalState.charts).some(chart => chart !== null);
     if (!anyRegionalChartExists) {
         console.warn("Tentando atualizar gráficos regionais, mas nenhuma instância foi criada.");
@@ -433,9 +385,7 @@ function updateRegionalCharts() {
     } else {
         console.warn("Gráfico 'regIdadeRegiao' não encontrado/criado para atualizar.");
     }
-}
-
-export async function init() {
+}export async function init() {
     console.log("Inicializando Visão Regional...");
     const host = document.querySelector(REGIONAL_HOST_SEL);
     if (!host) {
@@ -451,9 +401,7 @@ export async function init() {
     ensureRegionalChartsCreated();
     await refreshRegional();
     console.log("Visão Regional inicializada.");
-}
-
-export function destroy() {
+}export function destroy() {
     if (regionalState.mounted) {
         console.log('Destruindo estado da Visão Regional...');
         Object.keys(regionalState.charts).forEach(key => {
@@ -479,9 +427,7 @@ export function destroy() {
         regionalState.mounted = false;
         console.log('Estado da Visão Regional destruído.');
     }
-}
-
-export function handleGlobalFilterChange() {
+}export function handleGlobalFilterChange() {
     console.log("Visão Regional notificada sobre mudança de filtro global.");
     const regionalViewActive = document.querySelector(`${REGIONAL_HOST_SEL}.active`);
     if (regionalState.mounted && regionalViewActive) {

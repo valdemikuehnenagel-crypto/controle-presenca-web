@@ -1,12 +1,14 @@
 import {getMatrizesPermitidas} from '../session.js';
 import {supabase} from '../supabaseClient.js';(function () {
-    var HOST_SEL = '#hc-relatorio-abs';
-    var state = {
+    var HOST_SEL = '#hc-relatorio-abs';    var state = {
         periodo: {start: '', end: ''},
         search: '',
         escala: '',
         svc: '',
         matriz: '',
+        regiao: '',
+        gerencia: '',
+        cargo: '',
         rows: [],
         paging: {limit: 2000, offset: 0, total: 0},
         mounted: false,
@@ -48,20 +50,36 @@ import {supabase} from '../supabaseClient.js';(function () {
         if (!iso) return '';
         var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
         return m ? (m[3] + '/' + m[2] + '/' + m[1]) : iso;
-    }    function esc(s) {
-        return String(s == null ? '' : s);
-    }    function norm(v) {
-        return String(v == null ? '' : v).trim().toUpperCase();
-    }    function clean(v) {
-        return String(v == null ? '' : v).trim().replace(/\s+/g, ' ');
-    }    function stripAccents(s) {
-        return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    }    function isActiveView() {
-        return !!document.querySelector('#hc-relatorio-abs.hc-view.active');
+    }    const todayISO = () => toISO(new Date());    function clampEndToToday(startISO, endISO) {
+        if (!startISO || !endISO) return [startISO, endISO];
+        var t = todayISO();
+        return [startISO, endISO > t ? t : endISO];
     }    function defaultCurrentMonth() {
         const today = new Date();
         const start = new Date(today.getFullYear(), today.getMonth(), 1);
         return {start: toISO(start), end: toISO(today)};
+    }    function esc(s) {
+        return String(s == null ? '' : s);
+    }    function norm(v) {
+        return String(v == null ? '' : v).trim().toUpperCase();
+    }    function stripAccents(s) {
+        return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }    function isActiveView() {
+        return !!document.querySelector('#hc-relatorio-abs.hc-view.active');
+    }    async function loadSheetJS() {
+        if (window.XLSX) return;
+        try {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        } catch (error) {
+            console.error("Falha ao carregar a biblioteca XLSX:", error);
+            alert("Erro ao carregar a biblioteca de exportação de Excel. Tente recarregar a página.");
+        }
     }    async function fetchAllPagesGeneric(query, pageSize = 1000) {
         let from = 0;
         const all = [];
@@ -74,42 +92,78 @@ import {supabase} from '../supabaseClient.js';(function () {
             from += pageSize;
         }
         return all;
+    }    async function loadMatrizesMapping() {
+        const matrizesPermitidas = getMatrizesPermitidas();
+        let query = supabase.from('Matrizes').select('MATRIZ, GERENCIA, REGIAO');        if (matrizesPermitidas !== null) {
+            query = query.in('MATRIZ', matrizesPermitidas);
+        }        const {data, error} = await query;
+        if (error) {
+            console.error("RelatorioABS: Erro ao buscar 'Matrizes'", error);
+            throw error;
+        }        const map = new Map();
+        (data || []).forEach(item => {
+            const matrizNorm = norm(item.MATRIZ);
+            if (matrizNorm) {
+                map.set(matrizNorm, {
+                    gerencia: item.GERENCIA || '',
+                    regiao: item.REGIAO || ''
+                });
+            }
+        });
+        return map;
     }    var _colabIdx = null;    async function getColabIndex() {
-        if (_colabIdx) return _colabIdx;        const matrizesPermitidas = getMatrizesPermitidas();        let qAtivos = supabase
+        if (_colabIdx) return _colabIdx;        const matrizesMap = await loadMatrizesMapping();        const matrizesPermitidas = getMatrizesPermitidas();        let qAtivos = supabase
             .from('Colaboradores')
-            .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor')
-            .order('Nome', {ascending: true});        if (matrizesPermitidas !== null) qAtivos = qAtivos.in('MATRIZ', matrizesPermitidas);
+            .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor, "ID GROOT", LDAP')
+            .order('Nome', {ascending: true});
+        if (matrizesPermitidas !== null) qAtivos = qAtivos.in('MATRIZ', matrizesPermitidas);
         if (state.matriz) qAtivos = qAtivos.eq('MATRIZ', state.matriz);
         if (state.svc) qAtivos = qAtivos.eq('SVC', state.svc);        let qDeslig = supabase
             .from('Desligados')
-            .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento"')
-            .order('Nome', {ascending: true});        if (matrizesPermitidas !== null) qDeslig = qDeslig.in('MATRIZ', matrizesPermitidas);
+            .select('Nome, SVC, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento", "ID GROOT", LDAP')
+            .order('Nome', {ascending: true});
+        if (matrizesPermitidas !== null) qDeslig = qDeslig.in('MATRIZ', matrizesPermitidas);
         if (state.matriz) qDeslig = qDeslig.eq('MATRIZ', state.matriz);
-        if (state.svc) qDeslig = qDeslig.eq('SVC', state.svc);        const [ativos, desligados] = await Promise.all([
+        if (state.svc) qDeslig = qDeslig.eq('SVC', state.svc);        const [ativosRaw, desligadosRaw] = await Promise.all([
             fetchAllPagesGeneric(qAtivos, 1000),
             fetchAllPagesGeneric(qDeslig, 1000)
-        ]);        const map = new Map();
-        (Array.isArray(desligados) ? desligados : []).forEach(d => {
+        ]);        const enrichAndFilter = (colab) => {
+            const mapping = matrizesMap.get(norm(colab.MATRIZ));
+            const regiao = mapping?.regiao || '';
+            const gerencia = mapping?.gerencia || '';            if (state.regiao && norm(regiao) !== norm(state.regiao)) return null;
+            if (state.gerencia && norm(gerencia) !== norm(state.gerencia)) return null;            return {...colab, REGIAO: regiao, GERENCIA: gerencia};
+        };        const ativos = (Array.isArray(ativosRaw) ? ativosRaw : []).map(enrichAndFilter).filter(Boolean);
+        const desligados = (Array.isArray(desligadosRaw) ? desligadosRaw : []).map(enrichAndFilter).filter(Boolean);        const map = new Map();
+        desligados.forEach(d => {
             const nome = String(d.Nome || '');
             if (!nome) return;
             map.set(nome, {
                 SVC: d.SVC ?? null,
                 MATRIZ: d.MATRIZ ?? null,
+                REGIAO: d.REGIAO ?? null,
+                GERENCIA: d.GERENCIA ?? null,
                 Escala: d.Escala ?? null,
                 Cargo: d.Cargo ?? null,
                 Gestor: d.Gestor ?? null,
+                "ID GROOT": d["ID GROOT"] ?? null,
+                LDAP: d.LDAP ?? null,
                 _origem: 'Desligados',
                 _data_desligamento: d['Data de Desligamento'] || null
             });
         });
-        (Array.isArray(ativos) ? ativos : []).forEach(c => {
+        ativos.forEach(c => {
             const nome = String(c.Nome || '');
-            if (!nome) return;            map.set(nome, {
+            if (!nome) return;
+            map.set(nome, {
                 SVC: c.SVC ?? (map.get(nome)?.SVC ?? null),
                 MATRIZ: c.MATRIZ ?? (map.get(nome)?.MATRIZ ?? null),
+                REGIAO: c.REGIAO ?? (map.get(nome)?.REGIAO ?? null),
+                GERENCIA: c.GERENCIA ?? (map.get(nome)?.GERENCIA ?? null),
                 Escala: c.Escala ?? (map.get(nome)?.Escala ?? null),
                 Cargo: c.Cargo ?? (map.get(nome)?.Cargo ?? null),
                 Gestor: c.Gestor ?? (map.get(nome)?.Gestor ?? null),
+                "ID GROOT": c["ID GROOT"] ?? (map.get(nome)?.["ID GROOT"] ?? null),
+                LDAP: c.LDAP ?? (map.get(nome)?.LDAP ?? null),
                 _origem: 'Colaboradores',
                 _data_desligamento: map.get(nome)?._data_desligamento ?? null
             });
@@ -123,12 +177,13 @@ import {supabase} from '../supabaseClient.js';(function () {
         }
         if (isActiveView()) fetchAndRender(); else state.dirty = true;
     }    window.addEventListener('hc-filters-changed', function (ev) {
-        var f = (ev && ev.detail) ? ev.detail : {};
-        var mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
+        var f = (ev && ev.detail) ? ev.detail : {};        var mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
         var mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
-        if (mudouMatriz) state.matriz = f.matriz;
+        var mudouRegiao = (typeof f.regiao === 'string' && state.regiao !== f.regiao);
+        var mudouGerencia = (typeof f.gerencia === 'string' && state.gerencia !== f.gerencia);         if (mudouMatriz) state.matriz = f.matriz;
         if (mudouSvc) state.svc = f.svc;
-        if (mudouMatriz || mudouSvc) {
+        if (mudouRegiao) state.regiao = f.regiao;
+        if (mudouGerencia) state.gerencia = f.gerencia;         if (mudouMatriz || mudouSvc || mudouRegiao || mudouGerencia) {
             state.paging.offset = 0;
             scheduleRefresh(true);
         }
@@ -160,21 +215,20 @@ import {supabase} from '../supabaseClient.js';(function () {
     }    function ensureMounted(forceEnsure) {
         if (forceEnsure !== true) forceEnsure = false;
         var host = document.querySelector(HOST_SEL);
-        if (!host) return;
-        if (typeof state.cargo !== 'string') state.cargo = '';
+        if (!host) return;        if (typeof state.cargo !== 'string') state.cargo = '';
         var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
         if (state.mounted && hasTable && !forceEnsure) return;        host.innerHTML =
             '<div class="abs-toolbar">' +
             '  <div class="abs-left">' +
             '    <input id="abs-search" type="search" placeholder="Pesquisar por nome..." />' +
             '    <select id="abs-filter-escala">' +
-            '      <option value="">Escala: Todas</option>' +
+            '      <option value="">Escala</option>' +
             '      <option value="T1">T1</option>' +
             '      <option value="T2">T2</option>' +
             '      <option value="T3">T3</option>' +
             '    </select>' +
             '    <select id="abs-filter-cargo">' +
-            '      <option value="">Cargo: Todos</option>' +
+            '      <option value="">Cargo</option>' +
             '      <option value="AUXILIAR">AUXILIAR</option>' +
             '      <option value="CONFERENTE">CONFERENTE</option>' +
             '    </select>' +
@@ -199,8 +253,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             '        <th>Cargo</th>' +
             '        <th>Entrevista</th>' +
             '        <th>Ação</th>' +
-            '        <th>CID</th>' +
-            '        <th>MATRIZ</th>' +
+            '        <th>CID</th>' +            '        <th>GROOT ID</th>' +
+            '        <th>LDAP</th>' +
             '      </tr>' +
             '    </thead>' +
             '    <tbody id="abs-tbody"></tbody>' +
@@ -234,16 +288,17 @@ import {supabase} from '../supabaseClient.js';(function () {
             state.periodo.end = cur.end;
             state.firstLoad = false;
         }
-        updatePeriodButton();        if (window.__HC_GLOBAL_FILTERS) {
+        updatePeriodButtonText();         if (window.__HC_GLOBAL_FILTERS) {
             state.matriz = window.__HC_GLOBAL_FILTERS.matriz || '';
             state.svc = window.__HC_GLOBAL_FILTERS.svc || '';
+            state.regiao = window.__HC_GLOBAL_FILTERS.regiao || '';
+            state.gerencia = window.__HC_GLOBAL_FILTERS.gerencia || '';
         }        requestAnimationFrame(fetchAndRender);
         watchActivation();
-    }    function updatePeriodButton() {
+    }    function updatePeriodButtonText() {
         var b = document.getElementById('abs-period');
         if (!b) return;
-        var start = state.periodo.start, end = state.periodo.end;
-        b.textContent = (start && end) ? ('Período: ' + fmtBR(start) + ' → ' + fmtBR(end)) : 'Selecionar período';
+        b.textContent = 'Selecionar período';
     }    async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
         let from = 0;
         const all = [];
@@ -263,20 +318,21 @@ import {supabase} from '../supabaseClient.js';(function () {
         return all;
     }    async function fetchAndRender() {
         var tbody = document.getElementById('abs-tbody');
-        if (!tbody) {
-            return;
-        }
-        tbody.innerHTML = '<tr><td colspan="9" class="muted">Carregando…</td></tr>';        var startISO = parseAnyDateToISO(state.periodo.start);
+        if (!tbody) return;        tbody.innerHTML = '<tr><td colspan="10" class="muted">Carregando…</td></tr>';        var startISO = parseAnyDateToISO(state.periodo.start);
         var endStr = parseAnyDateToISO(state.periodo.end);
-        var endISONextDay;
+        [startISO, endStr] = clampEndToToday(startISO, endStr);        var endISONextDay;
         if (endStr) {
             var parts = endStr.split('-').map(Number);
             var endDate = new Date(parts[0], parts[1] - 1, parts[2]);
             endDate.setDate(endDate.getDate() + 1);
             endISONextDay = toISO(endDate);
-        } else {
-            endISONextDay = endStr;
-        }        try {            const colabIndex = await getColabIndex();            const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);            const transformedRows = (controleRows || []).map(row => {
+        } else {            var today = new Date();
+            today.setDate(today.getDate() + 1);
+            endISONextDay = toISO(today);
+        }        if (!startISO) {
+            startISO = defaultCurrentMonth().start;
+        }        try {            const colabIndex = await getColabIndex();
+            const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);            const transformedRows = (controleRows || []).map(row => {
                 const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
                 return {
                     Numero: row.Numero,
@@ -291,23 +347,25 @@ import {supabase} from '../supabaseClient.js';(function () {
                     TipoAtestado: row.TipoAtestado,
                     SVC: colabInfo.SVC || null,
                     MATRIZ: colabInfo.MATRIZ || null,
+                    REGIAO: colabInfo.REGIAO || null,
+                    GERENCIA: colabInfo.GERENCIA || null,
                     Cargo: colabInfo.Cargo || null,
+                    "ID GROOT": colabInfo["ID GROOT"] || null,
+                    LDAP: colabInfo.LDAP || null,
                     _origemCadastro: colabInfo._origem || null
                 };
-            });            const filteredRows = transformedRows.filter(r => {
-                const cargo = norm(r.Cargo);
+            });            const filteredRows = transformedRows.filter(r => {                const cargo = norm(r.Cargo);
                 if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
-                if (state.cargo && cargo !== norm(state.cargo)) return false;
-                if (state.svc && norm(r.SVC) !== norm(state.svc)) return false;
+                if (state.cargo && cargo !== norm(state.cargo)) return false;                if (state.svc && norm(r.SVC) !== norm(state.svc)) return false;
                 if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
-                return true;
+                if (state.regiao && norm(r.REGIAO) !== norm(state.regiao)) return false;
+                if (state.gerencia && norm(r.GERENCIA) !== norm(state.gerencia)) return false;                 return true;
             });            filteredRows.sort((a, b) => (b.Data || '').localeCompare(a.Data || ''));            state.rows = filteredRows;
             state.dirty = false;
             renderRows();
         } catch (e) {
             console.error('RelatorioABS: fetch erro', e);
-            var tb = document.getElementById('abs-tbody');
-            if (tb) tb.innerHTML = '<tr><td colspan="9" class="muted">Erro ao carregar. Veja o console.</td></tr>';
+            var tb = document.getElementById('abs-tbody');            if (tb) tb.innerHTML = '<tr><td colspan="10" class="muted">Erro ao carregar. Veja o console.</td></tr>';
             updateCounters([]);
         }
     }    function updateCounters(filtered) {
@@ -337,8 +395,7 @@ import {supabase} from '../supabaseClient.js';(function () {
             var nm = stripAccents(String(r.Nome || '')).toLowerCase();
             if (s && nm.indexOf(s) === -1) return false;
             return true;
-        });        updateCounters(filtered);        if (!filtered.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
+        });        updateCounters(filtered);        if (!filtered.length) {            tbody.innerHTML = '<tr><td colspan="10" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
             return;
         }        var frag = document.createDocumentFragment();
         filtered.forEach(function (row) {
@@ -347,8 +404,7 @@ import {supabase} from '../supabaseClient.js';(function () {
             tr.className = 'abs-row';
             tr.dataset.id = row.Numero;
             var originalIndex = state.rows.findIndex(r => r.Numero === row.Numero);
-            tr.setAttribute('data-idx', String(originalIndex));
-            tr.innerHTML =
+            tr.setAttribute('data-idx', String(originalIndex));            tr.innerHTML =
                 '<td class="cell-name">' + esc(row.Nome || '') + '</td>' +
                 '<td>' + fmtBR(parseAnyDateToISO(row.Data)) + '</td>' +
                 '<td>' + esc(row.Absenteismo || '') + '</td>' +
@@ -356,8 +412,8 @@ import {supabase} from '../supabaseClient.js';(function () {
                 '<td>' + esc(row.Cargo || '') + '</td>' +
                 '<td>' + (String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não') + '</td>' +
                 '<td>' + esc(row.Acao || '') + '</td>' +
-                '<td>' + esc(row.CID || '') + '</td>' +
-                '<td>' + esc(row.MATRIZ || '') + '</td>';
+                '<td>' + esc(row.CID || '') + '</td>' +                '<td>' + esc(row["ID GROOT"] || '') + '</td>' +
+                '<td>' + esc(row.LDAP || '') + '</td>';
             frag.appendChild(tr);
         });
         tbody.replaceChildren(frag);
@@ -372,22 +428,22 @@ import {supabase} from '../supabaseClient.js';(function () {
         overlay.style.display = 'flex';
         overlay.style.alignItems = 'center';
         overlay.style.justifyContent = 'center';
-        overlay.style.zIndex = '9999';
-        var modal = document.createElement('div');
+        overlay.style.zIndex = '9999';        var modal = document.createElement('div');
         modal.className = 'abs-modal';
         modal.style.background = '#fff';
         modal.style.borderRadius = '12px';
         modal.style.padding = '16px';
         modal.style.minWidth = '420px';
         modal.style.maxWidth = '90vw';
-        modal.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';
-        modal.innerHTML =
+        modal.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';        modal.innerHTML =
             '<h3 style="margin:0 0 12px 0;">Atualizar registro de absenteísmo</h3>' +
-            '<div class="abs-modal-meta" style="font-size:14px;line-height:1.4;margin-bottom:12px;">' +
+            '<div class="abs-modal-meta" style="font-size:14px;line-height:1.4;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;">' +
             '  <div><strong>Nome:</strong> ' + esc(row.Nome) + '</div>' +
             '  <div><strong>Data:</strong> ' + fmtBR(parseAnyDateToISO(row.Data)) + '</div>' +
             '  <div><strong>Absenteísmo:</strong> ' + esc(row.Absenteismo || '') + '</div>' +
-            '  <div><strong>Escala:</strong> ' + esc(row.Escala || '') + '</div>' +
+            '  <div><strong>Escala:</strong> ' + esc(row.Escala || '') + '</div>' +            '  <div><strong>MATRIZ:</strong> ' + esc(row.MATRIZ || '') + '</div>' +
+            '  <div><strong>GROOT ID:</strong> ' + esc(row["ID GROOT"] || '') + '</div>' +
+            '  <div><strong>LDAP:</strong> ' + esc(row.LDAP || '') + '</div>' +
             '</div>' +
             '<div class="abs-modal-form" style="display:flex;flex-direction:column;gap:8px;">' +
             '  <label>Entrevista feita?</label>' +
@@ -471,8 +527,7 @@ import {supabase} from '../supabaseClient.js';(function () {
             }
         }        radioSim.addEventListener('change', toggleConditionalFields);
         radioNao.addEventListener('change', toggleConditionalFields);
-        selTipoAtestado.addEventListener('change', toggleConditionalFields);
-        if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true; else radioNao.checked = true;
+        selTipoAtestado.addEventListener('change', toggleConditionalFields);        if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true; else radioNao.checked = true;
         selAcao.value = row.Acao || '';
         cidInput.value = row.CID || '';
         if (row.Absenteismo === 'Justificado') {
@@ -518,58 +573,103 @@ import {supabase} from '../supabaseClient.js';(function () {
             }
         });
     }    function openPeriodModal() {
-        var overlay = document.createElement('div');
+        const curStart = toISO(state.periodo.start) || defaultCurrentMonth().start;
+        const curEnd = toISO(state.periodo.end) || defaultCurrentMonth().end;        const today = new Date();
+        const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+        const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);        const overlay = document.createElement('div');
         overlay.id = 'cd-period-overlay';
-        overlay.innerHTML =
-            '<div>' +
-            '  <h3>Selecionar Período</h3>' +
-            '  <div class="dates-grid">' +
-            '    <div><label>Início</label><input id="abs-period-start" type="date" value="' + esc(toISO(state.periodo.start)) + '"></div>' +
-            '    <div><label>Fim</label><input id="abs-period-end" type="date" value="' + esc(toISO(state.periodo.end)) + '"></div>' +
-            '  </div>' +
-            '  <div class="form-actions">' +
-            '    <button id="cd-period-cancel" class="btn">Cancelar</button>' +
-            '    <button id="cd-period-apply" class="btn-add">Aplicar</button>' +
-            '  </div>' +
-            '</div>';
-        document.body.appendChild(overlay);
-        var close = () => {
-            overlay?.parentNode?.removeChild(overlay);
-        };
-        overlay.addEventListener('click', function (ev) {
+        overlay.innerHTML = `
+          <div class="cdp-card">
+            <h3>Selecionar Período</h3>            <div class="cdp-shortcuts">
+              <button id="cdp-today"   class="btn-salvar">Hoje</button>
+              <button id="cdp-yday"    class="btn-salvar">Ontem</button>
+              <button id="cdp-prevmo"  class="btn-salvar">Mês anterior</button>
+            </div>            <div class="dates-grid">
+              <div><label>Início</label><input id="abs-period-start" type="date" value="${esc(curStart)}"></div>
+              <div><label>Fim</label><input id="abs-period-end"    type="date" value="${esc(curEnd)}"></div>
+            </div>            <div class="form-actions">
+              <button id="cd-period-cancel" class="btn">Cancelar</button>
+              <button id="cd-period-apply"  class="btn-add">Aplicar</button>
+            </div>
+          </div>`;        const cssId = 'cdp-style';
+        if (!document.getElementById(cssId)) {
+            const st = document.createElement('style');
+            st.id = cssId;
+            st.textContent = `
+              #cd-period-overlay, #cd-period-overlay * { box-sizing: border-box; }
+              #cd-period-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+              #cd-period-overlay .cdp-card { background: #fff; border-radius: 12px; padding: 16px; min-width: 480px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+              #cd-period-overlay h3 { margin: 0 0 12px; text-align: center; color: #003369; }
+              #cd-period-overlay .cdp-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
+              #cd-period-overlay .dates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+              #cd-period-overlay .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+            `;
+            document.head.appendChild(st);
+        }        document.body.appendChild(overlay);        const elStart = overlay.querySelector('#abs-period-start');
+        const elEnd = overlay.querySelector('#abs-period-end');
+        const btnCancel = overlay.querySelector('#cd-period-cancel');
+        const btnApply = overlay.querySelector('#cd-period-apply');        const close = () => overlay.remove();
+        overlay.addEventListener('click', (ev) => {
             if (ev.target === overlay) close();
         });
-        overlay.querySelector('#cd-period-cancel')?.addEventListener('click', close);
-        overlay.querySelector('#cd-period-apply')?.addEventListener('click', function () {
-            var s = (overlay.querySelector('#abs-period-start') || {}).value;
-            var e = (overlay.querySelector('#abs-period-end') || {}).value;
-            if (!s || !e) {
+        btnCancel.onclick = close;        overlay.querySelector('#cdp-today').onclick = () => {
+            const iso = toISO(today);
+            [state.periodo.start, state.periodo.end] = [iso, iso];
+            state.paging.offset = 0;
+            updatePeriodButtonText();
+            close();
+            fetchAndRender();
+        };
+        overlay.querySelector('#cdp-yday').onclick = () => {
+            const iso = toISO(yesterday);
+            [state.periodo.start, state.periodo.end] = [iso, iso];
+            state.paging.offset = 0;
+            updatePeriodButtonText();
+            close();
+            fetchAndRender();
+        };
+        overlay.querySelector('#cdp-prevmo').onclick = () => {
+            const s = toISO(prevStart);
+            const e = toISO(prevEnd);
+            const [cs, ce] = clampEndToToday(s, e);
+            state.periodo.start = cs;
+            state.periodo.end = ce;
+            state.paging.offset = 0;
+            updatePeriodButtonText();
+            close();
+            fetchAndRender();
+        };        btnApply.onclick = () => {
+            let sVal = (elStart?.value || '').slice(0, 10);
+            let eVal = (elEnd?.value || '').slice(0, 10);
+            if (!sVal || !eVal) {
                 alert('Selecione as duas datas.');
                 return;
             }
-            state.periodo.start = toISO(s);
-            state.periodo.end = toISO(e);
+            [sVal, eVal] = clampEndToToday(sVal, eVal);
+            state.periodo.start = sVal;
+            state.periodo.end = eVal;
             state.paging.offset = 0;
-            updatePeriodButton();
+            updatePeriodButtonText();
             close();
             fetchAndRender();
-        });
+        };
     }    async function handleExport() {
         if (!state.periodo.start || !state.periodo.end) {
             alert('Selecione um período antes de exportar.');
             return;
-        }
-        try {
-            var s = stripAccents(state.search || '').toLowerCase();
+        }        var btn = document.getElementById('abs-export');
+        if (btn) btn.disabled = true;        try {            await loadSheetJS();
+            if (!window.XLSX) {
+                throw new Error("Biblioteca XLSX não carregou.");
+            }            var s = stripAccents(state.search || '').toLowerCase();
             var rows = (state.rows || []).filter(function (r) {
                 var nm = stripAccents(String(r.Nome || '')).toLowerCase();
                 return !s || nm.indexOf(s) !== -1;
-            });
-            if (!rows.length) {
+            });            if (!rows.length) {
                 alert('Nada para exportar com os filtros atuais.');
                 return;
-            }
-            var csvRows = rows.map(function (r) {
+            }            var exportRows = rows.map(function (r) {
                 return {
                     'Nome': r.Nome || '',
                     'Data': fmtBR(parseAnyDateToISO(r.Data || '')),
@@ -582,28 +682,20 @@ import {supabase} from '../supabaseClient.js';(function () {
                     'Observação': r.Observacao || '',
                     'CID': r.CID || '',
                     'MATRIZ': r.MATRIZ || '',
-                    'SVC': r.SVC || ''
+                    'SVC': r.SVC || '',
+                    'REGIAO': r.REGIAO || '',
+                    'GERENCIA': r.GERENCIA || '',
+                    'GROOT ID': r["ID GROOT"] || '',
+                    'LDAP': r.LDAP || ''
                 };
-            });
-            var keys = Object.keys(csvRows[0] || {});            function escv(v) {
-                if (v == null) return '';
-                var s = String(v);
-                return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-            }            var header = keys.join(',');
-            var body = csvRows.map(r => keys.map(k => escv(r[k])).join(',')).join('\n');
-            var csv = header + '\n' + body;
-            var blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = 'relatorio_abs_' + toISO(state.periodo.start) + '_a_' + toISO(state.periodo.end) + '.csv';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            console.error('Export fallback erro', e);
+            });            const ws = XLSX.utils.json_to_sheet(exportRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Relatório ABS');            const fileName = `relatorio_abs_${toISO(state.periodo.start)}_a_${toISO(state.periodo.end)}.xlsx`;
+            XLSX.writeFile(wb, fileName);        } catch (e) {
+            console.error('Export erro', e);
             alert('Falha ao exportar. Veja o console.');
+        } finally {
+            if (btn) btn.disabled = false;
         }
     }    window.ensureHCRelatorioMountedOnce = function () {
         ensureMounted(true);
@@ -612,11 +704,12 @@ import {supabase} from '../supabaseClient.js';(function () {
     window.buildHCRelatorio = function () {
         ensureMounted(true);
         fetchAndRender();
-    };
-    window.hcRelatorioApplyFilters = function (f) {
+    };    window.hcRelatorioApplyFilters = function (f) {
         f = f || {};
         state.matriz = f.matriz || '';
         state.svc = f.svc || '';
+        state.regiao = f.regiao || '';
+        state.gerencia = f.gerencia || '';
         state.paging.offset = 0;
         scheduleRefresh(true);
     };
