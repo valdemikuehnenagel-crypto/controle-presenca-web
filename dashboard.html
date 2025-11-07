@@ -30,6 +30,7 @@
         <button data-page="efetividade" class="tab-btn">Preenchimento</button>
         <button data-page="dados-operacionais" class="tab-btn">Dados Op.</button>
         <button data-page="gerotmeli" class="tab-btn">Gerot Meli</button>
+        <button data-page="separacao" class="tab-btn">Auditoria</button>
 
     </div>
 </nav>
@@ -54,6 +55,10 @@
         <div class="flex items-center gap-4">
             <span id="userInfo" class="text-sm text-gray-600 font-semibold">Carregando...</span>
             <img id="userAvatar" src="/imagens/default-avatar.png" alt="Avatar do usuário" class="user-avatar hidden">
+
+            <button id="screenshotBtn"
+                    class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 text-xs rounded-full">Tirar Print
+            </button>
             <button id="logoutBtn"
                     class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 text-xs rounded-full">Sair
             </button>
@@ -96,11 +101,11 @@
                                                                                              id="editUserNome"
                                                                                              required/></div>
                 <div class="form-group"><label for="editUserUsuario">Usuário (Login)</label><input type="text"
-                                                                                                 id="editUserUsuario"
-                                                                                                 required/></div>
+                                                                                                   id="editUserUsuario"
+                                                                                                   required/></div>
                 <div class="form-group"><label for="editUserPin">Alterar PIN (deixe em branco para não
                     mudar)</label><input type="password" id="editUserPin" placeholder="Novo PIN de 6 dígitos"
-                                     maxlength="6"/></div>
+                                       maxlength="6"/></div>
                 <div class="form-group"><label for="editUserAprovacao">Status de Aprovação</label><select
                         id="editUserAprovacao" required>
                     <option value="SIM">Ativo</option>
@@ -145,7 +150,7 @@
         <form id="gestorForm">
             <div class="form-grid" style="grid-template-columns: 1fr;">
                 <div class="form-group"><label for="gestorNome">Nome Completo</label><input type="text" id="gestorNome"
-                                                                                             required/></div>
+                                                                                           required/></div>
                 <div class="form-group"><label>Selecione as Matrizes</label>
                     <div id="gestorMatrizesCheckbox" class="checkbox-container"><span>Carregando matrizes...</span>
                     </div>
@@ -305,7 +310,7 @@
                         <option value="1ª QUARTA">1ª QUARTA</option>
                         <option value="2ª QUARTA">2ª QUARTA</option>
                         <option value="3ª QUARTA">3ª QUARTA</option>
-                        <option value="4ª QUARTA">4ª QUARTA</option>
+                        <option value="4ª QUARTA">44ª QUARTA</option>
                         <option value="1ª QUINTA">1ª QUINTA</option>
                         <option value="2ª QUINTA">2ª QUINTA</option>
                         <option value="3ª QUINTA">3ª QUINTA</option>

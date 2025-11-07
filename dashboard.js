@@ -1,5 +1,8 @@
+import html2canvas from 'html2canvas';
+
 const userInfoEl = document.getElementById('userInfo');
 const logoutBtn = document.getElementById('logoutBtn');
+const screenshotBtn = document.getElementById('screenshotBtn');
 const contentArea = document.getElementById('content-area');
 const tabButtons = document.querySelectorAll('.tab-btn');
 const addModal = document.getElementById('addModal');
@@ -11,27 +14,22 @@ let currentModule = null;
 let isLoadingPage = false;
 let loadToken = 0;
 
-const pageModules = import.meta.glob('/src/pages/*.js');
-
-// -----------------------------------------------------------------------------
-// Persistência da aba selecionada
-// -----------------------------------------------------------------------------
-const LAST_PAGE_KEY = 'knc:lastPage';
+const pageModules = import.meta.glob('/src/pages/*.js');const LAST_PAGE_KEY = 'knc:lastPage';
 
 const normalizePage = (name) => String(name || '').trim().toLowerCase();
 
 function setActiveTab(pageName) {
     const p = normalizePage(pageName);
-    // marca visualmente o botão ativo
+
     tabButtons.forEach(btn => {
         btn.classList.toggle('active', normalizePage(btn.dataset.page) === p);
     });
-    // guarda no storage
+
     try {
         localStorage.setItem(LAST_PAGE_KEY, p);
     } catch (_) {
     }
-    // reflete na URL (permite reload/voltar/compartilhar)
+
     const newHash = `#${p}`;
     if (location.hash !== newHash) {
         history.replaceState(null, '', newHash);
@@ -46,12 +44,7 @@ function getInitialPage() {
     if (fromHash && exists(fromHash)) return fromHash;
     if (fromStore && exists(fromStore)) return fromStore;
     return fallback;
-}
-
-// -----------------------------------------------------------------------------
-// Menu lateral
-// -----------------------------------------------------------------------------
-if (menuToggleBtn) {
+}if (menuToggleBtn) {
     menuToggleBtn.addEventListener('click', () => {
         document.body.classList.toggle('sidebar-collapsed');
     });
@@ -61,12 +54,7 @@ if (sidebarOverlay) {
         document.body.classList.add('sidebar-collapsed');
     });
 }
-document.body.classList.add('sidebar-collapsed');
-
-// -----------------------------------------------------------------------------
-// Sessão do usuário
-// -----------------------------------------------------------------------------
-function checkSession() {
+document.body.classList.add('sidebar-collapsed');function checkSession() {
     const userDataString = localStorage.getItem('userSession');
     if (!userDataString) {
         window.location.href = '/index.html';
@@ -115,23 +103,13 @@ function checkSession() {
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     }
-}
-
-// -----------------------------------------------------------------------------
-// Loading
-// -----------------------------------------------------------------------------
-function setLoading(on) {
+}function setLoading(on) {
     isLoadingPage = !!on;
     if (!contentArea) return;
     if (on) {
         contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
     }
-}
-
-// -----------------------------------------------------------------------------
-// Carregamento das páginas
-// -----------------------------------------------------------------------------
-async function loadPage(pageName) {
+}async function loadPage(pageName) {
     if (!pageName || isLoadingPage) return;
     isLoadingPage = true;
 
@@ -158,7 +136,7 @@ async function loadPage(pageName) {
     }
 
     try {
-        const response = await fetch(`/pages/${pageName}.html`, {cache: 'no-cache'});
+        const response = await fetch(`/pages/${pageName}.html`, { cache: 'no-cache' });
         if (!response.ok) throw new Error(`HTML da página ${pageName} não encontrado (HTTP ${response.status}).`);
         const html = await response.text();
         if (myToken !== loadToken) return;
@@ -187,46 +165,65 @@ async function loadPage(pageName) {
             if (contentArea) contentArea.classList.remove('fade-out');
         }
     }
-}
-
-// -----------------------------------------------------------------------------
-// Modais
-// -----------------------------------------------------------------------------
-function showAddModal() {
+}function showAddModal() {
     if (addModal) addModal.classList.remove('hidden');
 }
 
 function hideAddModal() {
     if (addModal) addModal.classList.add('hidden');
-}
-
-// -----------------------------------------------------------------------------
-// Tabs - clique
-// -----------------------------------------------------------------------------
-tabButtons.forEach((button) => {
+}tabButtons.forEach((button) => {
     button.addEventListener('click', () => {
         if (isLoadingPage) return;
         const page = button.dataset.page;
-        setActiveTab(page);        // persiste e marca ativo
+        setActiveTab(page);
         loadPage(page);
         document.body.classList.add('sidebar-collapsed');
     });
-});
-
-// -----------------------------------------------------------------------------
-// Logout
-// -----------------------------------------------------------------------------
-if (logoutBtn) {
+});if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     });
-}
+}if (screenshotBtn) {
+    screenshotBtn.addEventListener('click', () => {
+        console.log('Iniciando captura de tela...');
+        const originalText = screenshotBtn.textContent;
+        screenshotBtn.disabled = true;
+        screenshotBtn.textContent = 'Capturando...';
 
-// -----------------------------------------------------------------------------
-// Eventos diversos
-// -----------------------------------------------------------------------------
-document.addEventListener('open-add-modal', showAddModal);
+
+
+        html2canvas(document.body, {
+            useCORS: true,
+            logging: false,
+            windowWidth: document.body.scrollWidth,
+            windowHeight: document.body.scrollHeight
+        }).then(canvas => {
+            const link = document.createElement('a');
+
+
+            const data = new Date();
+            const dataFormatada = data.toISOString().split('T')[0];
+            const horaFormatada = data.toTimeString().split(' ')[0].replace(/:/g, '-');
+
+            link.download = `captura-knconecta-${dataFormatada}_${horaFormatada}.png`;
+            link.href = canvas.toDataURL('image/png');
+
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+        }).catch(err => {
+            console.error('Erro ao gerar screenshot:', err);
+            alert('Falha ao gerar a captura de tela. Tente novamente.');
+        }).finally(() => {
+
+            screenshotBtn.disabled = false;
+            screenshotBtn.textContent = originalText;
+        });
+    });
+}document.addEventListener('open-add-modal', showAddModal);
 if (cancelBtn) {
     cancelBtn.addEventListener('click', hideAddModal);
 }
@@ -237,20 +234,9 @@ document.addEventListener('colaborador-added', () => {
     if (isColaboradoresAtivo && currentModule && typeof currentModule.init === 'function') {
         currentModule.init();
     }
-});
-
-// -----------------------------------------------------------------------------
-// Boot
-// -----------------------------------------------------------------------------
-checkSession();
-
-// Restaura aba inicial (hash > storage > fallback)
-const firstPage = getInitialPage();
+});checkSession();const firstPage = getInitialPage();
 setActiveTab(firstPage);
-loadPage(firstPage);
-
-// Suporta navegação por hash (voltar/avançar/colar URL)
-window.addEventListener('hashchange', () => {
+loadPage(firstPage);window.addEventListener('hashchange', () => {
     const pg = normalizePage(location.hash.replace(/^#\/?/, ''));
     if (!pg) return;
     if (!document.querySelector(`.tab-btn[data-page="${pg}"]`)) return;

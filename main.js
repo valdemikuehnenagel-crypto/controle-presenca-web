@@ -1,6 +1,4 @@
-import {createClient} from '@supabase/supabase-js';
-
-document.addEventListener('DOMContentLoaded', () => {
+import {createClient} from '@supabase/supabase-js';document.addEventListener('DOMContentLoaded', () => {
     const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
     const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
@@ -9,37 +7,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const registerName = document.getElementById('registerName');
     const registerEmail = document.getElementById('registerEmail');
     const registerFuncao = document.getElementById('registerFuncao');
-    const registerMsg = document.getElementById('registerMsg');
-
-    // --- INÍCIO DAS MUDANÇAS (PIN) ---
-    // 1. IDs dos novos elementos que você deve adicionar ao seu HTML
-    const generatePinBtn = document.getElementById('generatePinBtn');
+    const registerMsg = document.getElementById('registerMsg');    const generatePinBtn = document.getElementById('generatePinBtn');
     const generatedPinDisplay = document.getElementById('generatedPinDisplay');
-    const pinMessage = document.getElementById('pinMessage');
-
-    // 2. Variável para armazenar o PIN gerado
-    let generatedPin = null;
-    // --- FIM DAS MUDANÇAS (PIN) ---
-
-    let selectedMatrizesState = [];
+    const pinMessage = document.getElementById('pinMessage');    let generatedPin = null;    let selectedMatrizesState = [];
     const matrizModal = document.getElementById('matriz-modal');
     const modalOverlay = document.getElementById('matriz-modal-overlay');
     const openModalBtn = document.getElementById('open-matriz-modal-btn');
     const closeModalBtn = document.getElementById('close-matriz-modal-btn');
     const confirmSelectionBtn = document.getElementById('confirm-matriz-selection-btn');
-    const modalMatrizList = document.getElementById('modal-matriz-list');
-
-    function openModal() {
+    const modalMatrizList = document.getElementById('modal-matriz-list');    function openModal() {
         if (matrizModal) matrizModal.classList.add('show');
         if (modalOverlay) modalOverlay.classList.add('show');
-    }
-
-    function closeModal() {
+    }    function closeModal() {
         if (matrizModal) matrizModal.classList.remove('show');
         if (modalOverlay) modalOverlay.classList.remove('show');
-    }
-
-    function updateMainButtonText() {
+    }    function updateMainButtonText() {
         const triggerSpan = openModalBtn.querySelector('span');
         if (selectedMatrizesState.includes('TODOS')) {
             triggerSpan.textContent = 'TODOS';
@@ -50,9 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             triggerSpan.textContent = `${selectedMatrizesState.length} matrizes selecionadas`;
         }
-    }
-
-    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+    }    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
     if (modalOverlay) modalOverlay.addEventListener('click', closeModal);
     if (confirmSelectionBtn) {
@@ -62,23 +42,17 @@ document.addEventListener('DOMContentLoaded', () => {
             updateMainButtonText();
             closeModal();
         });
-    }
-
-    if (showRegisterBtn) {
+    }    if (showRegisterBtn) {
         showRegisterBtn.addEventListener('click', () => {
             container.classList.add('active');
             loadMatrizes();
             loadFuncoes();
         });
-    }
-
-    if (showLoginBtn) {
+    }    if (showLoginBtn) {
         showLoginBtn.addEventListener('click', () => {
             container.classList.remove('active');
         });
-    }
-
-    async function verifyPin(pin) {
+    }    async function verifyPin(pin) {
         const loginMsg = document.getElementById('loginMsg');
         loginMsg.classList.remove('info');
         loginMsg.textContent = 'Verificando...';
@@ -109,9 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             window.location.href = '/dashboard.html';
         }, 2800);
-    }
-
-    const loginForm = document.getElementById('loginForm');
+    }    const loginForm = document.getElementById('loginForm');
     const pinLogin = document.getElementById('pinLogin');
     const forgotPinBtn = document.getElementById('forgotPinBtn');
     if (loginForm) {
@@ -131,11 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com';
             loginMsg.classList.add('info');
         });
-    }
-
-    const funcoes = ['ANALISTA', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];
-
-    function loadFuncoes() {
+    }    const funcoes = ['ANALISTA', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];    function loadFuncoes() {
         if (!registerFuncao) return;
         registerFuncao.innerHTML = '<option value="" disabled selected>Selecione a Função</option>';
         funcoes.forEach(funcao => {
@@ -144,9 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             option.textContent = funcao;
             registerFuncao.appendChild(option);
         });
-    }
-
-    async function loadMatrizes() {
+    }    async function loadMatrizes() {
         if (!modalMatrizList) return;
         modalMatrizList.innerHTML = '<div class="custom-option">Carregando...</div>';
         const {data, error} = await supabase.from('Matrizes').select('MATRIZ');
@@ -185,149 +151,78 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
-    // --- INÍCIO DAS NOVAS FUNÇÕES (PIN) ---
-
-    /**
-     * Gera um PIN de 6 dígitos único que ainda não existe no banco de dados.
-     */
     async function createUniquePin() {
         let pin;
         let pinExists = true;
-        let attempts = 0; // Trava de segurança para evitar loop infinito
-
-        while (pinExists && attempts < 50) {
-            // Gera um PIN aleatório de 6 dígitos (entre 100000 e 999999)
-            pin = Math.floor(100000 + Math.random() * 900000).toString();
-
-            // Verifica se o PIN já existe na tabela 'Logins'
-            const {data, error} = await supabase
+        let attempts = 0;        while (pinExists && attempts < 50) {            pin = Math.floor(100000 + Math.random() * 900000).toString();            const {data, error} = await supabase
                 .from('Logins')
                 .select('PIN')
                 .eq('PIN', pin)
-                .single();
-
-            // Se 'data' for nulo e o erro for 'PGRST116' (row not found), o PIN é único
-            if (!data && (error && error.code === 'PGRST116')) {
-                pinExists = false; // PIN é único, sair do loop
-            } else if (error && error.code !== 'PGRST116') {
-                // Ocorreu um erro de banco de dados real
-                console.error('Erro ao verificar PIN:', error);
-                return null; // Falha na verificação
-            }
-            // Se 'data' existir, 'pinExists' continua 'true' e o loop tentará novamente
-            attempts++;
-        }
-
-        if (pinExists) {
+                .single();            if (!data && (error && error.code === 'PGRST116')) {
+                pinExists = false;
+            } else if (error && error.code !== 'PGRST116') {                console.error('Erro ao verificar PIN:', error);
+                return null;
+            }            attempts++;
+        }        if (pinExists) {
             console.error('Não foi possível gerar um PIN único após 50 tentativas.');
             return null;
-        }
-
-        return pin; // Retorna o PIN único
-    }
-
-    // Adiciona o listener de clique ao botão "Gerar PIN"
-    if (generatePinBtn) {
-        generatePinBtn.addEventListener('click', async () => {
-            // Desabilita o botão e limpa mensagens antigas
-            generatePinBtn.disabled = true;
+        }        return pin;
+    }    if (generatePinBtn) {
+        generatePinBtn.addEventListener('click', async () => {            generatePinBtn.disabled = true;
             generatePinBtn.textContent = 'Gerando...';
             if (generatedPinDisplay) generatedPinDisplay.textContent = '';
             if (pinMessage) pinMessage.textContent = '';
-            generatedPin = null; // Reseta o PIN anterior
-
-            const newPin = await createUniquePin();
-
-            if (newPin) {
-                // Sucesso: armazena o PIN e exibe para o usuário
-                generatedPin = newPin;
+            generatedPin = null;            const newPin = await createUniquePin();            if (newPin) {                generatedPin = newPin;
                 if (generatedPinDisplay) generatedPinDisplay.textContent = newPin;
                 if (pinMessage) pinMessage.textContent = 'Por favor, anote seu pin... Esse é seu acesso.';
                 generatePinBtn.textContent = 'Gerar PIN';
-            } else {
-                // Falha
-                if (pinMessage) pinMessage.textContent = 'Erro ao gerar PIN. Tente novamente.';
+            } else {                if (pinMessage) pinMessage.textContent = 'Erro ao gerar PIN. Tente novamente.';
                 generatePinBtn.textContent = 'Gerar PIN';
-            }
-
-            generatePinBtn.disabled = false;
+            }            generatePinBtn.disabled = false;
         });
-    }
-    // --- FIM DAS NOVAS FUNÇÕES (PIN) ---
-
-
-    if (registerForm) {
+    }    if (registerForm) {
         registerForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             registerMsg.textContent = 'Enviando...';
-            registerMsg.classList.remove('error');
-
-            let matrizValue = '';
+            registerMsg.classList.remove('error');            let matrizValue = '';
             if (selectedMatrizesState.includes('TODOS')) {
                 matrizValue = 'TODOS';
             } else {
                 matrizValue = selectedMatrizesState.join(', ');
-            }
-
-            // --- MUDANÇA NO 'userData' ---
-            const userData = {
+            }            const userData = {
                 nome: registerName.value,
                 email: registerEmail.value,
                 matriz: matrizValue,
                 funcao: registerFuncao.value,
-                pin: generatedPin, // Usa o PIN da variável 'generatedPin'
-            };
-
-            // --- MUDANÇA NA VALIDAÇÃO ---
-            // Verifica se o 'pin' (agora 'generatedPin') existe
-            if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao || !userData.pin) {
+                pin: generatedPin,
+            };            if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao || !userData.pin) {
                 registerMsg.textContent = 'Todos os campos são obrigatórios. Não se esqueça de gerar seu PIN.';
                 registerMsg.classList.add('error');
                 return;
-            }
-
-            // --- REMOVIDO ---
-            // A verificação de PIN existente foi removida daqui,
-            // pois a função createUniquePin() já garante a exclusividade.
-
-            const nivelParaSalvar = (userData.funcao === 'MELI') ? 'VISITANTE' : 'Usuario';
-
-            const {error: insertError} = await supabase.from('Logins').insert({
-                PIN: userData.pin, // Salva o PIN gerado
+            }            const nivelParaSalvar = (userData.funcao === 'MELI') ? 'VISITANTE' : 'Usuario';            const {error: insertError} = await supabase.from('Logins').insert({
+                PIN: userData.pin,
                 Nome: userData.nome,
                 Usuario: userData.email.toLowerCase(),
                 Matriz: userData.matriz,
                 Tipo: userData.funcao,
                 Nivel: nivelParaSalvar,
                 Aprovacao: 'PENDENTE'
-            });
-
-            if (insertError) {
+            });            if (insertError) {
                 registerMsg.textContent = 'Erro ao registrar. Este Email já pode estar em uso.';
                 registerMsg.classList.add('error');
             } else {
                 registerMsg.textContent = 'Solicitação enviada! Aguarde a aprovação.';
                 registerForm.reset();
                 selectedMatrizesState = [];
-                updateMainButtonText();
-
-                // --- MUDANÇA (LIMPEZA DO PIN) ---
-                // Limpa os campos do PIN gerado após o sucesso
-                generatedPin = null;
+                updateMainButtonText();                generatedPin = null;
                 if (generatedPinDisplay) generatedPinDisplay.textContent = '';
                 if (pinMessage) pinMessage.textContent = '';
-                if (generatePinBtn) generatePinBtn.textContent = 'Gerar PIN';
-                // --- FIM DA MUDANÇA ---
-
-                setTimeout(() => {
+                if (generatePinBtn) generatePinBtn.textContent = 'Gerar PIN';                setTimeout(() => {
                     container.classList.remove('active');
                 }, 3000);
             }
         });
-    }
-
-    function getBrasiliaTimestamp() {
+    }    function getBrasiliaTimestamp() {
         const date = new Date();
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -336,9 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const minutes = String(date.getMinutes()).padStart(2, '0');
         const seconds = String(date.getSeconds()).padStart(2, '0');
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    }
-
-    async function logLoginHistory(userData) {
+    }    async function logLoginHistory(userData) {
         try {
             const {error} = await supabase.from('LoginHistorico').insert({
                 Nome: userData.Nome,

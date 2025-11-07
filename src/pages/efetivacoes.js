@@ -1,13 +1,13 @@
-import {getMatrizesPermitidas} from '../session.js';
 import {supabase} from '../supabaseClient.js';const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;function cacheKeyForColabs() {
-    const mp = getMatrizesPermitidas();    const part = Array.isArray(mp) && mp.length ? [...mp].sort().join('|') : 'ALL';
-    return `colabs:${part}`;
+    return `colabs:ALL`;
 }async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
-    if (hit && (now - hit.ts) < hit.ttl) return hit.value;    if (_inflight.has(key)) return _inflight.get(key);    const p = (async () => {
+    if (hit && (now - hit.ts) < hit.ttl) return hit.value;
+    if (_inflight.has(key)) return _inflight.get(key);
+    const p = (async () => {
         try {
             const val = await loaderFn();
             _cache.set(key, {ts: Date.now(), ttl: ttlMs, value: val});
@@ -15,7 +15,8 @@ const CACHE_TTL_MS = 10 * 60_000;function cacheKeyForColabs() {
         } finally {
             _inflight.delete(key);
         }
-    })();    _inflight.set(key, p);
+    })();
+    _inflight.set(key, p);
     return p;
 }function invalidateCache(keys = []) {
     if (!keys.length) {
@@ -48,17 +49,17 @@ const state = {
         genero: null,
         dsr: null,
         contrato: null,
-        contratoSvc: null,        auxPrazoSvc: null,
+        contratoSvc: null, auxPrazoSvc: null,
         idadeRegiao: null,
         generoRegiao: null,
         contratoRegiao: null,
-        auxPrazoRegiao: null,        spamHcEvolucaoSvc: null,
+        auxPrazoRegiao: null, spamHcEvolucaoSvc: null,
         spamHcEvolucaoRegiao: null,
         spamHcGerente: null,
         spamHcVsAux: null,
     },
     matriz: '',
-    svc: '',
+    gerencia: '',
     regiao: '',
     colabs: [],
     interactive: {
@@ -66,9 +67,10 @@ const state = {
         dsr: new Set(),
         idade: new Set(),
         contrato: new Set(),
-        contratoSvc: new Set(),        auxPrazoSvc: new Set(),
+        contratoSvc: new Set(), auxPrazoSvc: new Set(),
     }
-};const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const root = () => document.documentElement;
 const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;function parseRGB(str) {
     if (!str) return {r: 0, g: 0, b: 0};
@@ -86,7 +88,8 @@ const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim()
 }const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
 const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
-const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];const MONTH_ORDER = {
+const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+const MONTH_ORDER = {
     'JANEIRO': 1, 'FEVEREIRO': 2, 'MARÇO': 3, 'ABRIL': 4, 'MAIO': 5, 'JUNHO': 6,
     'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
 };
@@ -97,7 +100,8 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
 }function formatDateLocal(iso) {
-    if (!iso) return '';    const datePart = iso.split('T')[0];
+    if (!iso) return '';
+    const datePart = iso.split('T')[0];
     const [y, m, d] = datePart.split('-');
     if (!y || !m || !d) return '';
     return `${d}/${m}/${y}`;
@@ -140,7 +144,8 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     if (n === 'CONFERENTE') return 'Conferente';
     return 'Outros';
 }function mapSvcLabel(rawSvc) {
-    const svc = String(rawSvc || 'N/D').toUpperCase();    if (svc === 'SBA2' || svc === 'SBA4') {
+    const svc = String(rawSvc || 'N/D').toUpperCase();
+    if (svc === 'SBA2' || svc === 'SBA4') {
         return 'SBA2/4';
     }
     if (svc === 'SBA3' || svc === 'SBA7') {
@@ -194,19 +199,23 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     const host = document.querySelector(HOST_SEL);
     if (!host || state.mounted) return;
     ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
-        .forEach(evt => window.addEventListener(evt, () => {            invalidateCache([cacheKeyForColabs(), 'spamData', 'matrizesData']);            if (state.mounted && !state.loading) refresh();
-        }));    document.getElementById('hc-idx-clear-filters')?.addEventListener('click', clearAllFilters);
+        .forEach(evt => window.addEventListener(evt, () => {
+            invalidateCache([cacheKeyForColabs(), 'spamData', 'matrizesData']);
+            if (state.mounted && !state.loading) refresh();
+        }));
+    document.getElementById('hc-idx-clear-filters')?.addEventListener('click', clearAllFilters);
     const selMatriz = document.getElementById('efet-filter-matriz');
-    const selSvc = document.getElementById('efet-filter-svc');
-    const selReg = document.getElementById('efet-filter-regiao');    if (selMatriz) {
+    const selGerencia = document.getElementById('efet-filter-gerencia');
+    const selReg = document.getElementById('efet-filter-regiao');
+    if (selMatriz) {
         selMatriz.addEventListener('change', (e) => {
             state.matriz = e.target.value;
             refresh();
         });
     }
-    if (selSvc) {
-        selSvc.addEventListener('change', (e) => {
-            state.svc = e.target.value;
+    if (selGerencia) {
+        selGerencia.addEventListener('change', (e) => {
+            state.gerencia = e.target.value;
             refresh();
         });
     }
@@ -215,7 +224,8 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
             state.regiao = e.target.value;
             refresh();
         });
-    }    state.mounted = true;
+    }
+    state.mounted = true;
     setResponsiveHeights();
     wireResizeObserver();
 }async function ensureChartLib() {
@@ -245,20 +255,20 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-let _filtersPopulated = false;function populateFilters(allColabs) {
+let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     if (_filtersPopulated) return;
     const selM = document.getElementById('efet-filter-matriz');
-    const selS = document.getElementById('efet-filter-svc');
+    const selG = document.getElementById('efet-filter-gerencia');
     const selR = document.getElementById('efet-filter-regiao');
     if (selM) {
         const matrizes = uniqueNonEmptySorted(allColabs.map(c => c.MATRIZ));
         selM.innerHTML = `<option value="">Matriz</option>` + matrizes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
         if (state.matriz) selM.value = state.matriz;
     }
-    if (selS) {
-        const svcs = uniqueNonEmptySorted(allColabs.map(c => c.SVC));
-        selS.innerHTML = `<option value="">SVC</option>` + svcs.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-        if (state.svc) selS.value = state.svc;
+    if (selG && matrizesMap) {
+        const gerentes = uniqueNonEmptySorted(Array.from(matrizesMap.values()).map(m => m.GERENCIA));
+        selG.innerHTML = `<option value="">Gerência</option>` + gerentes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        if (state.gerencia) selG.value = state.gerencia;
     }
     if (selR) {
         const regs = uniqueNonEmptySorted(allColabs.map(c => c.REGIAO || 'N/D'));
@@ -269,16 +279,17 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
 }async function loadColabsCached() {
     const key = cacheKeyForColabs();
     return fetchOnce(key, async () => {
-        const mp = getMatrizesPermitidas();
         let query = supabase.from('Colaboradores').select('*');
-        if (mp !== null) query = query.in('MATRIZ', mp);
         const data = await fetchAllWithPagination(query);
-        const rows = Array.isArray(data) ? data.slice() : [];        rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
+        const rows = Array.isArray(data) ? data.slice() : [];
+        rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
         return rows;
     });
 }async function loadSpamData() {
     return fetchOnce('spamData', async () => {
-        const {data, error} = await supabase.from('Spam').select('"HC Fixo", "HC PT", SVC, REGIAO, MÊS, ANO');        if (error) throw error;        return (data || []).map(r => ({
+        const {data, error} = await supabase.from('Spam').select('"HC Fixo", "HC PT", SVC, REGIAO, MÊS, ANO');
+        if (error) throw error;
+        return (data || []).map(r => ({
             ...r,
             HC_Fixo: Number(r['HC Fixo']) || 0,
             HC_PT: Number(r['HC PT']) || 0,
@@ -293,7 +304,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
 }async function loadMatrizesData() {
     return fetchOnce('matrizesData', async () => {
         const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
-        if (error) throw error;        const map = new Map();
+        if (error) throw error;
+        const map = new Map();
         (data || []).forEach(r => {
             const svc = norm(r.SERVICE).replace(/\s+/g, '');
             if (svc) {
@@ -314,17 +326,37 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
     showBusy(true);
     try {
         await ensureChartLib();
-        const allRows = await loadColabsCached();
-        populateFilters(allRows);
+        const [allRows, matrizesMap] = await Promise.all([
+            loadColabsCached(),
+            loadMatrizesData()
+        ]);
+        populateFilters(allRows, matrizesMap);
+        let svcsDoGerente = null;
+        if (state.gerencia && matrizesMap) {
+            svcsDoGerente = new Set();
+            for (const [svc, data] of matrizesMap.entries()) {
+                if (data.GERENCIA === state.gerencia) {
+                    svcsDoGerente.add(svc);
+                }
+            }
+        }
         state.colabs = allRows.filter(c => {
             if (norm(c?.Ativo || 'SIM') !== 'SIM') return false;
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
-            if (state.svc && c?.SVC !== state.svc) return false;
+            if (svcsDoGerente) {
+                const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
+                if (!svcsDoGerente.has(colabSvcNorm)) {
+                    return false;
+                }
+            }
             if (state.regiao && (String(c?.REGIAO || 'N/D') !== state.regiao)) return false;
             return true;
-        });        const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
+        });
+        const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
         const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
-        const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');        const visaoSpamHcAtiva = document.querySelector('#spam-hc-view.active');        if (visaoServiceAtiva) {
+        const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
+        const visaoSpamHcAtiva = document.querySelector('#spam-hc-view.active');
+        if (visaoServiceAtiva) {
             ensureChartsCreatedService();
             updateChartsNow();
         } else if (visaoRegionalAtiva) {
@@ -332,7 +364,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             updateRegionalChartsNow();
         } else if (visaoEmEfetivacaoAtiva) {
             updateEmEfetivacaoTable();
-        } else if (visaoSpamHcAtiva) {            await updateSpamCharts();
+        } else if (visaoSpamHcAtiva) {
+            await updateSpamCharts(matrizesMap, svcsDoGerente);
         } else {
             console.log("Gráficos não atualizados: nenhuma sub-aba ativa.");
         }
@@ -349,20 +382,32 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
     const subButtons = host.querySelectorAll('.efet-subtab-btn');
     if (subButtons.length > 0 && subButtons[0].dataset.wired === '1') {
         return;
-    }    const scrollContainer = document.querySelector('.container');    subButtons.forEach(btn => {        btn.dataset.wired = '1';        btn.addEventListener('click', () => {
+    }
+    const scrollContainer = document.querySelector('.container');
+    subButtons.forEach(btn => {
+        btn.dataset.wired = '1';
+        btn.addEventListener('click', () => {
             const currentView = host.querySelector('.efet-view.active');
             const viewName = btn.dataset.view;
-            const nextView = host.querySelector(`#${viewName}`);            if (currentView === nextView) return;            subButtons.forEach(b => b.classList.remove('active'));
+            const nextView = host.querySelector(`#${viewName}`);
+            if (currentView === nextView) return;
+            subButtons.forEach(b => b.classList.remove('active'));
             host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
-            btn.classList.add('active');            if (nextView) {
+            btn.classList.add('active');
+            if (nextView) {
                 nextView.classList.add('active');
-            }            if (scrollContainer) {
-                if (viewName === 'efet-em-efetivacao') {                    scrollContainer.classList.add('travar-scroll-pagina');
-                } else {                    scrollContainer.classList.remove('travar-scroll-pagina');
+            }
+            if (scrollContainer) {
+                if (viewName === 'efet-em-efetivacao') {
+                    scrollContainer.classList.add('travar-scroll-pagina');
+                } else {
+                    scrollContainer.classList.remove('travar-scroll-pagina');
                 }
-            }            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao' || viewName === 'spam-hc-view') {
+            }
+            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao' || viewName === 'spam-hc-view') {
                 refresh();
-            }            setResponsiveHeights();
+            }
+            setResponsiveHeights();
         });
     });
 }function setDynamicChartHeight(chart, labels) {
@@ -463,7 +508,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
 }function baseOptsNumber(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(12, Math.min(14, Math.round(w / 55)));
-    const isHorizontal = axis === 'y';    const valueScale = {
+    const isHorizontal = axis === 'y';
+    const valueScale = {
         grid: {display: false},
         ticks: {font: {size: baseSize}},
         min: 0,
@@ -475,7 +521,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             minRotation: 0,
             font: {size: baseSize}
         }
-    };    return {
+    };
+    return {
         indexAxis: axis,
         layout: {padding: {top: 24, left: 10, right: 18, bottom: 10}},
         interaction: {mode: 'nearest', axis: isHorizontal ? 'y' : 'x', intersect: true},
@@ -484,7 +531,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             if (elements.length > 0 && onClick) onClick(chart, elements[0]);
         },
         plugins: {
-            title: {                display: false,
+            title: {
+                display: false,
                 position: 'top',
                 text: '',
                 font: {size: baseSize + 4, weight: 'bold'},
@@ -522,9 +570,12 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
     };
 }function createStackedBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
-    if (!canvas) return null;    const options = baseOptsPercent(canvas, onClick, axis);    options.plugins.legend.onClick = (e, legendItem, legend) => {
+    if (!canvas) return null;
+    const options = baseOptsPercent(canvas, onClick, axis);
+    options.plugins.legend.onClick = (e, legendItem, legend) => {
         if (onClick) onClick(legend.chart, {datasetIndex: legendItem.datasetIndex});
-    };    const chart = new Chart(canvas.getContext('2d'), {
+    };
+    const chart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {labels: [], datasets: []},
         options,
@@ -534,7 +585,9 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
     return chart;
 }function createBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
-    if (!canvas) return null;    const options = baseOptsNumber(canvas, onClick, axis);    const chart = new Chart(canvas.getContext('2d'), {
+    if (!canvas) return null;
+    const options = baseOptsNumber(canvas, onClick, axis);
+    const chart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {labels: [], datasets: []},
         options,
@@ -563,10 +616,12 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
 }function ensureChartsCreatedService() {
     if (!state.charts.idade) {
         state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'y');
-        if (state.charts.idade) {            state.charts.idade.options.plugins.datalabels.formatter = (value) => {
+        if (state.charts.idade) {
+            state.charts.idade.options.plugins.datalabels.formatter = (value) => {
                 const percentage = Math.round(value);
                 return percentage > 1 ? `${percentage}%` : '';
-            };            if (state.charts.idade.options.scales.x.ticks) delete state.charts.idade.options.scales.x.ticks.callback;
+            };
+            if (state.charts.idade.options.scales.x.ticks) delete state.charts.idade.options.scales.x.ticks.callback;
             if (state.charts.idade.options.scales.y.ticks) delete state.charts.idade.options.scales.y.ticks.callback;
         }
     }
@@ -612,7 +667,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
         }
     }
     if (!state.charts.contrato) state.charts.contrato = createStackedBar('ind-contrato-bar', (chart, element) => toggleFilter('contrato', chart, element), 'y');
-    if (!state.charts.contratoSvc) state.charts.contratoSvc = createStackedBar('ind-contrato-svc-bar', (chart, element) => toggleFilter('contratoSvc', chart, element), 'y');    if (!state.charts.auxPrazoSvc) {
+    if (!state.charts.contratoSvc) state.charts.contratoSvc = createStackedBar('ind-contrato-svc-bar', (chart, element) => toggleFilter('contratoSvc', chart, element), 'y');
+    if (!state.charts.auxPrazoSvc) {
         const auxPrazoSvcId = document.getElementById('ind-aux-30-60-90-svc-bar') ? 'ind-aux-30-60-90-svc-bar' : 'ind-contrato-90d-svc-bar';
         state.charts.auxPrazoSvc = createStackedBar(auxPrazoSvcId, (chart, element) => toggleFilter('auxPrazoSvc', chart, element), 'y');
     }
@@ -620,7 +676,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
     if (!state.charts.idadeRegiao) {
         const id = document.getElementById('reg-idade-bar') ? 'reg-idade-bar' : 'ind-idade-regiao-bar';
         state.charts.idadeRegiao = createStackedBar(id, null, 'x');
-        if (state.charts.idadeRegiao) {            state.charts.idadeRegiao.options.plugins.datalabels.formatter = (value) => {
+        if (state.charts.idadeRegiao) {
+            state.charts.idadeRegiao.options.plugins.datalabels.formatter = (value) => {
                 const p = Math.round(value);
                 return p > 1 ? `${p}%` : '';
             };
@@ -659,7 +716,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             const dsrDays = mapDSR(c.DSR);
             return dsrDays.some(day => state.interactive.dsr.has(day));
         });
-    }    return out;
+    }
+    return out;
 }function clearAllFilters() {
     Object.values(state.interactive).forEach(set => set.clear());
     const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
@@ -754,7 +812,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             ch.update('none');
         }
     }
-    {        const {labels, groups} = splitByTurno(colabsAuxiliares);
+    {
+        const {labels, groups} = splitByTurno(colabsAuxiliares);
         const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
         const colors = [
             css(root(), '--hcidx-p-2', '#003369'),
@@ -788,14 +847,17 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             const base = colors[i];
             const bg = sel.size === 0 || sel.has(cat) ? base : createOpacity(base, 0.2);
             return {label: cat, data, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
-        });        const ch = state.charts.contrato;
+        });
+        const ch = state.charts.contrato;
         if (ch) {
             setDynamicChartHeight(ch, labels);
             ch.data.labels = labels;
             ch.data.datasets = datasets;
             ch.update();
-        }    }
-    {        const bySvc = new Map();
+        }
+    }
+    {
+        const bySvc = new Map();
         colabsAuxiliares.forEach(c => {
             const k = mapSvcLabel(c?.SVC);
             if (!bySvc.has(k)) bySvc.set(k, []);
@@ -812,9 +874,11 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                     (daysSinceAdmission(c) > 90) ? counts.potencial++ : counts.temp90++;
                 }
             });
-            const total = arr.length || 1;            const allMatrices = new Set(arr.map(c => c.MATRIZ).filter(Boolean));
+            const total = arr.length || 1;
+            const allMatrices = new Set(arr.map(c => c.MATRIZ).filter(Boolean));
             const matriz = allMatrices.size === 1 ? ` (${arr[0].MATRIZ})` : '';
-            const combinedLabel = `${svc}${matriz}`;            return {
+            const combinedLabel = `${svc}${matriz}`;
+            return {
                 svc: combinedLabel,
                 pctEfetivo: (counts.efetivo * 100) / total,
                 pctEmEfetivacao: (counts.emEfetivacao * 100) / total,
@@ -826,7 +890,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                 rawPotencial: counts.potencial,
                 total
             };
-        });        rows.sort((a, b) => b.pctEfetivo - a.pctEfetivo || a.svc.localeCompare(b.svc));
+        });
+        rows.sort((a, b) => b.pctEfetivo - a.pctEfetivo || a.svc.localeCompare(b.svc));
         const totalG = colabsAuxiliares.length || 1;
         const countsG = colabsAuxiliares.reduce((acc, c) => {
             if (norm(c.Contrato).includes('KN')) {
@@ -837,13 +902,15 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                 (daysSinceAdmission(c) > 90) ? acc.potencial++ : acc.temp90++;
             }
             return acc;
-        }, {efetivo: 0, emEfetivacao: 0, temp90: 0, potencial: 0});        const lbls = rows.map(r => r.svc);
+        }, {efetivo: 0, emEfetivacao: 0, temp90: 0, potencial: 0});
+        const lbls = rows.map(r => r.svc);
         const dsData = {
             efetivo: {pct: rows.map(r => r.pctEfetivo), raw: rows.map(r => r.rawEfetivo)},
             emEfetivacao: {pct: rows.map(r => r.pctEmEfetivacao), raw: rows.map(r => r.rawEmEfetivacao)},
             temp90: {pct: rows.map(r => r.pctTemp90), raw: rows.map(r => r.rawTemp90)},
             potencial: {pct: rows.map(r => r.pctPotencial), raw: rows.map(r => r.rawPotencial)}
-        };        lbls.push('GERAL');
+        };
+        lbls.push('GERAL');
         dsData.efetivo.pct.push((countsG.efetivo * 100) / totalG);
         dsData.efetivo.raw.push(countsG.efetivo);
         dsData.emEfetivacao.pct.push((countsG.emEfetivacao * 100) / totalG);
@@ -857,10 +924,12 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             '#FCB803',
             css(root(), '--hcidx-p-success', '#28a745'),
             css(root(), '--hcidx-p-3', '#69D4FF')
-        ];        const ch = state.charts.contratoSvc;
+        ];
+        const ch = state.charts.contratoSvc;
         if (ch) {
             setDynamicChartHeight(ch, lbls);
-            ch.data.labels = lbls;            ch.data.datasets = [
+            ch.data.labels = lbls;
+            ch.data.datasets = [
                 {
                     label: 'Efetivo',
                     data: dsData.efetivo.pct,
@@ -891,7 +960,9 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                 }
             ];
             ch.update();
-        }    }    {
+        }
+    }
+    {
         const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
         const bySvc = new Map();
         colabsAuxNaoKN.forEach(c => {
@@ -909,8 +980,10 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                 else if (d <= 90) counts.b90++;
                 else counts.bMais90++;
             });
-            const total = arr.length || 1;            const allMatrices = new Set(arr.map(c => c.MATRIZ).filter(Boolean));
-            const matriz = allMatrices.size === 1 ? ` (${arr[0].MATRIZ})` : '';            const combinedLabel = `${svc}${matriz}`;
+            const total = arr.length || 1;
+            const allMatrices = new Set(arr.map(c => c.MATRIZ).filter(Boolean));
+            const matriz = allMatrices.size === 1 ? ` (${arr[0].MATRIZ})` : '';
+            const combinedLabel = `${svc}${matriz}`;
             return {
                 svc: combinedLabel,
                 pct30: (counts.b30 * 100) / total,
@@ -1030,7 +1103,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             ch.update('none');
         }
     }
-    {        const {labels, groups} = splitByRegiao(colabsAuxiliares);
+    {
+        const {labels, groups} = splitByRegiao(colabsAuxiliares);
         const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
         const colors = [
             css(root(), '--hcidx-p-2', '#003369'),
@@ -1061,12 +1135,14 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             const raw = counts.map(m => m.get(cat) || 0);
             const data = raw.map((v, x) => (v * 100) / totals[x]);
             return {label: cat, data, backgroundColor: colors[i], _rawCounts: raw, borderWidth: 0};
-        });        const ch = state.charts.contratoRegiao;
+        });
+        const ch = state.charts.contratoRegiao;
         if (ch) {
             ch.data.labels = labels;
             ch.data.datasets = datasets;
             ch.update();
-        }    }
+        }
+    }
     {
         const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
         const {labels, groups} = splitByRegiao(colabsAuxNaoKN);
@@ -1121,15 +1197,19 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
         return;
     }
     const colabsEmEfetivacao = state.colabs.filter(c => norm(c.Efetivacao) === 'ABERTO');
-    colabsEmEfetivacao.sort((a, b) => {        const dateA = a['Data Fluxo'] ? new Date(a['Data Fluxo']) : new Date('2999-12-31');
+    colabsEmEfetivacao.sort((a, b) => {
+        const dateA = a['Data Fluxo'] ? new Date(a['Data Fluxo']) : new Date('2999-12-31');
         const dateB = b['Data Fluxo'] ? new Date(b['Data Fluxo']) : new Date('2999-12-31');
         return dateA - dateB;
     });
     tbody.innerHTML = '';
-    if (colabsEmEfetivacao.length === 0) {        tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">Nenhum colaborador com fluxo "Aberto" encontrado.</td></tr>';
+    if (colabsEmEfetivacao.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">Nenhum colaborador com fluxo "Aberto" encontrado.</td></tr>';
         return;
-    }    colabsEmEfetivacao.forEach(c => {
-        const tr = document.createElement('tr');        tr.innerHTML = `
+    }
+    colabsEmEfetivacao.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
             <td>${c.Fluxo || ''}</td>
             <td>${c.Efetivacao || ''}</td>
             <td>${c.Nome || ''}</td>
@@ -1141,28 +1221,30 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
         tbody.appendChild(tr);
     });
 }function ensureChartsCreatedSpam() {
-    const pal = palette();    if (!state.charts.spamHcEvolucaoSvc) {
+    const pal = palette();
+    if (!state.charts.spamHcEvolucaoSvc) {
         const chart = createBar('spam-chart-evolucao-svc', null, 'x');
         if (chart) {
             chart.options.plugins.datalabels = {
                 clamp: false,
-                labels: {                    value: {
+                labels: {
+                    value: {
                         display: (ctx) => (ctx.dataset.label === ctx.chart.data._mesAtualLabel && ctx.dataset.data[ctx.dataIndex] > 0),
                         formatter: (v) => v.toFixed(0),
-                        font: { weight: 'bold', size: 14 },
+                        font: {weight: 'bold', size: 14},
                         anchor: 'end',
                         align: 'end',
                         offset: 8,
                         color: '#333'
-                    },                    previousValue: {
+                    }, previousValue: {
                         display: (ctx) => (ctx.dataset.label === ctx.chart.data._mesAnteriorLabel && ctx.dataset.data[ctx.dataIndex] > 0),
                         formatter: (v) => v.toFixed(0),
-                        font: { weight: 'bold', size: 14 },
+                        font: {weight: 'bold', size: 14},
                         anchor: 'end',
                         align: 'end',
                         offset: 8,
                         color: '#333'
-                    },                    delta: {
+                    }, delta: {
                         display: (ctx) => {
                             const deltas = ctx.dataset._deltas;
                             if (!deltas) return false;
@@ -1177,7 +1259,7 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                         },
                         color: (ctx) => (ctx.dataset._deltas[ctx.dataIndex] > 0 ? '#28a745' : '#dc3545'),
                         textAlign: 'center',
-                        font: { weight: '800', size: 16, lineHeight: 1.15 },
+                        font: {weight: '800', size: 16, lineHeight: 1.15},
                         anchor: 'end',
                         align: 'end',
                         offset: 35
@@ -1186,7 +1268,8 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             };
             state.charts.spamHcEvolucaoSvc = chart;
         }
-    }    if (!state.charts.spamHcEvolucaoRegiao) {
+    }
+    if (!state.charts.spamHcEvolucaoRegiao) {
         const chart = createBar('spam-chart-evolucao-regiao', null, 'x');
         if (chart) {
             chart.options.plugins.datalabels = {
@@ -1195,12 +1278,13 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                 align: 'center',
                 anchor: 'center',
                 color: (ctx) => bestLabel(ctx.dataset.backgroundColor),
-                font: { weight: 'bold', size: 14 },
+                font: {weight: 'bold', size: 14},
                 formatter: (v) => v > 0 ? v.toFixed(0) : ''
             };
             state.charts.spamHcEvolucaoRegiao = chart;
         }
-    }    if (!state.charts.spamHcGerente) {
+    }
+    if (!state.charts.spamHcGerente) {
         const chart = createBar('spam-chart-gerente-mes', null, 'y');
         if (chart) {
             chart.options.plugins.datalabels = {
@@ -1209,27 +1293,30 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                 anchor: 'end',
                 align: 'right',
                 color: '#333',
-                font: { size: 14, weight: 'bold' },
+                font: {size: 14, weight: 'bold'},
                 formatter: (v) => v.toFixed(0),
                 offset: 4
             };
             state.charts.spamHcGerente = chart;
         }
-    }    if (!state.charts.spamHcVsAux) {
+    }
+    if (!state.charts.spamHcVsAux) {
         const chart = createBar('spam-chart-hc-vs-aux', null, 'x');
         if (chart) {
             chart.options.scales.x.stacked = false;
-            chart.options.scales.y.stacked = false;            chart.options.plugins.datalabels = {
+            chart.options.scales.y.stacked = false;
+            chart.options.plugins.datalabels = {
                 clamp: false,
-                labels: {                    value: {
+                labels: {
+                    value: {
                         display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
                         formatter: (v) => v.toFixed(0),
-                        font: { size: 14, weight: 'bold' },
+                        font: {size: 14, weight: 'bold'},
                         anchor: 'end',
                         align: 'end',
                         offset: 8,
                         color: '#333'
-                    },                    delta: {
+                    }, delta: {
                         display: (ctx) => {
                             if (ctx.datasetIndex !== 1) return false;
                             const deltas = ctx.dataset._deltas;
@@ -1241,7 +1328,7 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                         },
                         color: (ctx) => (ctx.dataset._deltas[ctx.dataIndex] > 0 ? '#28a745' : '#dc3545'),
                         textAlign: 'center',
-                        font: { weight: '800', size: 16, lineHeight: 1.15 },
+                        font: {weight: '800', size: 16, lineHeight: 1.15},
                         anchor: 'end',
                         align: 'end',
                         offset: 35
@@ -1251,15 +1338,24 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             state.charts.spamHcVsAux = chart;
         }
     }
-}async function updateSpamCharts() {
-    if (!state.mounted) return;    ensureChartsCreatedSpam();    const [spamData, matrizesMap, colabs] = await Promise.all([
+}async function updateSpamCharts(matrizesMap, svcsDoGerente) {
+    if (!state.mounted) return;
+    ensureChartsCreatedSpam();    const [allSpamData] = await Promise.all([
         loadSpamData(),
-        loadMatrizesData(),
-        loadColabsCached()
-    ]);    const colabsAtivos = colabs.filter(c => norm(c?.Ativo || 'SIM') === 'SIM');    const pal = palette();    const allMonths = [...spamData].sort(sortMesAno);
-    const latestMonth = allMonths.pop();
-    if (!latestMonth) {
-        console.warn("SPAM: Nenhum dado encontrado.");
+    ]);    const colabsAtivos = state.colabs;    const spamData = allSpamData.filter(r => {
+        if (state.regiao && r.REGIAO !== state.regiao) {
+            return false;
+        }
+        if (svcsDoGerente) {
+            if (!svcsDoGerente.has(r.SVC)) {
+                return false;
+            }
+        }
+        return true;
+    });    const pal = palette();
+    const allMonths = [...spamData].sort(sortMesAno);
+    const latestMonth = allMonths.pop();    if (!latestMonth) {
+        console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
             if (chart && chart.canvas.id.startsWith('spam-')) {
                 chart.data.labels = [];
@@ -1268,24 +1364,29 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             }
         });
         return;
-    }
-    const {MÊS: mesAtual, ANO: anoAtual} = latestMonth;
-    const mesAtualLabel = `${mesAtual.slice(0, 3)}/${anoAtual}`;    const previousMonth = allMonths.filter(m => m.ANO < anoAtual || (m.ANO === anoAtual && m.mesOrder < latestMonth.mesOrder)).pop();
+    }    const {MÊS: mesAtual, ANO: anoAtual} = latestMonth;
+    const mesAtualLabel = `${mesAtual.slice(0, 3)}/${anoAtual}`;
+    const previousMonth = allMonths.filter(m => m.ANO < anoAtual || (m.ANO === anoAtual && m.mesOrder < latestMonth.mesOrder)).pop();
     const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;    if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
-        const svcsSet = new Set();        spamData.forEach(r => {
+        const svcsSet = new Set();
+        spamData.forEach(r => {
             const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
             const svcAgrupado = mapSvcLabel(r.SVC);
-            const key = `${svcAgrupado}__${mesLabel}`;            const totalAnterior = dadosPorSvcMes.get(key) || 0;
-            dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);            mesesSet.add(mesLabel);
+            const key = `${svcAgrupado}__${mesLabel}`;
+            const totalAnterior = dadosPorSvcMes.get(key) || 0;
+            dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
+            mesesSet.add(mesLabel);
             svcsSet.add(svcAgrupado);
-        });        const labels = [...svcsSet].sort();
+        });
+        const labels = [...svcsSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });        const datasets = meses.map((mesLabel, i) => {
+        });
+        const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(svc => {
                 return dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0;
             });
@@ -1294,14 +1395,18 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                 data: data,
                 backgroundColor: pal[i % pal.length],
             };
-        });        let maxHcParaEscala = 0;
+        });
+        let maxHcParaEscala = 0;
         datasets.forEach(ds => {
             const max = ds.data.length > 0 ? Math.max(...ds.data) : 0;
             if (max > maxHcParaEscala) maxHcParaEscala = max;
-        });        const chart = state.charts.spamHcEvolucaoSvc;        if (chart.options.scales.y) {
+        });
+        const chart = state.charts.spamHcEvolucaoSvc;
+        if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
             if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
-        }        const datasetAtual = datasets.find(d => d.label === mesAtualLabel);
+        }
+        const datasetAtual = datasets.find(d => d.label === mesAtualLabel);
         if (datasetAtual && mesAnteriorLabel) {
             const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
             if (datasetAnterior) {
@@ -1309,57 +1414,80 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
                     const atual = datasetAtual.data[idx] || 0;
                     const anterior = datasetAnterior.data[idx] || 0;
                     return atual - anterior;
-                });                const totalAnterior = datasetAnterior.data.reduce((a, b) => a + b, 0);
+                });
+                const totalAnterior = datasetAnterior.data.reduce((a, b) => a + b, 0);
                 const totalAtual = datasetAtual.data.reduce((a, b) => a + b, 0);
-                const deltaGeral = totalAtual - totalAnterior;                labels.push('GERAL');
-                datasets.forEach(ds => {                    const total = ds.data.reduce((a, b) => a + b, 0);
+                const deltaGeral = totalAtual - totalAnterior;
+                labels.push('GERAL');
+                datasets.forEach(ds => {
+                    const total = ds.data.reduce((a, b) => a + b, 0);
                     ds.data.push(total);
                 });
-                datasetAtual._deltas.push(deltaGeral);            } else {
+                datasetAtual._deltas.push(deltaGeral);
+            } else {
                 datasetAtual._deltas = labels.map(() => 0);
             }
         } else if (datasetAtual) {
             datasetAtual._deltas = labels.map(() => 0);
-        }        chart.data._mesAtualLabel = mesAtualLabel;
+        }
+        chart.data._mesAtualLabel = mesAtualLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
-    }    if (state.charts.spamHcEvolucaoRegiao) {        const dadosPorRegiaoMes = new Map();
+    }
+    if (state.charts.spamHcEvolucaoRegiao) {
+        const dadosPorRegiaoMes = new Map();
         const mesesSet = new Set();
-        const regioesSet = new Set();        spamData.forEach(r => {
+        const regioesSet = new Set();
+        spamData.forEach(r => {
             const regiao = r.REGIAO || 'N/D';
             const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
-            const key = `${regiao}__${mesLabel}`;            mesesSet.add(mesLabel);
-            regioesSet.add(regiao);            const totalAnterior = dadosPorRegiaoMes.get(key) || 0;
+            const key = `${regiao}__${mesLabel}`;
+            mesesSet.add(mesLabel);
+            regioesSet.add(regiao);
+            const totalAnterior = dadosPorRegiaoMes.get(key) || 0;
             dadosPorRegiaoMes.set(key, totalAnterior + r.HC_Total);
-        });        const labels = [...regioesSet].sort();
+        });
+        const labels = [...regioesSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });        const datasets = meses.map((mesLabel, i) => {
+        });
+        const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(regiao => {
                 return dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0;
-            });
-            return {
+            });            // ADICIONADO: Calcula o total do mês e adiciona ao array de dados
+            const totalMes = data.reduce((a, b) => a + b, 0);
+            data.push(totalMes);            return {
                 label: mesLabel,
                 data: data,
                 backgroundColor: pal[i % pal.length],
             };
-        });        const chart = state.charts.spamHcEvolucaoRegiao;        chart.data.labels = labels;
+        });        // ADICIONADO: Adiciona o label 'GERAL' para corresponder aos dados
+        labels.push('GERAL');        const chart = state.charts.spamHcEvolucaoRegiao;
+        chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
-    }    if (state.charts.spamHcGerente) {        const spamMesAtual = spamData.filter(r => r.MÊS === mesAtual && r.ANO === anoAtual);
-        const hcPorGerente = new Map();        spamMesAtual.forEach(r => {
+    }
+    if (state.charts.spamHcGerente) {
+        const spamMesAtual = spamData.filter(r => r.MÊS === mesAtual && r.ANO === anoAtual);
+        const hcPorGerente = new Map();
+        spamMesAtual.forEach(r => {
             const svc = r.SVC;
-            const gerente = matrizesMap.get(svc)?.GERENCIA || 'SEM GERENTE';            const totalAnterior = hcPorGerente.get(gerente) || 0;
+            const gerente = matrizesMap.get(svc)?.GERENCIA || 'SEM GERENTE';
+            const totalAnterior = hcPorGerente.get(gerente) || 0;
             hcPorGerente.set(gerente, totalAnterior + r.HC_Total);
-        });        const dataSorted = [...hcPorGerente.entries()].sort((a, b) => a[1] - b[1]);
+        });
+        const dataSorted = [...hcPorGerente.entries()].sort((a, b) => a[1] - b[1]);
         const dataValues = dataSorted.map(d => d[1]);
-        const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;        const chart = state.charts.spamHcGerente;        if (chart.options.scales.x) {
+        const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;
+        const chart = state.charts.spamHcGerente;
+        if (chart.options.scales.x) {
             chart.options.scales.x.max = maxHc * 1.25;
-        }        chart.data.labels = dataSorted.map(d => d[0]);
+        }
+        chart.data.labels = dataSorted.map(d => d[0]);
         chart.data.datasets = [{
             label: `HC Total (${mesAtualLabel})`,
             data: dataValues,
@@ -1367,30 +1495,44 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
         }];
         setDynamicChartHeight(chart, dataSorted.map(d => d[0]));
         chart.update();
-    }    if (state.charts.spamHcVsAux) {        const auxPorSvc = new Map();
+    }
+    if (state.charts.spamHcVsAux) {
+        const auxPorSvc = new Map();
         colabsAtivos.forEach(c => {
             if (norm(c.Cargo) === 'AUXILIAR') {
                 const svc = norm(c.SVC);
                 const svcAgrupado = mapSvcLabel(svc);
                 auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
             }
-        });        const hcPorSvc = new Map();
+        });
+        const hcPorSvc = new Map();
         spamData
             .filter(r => r.MÊS === mesAtual && r.ANO === anoAtual)
             .forEach(r => {
                 const svcAgrupado = mapSvcLabel(r.SVC);
                 const totalAnterior = hcPorSvc.get(svcAgrupado) || 0;
                 hcPorSvc.set(svcAgrupado, totalAnterior + r.HC_Total);
-            });        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
-        const labels = [...allSvcs].sort();        const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
-        const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);        const maxSpamSemGeral = dataHcTotalSpam.length > 0 ? Math.max(...dataHcTotalSpam) : 0;
-        const maxRealSemGeral = dataAuxAtivoReal.length > 0 ? Math.max(...dataAuxAtivoReal) : 0;
-        const maxHcParaEscala = Math.max(maxSpamSemGeral, maxRealSemGeral);        const chart = state.charts.spamHcVsAux;        if (chart.options.scales.y) {
+            });
+        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
+        const labels = [...allSvcs].sort();
+        const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
+        const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);        // ADICIONADO: Adiciona a barra GERAL (Soma)
+        const totalSpam = dataHcTotalSpam.reduce((a, b) => a + b, 0);
+        const totalReal = dataAuxAtivoReal.reduce((a, b) => a + b, 0);
+        dataHcTotalSpam.push(totalSpam);
+        dataAuxAtivoReal.push(totalReal);
+        labels.push('GERAL');        // ADICIONADO: Calcula o max para a escala (sem o GERAL, para não achatar os outros)
+        const maxSpamSemGeral = dataHcTotalSpam.length > 1 ? Math.max(...dataHcTotalSpam.slice(0, -1)) : (dataHcTotalSpam[0] || 0);
+        const maxRealSemGeral = dataAuxAtivoReal.length > 1 ? Math.max(...dataAuxAtivoReal.slice(0, -1)) : (dataAuxAtivoReal[0] || 0);        const maxHcParaEscala = Math.max(maxSpamSemGeral, maxRealSemGeral);
+        const chart = state.charts.spamHcVsAux;
+        if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
             if (chart.options.scales.y.max < 10) {
                 chart.options.scales.y.max = 10;
             }
-        }        const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);        chart.data.labels = labels;
+        }
+        const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);
+        chart.data.labels = labels;
         chart.data.datasets = [
             {
                 label: `HC Total (SPAM)`,
@@ -1423,14 +1565,16 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
         const view = host.querySelector(`#${viewName}`);
         host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
         if (view) view.classList.add('active');
-        activeSubtabBtn.classList.add('active');        const scrollContainer = document.querySelector('.container');
+        activeSubtabBtn.classList.add('active');
+        const scrollContainer = document.querySelector('.container');
         if (scrollContainer) {
             if (viewName === 'efet-em-efetivacao') {
                 scrollContainer.classList.add('travar-scroll-pagina');
             } else {
                 scrollContainer.classList.remove('travar-scroll-pagina');
             }
-        }        await refresh();
+        }
+        await refresh();
     } else {
         await refresh();
     }
@@ -1442,18 +1586,31 @@ let _filtersPopulated = false;function populateFilters(allColabs) {
             _resizeObs.disconnect();
             _resizeObs = null;
         }
-        window.removeEventListener('resize', setResponsiveHeights);        state.charts = {
-            idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null,            auxPrazoSvc: null, idadeRegiao: null, generoRegiao: null,
-            contratoRegiao: null, auxPrazoRegiao: null,            spamHcEvolucaoSvc: null, spamHcEvolucaoRegiao: null,
-            spamHcGerente: null, spamHcVsAux: null
+        window.removeEventListener('resize', setResponsiveHeights);
+        state.charts = {
+            idade: null,
+            genero: null,
+            dsr: null,
+            contrato: null,
+            contratoSvc: null,
+            auxPrazoSvc: null,
+            idadeRegiao: null,
+            generoRegiao: null,
+            contratoRegiao: null,
+            auxPrazoRegiao: null,
+            spamHcEvolucaoSvc: null,
+            spamHcEvolucaoRegiao: null,
+            spamHcGerente: null,
+            spamHcVsAux: null
         };
         _filtersPopulated = false;
         state.matriz = '';
-        state.svc = '';
+        state.gerencia = '';
         state.regiao = '';
         state.colabs = [];
         Object.values(state.interactive).forEach(set => set.clear());
         state.mounted = false;
-        state.loading = false;        document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
+        state.loading = false;
+        document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
     }
 }
