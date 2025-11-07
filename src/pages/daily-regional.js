@@ -1,4 +1,4 @@
-// Funções utilitárias (sem alterações)
+
 function simplifyKpiName(kpiName) {
     const lowerKpi = (kpiName || '').toLowerCase();
     if (lowerKpi.includes('fechamento automático de gaiolas')) return 'Fechamento de Gaiola';
@@ -11,9 +11,7 @@ function simplifyKpiName(kpiName) {
     if (lowerKpi.includes('volume delivered')) return 'Volume Delivered';
     if (lowerKpi.includes('t & a')) return 'T & A';
     return kpiName;
-}
-
-function formatValue(value, kpiName) {
+}function formatValue(value, kpiName) {
     if (value === null || value === undefined || value === '-' || isNaN(Number(value))) {
         if (typeof value === 'string' && value.includes('%')) return value;
         return '-';
@@ -44,9 +42,7 @@ function formatValue(value, kpiName) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(numberValue);
-}
-
-function getDeltaClass(delta, kpiName) {
+}function getDeltaClass(delta, kpiName) {
     if (delta === null || isNaN(delta) || Number(delta) === 0) return 'delta-neutral';
     const simplifiedKpi = simplifyKpiName(kpiName).toLowerCase();
     const increaseIsBadMap = {
@@ -71,9 +67,7 @@ function getDeltaClass(delta, kpiName) {
             : (isBadIncrease ? 'delta-positive' : 'delta-negative');
     }
     return delta > 0 ? 'delta-positive' : 'delta-negative';
-}
-
-function getResultadoClass(kpiName, value, meta) {
+}function getResultadoClass(kpiName, value, meta) {
     if (value === null || isNaN(Number(value))) {
         return '';
     }
@@ -106,30 +100,18 @@ function getResultadoClass(kpiName, value, meta) {
         default:
             return '';
     }
-}
-
-// --- Variáveis Globais de Estado e Cache ---
-
-// **AJUSTE: Removido 'day' e 'mes' do estado**
-const filterState = {
+}const filterState = {
     macro: '',
     service: '',
     gerente: ''
 };
 const PERIOD = {start: '', end: ''};
-let DATA_MODEL = null; // Cache dos dados do período ATUAL
-let IS_LOADING = false;
-
-// --- Funções de Data e Formatação ---
-function _pad2(n) {
+let DATA_MODEL = null;
+let IS_LOADING = false;function _pad2(n) {
     return String(n).padStart(2, '0');
-}
-
-function _ymdLocal(d) {
+}function _ymdLocal(d) {
     return `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
-}
-
-function formatMonthLabel(ym) {
+}function formatMonthLabel(ym) {
     try {
         const [y, m] = ym.split('-').map(Number);
         const d = new Date(y, (m - 1), 1);
@@ -139,18 +121,14 @@ function formatMonthLabel(ym) {
     } catch {
         return ym;
     }
-}
-
-function formatDateLabel(dateKey) {
+}function formatDateLabel(dateKey) {
     try {
         const [y, m, d] = dateKey.split('-');
         return `${d}/${m}/${y}`;
     } catch {
         return dateKey;
     }
-}
-
-function _updatePeriodBtnLabel(btn) {
+}function _updatePeriodBtnLabel(btn) {
     if (!btn) return;
     if (PERIOD.start && PERIOD.end) {
         const [ys, ms, ds] = PERIOD.start.split('-');
@@ -159,14 +137,9 @@ function _updatePeriodBtnLabel(btn) {
     } else {
         btn.textContent = 'Selecionar Período';
     }
-}
-
-// --- Modal de Período (Com botão "Hoje") ---
-function openPeriodModal() {
+}function openPeriodModal() {
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
-
-    overlay.innerHTML = `
+    overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';    overlay.innerHTML = `
     <div class="container !h-auto !w-auto max-w-md" style="background:#fff;border-radius:12px;padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.18);">
       <h3 style="font-weight:800;color:#003369;margin:0 0 10px;">Selecionar Período</h3>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
@@ -189,15 +162,9 @@ function openPeriodModal() {
         <button type="button" class="btn-salvar" data-action="apply" style="padding:8px 12px;border-radius:8px;border:1px solid #003369;background:#003369;color:#fff;">Aplicar</button>
       </div>
     </div>`;
-    document.body.appendChild(overlay);
-
-    const startInput = overlay.querySelector('#modal-start-date');
-    const endInput = overlay.querySelector('#modal-end-date');
-
-    overlay.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
-
-        if (e.target === overlay || action === 'cancel') {
+    document.body.appendChild(overlay);    const startInput = overlay.querySelector('#modal-start-date');
+    const endInput = overlay.querySelector('#modal-end-date');    overlay.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;        if (e.target === overlay || action === 'cancel') {
             document.body.removeChild(overlay);
         } else if (action === 'apply') {
             if (!startInput.value || !endInput.value) {
@@ -208,12 +175,7 @@ function openPeriodModal() {
             PERIOD.end = endInput.value;
             const btn = document.getElementById('dr-period-btn');
             _updatePeriodBtnLabel(btn);
-            document.body.removeChild(overlay);
-
-            // **AJUSTE: Re-busca os dados para o novo período**
-            fetchAndRenderData();
-
-        } else if (action === 'hoje') {
+            document.body.removeChild(overlay);            fetchAndRenderData();        } else if (action === 'hoje') {
             const today = new Date();
             const ymd = _ymdLocal(today);
             startInput.value = ymd;
@@ -233,41 +195,24 @@ function openPeriodModal() {
             endInput.value = _ymdLocal(last);
         }
     });
-}
-
-// **AJUSTE: Função Limpar atualizada**
-function handleClearFilters() {
+}function handleClearFilters() {
     filterState.macro = '';
     filterState.service = '';
     filterState.gerente = '';
     PERIOD.start = '';
-    PERIOD.end = '';
-
-    // Limpa apenas os selects que existem
-    ['dr-filter-macro', 'dr-filter-service', 'dr-filter-gerente']
+    PERIOD.end = '';    ['dr-filter-macro', 'dr-filter-service', 'dr-filter-gerente']
         .forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
-        });
-
-    const periodBtn = document.getElementById('dr-period-btn');
-    _updatePeriodBtnLabel(periodBtn);
-
-    // **AJUSTE: Re-busca os dados padrão**
-    fetchAndRenderData();
-}
-
-
-// --- Renderização de Filtros (Adaptado ao HTML e sem filtros de data) ---
-function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToMacro, months, dayToMonth}) {
+        });    const periodBtn = document.getElementById('dr-period-btn');
+    _updatePeriodBtnLabel(periodBtn);    fetchAndRenderData();
+}function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToMacro, months, dayToMonth}) {
     const headerEl = document.getElementById('dr-header');
     const filtersEl = document.getElementById('dr-filters');
     if (!headerEl || !filtersEl) {
         console.error('Elementos #dr-header ou #dr-filters não encontrados.');
         return;
-    }
-
-    let actionsEl = headerEl.querySelector('.action-buttons');
+    }    let actionsEl = headerEl.querySelector('.action-buttons');
     if (!actionsEl) {
         console.warn('Container ".action-buttons" não encontrado. Criando "dr-actions" como fallback.');
         actionsEl = document.createElement('div');
@@ -276,10 +221,7 @@ function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToM
         actionsEl.style.gap = '8px';
         actionsEl.style.alignItems = 'center';
         headerEl.appendChild(actionsEl);
-    }
-
-    // Cria e INJETA (prepend) o botão de período
-    let periodBtn = document.getElementById('dr-period-btn');
+    }    let periodBtn = document.getElementById('dr-period-btn');
     if (!periodBtn) {
         periodBtn = document.createElement('button');
         periodBtn.id = 'dr-period-btn';
@@ -294,16 +236,11 @@ function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToM
         periodBtn.addEventListener('click', openPeriodModal);
         actionsEl.prepend(periodBtn);
     }
-    _updatePeriodBtnLabel(periodBtn);
-
-    // Encontra o botão "Limpar" existente e adiciona o listener
-    let clearBtn = document.getElementById('dr-clear-all');
+    _updatePeriodBtnLabel(periodBtn);    let clearBtn = document.getElementById('dr-clear-all');
     if (clearBtn) {
         clearBtn.removeEventListener('click', handleClearFilters);
         clearBtn.addEventListener('click', handleClearFilters);
-    } else {
-        // Fallback
-        clearBtn = document.createElement('button');
+    } else {        clearBtn = document.createElement('button');
         clearBtn.id = 'dr-clear-all';
         clearBtn.type = 'button';
         clearBtn.textContent = 'Limpar';
@@ -316,23 +253,15 @@ function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToM
         clearBtn.style.cursor = 'pointer';
         clearBtn.addEventListener('click', handleClearFilters);
         actionsEl.appendChild(clearBtn);
-    }
-
-    // Popula filtros (APENAS os de texto)
-    const gerenteOptions = (gerentes || []).map(g => `<option value="${g}">${g}</option>`).join('');
-    const macroOptions = (macros || []).map(m => `<option value="${m}">${m}</option>`).join('');
-
-    const allCodes = new Set();
+    }    const gerenteOptions = (gerentes || []).map(g => `<option value="${g}">${g}</option>`).join('');
+    const macroOptions = (macros || []).map(m => `<option value="${m}">${m}</option>`).join('');    const allCodes = new Set();
     if (codigoToGerente) Object.keys(codigoToGerente).forEach(c => allCodes.add(c));
     if (DATA_MODEL?.codigosByKpi) {
         Object.values(DATA_MODEL.codigosByKpi).forEach(codeList => {
             (codeList || []).forEach(c => allCodes.add(c));
         });
     }
-    const serviceOptions = Array.from(allCodes).sort().map(c => `<option value="${c}">${c}</option>`).join('');
-
-    // **AJUSTE: HTML dos filtros (removido Dia e Mês)**
-    filtersEl.innerHTML = `
+    const serviceOptions = Array.from(allCodes).sort().map(c => `<option value="${c}">${c}</option>`).join('');    filtersEl.innerHTML = `
     <select id="dr-filter-macro">
       <option value="">Macro</option>
       ${macroOptions}
@@ -345,15 +274,7 @@ function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToM
       <option value="">Gerente</option>
       ${gerenteOptions}
     </select>
-  `;
-
-    // Mostra o header
-    headerEl.style.display = 'flex';
-
-    // --- Event Listeners dos Filtros ---
-
-    // **AJUSTE: Estes filtros usam o cache (applyFiltersAndRender)**
-    document.getElementById('dr-filter-macro').addEventListener('change', (e) => {
+  `;    headerEl.style.display = 'flex';    document.getElementById('dr-filter-macro').addEventListener('change', (e) => {
         filterState.macro = e.target.value || '';
         applyFiltersAndRender();
     });
@@ -364,28 +285,14 @@ function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToM
     document.getElementById('dr-filter-gerente').addEventListener('change', (e) => {
         filterState.gerente = e.target.value || '';
         applyFiltersAndRender();
-    });
-
-    // **AJUSTE: Removidos os listeners de "Dia" e "Mês"**
-}
-
-// --- Renderização Principal (Filtra dados do DATA_MODEL) ---
-function applyFiltersAndRender() {
-    // **Esta função agora APENAS filtra o cache local (DATA_MODEL)**
-    if (!DATA_MODEL) {
+    });}function applyFiltersAndRender() {    if (!DATA_MODEL) {
         console.warn('Cache (DATA_MODEL) ainda não está pronto.');
         return;
     }
     const {
         days, kpis, codigosByKpi, data,
         codigoToGerente, macros, codigoToMacro
-    } = DATA_MODEL;
-
-    // Os 'days' já vêm pré-filtrados pelo período da API
-    // Não precisamos mais filtrar 'dayPool' por 'PERIOD' aqui
-    const filteredDays = days.slice();
-
-    const kpiTaNormalName = 't & a';
+    } = DATA_MODEL;    const filteredDays = days.slice();    const kpiTaNormalName = 't & a';
     const kpiInventarioNormalName = 'inventário';
     const masterOrder = [
         '%cia', '%coa', '%utilização lms', 'absenteísmo fatura', 'inventário',
@@ -404,25 +311,15 @@ function applyFiltersAndRender() {
             if (orderA === -1) return 1;
             if (orderB === -1) return -1;
             return orderA - orderB;
-        });
-
-    const allCodesMaster = new Set();
+        });    const allCodesMaster = new Set();
     kpis.forEach(kpi => {
         (codigosByKpi[kpi] || []).forEach(c => allCodesMaster.add(c));
     });
-    let filteredCodes = Array.from(allCodesMaster).sort();
-
-    // Filtros locais (Macro, SVC, Gerente)
-    if (filterState.macro) filteredCodes = filteredCodes.filter(c => (codigoToMacro?.[c] || '') === filterState.macro);
+    let filteredCodes = Array.from(allCodesMaster).sort();    if (filterState.macro) filteredCodes = filteredCodes.filter(c => (codigoToMacro?.[c] || '') === filterState.macro);
     if (filterState.service) filteredCodes = filteredCodes.filter(c => c === filterState.service);
-    if (filterState.gerente) filteredCodes = filteredCodes.filter(c => (codigoToGerente?.[c] || '') === filterState.gerente);
-
-    const container = document.getElementById('daily-regional-table-container');
+    if (filterState.gerente) filteredCodes = filteredCodes.filter(c => (codigoToGerente?.[c] || '') === filterState.gerente);    const container = document.getElementById('daily-regional-table-container');
     if (!container) return;
-    let tableHTML = '';
-
-    // Construção da Tabela 1
-    if (firstTableKpis.length > 0 && filteredCodes.length > 0) {
+    let tableHTML = '';    if (firstTableKpis.length > 0 && filteredCodes.length > 0) {
         let totalStandardColumns = 2;
         firstTableKpis.forEach(kpi => {
             totalStandardColumns += (simplifyKpiName(kpi).toLowerCase() === kpiInventarioNormalName ? 3 : 2);
@@ -510,10 +407,7 @@ function applyFiltersAndRender() {
         </table>
       </div>
     </div>`;
-    }
-
-    // Construção da Tabela 2 (T&A)
-    if (taKpi && filteredCodes.length > 0) {
+    }    if (taKpi && filteredCodes.length > 0) {
         const taCodes = filteredCodes.filter(c => codigosByKpi[taKpi] && codigosByKpi[taKpi].includes(c));
         if (taCodes.length > 0) {
             tableHTML += `
@@ -562,47 +456,24 @@ function applyFiltersAndRender() {
       </div>
     </div>`;
         }
-    }
-
-    // Renderiza o HTML final
-    if (tableHTML === '') {
+    }    if (tableHTML === '') {
         container.innerHTML = '<p style="text-align:center;padding:20px;">Nenhum dado encontrado para os filtros selecionados.</p>';
     } else {
         container.innerHTML = tableHTML;
     }
-}
-
-
-// --- Busca de Dados e Inicialização (Cache Híbrido) ---
-
-// **AJUSTE: Renomeado para 'fetchAndRenderData'**
-// Busca dados para o período em 'PERIOD' e armazena em 'DATA_MODEL'
-async function fetchAndRenderData() {
+}async function fetchAndRenderData() {
     const container = document.getElementById('daily-regional-table-container');
-    const loadingIndicator = document.getElementById('daily-regional-loading');
-
-    // Trava para evitar buscas duplicadas
-    if (IS_LOADING) return;
-    IS_LOADING = true;
-
-    if (!container) {
+    const loadingIndicator = document.getElementById('daily-regional-loading');    if (IS_LOADING) return;
+    IS_LOADING = true;    if (!container) {
         IS_LOADING = false;
         return;
     }
     if (loadingIndicator) loadingIndicator.style.display = 'flex';
-    container.innerHTML = ''; // Limpa tabela antiga
-
-    try {
+    container.innerHTML = '';    try {
         const edgeFunctionUrl = `https://tzbqdjwgbisntzljwbqp.supabase.co/functions/v1/get-google-sheet-data-daily`;
-        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
-
-        // **AJUSTE: Envia o período selecionado para a API**
-        // Se PERIOD estiver vazio, a API deve retornar o padrão (mês atual)
-        const body = (PERIOD.start && PERIOD.end)
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';        const body = (PERIOD.start && PERIOD.end)
             ? {periodStart: PERIOD.start, periodEnd: PERIOD.end}
-            : {};
-
-        const response = await fetch(edgeFunctionUrl, {
+            : {};        const response = await fetch(edgeFunctionUrl, {
             method: 'POST',
             headers: {
                 'apikey': supabaseAnonKey,
@@ -610,97 +481,49 @@ async function fetchAndRenderData() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(body)
-        });
-
-        if (!response.ok) {
+        });        if (!response.ok) {
             const errorData = await response.json().catch(() => ({error: 'Erro desconhecido.'}));
             throw new Error(`API (${response.status}): ${errorData.error || response.statusText}`);
         }
-        const result = await response.json();
-
-        const {
-            days, kpis, codigosByKpi, data,
-            gerentes, codigoToGerente,
-            macros, codigoToMacro,
-            months, dayToMonth // 'months' agora é usado apenas para popular o filtro
-        } = result;
-
-        if (!days?.length || !kpis?.length) {
-            container.innerHTML = '<p style="text-align:center;padding:20px;">Nenhum dado diário encontrado para este período.</p>';
-
-            // Mesmo sem dados, precisamos do 'DATA_MODEL' para os filtros de texto
-            DATA_MODEL = {
-                days: [], kpis: [], codigosByKpi: {}, data: {},
-                gerentes, codigoToGerente, macros, codigoToMacro, months, dayToMonth
-            };
-            renderFilters(DATA_MODEL); // Renderiza os filtros de texto
-
-            if (loadingIndicator) loadingIndicator.style.display = 'none';
-            IS_LOADING = false;
-            return;
-        }
-
-        // Armazena no cache global
-        DATA_MODEL = {
+        const result = await response.json();        const {
             days, kpis, codigosByKpi, data,
             gerentes, codigoToGerente,
             macros, codigoToMacro,
             months, dayToMonth
-        };
-
-        // **CHAMA A RENDERIZAÇÃO DE FILTROS E TABELA**
-        renderFilters(DATA_MODEL);
-        applyFiltersAndRender();
-
-    } catch (error) {
+        } = result;        if (!days?.length || !kpis?.length) {
+            container.innerHTML = '<p style="text-align:center;padding:20px;">Nenhum dado diário encontrado para este período.</p>';            DATA_MODEL = {
+                days: [], kpis: [], codigosByKpi: {}, data: {},
+                gerentes, codigoToGerente, macros, codigoToMacro, months, dayToMonth
+            };
+            renderFilters(DATA_MODEL);            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            IS_LOADING = false;
+            return;
+        }        DATA_MODEL = {
+            days, kpis, codigosByKpi, data,
+            gerentes, codigoToGerente,
+            macros, codigoToMacro,
+            months, dayToMonth
+        };        renderFilters(DATA_MODEL);
+        applyFiltersAndRender();    } catch (error) {
         console.error('Erro ao buscar ou renderizar dados diários:', error);
         container.innerHTML = `<p style="color:red; text-align:center;">Erro ao carregar dados: ${error.message}</p>`;
     } finally {
         if (loadingIndicator) loadingIndicator.style.display = 'none';
         IS_LOADING = false;
     }
-}
-
-
-// --- Funções Exportadas (Adaptadas) ---
-
-export function init() {
-    destroy();
-    // Busca os dados padrão e renderiza
-    fetchAndRenderData();
-}
-
-export function destroy() {
+}export function init() {
+    destroy();    fetchAndRenderData();
+}export function destroy() {
     const c = document.getElementById('daily-regional-table-container');
-    if (c) c.innerHTML = '';
-
-    DATA_MODEL = null;
-    IS_LOADING = false;
-
-    // Reseta filtros
-    PERIOD.start = '';
+    if (c) c.innerHTML = '';    DATA_MODEL = null;
+    IS_LOADING = false;    PERIOD.start = '';
     PERIOD.end = '';
     filterState.macro = '';
     filterState.service = '';
-    filterState.gerente = '';
-
-    // Limpa os filtros, mas não remove o container
-    const filtersEl = document.getElementById('dr-filters');
-    if (filtersEl) filtersEl.innerHTML = '';
-
-    // Remove apenas o botão de período que o script criou
-    document.getElementById('dr-period-btn')?.remove();
-
-    // Remove o listener do botão "Limpar" existente
-    const clearBtn = document.getElementById('dr-clear-all');
+    filterState.gerente = '';    const filtersEl = document.getElementById('dr-filters');
+    if (filtersEl) filtersEl.innerHTML = '';    document.getElementById('dr-period-btn')?.remove();    const clearBtn = document.getElementById('dr-clear-all');
     if (clearBtn) {
         clearBtn.removeEventListener('click', handleClearFilters);
-    }
-
-    // Esconde o header novamente
-    const headerEl = document.getElementById('dr-header');
-    if (headerEl) headerEl.style.display = 'none';
-
-    // Remove modais que possam estar abertos
-    document.querySelectorAll('.fixed.inset-0.bg-black\\/60')?.forEach(n => n.remove());
+    }    const headerEl = document.getElementById('dr-header');
+    if (headerEl) headerEl.style.display = 'none';    document.querySelectorAll('.fixed.inset-0.bg-black\\/60')?.forEach(n => n.remove());
 }

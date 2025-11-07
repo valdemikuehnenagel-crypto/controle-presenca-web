@@ -1,399 +1,425 @@
 <div class="p-2 efetivacoes-component-root">
-    <style>
+  <style>
+    .hc-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
 
-        .hc-actions {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
+    /* AJUSTES VISUAIS (cards flex + alturas maiores) */
+    .hcidx-card {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
 
-        .hc-actions select {
-            padding: 8px 10px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            background: #fff;
-            font-weight: 600;
-            color: #333;
-            font-size: 12px;
-            cursor: pointer;
-            min-width: 160px;
-        }
+    .hcidx-canvas-wrap {
+      position: relative;
+      width: 100%;
+      flex-grow: 1;
+      min-height: 520px; /* antes 400px */
+    }
 
-        .hcidx-toolbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
+    /* Full-width ainda maior */
+    .hcidx-card.hcidx-card--full .hcidx-canvas-wrap {
+      min-height: 640px;
+    }
 
-        #hc-idx-clear-filters {
-            padding: 8px 14px;
-            border: none;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            background: #003369;
-            color: #fff;
-        }
+    /* Títulos maiores e mais legíveis */
+    .hcidx-card-title {
+      font-size: 16px;
+      line-height: 1.25;
+      margin: 4px 0 8px;
+      color: #003369;
+      font-weight: 800;
+    }
 
-        .hcidx-loading {
-            position: absolute;
-            inset: 0;
-            background: rgba(255, 255, 255, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: #003369;
-            z-index: 10;
-        }
+    .hc-actions select {
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      background: #fff;
+      font-weight: 600;
+      color: #333;
+      font-size: 12px;
+      cursor: pointer;
+      min-width: 160px;
+    }
 
+    .hcidx-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
 
-        .hc-subtabs {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin: 8px 0 10px;
-            flex-wrap: wrap;
-            row-gap: 8px
-        }
+    #hc-idx-clear-filters {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #003369;
+      color: #fff;
+    }
 
-        .hc-subtab-btn {
-            padding: 8px 14px;
-            border: none;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            background: #e9eef7;
-            color: #003369;
-            transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, .06)
-        }
+    .hcidx-loading {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #003369;
+      z-index: 10;
+    }
 
-        .hc-subtab-btn:hover {
-            transform: translateY(-1px)
-        }
+    .hc-subtabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 10px;
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
 
-        .hc-subtab-btn.active {
-            background: #003369;
-            color: #fff;
-            box-shadow: 0 8px 18px rgba(0, 0, 0, .12)
-        }
+    .hc-subtab-btn {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #e9eef7;
+      color: #003369;
+      transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, .06);
+    }
 
+    .hc-subtab-btn:hover {
+      transform: translateY(-1px);
+    }
 
-        .efet-view-container {
-            flex: 1;
-            min-height: 0;
-            position: relative;
-        }
+    .hc-subtab-btn.active {
+      background: #003369;
+      color: #fff;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, .12);
+    }
 
-        .efet-view {
-            display: none;
-            flex-direction: column;
-            animation: fadeIn .2s ease-out both;
+    .efet-view-container {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+    }
 
-            height: 100%;
-        }
+    .efet-view {
+      display: none;
+      flex-direction: column;
+      animation: fadeIn .2s ease-out both;
+      height: 100%;
+    }
 
-        .efet-view.active {
-            display: flex;
-        }
+    .efet-view.active {
+      display: flex;
+    }
 
-        .muted {
-            color: #777;
-            font-weight: 600;
-            text-align: center;
-            padding: 20px;
-        }
+    .muted {
+      color: #777;
+      font-weight: 600;
+      text-align: center;
+      padding: 20px;
+    }
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
 
-        #efet-visao-regional .hcidx-grid {
+    #efet-visao-regional .hcidx-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: auto;
+      gap: 1rem;
+    }
 
-            display: grid;
+    /* Grid da aba SPAM x HC (larguras maiores) */
+    #spam-hc-view .hcidx-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); /* antes 400px */
+      gap: 1rem;
+      width: 100%;
+    }
 
+    .hcidx-card.hcidx-card--full {
+      grid-column: 1 / -1; /* Ocupa a linha inteira */
+    }
 
-            grid-template-columns: repeat(2, 1fr);
+    #efet-visao-regional .hcidx-card {
+      max-width: none;
+      width: 100%;
+    }
 
-            grid-template-rows: auto;
-        }
+    .efet-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px 20px;
+      margin-bottom: 10px;
+    }
 
-        #efet-visao-regional .hcidx-card {
+    .efet-header-bar > .hc-subtabs { margin: 0; }
+    .efet-header-bar > .hcidx-toolbar { margin: 0; }
+    .efet-header-bar .hc-actions { margin-bottom: 0; }
 
-            max-width: none;
-            width: 100%;
-        }
+    .table-container-wrapper {
+      flex-grow: 1;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+      display: flex;
+      flex-direction: column;
+    }
 
-        .efet-header-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px 20px;
-            margin-bottom: 10px;
-        }
+    .table-container {
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: #fff;
+    }
 
+    .table-container table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+    }
 
-        .efet-header-bar > .hc-subtabs {
-            margin: 0;
-        }
+    .table-container th,
+    .table-container td {
+      padding: 12px 10px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      font-size: 13px;
+      white-space: nowrap;
+    }
 
-        .efet-header-bar > .hcidx-toolbar {
-            margin: 0;
-        }
+    .table-container th {
+      background-color: #f9fafb;
+      font-weight: 700;
+      color: #003369;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
 
-        .efet-header-bar .hc-actions {
-            margin-bottom: 0;
-        }
+    .table-container td { color: #333; }
 
+    .table-container tr:hover { background-color: #f6f9ff; }
 
-        .table-container-wrapper {
-            flex-grow: 1;
-            overflow: hidden;
-            border-radius: 14px;
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 6px 16px rgba(0, 0, 0, .08);
-            display: flex;
-            flex-direction: column;
-        }
+    .table-container .text-center { text-align: center; }
 
-        .table-container {
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: #fff;
-        }
+    .efetivacoes-component-root {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      min-height: 0;
+    }
 
-        .table-container table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 800px;
-        }
+    .efetivacoes-component-root > #hc-indice.hcidx-root {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      min-height: 0;
+      padding: 8px;
+    }
 
-        .table-container th,
-        .table-container td {
-            padding: 12px 10px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-            font-size: 13px;
-            white-space: nowrap;
-        }
+    .efetivacoes-component-root .efet-header-bar { flex-shrink: 0; }
 
-        .table-container th {
-            background-color: #f9fafb;
-            font-weight: 700;
-            color: #003369;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-        }
+    .efetivacoes-component-root #efet-em-efetivacao .table-wrapper { margin-top: 0; }
 
-        .table-container td {
-            color: #333;
-        }
+    .container.travar-scroll-pagina { overflow-y: hidden !important; }
 
-        .table-container tr:hover {
-            background-color: #f6f9ff;
-        }
+    /* Em telas bem grandes, cresce mais um pouco */
+    @media (min-width: 1280px) {
+      .hcidx-canvas-wrap { min-height: 560px; }
+      .hcidx-card.hcidx-card--full .hcidx-canvas-wrap { min-height: 720px; }
+    }
+  </style>
 
-        .table-container .text-center {
-            text-align: center;
-        }
+  <div id="hc-indice" class="hcidx-root">
+    <div class="efet-header-bar">
+      <div class="hc-subtabs">
+        <button class="hc-subtab-btn efet-subtab-btn active" data-view="efet-visao-service">Visão Service</button>
+        <button class="hc-subtab-btn efet-subtab-btn" data-view="efet-visao-regional">Visão Regional</button>
+          <button class="hc-subtab-btn efet-subtab-btn" data-view="spam-hc-view">Spam x HC</button>
+        <button class="hc-subtab-btn efet-subtab-btn" data-view="efet-em-efetivacao">Em Efetivação</button>
 
+      </div>
 
-
-
-        .efetivacoes-component-root {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 0;
-            min-height: 0;
-        }
-
-
-        .efetivacoes-component-root > #hc-indice.hcidx-root {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            min-height: 0;
-            padding: 8px;
-        }
-
-
-        .efetivacoes-component-root .efet-header-bar {
-            flex-shrink: 0;
-        }
-
-
-        .efetivacoes-component-root #efet-em-efetivacao .table-wrapper {
-            margin-top: 0;
-        }
-
-
-        .container.travar-scroll-pagina {
-            overflow-y: hidden !important;
-        }
-
-    </style>
-
-    <div id="hc-indice" class="hcidx-root">
-
-        <div class="efet-header-bar">
-
-            <div class="hc-subtabs">
-                <button class="hc-subtab-btn efet-subtab-btn active" data-view="efet-visao-service">
-                    Visão Service
-                </button>
-                <button class="hc-subtab-btn efet-subtab-btn" data-view="efet-visao-regional">
-                    Visão Regional
-                </button>
-
-                <button class="hc-subtab-btn efet-subtab-btn" data-view="efet-em-efetivacao">
-                    Em Efetivação
-                </button>
-            </div>
-
-            <div class="hcidx-toolbar">
-                <div class="hc-actions">
-                    <select id="efet-filter-matriz">
-                        <option value="">Matriz</option>
-                    </select>
-                    <select id="efet-filter-svc">
-                        <option value="">SVC</option>
-                    </select>
-                    <select id="efet-filter-regiao">
-                        <option value="">Região</option>
-                    </select>
-                </div>
-                <button id="hc-idx-clear-filters" class="btn-add">Limpar Filtros</button>
-            </div>
-
+      <div class="hcidx-toolbar">
+        <div class="hc-actions">
+          <select id="efet-filter-matriz">
+            <option value="">Matriz</option>
+          </select>
+          <select id="efet-filter-svc">
+            <option value="">SVC</option>
+          </select>
+          <select id="efet-filter-regiao">
+            <option value="">Região</option>
+          </select>
         </div>
-
-        <div class="efet-view-container">
-
-            <div id="efet-visao-service" class="efet-view active">
-
-                <div class="hcidx-grid">
-                    <div class="hcidx-card">
-                        <h3 class="hcidx-card-title">Idade % por Turno</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="ind-idade-bar"></canvas>
-                        </div>
-                    </div>
-                    <div class="hcidx-card">
-                        <h3 class="hcidx-card-title">Gênero % por Turno</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="ind-genero-bar"></canvas>
-                        </div>
-                    </div>
-                    <div class="hcidx-card">
-                        <h3 class="hcidx-card-title">DSR% por Dia</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="ind-dsr-pie"></canvas>
-                        </div>
-                    </div>
-                    <div class="hcidx-card hcidx-card--full">
-                        <h3 class="hcidx-card-title">Efetivo x Temporário - Turno</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="ind-contrato-bar"></canvas>
-                        </div>
-                    </div>
-                    <div class="hcidx-card hcidx-card--full">
-                        <h3 class="hcidx-card-title">Efetivo x Temporário</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="ind-contrato-svc-bar"></canvas>
-                        </div>
-                    </div>
-                    <div class="hcidx-card hcidx-card--full">
-                        <h3 class="hcidx-card-title">Tempo de Casa - Temporários</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="ind-contrato-90d-svc-bar"></canvas>
-                        </div>
-                    </div>
-                    <div class="hcidx-card hcidx-card--full">
-                        <h3 class="hcidx-card-title">Auxiliar x Conferente</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="ind-cargo-svc-bar"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <div id="efet-visao-regional" class="efet-view">
-                <div class="hcidx-grid">
-                    <div class="hcidx-card">
-                        <h3 class="hcidx-card-title">Idade % por Região</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="reg-idade-bar"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="hcidx-card">
-                        <h3 class="hcidx-card-title">Gênero % por Região</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="reg-genero-bar"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="hcidx-card"><h3 class="hcidx-card-title">Efetivo x Temporário % por
-                        Região</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="reg-contrato-bar"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="hcidx-card"><h3 class="hcidx-card-title">Tempo de Casa - Temporários por
-                        Região</h3>
-                        <div class="hcidx-canvas-wrap">
-                            <canvas id="reg-aux-30-60-90-bar"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="efet-em-efetivacao" class="efet-view">
-
-                <div class="table-wrapper">
-
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Fluxo</th>
-                                <th>Status</th>
-                                <th>Nome do Colaborador</th>
-                                <th>Data do Fluxo</th>
-                                <th>Observação</th>
-                                <th>SVC</th>
-                                <th>Região</th>
-                            </tr>
-                        </thead>
-                        <tbody id="efet-table-tbody">
-                            <tr>
-                                <td colspan="7" class="text-center p-4">Carregando...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
-
-        <div id="hcidx-busy" class="hcidx-loading" style="display:none;">Carregando…</div>
-
+        <button id="hc-idx-clear-filters" class="btn-add">Limpar Filtros</button>
+      </div>
     </div>
+
+    <div class="efet-view-container">
+      <!-- Visão Service -->
+      <div id="efet-visao-service" class="efet-view active">
+        <div class="hcidx-grid">
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">Idade % por Turno</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="ind-idade-bar"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">Gênero % por Turno</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="ind-genero-bar"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">DSR% por Dia</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="ind-dsr-pie"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card hcidx-card--full">
+            <h3 class="hcidx-card-title">Efetivo x Temporário - Turno</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="ind-contrato-bar"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card hcidx-card--full">
+            <h3 class="hcidx-card-title">Efetivo x Temporário</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="ind-contrato-svc-bar"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card hcidx-card--full">
+            <h3 class="hcidx-card-title">Tempo de Casa - Temporários</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="ind-contrato-90d-svc-bar"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visão Regional -->
+      <div id="efet-visao-regional" class="efet-view">
+        <div class="hcidx-grid">
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">Idade % por Região</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="reg-idade-bar"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">Gênero % por Região</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="reg-genero-bar"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">Efetivo x Temporário % por Região</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="reg-contrato-bar"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">Tempo de Casa - Temporários por Região</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="reg-aux-30-60-90-bar"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Em Efetivação -->
+      <div id="efet-em-efetivacao" class="efet-view">
+        <div class="table-container-wrapper">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fluxo</th>
+                  <th>Status</th>
+                  <th>Nome do Colaborador</th>
+                  <th>Data do Fluxo</th>
+                  <th>Observação</th>
+                  <th>SVC</th>
+                  <th>Região</th>
+                </tr>
+              </thead>
+              <tbody id="efet-table-tbody">
+                <tr>
+                  <td colspan="7" class="text-center p-4">Carregando...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SPAM x HC -->
+      <div id="spam-hc-view" class="efet-view">
+        <div class="hcidx-grid">
+          <div class="hcidx-card hcidx-card--full">
+            <h3 class="hcidx-card-title">Spam SVC (Evolução Mensal)</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="spam-chart-evolucao-svc"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card hcidx-card--full">
+            <h3 class="hcidx-card-title">Spam vs HC Real</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="spam-chart-hc-vs-aux"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">Spam Regional (Evolução Mensal)</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="spam-chart-evolucao-regiao"></canvas>
+            </div>
+          </div>
+
+          <div class="hcidx-card">
+            <h3 class="hcidx-card-title">HC por Gerencia</h3>
+            <div class="hcidx-canvas-wrap">
+              <canvas id="spam-chart-gerente-mes"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="hcidx-busy" class="hcidx-loading" style="display:none;">Carregando…</div>
+  </div>
 </div>

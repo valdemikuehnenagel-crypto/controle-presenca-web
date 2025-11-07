@@ -4,14 +4,10 @@ let subtabButtons = [];
 let contentArea = null;
 let isLoadingSubpage = false;
 let subpageLoadToken = 0;
-const subpageModules = import.meta.glob('/src/pages/*.js');
-
-async function loadSubpage(pageName) {
+const subpageModules = import.meta.glob('/src/pages/*.js');async function loadSubpage(pageName) {
     if (!pageName || isLoadingSubpage) return;
     isLoadingSubpage = true;
-    const myToken = ++subpageLoadToken;
-
-    if (contentArea) {
+    const myToken = ++subpageLoadToken;    if (contentArea) {
         contentArea.style.opacity = '0';
         await new Promise(resolve => setTimeout(resolve, 150));
         if (myToken !== subpageLoadToken) {
@@ -20,11 +16,7 @@ async function loadSubpage(pageName) {
         }
         contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando ${pageName}...</div>`;
         contentArea.style.opacity = '1';
-    }
-
-    try {
-
-        if (currentSubpageModule && typeof currentSubpageModule.destroy === 'function') {
+    }    try {        if (currentSubpageModule && typeof currentSubpageModule.destroy === 'function') {
             await currentSubpageModule.destroy();
         }
         currentSubpageModule = null;
@@ -32,9 +24,7 @@ async function loadSubpage(pageName) {
         if (!htmlResponse.ok) {
             throw new Error(`HTML da sub-página ${pageName} não encontrado (HTTP ${htmlResponse.status}).`);
         }
-        const htmlContent = await htmlResponse.text();
-
-        if (myToken !== subpageLoadToken) return;
+        const htmlContent = await htmlResponse.text();        if (myToken !== subpageLoadToken) return;
         if (contentArea) {
             contentArea.innerHTML = htmlContent;
         }
@@ -49,9 +39,7 @@ async function loadSubpage(pageName) {
         currentSubpage = pageName;
         if (currentSubpageModule && typeof currentSubpageModule.init === 'function') {
             await currentSubpageModule.init();
-        }
-
-    } catch (error) {
+        }    } catch (error) {
         console.error(`Falha ao carregar a sub-página ${pageName}:`, error);
         if (contentArea && myToken === subpageLoadToken) {
             contentArea.innerHTML = `<p class="p-4 text-red-500">Erro ao carregar a interface da sub-aba "${pageName}".</p>`;
@@ -62,14 +50,10 @@ async function loadSubpage(pageName) {
             if (contentArea) contentArea.style.opacity = '1';
         }
     }
-}
-
-export async function init() {
+}export async function init() {
     console.log("Inicializando Gerot Meli...");
     contentArea = document.getElementById('gerotmeli-content-area');
-    subtabButtons = document.querySelectorAll('#tab-gerotmeli .subtab-btn');
-
-    subtabButtons.forEach(button => {
+    subtabButtons = document.querySelectorAll('#tab-gerotmeli .subtab-btn');    subtabButtons.forEach(button => {
         button.addEventListener('click', handleSubtabClick);
     });
     const defaultSubpage = 'daily-regional';
@@ -77,40 +61,28 @@ export async function init() {
     if (defaultButton) {
         defaultButton.classList.add('active');
         await loadSubpage(defaultSubpage);
-    } else if (subtabButtons.length > 0) {
-
-        subtabButtons[0].classList.add('active');
+    } else if (subtabButtons.length > 0) {        subtabButtons[0].classList.add('active');
         await loadSubpage(subtabButtons[0].dataset.subpage);
     }
-}
-
-function handleSubtabClick(event) {
+}function handleSubtabClick(event) {
     if (isLoadingSubpage) return;
     const clickedButton = event.currentTarget;
-    const subpageToLoad = clickedButton.dataset.subpage;
-
-    if (subpageToLoad && subpageToLoad !== currentSubpage) {
+    const subpageToLoad = clickedButton.dataset.subpage;    if (subpageToLoad && subpageToLoad !== currentSubpage) {
         subtabButtons.forEach(btn => btn.classList.remove('active'));
         clickedButton.classList.add('active');
         loadSubpage(subpageToLoad);
     }
-}
-
-export async function destroy() {
+}export async function destroy() {
     console.log("Destruindo Gerot Meli...");
     subtabButtons.forEach(button => {
         button.removeEventListener('click', handleSubtabClick);
-    });
-
-    if (currentSubpageModule && typeof currentSubpageModule.destroy === 'function') {
+    });    if (currentSubpageModule && typeof currentSubpageModule.destroy === 'function') {
         try {
             await currentSubpageModule.destroy();
         } catch (e) {
             console.warn(`Erro ao destruir sub-módulo ${currentSubpage}:`, e);
         }
-    }
-
-    contentArea = null;
+    }    contentArea = null;
     subtabButtons = [];
     currentSubpage = null;
     currentSubpageModule = null;
