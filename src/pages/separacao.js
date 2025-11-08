@@ -17,7 +17,9 @@ let state = {
     selectedDock: null,
     selectedIlha: null,
     globalScannerInstance: null,
-    currentScannerTarget: null, pendingDecodedText: null,
+    currentScannerTarget: null,
+    pendingDecodedText: null,
+    lastPrintData: null,
 };
 let dom = {
     dashboard: null,
@@ -77,14 +79,48 @@ let dom = {
     });
 }function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}async function printEtiqueta() {
-    await waitForPaint();
-    if (dom.sepQrArea) {
-        dom.sepQrArea.offsetHeight;
+}async function printEtiqueta({imgSrc, titleHtml}) {
+    if (!imgSrc || !titleHtml) {
+        console.error("printEtiqueta chamada sem dados de imagem ou título.");
+        return;
     }
-    await waitForPaint();
-    await sleep(200);
-    window.print();
+    const printWindow = window.open('', '_blank', 'width=350,height=450,resizable=yes');
+    if (!printWindow) {
+        alert("ERRO: Falha ao abrir janela de impressão. Verifique se o pop-up foi bloqueado pelo navegador.");
+        return;
+    }
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Imprimir Etiqueta</title>
+            <style>
+                body { margin: 0; padding: 10px; font-family: sans-serif; text-align: center; }
+                .qr-area { width: 300px; text-align: center; display: inline-block; }                .qr-num { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
+                .qr-rota { font-size: 20px; color: #333; margin-bottom: 10px; }
+                img { width: 300px; height: 300px; max-width: 100%; }                @page { size: auto; margin: 0mm; }
+            </style>
+        </head>
+        <body>
+            <div class="qr-area">
+                ${titleHtml}
+                <img id="qrImg" />
+            </div>
+        </body>
+        </html>
+    `);
+    const img = printWindow.document.getElementById('qrImg');
+    img.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+    };
+    img.onerror = () => {
+        console.error("Falha ao carregar imagem na janela de impressão.");
+        printWindow.alert("Falha ao carregar QR Code. Tente novamente.");
+        printWindow.close();
+    };
+    img.src = imgSrc;
+    printWindow.document.close();
 }function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
@@ -206,10 +242,13 @@ let dom = {
     content.innerHTML = `
     <div class="flex justify-between items-center mb-4 border-b pb-2">
       <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>
-    </div>    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>    <button id="auditoria-scanner-cancel" type="button"
+    </div>
+    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
+    <button id="auditoria-scanner-cancel" type="button"
       class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
       Cancelar
-    </button>    <div id="scanner-feedback-overlay"
+    </button>
+    <div id="scanner-feedback-overlay"
       class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
       style="z-index: 10;">
       <span class="text-white text-2xl font-bold text-center"></span>
@@ -218,7 +257,8 @@ let dom = {
         style="display: none;">
         Fechar
       </button>
-    </div>    <div id="scanner-confirm-overlay"
+    </div>
+    <div id="scanner-confirm-overlay"
       class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
       style="z-index: 20;">
       <div class="text-white text-center">
@@ -408,8 +448,8 @@ let dom = {
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
         const idPacoteParaQr = pacote || idPacote;
-        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printEtiqueta();
+        const printData = await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printEtiqueta(printData);
         if (isDuplicate) {
             const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
             showScannerFeedback('error', friendly, true);
@@ -582,11 +622,12 @@ let dom = {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
+    state.lastPrintData = null;
 }function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
-            console.warn('DOM do QR Code não encontrado, pulando geração.');
-            return resolve();
+            console.error('DOM do QR Code não encontrado');
+            return reject(new Error('DOM do QR Code não encontrado'));
         }
         clearSepQrCanvas();
         try {
@@ -594,23 +635,28 @@ let dom = {
             qr.addData(String(dataForQr));
             qr.make();
             const svgString = qr.createSvgTag(10, 10);
-            const img = new Image();
-            img.onload = () => {
-                dom.sepQrCanvas.appendChild(img);
+            const imgSrc = 'data:image/svg+xml;base64,' + btoa(svgString);
+            const imgParaTela = new Image();
+            imgParaTela.onload = () => {
+                dom.sepQrCanvas.appendChild(imgParaTela);
                 const labelPrincipal = mangaLabel || dataForQr;
-                dom.sepQrTitle.innerHTML =
+                const titleHtml =
                     `<div class="qr-num">${labelPrincipal}</div>` +
                     (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
+                dom.sepQrTitle.innerHTML = titleHtml;
                 dom.sepQrArea.style.display = 'block';
-                resolve();
+                const printData = {imgSrc, titleHtml};
+                state.lastPrintData = printData;
+                resolve(printData);
             };
-            img.onerror = (err) => {
+            imgParaTela.onerror = (err) => {
                 console.error('Falha ao carregar o QR Code SVG como imagem.', err);
+                state.lastPrintData = null;
                 reject(new Error('Falha ao renderizar QR Code'));
             };
-            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
-            img.style.width = '100%';
-            img.style.height = 'auto';
+            imgParaTela.src = imgSrc;
+            imgParaTela.style.width = '100%';
+            imgParaTela.style.height = 'auto';
         } catch (err) {
             console.error('Erro durante a geração do qrcode-generator:', err);
             reject(err);
@@ -654,8 +700,8 @@ let dom = {
             const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
             if (!numeracao) throw new Error('Resposta não contém numeração');
             const idPacoteParaQr = pacote || idPacote;
-            await generateQRCode(idPacoteParaQr, ilha, numeracao);
-            await printEtiqueta();
+            const printData = await generateQRCode(idPacoteParaQr, ilha, numeracao);
+            await printEtiqueta(printData);
             if (isDuplicate) {
                 fail++;
                 setSepStatus(`Falhou ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
@@ -710,8 +756,8 @@ let dom = {
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
         const idPacoteParaQr = pacote || idPacote;
-        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printEtiqueta();
+        const printData = await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printEtiqueta(printData);
         dom.sepScan.value = '';
         if (isDuplicate) {
             const friendly = message || 'Pacote já bipado. Reimpressão solicitada.';
@@ -1011,9 +1057,13 @@ let dom = {
     dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
     dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
-            await printEtiqueta();
+            if (state.lastPrintData) {
+                await printEtiqueta(state.lastPrintData);
+            } else {
+                setSepStatus("Gere um QR Code primeiro para reimprimir.", {error: true});
+            }
         } catch (e) {
-            console.error('Falha ao imprimir etiqueta:', e);
+            console.error('Falha ao reimprimir etiqueta:', e);
         }
     });
     document.addEventListener('keydown', (e) => {
@@ -1044,7 +1094,7 @@ let dom = {
     }).catch(err => {
         console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
     });
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V15 - Pré-cache + Scan Lento + Reimpressão].');
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V17 - Correção Final Scanner/Pop-up].');
 }export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();
@@ -1052,6 +1102,7 @@ let dom = {
     state.cacheData = [];
     state.globalScannerInstance = null;
     state.currentScannerTarget = null;
+    state.lastPrintData = null;
     dom = {};
     initOnce = false;
 }if (typeof document !== 'undefined') {
