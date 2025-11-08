@@ -1,7 +1,5 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-import qrcode from 'qrcode-generator';
-
-const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import qrcode from 'qrcode-generator';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
@@ -47,25 +45,19 @@ let dom = {
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
     scannerConfirmNoBtn: null,
-};
-
-function buildFunctionHeaders() {
+};function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}
-
-function buildSelectHeaders() {
+}function buildSelectHeaders() {
     return {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         Range: '0-1000',
     };
-}
-
-function formatarDataHora(isoString) {
+}function formatarDataHora(isoString) {
     if (!isoString) return '---';
     try {
         const dt = new Date(isoString);
@@ -79,37 +71,26 @@ function formatarDataHora(isoString) {
     } catch {
         return isoString;
     }
-}
-
-function waitForPaint() {
+}function waitForPaint() {
     return new Promise((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
     });
-}
-
-function sleep(ms) {
+}function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function printEtiqueta() {
-
-
-
-
-
+}async function printEtiqueta() {
     await waitForPaint();
-
+    if (dom.sepQrArea) {
+        dom.sepQrArea.offsetHeight;
+    }
+    await waitForPaint();
+    await sleep(200);
     window.print();
-}
-
-function extractElevenDigits(str) {
+}function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}
-
-function normalizeScanned(input) {
+}function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
     if (s.startsWith('{') && s.endsWith('}')) {
@@ -125,9 +106,7 @@ function normalizeScanned(input) {
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}
-
-function openModal(modal) {
+}function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
@@ -157,9 +136,7 @@ function openModal(modal) {
     modal.addEventListener('click', modal._bound.onOverlayClick, true);
     const first = modal.querySelector('input, button, [tabindex]:not([tabindex="-1"])');
     if (first) setTimeout(() => first.focus(), 50);
-}
-
-function closeModal(modal) {
+}function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add('hidden');
@@ -167,16 +144,12 @@ function closeModal(modal) {
     if (modal._bound?.onKeyDown) document.removeEventListener('keydown', modal._bound.onKeyDown);
     if (modal._bound?.onOverlayClick) modal.removeEventListener('click', modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}
-
-function resetSeparacaoModal() {
+}function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
-}
-
-function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
+}function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
     if (!preserveDock) {
@@ -187,9 +160,7 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = '';
     if (dom.carScan) dom.carScan.value = '';
     setCarStatus('');
-}
-
-function showScannerFeedback(type, message, sticky = false) {
+}function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector('span');
     if (textEl) textEl.textContent = message;
@@ -203,9 +174,7 @@ function showScannerFeedback(type, message, sticky = false) {
         dom.scannerFeedbackCloseBtn.style.display = 'block';
         if (!sticky) setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1500);
     }
-}
-
-function showScannerConfirm(decodedText, onYes, onNo) {
+}function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -224,9 +193,7 @@ function showScannerConfirm(decodedText, onYes, onNo) {
     };
     dom.scannerConfirmYesBtn.addEventListener('click', yesHandler);
     dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
-}
-
-function createGlobalScannerModal() {
+}function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'auditoria-scanner-modal';
@@ -294,9 +261,7 @@ function createGlobalScannerModal() {
             }
         }
     });
-}
-
-function injectScannerButtons() {
+}function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [
         {input: dom.sepScan, id: 'sep-cam-btn'},
@@ -317,9 +282,7 @@ function injectScannerButtons() {
     });
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
-}
-
-function startGlobalScanner(targetModal) {
+}function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -372,9 +335,7 @@ function startGlobalScanner(targetModal) {
         setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
-}
-
-function stopGlobalScanner() {
+}function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add('hidden');
         if (dom._currentModal) {
@@ -402,9 +363,7 @@ function stopGlobalScanner() {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}
-
-async function onGlobalScanSuccess(decodedText) {
+}async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -431,12 +390,8 @@ async function onGlobalScanSuccess(decodedText) {
             state.globalScannerInstance?.resume();
         }
     );
-}
-
-function onGlobalScanError(_) {
-}
-
-async function handleSeparacaoFromScanner(idPacote) {
+}function onGlobalScanError(_) {
+}async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
     const usuarioEntrada = dom.sepUser?.value?.trim();
     if (!usuarioEntrada) {
@@ -482,9 +437,7 @@ async function handleSeparacaoFromScanner(idPacote) {
     } finally {
         state.isSeparaçãoProcessing = false;
     }
-}
-
-async function handleCarregamentoFromScanner(decodedText) {
+}async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
     const cleaned = normalizeScanned(decodedText);
     try {
@@ -507,9 +460,7 @@ async function handleCarregamentoFromScanner(decodedText) {
     } finally {
         state.isCarregamentoProcessing = false;
     }
-}
-
-async function fetchDashboardData() {
+}async function fetchDashboardData() {
     const now = new Date();
     now.setHours(now.getHours() - 24);
     const yesterday = now.toISOString();
@@ -528,9 +479,7 @@ async function fetchDashboardData() {
         console.error('Falha ao carregar placar:', err);
         if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
     }
-}
-
-function calculateStats(data) {
+}function calculateStats(data) {
     const stats = {
         totalSeparacao: data.length,
         totalCarregamento: 0,
@@ -545,9 +494,7 @@ function calculateStats(data) {
         totalCarregamento: stats.totalCarregamento,
         totalDocasAtivas: stats.docasAtivas.size,
     };
-}
-
-function renderDashboard() {
+}function renderDashboard() {
     const container = dom.dashboard;
     if (!container) return;
     if (state.cacheData.length === 0) {
@@ -607,14 +554,10 @@ function renderDashboard() {
     </div>
   `;
     container.innerHTML = html;
-}
-
-async function fetchAndRenderDashboard() {
+}async function fetchAndRenderDashboard() {
     await fetchDashboardData();
     renderDashboard();
-}
-
-function reorderControlsOverDashboard() {
+}function reorderControlsOverDashboard() {
     const root = document.getElementById('tab-auditoria-mangas');
     if (!root) return;
     const btn1 = document.getElementById('btn-iniciar-separacao');
@@ -630,84 +573,50 @@ function reorderControlsOverDashboard() {
     }
     if (btn1.parentElement !== bar) bar.appendChild(btn1);
     if (btn2.parentElement !== bar) bar.appendChild(btn2);
-}
-
-function setSepStatus(message, {error = false} = {}) {
+}function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
     dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}
-
-function clearSepQrCanvas() {
+}function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
-}
-
-function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
-
-
+}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
             console.warn('DOM do QR Code não encontrado, pulando geração.');
             return resolve();
         }
-
         clearSepQrCanvas();
-
         try {
-
             const qr = qrcode(0, 'M');
             qr.addData(String(dataForQr));
             qr.make();
-
-
             const svgString = qr.createSvgTag(10, 10);
-
-
             const img = new Image();
-
-
-
             img.onload = () => {
-
-
                 dom.sepQrCanvas.appendChild(img);
-
-
                 const labelPrincipal = mangaLabel || dataForQr;
                 dom.sepQrTitle.innerHTML =
                     `<div class="qr-num">${labelPrincipal}</div>` +
                     (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
-
-
                 dom.sepQrArea.style.display = 'block';
-
-
                 resolve();
             };
-
-
             img.onerror = (err) => {
                 console.error('Falha ao carregar o QR Code SVG como imagem.', err);
                 reject(new Error('Falha ao renderizar QR Code'));
             };
-
-
-
             img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
             img.style.width = '100%';
             img.style.height = 'auto';
-
         } catch (err) {
             console.error('Erro durante a geração do qrcode-generator:', err);
             reject(err);
         }
     });
-}
-
-async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
     const response = await fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
@@ -719,24 +628,18 @@ async function processarPacote(idPacote, dataScan, usuarioEntrada) {
         throw new Error(json?.error || 'Erro desconhecido');
     }
     return json;
-}
-
-function handleSepUserKeydown(e) {
+}function handleSepUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}
-
-function parseBulkEntries(raw) {
+}function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map(s => s.trim())
         .filter(s => s.length > 0);
-}
-
-async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
     let ok = 0, fail = 0;
     state.isSeparaçãoProcessing = true;
@@ -773,9 +676,7 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}
-
-async function handleSeparaçãoSubmit(e) {
+}async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
     if (state.isSeparaçãoProcessing) return;
     e.preventDefault();
@@ -832,20 +733,14 @@ async function handleSeparaçãoSubmit(e) {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}
-
-function setCarStatus(message, {error = false} = {}) {
+}function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
     dom.carStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.carStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}
-
-function formatDockLabel(n) {
+}function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, '0')}`;
-}
-
-function ensureDockSelect() {
+}function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById('car-dock-select');
     if (!dom.carDockSelect) {
@@ -885,9 +780,7 @@ function ensureDockSelect() {
     dom.carDockSelect.addEventListener('change', () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}
-
-function ensureIlhaSelect() {
+}function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
     if (!dom.carIlhaSelect) {
@@ -912,9 +805,7 @@ function ensureIlhaSelect() {
     dom.carIlhaSelect.addEventListener('change', () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}
-
-function populateIlhaSelect() {
+}function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
     rotas.sort();
@@ -933,9 +824,7 @@ function populateIlhaSelect() {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}
-
-async function processarValidacao(numeracao, usuarioSaida, doca) {
+}async function processarValidacao(numeracao, usuarioSaida, doca) {
     const body = {numeracao, usuario_saida: usuarioSaida, doca};
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
@@ -952,9 +841,7 @@ async function processarValidacao(numeracao, usuarioSaida, doca) {
         throw new Error(msg);
     }
     return json || {};
-}
-
-function handleCarUserKeydown(e) {
+}function handleCarUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -965,9 +852,7 @@ function handleCarUserKeydown(e) {
             dom.carScan.focus();
         }
     }
-}
-
-async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
@@ -1012,9 +897,7 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
         };
         return {success: false, message: `Erro: ${msg}`};
     }
-}
-
-async function handleCarregamentoSubmit(e) {
+}async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -1050,11 +933,7 @@ async function handleCarregamentoSubmit(e) {
             dom.carScan.focus();
         }
     }
-}
-
-let initOnce = false;
-
-export function init() {
+}let initOnce = false;export function init() {
     if (initOnce) return;
     initOnce = true;
     dom.dashboard = document.getElementById('dashboard-stats');
@@ -1166,9 +1045,7 @@ export function init() {
         console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
     });
     console.log('Módulo de Auditoria (Dashboard) inicializado [V15 - Pré-cache + Scan Lento + Reimpressão].');
-}
-
-export function destroy() {
+}export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
@@ -1177,9 +1054,7 @@ export function destroy() {
     state.currentScannerTarget = null;
     dom = {};
     initOnce = false;
-}
-
-if (typeof document !== 'undefined') {
+}if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             try {
