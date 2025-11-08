@@ -9,7 +9,8 @@ const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.CODE_39,
     Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.UPC_A,
-];let state = {
+];
+const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     cacheData: [],
     isSeparaçãoProcessing: false,
     isCarregamentoProcessing: false,
@@ -19,10 +20,13 @@ const SUPPORTED_FORMATS = [
     currentScannerTarget: null,
     pendingDecodedText: null,
     lastPrintData: null,
+    period: {start: null, end: null},
 };let dom = {
     dashboard: null,
     btnSeparação: null,
-    btnCarregamento: null, modalSeparação: null,
+    btnCarregamento: null,
+    periodBtn: null,
+    modalSeparação: null,
     modalSepClose: null,
     sepUser: null,
     sepScan: null,
@@ -31,21 +35,50 @@ const SUPPORTED_FORMATS = [
     sepQrTitle: null,
     sepQrCanvas: null,
     sepPrintBtn: null,
-    sepCamBtn: null, modalCarregamento: null,
+    sepCamBtn: null,
+    modalCarregamento: null,
     modalCarClose: null,
     carUser: null,
     carDockSelect: null,
     carIlhaSelect: null,
     carScan: null,
     carStatus: null,
-    carCamBtn: null, scannerModal: null,
+    carCamBtn: null,
+    scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null, scannerFeedbackOverlay: null,
     scannerFeedbackCloseBtn: null, scannerConfirmOverlay: null,
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
     scannerConfirmNoBtn: null,
-};function buildFunctionHeaders() {
+    relatorioModal: null,
+    relatorioModalClose: null,
+    relatorioTitle: null,
+    relatorioBody: null,
+};function getBrasiliaDate(asDateObject = false) {
+    const date = new Date();
+    const formatter = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: BRASILIA_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });    if (asDateObject) {
+        const parts = formatter.format(date).split('-').map(Number);
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+    }    return formatter.format(date);
+}function clampEndToToday(startStr, endStr) {
+    const todayISO = getBrasiliaDate(false);
+    if (endStr > todayISO) {
+        endStr = todayISO;
+    }
+    if (startStr > endStr) {
+        startStr = endStr;
+    }
+    return [startStr, endStr];
+}function toast(message, type = 'info') {
+    console.warn(`TOAST (${type}):`, message);
+    alert(message);
+}function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
@@ -67,9 +100,23 @@ const SUPPORTED_FORMATS = [
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
+            second: '2-digit'
         });
     } catch {
-        return isoString;
+        return '---';
+    }
+}function formatarDataInicio(isoString) {
+    if (!isoString) return '---';
+    try {
+        const dt = new Date(isoString);
+        return dt.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).replace(',', '') + 'h';
+    } catch {
+        return '---';
     }
 }function waitForPaint() {
     return new Promise((resolve) => {
@@ -77,10 +124,16 @@ const SUPPORTED_FORMATS = [
     });
 }function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}async function printCurrentQr() {    if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
-        setSepStatus("Primeiro gere um QR Code para imprimir.", { error: true });
+}async function printCurrentQr() {
+    if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
+        setSepStatus("Primeiro gere um QR Code para imprimir.", {error: true});
         return;
-    }    await waitForPaint();    dom.sepQrArea.offsetHeight;    await waitForPaint();    await sleep(400);    window.print();
+    }
+    await waitForPaint();
+    dom.sepQrArea.offsetHeight;
+    await waitForPaint();
+    await sleep(400);
+    window.print();
 }function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
@@ -407,11 +460,7 @@ const SUPPORTED_FORMATS = [
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
-        const idPacoteParaQr = pacote || idPacote;        state.lastPrintData = {
-            dataForQr: idPacoteParaQr,
-            ilha: ilha,
-            mangaLabel: numeracao
-        };        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        const idPacoteParaQr = pacote || idPacote;        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);
         await printCurrentQr();        if (isDuplicate) {
             const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
             showScannerFeedback('error', friendly, true);
@@ -427,9 +476,14 @@ const SUPPORTED_FORMATS = [
             }
             showScannerFeedback('success', successMsg);            if (state.globalScannerInstance) {
                 setTimeout(() => {
-                    state.globalScannerInstance.resume();
+                    try {
+                        state.globalScannerInstance.resume();
+                    } catch (e) {
+                        console.warn("Erro ao resumir scanner:", e);
+                    }
                 }, 750);
-            }        }
+            }
+        }
     } catch (err) {
         console.error('Erro Separação (Scanner):', err);
         const friendly = `ERRO: ${err.message || err}`;
@@ -465,16 +519,16 @@ const SUPPORTED_FORMATS = [
         state.isCarregamentoProcessing = false;
     }
 }async function fetchDashboardData() {
-    const now = new Date();
-    now.setHours(now.getHours() - 24);
-    const yesterday = now.toISOString();
-    const query = new URLSearchParams({
-        select: '*',
-        DATA: `gte.${yesterday}`,
-        order: 'DATA.desc',
-    });
-    const url = `${SUPABASE_URL}/rest/v1/Carregamento?${query.toString()}`;
-    try {
+    if (!state.period.start || !state.period.end) {
+        const todayISO = getBrasiliaDate(false);
+        state.period.start = todayISO;
+        state.period.end = todayISO;
+    }    const startDate = `${state.period.start}T00:00:00-03:00`;
+    const endDate = `${state.period.end}T23:59:59-03:00`;    const query = new URLSearchParams();
+    query.append('select', '*');
+    query.append('DATA', `gte.${startDate}`);
+    query.append('DATA', `lte.${endDate}`);
+    query.append('order', 'DATA.desc');    const url = `${SUPABASE_URL}/rest/v1/Carregamento?${query.toString()}`;    try {
         const response = await fetch(url, {headers: buildSelectHeaders()});
         if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);
         const data = await response.json();
@@ -483,81 +537,118 @@ const SUPPORTED_FORMATS = [
         console.error('Falha ao carregar placar:', err);
         if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
     }
-}function calculateStats(data) {
-    const stats = {
-        totalSeparacao: data.length,
-        totalCarregamento: 0,
-        docasAtivas: new Set(),
-    };
+}function processDashboardData(data) {
+    if (!data || data.length === 0) return [];
+    const rotasMap = new Map();
     for (const item of data) {
-        if (item.VALIDACAO === 'BIPADO') stats.totalCarregamento += 1;
-        if (item.DOCA) stats.docasAtivas.add(item.DOCA);
+        const rota = item.ROTA;
+        if (!rota) continue;
+        if (!rotasMap.has(rota)) {
+            rotasMap.set(rota, []);
+        }
+        rotasMap.get(rota).push(item);
     }
-    return {
-        totalSeparacao: stats.totalSeparacao,
-        totalCarregamento: stats.totalCarregamento,
-        totalDocasAtivas: stats.docasAtivas.size,
-    };
+    const rotasConsolidadas = [];
+    for (const [rota, items] of rotasMap.entries()) {
+        let verificados = 0;
+        let total = 0;
+        let inicio = null;
+        let ultimoCarregamento = null;
+        let usuario = '---';        for (const item of items) {
+            total++;
+            try {
+                const dataInicio = new Date(item.DATA);
+                if (!inicio || dataInicio < inicio) {
+                    inicio = dataInicio;
+                }
+            } catch (e) {
+            }            if (item.VALIDACAO === 'BIPADO') {
+                verificados++;                if (item['DATA SAIDA']) {
+                    try {
+                        const dataCarregamento = new Date(item['DATA SAIDA']);
+                        if (!ultimoCarregamento || dataCarregamento > ultimoCarregamento) {
+                            ultimoCarregamento = dataCarregamento;
+                            usuario = item['BIPADO SAIDA'] || '---';
+                        }
+                    } catch (e) {
+                    }
+                }
+            }
+        }        const pendentes = total - verificados;
+        const percentual = total > 0 ? Math.round((verificados / total) * 100) : 0;
+        const inicioFormatado = inicio ? formatarDataInicio(inicio.toISOString()) : '---';        rotasConsolidadas.push({
+            rota,
+            inicio: inicioFormatado,
+            usuario,
+            verificados,
+            pendentes,
+            total,
+            percentual,
+            concluida: pendentes === 0 && total > 0
+        });
+    }
+    rotasConsolidadas.sort((a, b) => a.rota.localeCompare(b.rota));
+    return rotasConsolidadas;
 }function renderDashboard() {
     const container = dom.dashboard;
     if (!container) return;
-    if (state.cacheData.length === 0) {
-        container.innerHTML = '<p class="text-gray-500">Nenhuma manga registrada nas últimas 24h.</p>';
+    const rotasConsolidadas = processDashboardData(state.cacheData);    if (rotasConsolidadas.length === 0) {
+        container.innerHTML = '<p class="text-gray-500">Nenhum registro encontrado para este período.</p>';
         return;
-    }
-    const {totalSeparacao, totalCarregamento, totalDocasAtivas} = calculateStats(state.cacheData);
-    let html = `
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Separação Total (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalSeparacao}</div>
-      </div>
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Carregamento Total (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalCarregamento}</div>
-      </div>
-      <div class="bg-white p-3 rounded-lg shadow border border-gray-200">
-        <div class="text-xs font-medium text-gray-500">Docas Ativas (24h)</div>
-        <div class="mt-1 text-2xl font-semibold text-gray-900">${totalDocasAtivas}</div>
-      </div>
-    </div>
-  `;
-    html += `
-    <div class="overflow-x-auto bg-white rounded-lg shadow border border-gray-200" style="max-height: 60vh; overflow-y: auto;">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rota</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Separado Por</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Separação</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carregado Por</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Finalizado</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-  `;
-    for (const item of state.cacheData) {
-        const isBipado = item.VALIDACAO === 'BIPADO';
-        const statusClass = isBipado ? 'text-green-600' : 'text-yellow-600';
-        const statusText = isBipado ? 'Carregado' : 'Aguardando';
-        html += `
-      <tr class="text-sm text-gray-700">
-        <td class="px-4 py-3 whitespace-nowrap font-medium">${item.ROTA || 'N/A'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_ENTRADA || '---'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${item.BIPADO_SAIDA || '---'}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA_SAIDA)}</td>
-        <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
-      </tr>
-    `;
-    }
-    html += `
-        </tbody>
-      </table>
-    </div>
-  `;
-    container.innerHTML = html;
+    }    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
+    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;    let html = '<div class="space-y-3">';    for (const rota of rotasConsolidadas) {
+        const statusHtml = rota.concluida
+            ? `<div class="flex items-center space-x-1">${concluidaIcon} <span class="text-green-600 font-medium">Concluída</span></div>`
+            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;        const circleColor = rota.percentual === 100 ? 'text-green-500' : (rota.percentual > 60 ? 'text-blue-500' : 'text-yellow-500');        const progressCircle = `
+            <div class="relative w-16 h-16">
+                <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
+                    <path class="text-gray-200"
+                        d="M18 2.0845
+                        a 15.9155 15.9155 0 0 1 0 31.831
+                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" stroke-width="3.5" stroke="currentColor" />
+                    <path class="${circleColor}"
+                        stroke-dasharray="${rota.percentual}, 100"
+                        d="M18 2.0845
+                        a 15.9155 15.9155 0 0 1 0 31.831
+                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" />
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <span class="text-lg font-semibold ${circleColor}">${rota.percentual}%</span>
+                </div>
+            </div>
+        `;        html += `
+        <div class="rota-card bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer hover:shadow-md" data-rota="${rota.rota}">
+            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div class="flex-shrink-0" style="min-width: 140px;">
+                    <h5 class="text-xl font-bold text-gray-800">Rota ${rota.rota}</h5>
+                    <span class="text-sm text-gray-500">Início: ${rota.inicio}</span>
+                </div>
+                <div class="flex-shrink-0" style="min-width: 150px;">
+                    <span class="text-sm font-medium text-gray-700">${rota.usuario}</span>
+                    <span class="block text-xs text-gray-500">Último Carregamento</span>
+                </div>
+                <div class="flex-shrink-0">
+                    ${progressCircle}
+                </div>
+                <div class="flex-shrink-0 text-sm text-gray-700" style="min-width: 140px;">
+                    <div><b>${rota.verificados}</b> pacotes verificados</div>
+                    <div class="text-gray-500"><b>${rota.total}</b> total</div>
+                </div>
+                <div class="flex-shrink-0" style="min-width: 130px;">
+                    ${statusHtml}
+                </div>
+            </div>
+        </div>
+        `;
+    }    html += '</div>';
+    container.innerHTML = html;    container.querySelectorAll('.rota-card').forEach(card => {
+        card.addEventListener('dblclick', () => {
+            const rota = card.getAttribute('data-rota');
+            openRelatorioModal(rota);
+        });
+    });
 }async function fetchAndRenderDashboard() {
     await fetchDashboardData();
     renderDashboard();
@@ -566,16 +657,19 @@ const SUPPORTED_FORMATS = [
     if (!root) return;
     const btn1 = document.getElementById('btn-iniciar-separacao');
     const btn2 = document.getElementById('btn-iniciar-carregamento');
-    const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
-    if (!btn1 || !btn2 || !dashboardBlock) return;
-    let bar = document.getElementById('auditoria-controls-bar');
+    const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');    const periodBlock = dom.periodBtn?.closest('.p-4');    if (!btn1 || !btn2 || !dashboardBlock) return;    let bar = document.getElementById('auditoria-controls-bar');
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'auditoria-controls-bar';
-        bar.className = 'p-4 grid grid-cols-1 md:grid-cols-2 gap-4';
+        bar.className = 'p-4 grid grid-cols-1 md:grid-cols-3 gap-4';
         dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
-    }
-    if (btn1.parentElement !== bar) bar.appendChild(btn1);
+    }    if (periodBlock && periodBlock.parentElement !== bar) {
+        bar.appendChild(periodBlock);
+        periodBlock.style.padding = '0';
+        dom.periodBtn.style.width = '100%';
+        dom.periodBtn.style.height = '100%';
+        dom.periodBtn.style.minHeight = '82px';
+    }    if (btn1.parentElement !== bar) bar.appendChild(btn1);
     if (btn2.parentElement !== bar) bar.appendChild(btn2);
 }function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
@@ -658,11 +752,8 @@ const SUPPORTED_FORMATS = [
             const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
             const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
             if (!numeracao) throw new Error('Resposta não contém numeração');
-            const idPacoteParaQr = pacote || idPacote;            state.lastPrintData = {
-                dataForQr: idPacoteParaQr,
-                ilha: ilha,
-                mangaLabel: numeracao
-            };            await generateQRCode(idPacoteParaQr, ilha, numeracao);
+            const idPacoteParaQr = pacote || idPacote;            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
+            await generateQRCode(idPacoteParaQr, ilha, numeracao);
             await printCurrentQr();            if (isDuplicate) {
                 fail++;
                 setSepStatus(`Falhou ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
@@ -716,11 +807,8 @@ const SUPPORTED_FORMATS = [
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
-        const idPacoteParaQr = pacote || idPacote;        state.lastPrintData = {
-            dataForQr: idPacoteParaQr,
-            ilha: ilha,
-            mangaLabel: numeracao
-        };        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        const idPacoteParaQr = pacote || idPacote;        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
         await printCurrentQr();        dom.sepScan.value = '';
         if (isDuplicate) {
             const friendly = message || 'Pacote já bipado. Reimpressão solicitada.';
@@ -824,7 +912,7 @@ const SUPPORTED_FORMATS = [
     opt0.textContent = 'Selecione a ILHA';
     dom.carIlhaSelect.appendChild(opt0);
     if (rotas.length === 0) {
-        opt0.textContent = 'Nenhuma ilha separada nas últimas 24h';
+        opt0.textContent = 'Nenhuma ilha separada no período';
     }
     for (const rota of rotas) {
         const opt = document.createElement('option');
@@ -865,39 +953,28 @@ const SUPPORTED_FORMATS = [
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
-    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
-    const item = state.cacheData.find(i => {
-        const a = extractElevenDigits(i['ID PACOTE']);
+    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};    const item = state.cacheData.find(i => {        const a = extractElevenDigits(i['ID PACOTE']);
         const b = extractElevenDigits(idPacoteScaneado);
         return a && b && a === b;
-    });
-    if (!item) return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
+    });    if (!item) return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
     if (item.ROTA !== ilha) return {
         success: false,
         message: `Erro: Pacote pertence à Rota ${item.ROTA}, não à Rota ${ilha}.`
-    };
-    const numeracaoParaBackend = item.NUMERACAO;
+    };    const numeracaoParaBackend = item.NUMERACAO;
     try {
+        const dataSaidaISO = new Date().toISOString();
         const result = await processarValidacao(numeracaoParaBackend, usuarioSaida, doca);
-        const {updatedData, idempotent, message} = result || {};
-        let successMessage = `OK! ${numeracaoParaBackend} validada.`;
-        if (idempotent) successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;
-        if (updatedData) {
-            const index = state.cacheData.findIndex(itemCache => {
-                try {
-                    return String(itemCache.NUMERACAO).trim() === String(updatedData.NUMERACAO).trim();
-                } catch {
-                    return false;
-                }
-            });
-            if (index > -1) state.cacheData[index] = {
-                ...state.cacheData[index], ...updatedData,
-                DOCA: doca,
-                ROTA: ilha
+        const {updatedData, idempotent, message} = result || {};        let successMessage = `OK! ${numeracaoParaBackend} validada.`;
+        if (idempotent) successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === item.NUMERACAO);        if (index > -1) {            state.cacheData[index] = {
+                ...state.cacheData[index],
+                ...updatedData,
+                "VALIDACAO": "BIPADO",
+                "BIPADO SAIDA": usuarioSaida,
+                "DATA SAIDA": dataSaidaISO,
+                "DOCA": doca,
+                "ROTA": ilha
             };
-        }
-        return {success: true, message: successMessage};
-    } catch (err) {
+        }        return {success: true, message: successMessage};    } catch (err) {
         console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
         if (/não encontrada/i.test(msg)) return {
@@ -942,13 +1019,170 @@ const SUPPORTED_FORMATS = [
             dom.carScan.focus();
         }
     }
+}function createRelatorioModal() {
+    if (document.getElementById('modal-relatorio-rota')) return;    const modal = document.createElement('div');
+    modal.id = 'modal-relatorio-rota';
+    modal.className = 'modal-overlay hidden';
+    modal.style.zIndex = '1200';    modal.innerHTML = `
+        <div class="modal-content" style="width: 95vw; max-width: 1200px;">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 id="relatorio-rota-title" class="text-xl font-semibold">Relatório - Rota</h3>
+                <button id="relatorio-rota-close" class="modal-close" type="button">&times;</button>
+            </div>
+            <div id="relatorio-rota-body" style="max-height: 70vh; overflow-y: auto;">
+                </div>
+        </div>
+    `;    document.body.appendChild(modal);    dom.relatorioModal = modal;
+    dom.relatorioTitle = modal.querySelector('#relatorio-rota-title');
+    dom.relatorioBody = modal.querySelector('#relatorio-rota-body');
+    dom.relatorioModalClose = modal.querySelector('#relatorio-rota-close');    dom.relatorioModalClose?.addEventListener('click', () => {
+        closeModal(dom.relatorioModal);
+    });
+}function openRelatorioModal(rota) {
+    if (!dom.relatorioModal || !rota) return;    const items = state.cacheData.filter(item => item.ROTA === rota);    dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;    let tableHtml = `
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Pacote</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Numeração</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Separado Por</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data Separação</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Carregado Por</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data Carregamento</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Doca</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+    `;    items.sort((a, b) => new Date(a.DATA) - new Date(b.DATA));    for (const item of items) {
+        const isBipado = item.VALIDACAO === 'BIPADO';
+        const statusClass = isBipado ? 'text-green-600' : 'text-yellow-600';
+        const statusText = isBipado ? 'Carregado' : 'Aguardando';        tableHtml += `
+            <tr class="text-sm text-gray-700">
+                <td class="px-4 py-3 whitespace-nowrap">${item['ID PACOTE'] || '---'}</td>
+                <td class="px-4 py-3 whitespace-nowrap font-medium">${item.NUMERACAO || '---'}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${item['BIPADO ENTRADA'] || '---'}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${item['BIPADO SAIDA'] || '---'}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item['DATA SAIDA'])}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${item.DOCA || '---'}</td>
+                <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
+            </tr>
+        `;
+    }    tableHtml += `</tbody></table>`;    dom.relatorioBody.innerHTML = tableHtml;
+    openModal(dom.relatorioModal);
+}function updatePeriodLabel() {
+    if (!dom.periodBtn) return;
+    if (!state.period.start || !state.period.end) {
+        dom.periodBtn.textContent = 'Selecionar Período';
+        return;
+    }
+    ;    const format = (iso) => {
+        try {
+            const [y, m, d] = iso.split('-');
+            return `${d}/${m}/${y}`;
+        } catch (e) {
+            return iso;
+        }
+    };    const start = format(state.period.start);
+    const end = format(state.period.end);    if (start === end) {
+        dom.periodBtn.textContent = `Período: ${start}`;
+    } else {
+        dom.periodBtn.textContent = `Período: ${start} - ${end}`;
+    }
+}function openPeriodModal() {
+    const today = getBrasiliaDate(true);
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;    const curStart = state.period.start || toISO(getBrasiliaDate(true));
+    const curEnd = state.period.end || toISO(getBrasiliaDate(true));    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);    const overlay = document.createElement('div');
+    overlay.id = 'cd-period-overlay';
+    overlay.innerHTML = `
+      <div class="cdp-card">
+        <h3>Selecionar Período</h3>
+        <div class="cdp-shortcuts">
+          <button id="cdp-today"    class="btn-salvar">Hoje</button>
+          <button id="cdp-yday"     class="btn-salvar">Ontem</button>
+          <button id="cdp-prevmo"  class="btn-salvar">Mês anterior</button>
+        </div>
+        <div class="dates-grid">
+          <div><label>Início</label><input id="cdp-period-start" type="date" value="${curStart}"></div>
+          <div><label>Fim</label><input id="cdp-period-end"     type="date" value="${curEnd}"></div>
+        </div>
+        <div class="form-actions">
+          <button id="cdp-cancel" class="btn">Cancelar</button>
+          <button id="cdp-apply"  class="btn-add">Aplicar</button>
+        </div>
+      </div>`;    const cssId = 'cdp-style';
+    if (!document.getElementById(cssId)) {
+        const st = document.createElement('style');
+        st.id = cssId;
+        st.textContent = `
+            #cd-period-overlay, #cd-period-overlay * { box-sizing: border-box; }
+            #cd-period-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+            #cd-period-overlay .cdp-card { background: #fff; border-radius: 12px; padding: 16px; min-width: 480px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+            #cd-period-overlay h3 { margin: 0 0 12px; text-align: center; color: #003369; }
+            #cd-period-overlay .cdp-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
+            #cd-period-overlay .dates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+            #cd-period-overlay .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+            #cd-period-overlay .btn { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; background: #f0f0f0; cursor: pointer; }
+            #cd-period-overlay .btn-salvar, #cd-period-overlay .btn-add { padding: 8px 12px; border-radius: 6px; border: none; color: white; cursor: pointer; }
+            #cd-period-overlay .btn-salvar { background-color: #0284c7; }
+            #cd-period-overlay .btn-add { background-color: #16a34a; }
+          `;
+        document.head.appendChild(st);
+    }    document.body.appendChild(overlay);    const elStart = overlay.querySelector('#cdp-period-start');
+    const elEnd = overlay.querySelector('#cdp-period-end');
+    const btnCancel = overlay.querySelector('#cdp-cancel');
+    const btnApply = overlay.querySelector('#cdp-apply');
+    const close = () => overlay.remove();    overlay.addEventListener('click', (ev) => {
+        if (ev.target === overlay) close();
+    });
+    btnCancel.onclick = close;    overlay.querySelector('#cdp-today').onclick = () => {
+        const iso = toISO(getBrasiliaDate(true));
+        [state.period.start, state.period.end] = [iso, iso];
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
+    };
+    overlay.querySelector('#cdp-yday').onclick = () => {
+        const iso = toISO(yesterday);
+        [state.period.start, state.period.end] = [iso, iso];
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
+    };
+    overlay.querySelector('#cdp-prevmo').onclick = () => {
+        const s = toISO(prevStart);
+        const e = toISO(prevEnd);
+        const [cs, ce] = clampEndToToday(s, e);
+        state.period.start = cs;
+        state.period.end = ce;
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
+    };
+    btnApply.onclick = () => {
+        let sVal = (elStart?.value || '').slice(0, 10);
+        let eVal = (elEnd?.value || '').slice(0, 10);
+        if (!sVal || !eVal) {
+            toast('Selecione as duas datas.', 'info');
+            return;
+        }
+        [sVal, eVal] = clampEndToToday(sVal, eVal);
+        state.period.start = sVal;
+        state.period.end = eVal;
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
+    };
 }let initOnce = false;export function init() {
     if (initOnce) return;
-    initOnce = true;
-    dom.dashboard = document.getElementById('dashboard-stats');
+    initOnce = true;    dom.dashboard = document.getElementById('dashboard-stats');
     dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
-    dom.modalSeparação = document.getElementById('modal-separacao');
+    dom.periodBtn = document.getElementById('auditoria-period-btn');    dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
     dom.sepUser = document.getElementById('sep-user-name');
     dom.sepScan = document.getElementById('sep-scan-input');
@@ -956,15 +1190,19 @@ const SUPPORTED_FORMATS = [
     dom.sepQrArea = document.getElementById('sep-qr-area');
     dom.sepQrTitle = document.getElementById('sep-qr-title');
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
-    dom.sepPrintBtn = document.getElementById('sep-print-btn');
-    dom.modalCarregamento = document.getElementById('modal-carregamento');
+    dom.sepPrintBtn = document.getElementById('sep-print-btn');    dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
-    dom.carStatus = document.getElementById('car-status');
-    if (dom.btnSeparação) {
-        dom.btnSeparação.classList.remove('px-6', 'py-4');
-        dom.btnSeparação.classList.add('px-4', 'py-3');
+    dom.carStatus = document.getElementById('car-status');    const todayISO = getBrasiliaDate(false);
+    state.period.start = todayISO;
+    state.period.end = todayISO;
+    updatePeriodLabel();    createGlobalScannerModal();
+    createRelatorioModal();    injectScannerButtons();
+    ensureDockSelect();
+    ensureIlhaSelect();    if (dom.btnSeparação) {
+        dom.btnSeparação.classList.remove('px-6', 'py-4', 'text-xl');
+        dom.btnSeparação.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnSeparação.querySelector('.text-xl');
         if (span) {
             span.classList.remove('text-xl');
@@ -972,19 +1210,14 @@ const SUPPORTED_FORMATS = [
         }
     }
     if (dom.btnCarregamento) {
-        dom.btnCarregamento.classList.remove('px-6', 'py-4');
-        dom.btnCarregamento.classList.add('px-4', 'py-3');
+        dom.btnCarregamento.classList.remove('px-6', 'py-4', 'text-xl');
+        dom.btnCarregamento.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnCarregamento.querySelector('.text-xl');
         if (span) {
             span.classList.remove('text-xl');
             span.classList.add('text-lg');
         }
-    }
-    createGlobalScannerModal();
-    injectScannerButtons();
-    ensureDockSelect();
-    ensureIlhaSelect();
-    dom.btnSeparação?.addEventListener('click', () => {
+    }    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) {
@@ -1001,8 +1234,7 @@ const SUPPORTED_FORMATS = [
         else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
-    });
-    dom.modalSepClose?.addEventListener('click', (ev) => {
+    });    dom.modalSepClose?.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalSeparação);
@@ -1013,23 +1245,26 @@ const SUPPORTED_FORMATS = [
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-    });
-    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
+    });    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
     dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener('click', async () => {
-        try {            if (state.lastPrintData) {
-                setSepStatus('Reimprimindo...');                await generateQRCode(
+        try {
+            if (state.lastPrintData) {
+                setSepStatus('Reimprimindo...');
+                await generateQRCode(
                     state.lastPrintData.dataForQr,
                     state.lastPrintData.ilha,
                     state.lastPrintData.mangaLabel
-                );                await printCurrentQr();
+                );
+                await printCurrentQr();
                 setSepStatus('Etiqueta reimpressa.');
-            } else {                setSepStatus("Gere um QR Code primeiro para reimprimir.", { error: true });
+            } else {
+                setSepStatus("Gere um QR Code primeiro para reimprimir.", {error: true});
             }
         } catch (e) {
             console.error('Falha ao reimprimir etiqueta:', e);
-            setSepStatus(`Erro ao reimprimir: ${e.message}`, { error: true });
+            setSepStatus(`Erro ao reimprimir: ${e.message}`, {error: true});
         }
     });    document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
@@ -1041,33 +1276,29 @@ const SUPPORTED_FORMATS = [
                 dom.sepScan.focus();
             }
         }
-    });
-    [dom.sepScan, dom.carScan].forEach(inp => {
+    });    [dom.sepScan, dom.carScan].forEach(inp => {
         if (!inp) return;
         inp.addEventListener('paste', () => {
             setTimeout(() => {
                 inp.value = normalizeScanned(inp.value);
             }, 0);
         });
-    });
-    reorderControlsOverDashboard();
-    fetchAndRenderDashboard();
-    fetch(FUNC_SEPARACAO_URL, {
+    });    reorderControlsOverDashboard();
+    fetchAndRenderDashboard();    fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
         headers: buildFunctionHeaders(),
         body: JSON.stringify({action: 'preload'})
     }).catch(err => {
         console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
-    });
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V18 - Correção Reimpressão + Sleep].');
+    });    console.log('Módulo de Auditoria (Dashboard) inicializado [V22 - Correção Chaves c/ Espaço].');
 }export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();
-    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
-    state.cacheData = [];
+    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);    if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);    state.cacheData = [];
     state.globalScannerInstance = null;
     state.currentScannerTarget = null;
     state.lastPrintData = null;
+    state.period = {start: null, end: null};
     dom = {};
     initOnce = false;
 }if (typeof document !== 'undefined') {
