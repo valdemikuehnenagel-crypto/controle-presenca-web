@@ -1,5 +1,7 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-import qrcode from 'qrcode-generator';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import qrcode from 'qrcode-generator';
+
+const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
@@ -10,6 +12,8 @@ const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.UPC_A,
 ];
+
+// --- [CORREÇÃO 1/5] Adicionado 'lastPrintData' para salvar a última bipagem ---
 let state = {
     cacheData: [],
     isSeparaçãoProcessing: false,
@@ -19,8 +23,9 @@ let state = {
     globalScannerInstance: null,
     currentScannerTarget: null,
     pendingDecodedText: null,
-    lastPrintData: null,
+    lastPrintData: null, // Armazena os dados da última etiqueta para reimpressão
 };
+
 let dom = {
     dashboard: null,
     btnSeparação: null,
@@ -47,19 +52,25 @@ let dom = {
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
     scannerConfirmNoBtn: null,
-};function buildFunctionHeaders() {
+};
+
+function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}function buildSelectHeaders() {
+}
+
+function buildSelectHeaders() {
     return {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         Range: '0-1000',
     };
-}function formatarDataHora(isoString) {
+}
+
+function formatarDataHora(isoString) {
     if (!isoString) return '---';
     try {
         const dt = new Date(isoString);
@@ -73,60 +84,50 @@ let dom = {
     } catch {
         return isoString;
     }
-}function waitForPaint() {
+}
+
+function waitForPaint() {
     return new Promise((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
     });
-}function sleep(ms) {
+}
+
+function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}async function printEtiqueta({imgSrc, titleHtml}) {
-    if (!imgSrc || !titleHtml) {
-        console.error("printEtiqueta chamada sem dados de imagem ou título.");
+}
+
+// --- [CORREÇÃO 2/5] 'printEtiqueta' volta a ser a original, mas com sleep MAIOR ---
+async function printCurrentQr() {
+    // 1. Verifica se tem algo para imprimir (evita o bug do botão de reimprimir)
+    if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
+        setSepStatus("Primeiro gere um QR Code para imprimir.", {error: true});
         return;
     }
-    const printWindow = window.open('', '_blank', 'width=350,height=450,resizable=yes');
-    if (!printWindow) {
-        alert("ERRO: Falha ao abrir janela de impressão. Verifique se o pop-up foi bloqueado pelo navegador.");
-        return;
-    }
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Imprimir Etiqueta</title>
-            <style>
-                body { margin: 0; padding: 10px; font-family: sans-serif; text-align: center; }
-                .qr-area { width: 300px; text-align: center; display: inline-block; }                .qr-num { font-size: 28px; font-weight: bold; margin-bottom: 5px; }
-                .qr-rota { font-size: 20px; color: #333; margin-bottom: 10px; }
-                img { width: 300px; height: 300px; max-width: 100%; }                @page { size: auto; margin: 0mm; }
-            </style>
-        </head>
-        <body>
-            <div class="qr-area">
-                ${titleHtml}
-                <img id="qrImg" />
-            </div>
-        </body>
-        </html>
-    `);
-    const img = printWindow.document.getElementById('qrImg');
-    img.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
-    };
-    img.onerror = () => {
-        console.error("Falha ao carregar imagem na janela de impressão.");
-        printWindow.alert("Falha ao carregar QR Code. Tente novamente.");
-        printWindow.close();
-    };
-    img.src = imgSrc;
-    printWindow.document.close();
-}function extractElevenDigits(str) {
+
+    // 2. Espera o navegador "ver" a imagem (que já deu img.onload)
+    await waitForPaint();
+
+    // 3. Força o navegador a calcular o layout
+    dom.sepQrArea.offsetHeight;
+
+    // 4. Espera o navegador pintar o layout
+    await waitForPaint();
+
+    // 5. Sleep mais longo e seguro (400ms) para garantir que o renderizador de impressão pegue
+    await sleep(400);
+
+    // 6. Imprime a PÁGINA PRINCIPAL (respeitando seu CSS)
+    window.print();
+}
+
+function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}function normalizeScanned(input) {
+}
+
+function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
     if (s.startsWith('{') && s.endsWith('}')) {
@@ -142,7 +143,9 @@ let dom = {
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}function openModal(modal) {
+}
+
+function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
@@ -172,7 +175,9 @@ let dom = {
     modal.addEventListener('click', modal._bound.onOverlayClick, true);
     const first = modal.querySelector('input, button, [tabindex]:not([tabindex="-1"])');
     if (first) setTimeout(() => first.focus(), 50);
-}function closeModal(modal) {
+}
+
+function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add('hidden');
@@ -180,12 +185,16 @@ let dom = {
     if (modal._bound?.onKeyDown) document.removeEventListener('keydown', modal._bound.onKeyDown);
     if (modal._bound?.onOverlayClick) modal.removeEventListener('click', modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}function resetSeparacaoModal() {
+}
+
+function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
-}function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
+}
+
+function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
     if (!preserveDock) {
@@ -196,7 +205,9 @@ let dom = {
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = '';
     if (dom.carScan) dom.carScan.value = '';
     setCarStatus('');
-}function showScannerFeedback(type, message, sticky = false) {
+}
+
+function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector('span');
     if (textEl) textEl.textContent = message;
@@ -210,7 +221,9 @@ let dom = {
         dom.scannerFeedbackCloseBtn.style.display = 'block';
         if (!sticky) setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1500);
     }
-}function showScannerConfirm(decodedText, onYes, onNo) {
+}
+
+function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -229,7 +242,9 @@ let dom = {
     };
     dom.scannerConfirmYesBtn.addEventListener('click', yesHandler);
     dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
-}function createGlobalScannerModal() {
+}
+
+function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'auditoria-scanner-modal';
@@ -301,7 +316,9 @@ let dom = {
             }
         }
     });
-}function injectScannerButtons() {
+}
+
+function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [
         {input: dom.sepScan, id: 'sep-cam-btn'},
@@ -322,7 +339,9 @@ let dom = {
     });
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
-}function startGlobalScanner(targetModal) {
+}
+
+function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -375,7 +394,9 @@ let dom = {
         setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
-}function stopGlobalScanner() {
+}
+
+function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add('hidden');
         if (dom._currentModal) {
@@ -403,7 +424,9 @@ let dom = {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}async function onGlobalScanSuccess(decodedText) {
+}
+
+async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -430,8 +453,13 @@ let dom = {
             state.globalScannerInstance?.resume();
         }
     );
-}function onGlobalScanError(_) {
-}async function handleSeparacaoFromScanner(idPacote) {
+}
+
+function onGlobalScanError(_) {
+}
+
+// --- [CORREÇÃO 3/5] 'handleSeparacaoFromScanner' atualizada ---
+async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
     const usuarioEntrada = dom.sepUser?.value?.trim();
     if (!usuarioEntrada) {
@@ -448,8 +476,18 @@ let dom = {
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
         const idPacoteParaQr = pacote || idPacote;
-        const printData = await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printEtiqueta(printData);
+
+        // --- CORREÇÃO: Salva os dados para reimpressão ---
+        state.lastPrintData = {
+            dataForQr: idPacoteParaQr,
+            ilha: ilha,
+            mangaLabel: numeracao
+        };
+        // --- Fim da Correção ---
+
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printCurrentQr(); // Usa a nova função de impressão
+
         if (isDuplicate) {
             const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
             showScannerFeedback('error', friendly, true);
@@ -477,7 +515,10 @@ let dom = {
     } finally {
         state.isSeparaçãoProcessing = false;
     }
-}async function handleCarregamentoFromScanner(decodedText) {
+}
+
+
+async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
     const cleaned = normalizeScanned(decodedText);
     try {
@@ -500,7 +541,9 @@ let dom = {
     } finally {
         state.isCarregamentoProcessing = false;
     }
-}async function fetchDashboardData() {
+}
+
+async function fetchDashboardData() {
     const now = new Date();
     now.setHours(now.getHours() - 24);
     const yesterday = now.toISOString();
@@ -519,7 +562,9 @@ let dom = {
         console.error('Falha ao carregar placar:', err);
         if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
     }
-}function calculateStats(data) {
+}
+
+function calculateStats(data) {
     const stats = {
         totalSeparacao: data.length,
         totalCarregamento: 0,
@@ -534,7 +579,9 @@ let dom = {
         totalCarregamento: stats.totalCarregamento,
         totalDocasAtivas: stats.docasAtivas.size,
     };
-}function renderDashboard() {
+}
+
+function renderDashboard() {
     const container = dom.dashboard;
     if (!container) return;
     if (state.cacheData.length === 0) {
@@ -594,10 +641,14 @@ let dom = {
     </div>
   `;
     container.innerHTML = html;
-}async function fetchAndRenderDashboard() {
+}
+
+async function fetchAndRenderDashboard() {
     await fetchDashboardData();
     renderDashboard();
-}function reorderControlsOverDashboard() {
+}
+
+function reorderControlsOverDashboard() {
     const root = document.getElementById('tab-auditoria-mangas');
     if (!root) return;
     const btn1 = document.getElementById('btn-iniciar-separacao');
@@ -613,56 +664,62 @@ let dom = {
     }
     if (btn1.parentElement !== bar) bar.appendChild(btn1);
     if (btn2.parentElement !== bar) bar.appendChild(btn2);
-}function setSepStatus(message, {error = false} = {}) {
+}
+
+function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
     dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function clearSepQrCanvas() {
+}
+
+// --- [CORREÇÃO 4/5] 'clearSepQrCanvas' atualizada ---
+function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
-    state.lastPrintData = null;
-}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+    state.lastPrintData = null; // Limpa a memória de reimpressão
+}
+
+// --- 'generateQRCode' (Mantém a versão 'img.onload' que você tinha) ---
+function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
-            console.error('DOM do QR Code não encontrado');
-            return reject(new Error('DOM do QR Code não encontrado'));
+            console.warn('DOM do QR Code não encontrado, pulando geração.');
+            return resolve();
         }
-        clearSepQrCanvas();
+        clearSepQrCanvas(); // Limpa a tela e o state.lastPrintData
         try {
             const qr = qrcode(0, 'M');
             qr.addData(String(dataForQr));
             qr.make();
             const svgString = qr.createSvgTag(10, 10);
-            const imgSrc = 'data:image/svg+xml;base64,' + btoa(svgString);
-            const imgParaTela = new Image();
-            imgParaTela.onload = () => {
-                dom.sepQrCanvas.appendChild(imgParaTela);
+            const img = new Image();
+            img.onload = () => {
+                dom.sepQrCanvas.appendChild(img);
                 const labelPrincipal = mangaLabel || dataForQr;
-                const titleHtml =
+                dom.sepQrTitle.innerHTML =
                     `<div class="qr-num">${labelPrincipal}</div>` +
                     (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
-                dom.sepQrTitle.innerHTML = titleHtml;
                 dom.sepQrArea.style.display = 'block';
-                const printData = {imgSrc, titleHtml};
-                state.lastPrintData = printData;
-                resolve(printData);
+                resolve(); // Resolve quando a imagem está carregada na MEMÓRIA
             };
-            imgParaTela.onerror = (err) => {
+            img.onerror = (err) => {
                 console.error('Falha ao carregar o QR Code SVG como imagem.', err);
-                state.lastPrintData = null;
                 reject(new Error('Falha ao renderizar QR Code'));
             };
-            imgParaTela.src = imgSrc;
-            imgParaTela.style.width = '100%';
-            imgParaTela.style.height = 'auto';
+            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
+            img.style.width = '100%';
+            img.style.height = 'auto';
         } catch (err) {
             console.error('Erro durante a geração do qrcode-generator:', err);
             reject(err);
         }
     });
-}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+}
+
+
+async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
     const response = await fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
@@ -674,18 +731,25 @@ let dom = {
         throw new Error(json?.error || 'Erro desconhecido');
     }
     return json;
-}function handleSepUserKeydown(e) {
+}
+
+function handleSepUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}function parseBulkEntries(raw) {
+}
+
+function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map(s => s.trim())
         .filter(s => s.length > 0);
-}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}
+
+// --- 'processarSeparacaoEmMassa' atualizada ---
+async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
     let ok = 0, fail = 0;
     state.isSeparaçãoProcessing = true;
@@ -700,8 +764,18 @@ let dom = {
             const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
             if (!numeracao) throw new Error('Resposta não contém numeração');
             const idPacoteParaQr = pacote || idPacote;
-            const printData = await generateQRCode(idPacoteParaQr, ilha, numeracao);
-            await printEtiqueta(printData);
+
+            // --- CORREÇÃO: Salva os dados para reimpressão ---
+            state.lastPrintData = {
+                dataForQr: idPacoteParaQr,
+                ilha: ilha,
+                mangaLabel: numeracao
+            };
+            // --- Fim da Correção ---
+
+            await generateQRCode(idPacoteParaQr, ilha, numeracao);
+            await printCurrentQr(); // Usa a nova função de impressão
+
             if (isDuplicate) {
                 fail++;
                 setSepStatus(`Falhou ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
@@ -722,7 +796,10 @@ let dom = {
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}async function handleSeparaçãoSubmit(e) {
+}
+
+// --- 'handleSeparaçãoSubmit' atualizada ---
+async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
     if (state.isSeparaçãoProcessing) return;
     e.preventDefault();
@@ -756,8 +833,18 @@ let dom = {
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
         const idPacoteParaQr = pacote || idPacote;
-        const printData = await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printEtiqueta(printData);
+
+        // --- CORREÇÃO: Salva os dados para reimpressão ---
+        state.lastPrintData = {
+            dataForQr: idPacoteParaQr,
+            ilha: ilha,
+            mangaLabel: numeracao
+        };
+        // --- Fim da Correção ---
+
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printCurrentQr(); // Usa a nova função de impressão
+
         dom.sepScan.value = '';
         if (isDuplicate) {
             const friendly = message || 'Pacote já bipado. Reimpressão solicitada.';
@@ -779,14 +866,20 @@ let dom = {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}function setCarStatus(message, {error = false} = {}) {
+}
+
+function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
     dom.carStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.carStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function formatDockLabel(n) {
+}
+
+function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, '0')}`;
-}function ensureDockSelect() {
+}
+
+function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById('car-dock-select');
     if (!dom.carDockSelect) {
@@ -826,7 +919,9 @@ let dom = {
     dom.carDockSelect.addEventListener('change', () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}function ensureIlhaSelect() {
+}
+
+function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
     if (!dom.carIlhaSelect) {
@@ -851,7 +946,9 @@ let dom = {
     dom.carIlhaSelect.addEventListener('change', () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}function populateIlhaSelect() {
+}
+
+function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
     rotas.sort();
@@ -870,7 +967,9 @@ let dom = {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}async function processarValidacao(numeracao, usuarioSaida, doca) {
+}
+
+async function processarValidacao(numeracao, usuarioSaida, doca) {
     const body = {numeracao, usuario_saida: usuarioSaida, doca};
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
@@ -887,7 +986,9 @@ let dom = {
         throw new Error(msg);
     }
     return json || {};
-}function handleCarUserKeydown(e) {
+}
+
+function handleCarUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -898,7 +999,9 @@ let dom = {
             dom.carScan.focus();
         }
     }
-}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+}
+
+async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
@@ -943,7 +1046,9 @@ let dom = {
         };
         return {success: false, message: `Erro: ${msg}`};
     }
-}async function handleCarregamentoSubmit(e) {
+}
+
+async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -979,7 +1084,11 @@ let dom = {
             dom.carScan.focus();
         }
     }
-}let initOnce = false;export function init() {
+}
+
+let initOnce = false;
+
+export function init() {
     if (initOnce) return;
     initOnce = true;
     dom.dashboard = document.getElementById('dashboard-stats');
@@ -1055,17 +1164,33 @@ let dom = {
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
     dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
+
+    // --- [CORREÇÃO 5/5] Botão de Reimpressão corrigido ---
     dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
+            // Verifica se há dados salvos da última bipagem
             if (state.lastPrintData) {
-                await printEtiqueta(state.lastPrintData);
+                setSepStatus('Reimprimindo...');
+                // 1. Gera o QR Code de novo com os dados salvos
+                await generateQRCode(
+                    state.lastPrintData.dataForQr,
+                    state.lastPrintData.ilha,
+                    state.lastPrintData.mangaLabel
+                );
+                // 2. Chama a função de impressão robusta
+                await printCurrentQr();
+                setSepStatus('Etiqueta reimpressa.');
             } else {
+                // Se state.lastPrintData for nulo (ou seja, limpou a tela)
                 setSepStatus("Gere um QR Code primeiro para reimprimir.", {error: true});
             }
         } catch (e) {
             console.error('Falha ao reimprimir etiqueta:', e);
+            setSepStatus(`Erro ao reimprimir: ${e.message}`, {error: true});
         }
     });
+    // --- Fim da Correção ---
+
     document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
@@ -1094,18 +1219,22 @@ let dom = {
     }).catch(err => {
         console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
     });
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V17 - Correção Final Scanner/Pop-up].');
-}export function destroy() {
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V18 - Correção Reimpressão + Sleep].');
+}
+
+export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
     state.cacheData = [];
     state.globalScannerInstance = null;
     state.currentScannerTarget = null;
-    state.lastPrintData = null;
+    state.lastPrintData = null; // Limpa o state ao destruir
     dom = {};
     initOnce = false;
-}if (typeof document !== 'undefined') {
+}
+
+if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             try {
