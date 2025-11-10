@@ -62,9 +62,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             console.warn('Dados da sessão incompletos. Permissões de admin não concedidas.');
             state.isUserAdmin = false;
             return;
-        }
-        state.isUserAdmin = userData.Nivel === 'Administrador';
-        console.log(`Usuário ${state.isUserAdmin ? 'é' : 'não é'} Administrador.`);
+        }        state.isUserAdmin = (userData.Nivel || '').toUpperCase() === 'ADMINISTRADOR';        console.log(`Usuário ${state.isUserAdmin ? 'é' : 'não é'} Administrador.`);
     } catch (error) {
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
@@ -523,7 +521,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             .from('Colaboradores')
             .select('*')
             .neq('Ativo', 'NÃO')
-            .order('Nome');        if (matrizesPermitidas !== null) {
+            .order('Nome');
+        if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
         }
         const data = await fetchAllWithPagination(query);
@@ -779,8 +778,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const svcSelecionado = nullIfEmpty(document.getElementById('addSVC')?.value);
     const matrizSelecionada = nullIfEmpty(document.getElementById('addMatriz')?.value)
         || (svcSelecionado ? (state.serviceMatrizMap.get(String(svcSelecionado).toUpperCase()) || null) : null);
-    const regiaoAuto = computeRegiaoFromSvcMatriz(svcSelecionado, matrizSelecionada);
-    const newColaborador = toUpperObject({
+    const regiaoAuto = computeRegiaoFromSvcMatriz(svcSelecionado, matrizSelecionada);    const newColaborador = toUpperObject({
         Nome: nomeUpper,
         CPF: cpf,
         'Data de nascimento': document.getElementById('addDataNascimento')?.value || null,
@@ -802,18 +800,20 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         'Total Faltas': 0,
         'Total Atestados': 0,
         'Total Suspensões': 0
-    });
-    const {error} = await supabase.from('Colaboradores').insert([newColaborador]);
+    });    const {error} = await supabase.from('Colaboradores').insert([newColaborador]);
     if (error) {
         alert(`Erro ao adicionar colaborador: ${error.message}`);
         return;
     }
     alert('Colaborador adicionado com sucesso!');
     if (addForm) {
-        addForm.reset();        const dsrBtn = document.getElementById('addDSRBtn');
-        if (dsrBtn) {            dsrBtn.value = '';
+        addForm.reset();
+        const dsrBtn = document.getElementById('addDSRBtn');
+        if (dsrBtn) {
+            dsrBtn.value = '';
             dsrBtn.placeholder = 'CLIQUE PARA SELECIONAR OS DIAS...';
-        }    }
+        }
+    }
     const gestorSelect = document.getElementById('addGestor');
     if (gestorSelect) {
         gestorSelect.innerHTML = '<option value="" disabled selected>Selecione um SVC primeiro...</option>';
@@ -954,23 +954,36 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (!editOriginal || !fluxoEfetivacaoModal) {
         console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
-    }
-    fluxoEfetivacaoNomeEl.value = editOriginal.Nome;
+    }    if (
+        !fluxoEfetivacaoNomeEl || !fluxoNumeroEl || !fluxoDataAberturaEl ||
+        !fluxoObservacaoEl || !fluxoAdmissaoKnEl || !fluxoGerarBtn ||
+        !fluxoFinalizarBtn || !fluxoCancelarBtn
+    ) {
+        console.error("Elementos do formulário de fluxo não encontrados! Verificando IDs...");        fluxoEfetivacaoNomeEl = document.getElementById('fluxoEfetivacaoNome');
+        fluxoNumeroEl = document.getElementById('fluxoNumero');
+        fluxoDataAberturaEl = document.getElementById('fluxoDataAbertura');
+        fluxoObservacaoEl = document.getElementById('fluxoObservacao');
+        fluxoAdmissaoKnEl = document.getElementById('fluxoAdmissaoKnData');
+        fluxoGerarBtn = document.getElementById('fluxoGerarBtn');
+        fluxoFinalizarBtn = document.getElementById('fluxoFinalizarBtn');
+        fluxoCancelarBtn = document.getElementById('fluxoCancelarBtn');        if (!fluxoAdmissaoKnEl) {
+            alert('Erro fatal: O campo com ID "fluxoAdmissaoKnData" não foi encontrado no HTML.');
+            return;
+        }
+    }    fluxoEfetivacaoNomeEl.value = editOriginal.Nome;
     fluxoNumeroEl.value = editOriginal.Fluxo || '';
     fluxoDataAberturaEl.value = editOriginal['Data Fluxo'] || ymdToday();
-    fluxoObservacaoEl.value = editOriginal['Observacao Fluxo'] || '';
-    const hoje = ymdToday();
-    fluxoAdmissaoKnEl.value = editOriginal['Admissao KN'] || editOriginal['Data de admissão'] || hoje;
-    const status = editOriginal.Efetivacao;
-    const isKN = editOriginal.Contrato === 'KN';
-    fluxoGerarBtn.disabled = false;
+    fluxoObservacaoEl.value = editOriginal['Observacao Fluxo'] || '';    const status = editOriginal.Efetivacao;    if (status === 'Concluido') {
+        fluxoAdmissaoKnEl.value = editOriginal['Admissao KN'] || editOriginal['Data de admissão'] || '';
+    } else {
+        fluxoAdmissaoKnEl.value = '';
+    }    fluxoGerarBtn.disabled = false;
     fluxoFinalizarBtn.disabled = false;
     fluxoCancelarBtn.disabled = false;
     fluxoAdmissaoKnEl.disabled = false;
     fluxoNumeroEl.disabled = false;
     fluxoDataAberturaEl.disabled = false;
-    fluxoObservacaoEl.disabled = false;
-    if (status === 'Aberto') {
+    fluxoObservacaoEl.disabled = false;    if (status === 'Aberto') {
         fluxoGerarBtn.textContent = 'Atualizar Fluxo';
     } else if (status === 'Concluido') {
         fluxoGerarBtn.textContent = 'Salvar Observação';
@@ -982,33 +995,26 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         fluxoGerarBtn.textContent = 'Re-abrir Fluxo';
         fluxoFinalizarBtn.disabled = true;
         fluxoCancelarBtn.disabled = true;
-    } else {
-        fluxoGerarBtn.textContent = 'Gerar Fluxo';
-    }
-    if (isKN) {
-        fluxoFinalizarBtn.disabled = true;
-        fluxoAdmissaoKnEl.disabled = true;
-        if (status === null) {
-            fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
-        }
-    }
-    fluxoEfetivacaoModal.classList.remove('hidden');
+    } else {        fluxoGerarBtn.textContent = 'Gerar Fluxo';
+    }    if (!status && editOriginal.Contrato === 'KN') {
+        fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
+    }    fluxoEfetivacaoModal.classList.remove('hidden');
 }function closeFluxoEfetivacaoModal() {
     if (fluxoEfetivacaoModal) {
         fluxoEfetivacaoModal.classList.add('hidden');
         fluxoEfetivacaoForm.reset();
     }
-}async function handleFluxoSubmit(action) {
-    if (!editOriginal) {
+}async function handleFluxoSubmit(action) {    if (!fluxoNumeroEl || !fluxoDataAberturaEl || !fluxoObservacaoEl || !fluxoAdmissaoKnEl || !fluxoGerarBtn || !fluxoFinalizarBtn || !fluxoCancelarBtn) {
+        alert('Erro crítico: Elementos do formulário de fluxo não foram encontrados. Verifique os IDs no HTML e no JS (função wireFluxoEfetivacao).');
+        return;
+    }    if (!editOriginal) {
         alert('Erro crítico: Dados do colaborador original perdidos.');
         return;
-    }
-    const nome = editOriginal.Nome;
+    }    const nome = editOriginal.Nome;
     const numeroFluxo = nullIfEmpty(fluxoNumeroEl.value);
     const dataAbertura = nullIfEmpty(fluxoDataAberturaEl.value);
     const observacao = nullIfEmpty(fluxoObservacaoEl.value);
-    const admissaoKN = nullIfEmpty(fluxoAdmissaoKnEl.value);
-    let payload = {
+    const admissaoKN = nullIfEmpty(fluxoAdmissaoKnEl.value);    let payload = {
         'Fluxo': editOriginal.Fluxo,
         'Data Fluxo': editOriginal['Data Fluxo'],
         'Observacao Fluxo': editOriginal['Observacao Fluxo'],
@@ -1018,9 +1024,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     };
     payload['Fluxo'] = numeroFluxo;
     payload['Data Fluxo'] = dataAbertura;
-    payload['Observacao Fluxo'] = observacao;
-    let confirmMsg = '';
-    if (action === 'gerar') {
+    payload['Observacao Fluxo'] = observacao;    let confirmMsg = '';    if (action === 'gerar') {
         if (!numeroFluxo || !dataAbertura) {
             alert('Para "Gerar" ou "Atualizar" o Fluxo, o "Número do Fluxo" e a "Data de Abertura" são obrigatórios.');
             fluxoNumeroEl.focus();
@@ -1054,19 +1058,14 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         confirmMsg = `Tem certeza que deseja "Cancelar Fluxo" para "${nome}"?`;
     } else {
         return;
-    }
-    const ok = confirm(confirmMsg);
-    if (!ok) return;
-    try {
+    }    const ok = confirm(confirmMsg);
+    if (!ok) return;    try {
         if (fluxoGerarBtn) fluxoGerarBtn.disabled = true;
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = true;
-        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;
-        const {error} = await supabase
+        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;        const {error} = await supabase
             .from('Colaboradores')
             .update(payload)
-            .eq('Nome', nome);
-        if (error) throw error;
-        alert(`Fluxo de efetivação para "${nome}" foi salvo com status: ${payload.Efetivacao}!`);
+            .eq('Nome', nome);        if (error) throw error;        alert(`Fluxo de efetivação para "${nome}" foi salvo com status: ${payload.Efetivacao}!`);
         closeFluxoEfetivacaoModal();
         hideEditModal();
         invalidateColaboradoresCache();
@@ -1386,7 +1385,11 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             .from('Colaboradores')
             .select('Ativo')
             .eq('Nome', nome)
-            .maybeSingle();        if (error) throw error;        if (data && data.Ativo === 'NÃO') return true;        if (!data) return true;        await sleep(delayMs);
+            .maybeSingle();
+        if (error) throw error;
+        if (data && data.Ativo === 'NÃO') return true;
+        if (!data) return true;
+        await sleep(delayMs);
     }
     return false;
 }async function onDesligarSubmit(e) {
@@ -1420,14 +1423,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         MATRIZ: desligarColaborador.MATRIZ || null,
         Motivo: motivo || null
     };
-    try {        try {
+    try {
+        try {
             const {error: rpcErr} = await supabase.rpc('desligar_colaborador_atomic', {
                 p_nome: nome,
                 p_data_desligamento: dataDesligamento,
                 p_motivo: motivo,
                 p_payload_json: desligadoData
             });
-            if (!rpcErr) {                const ok = await ensureColaboradorInativado(nome);
+            if (!rpcErr) {
+                const ok = await ensureColaboradorInativado(nome);
                 if (!ok) console.warn('Aviso: RPC executada, mas status do colaborador não verificado como "NÃO".');
                 alert('Colaborador desligado com sucesso (RPC)!');
                 closeDesligarModal();
@@ -1441,22 +1446,30 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }
         } catch (rpcFalha) {
             console.info('RPC indisponível, aplicando fallback 2-passos:', rpcFalha?.message || rpcFalha);
-        }        const {count: jaExiste, error: checkErr} = await supabase
+        }
+        const {count: jaExiste, error: checkErr} = await supabase
             .from('Desligados')
             .select('Nome', {count: 'exact', head: true})
             .eq('Nome', nome);
-        if (checkErr) throw checkErr;        if ((jaExiste || 0) === 0) {
+        if (checkErr) throw checkErr;
+        if ((jaExiste || 0) === 0) {
             const {error: insertError} = await supabase.from('Desligados').insert([desligadoData]);
-            if (insertError) {                if (!/duplicate key|unique constraint/i.test(insertError.message || '')) {
+            if (insertError) {
+                if (!/duplicate key|unique constraint/i.test(insertError.message || '')) {
                     throw insertError;
                 }
             }
-        }        const {error: updateError} = await supabase
+        }
+        const {error: updateError} = await supabase
             .from('Colaboradores')
             .update({Ativo: 'NÃO'})
-            .eq('Nome', nome);        if (updateError) throw updateError;        const inativado = await ensureColaboradorInativado(nome);
-        if (!inativado) {            await supabase.from('Colaboradores').update({Ativo: 'NÃO'}).eq('Nome', nome);
-        }        alert('Colaborador desligado (inativado) com sucesso!');
+            .eq('Nome', nome);
+        if (updateError) throw updateError;
+        const inativado = await ensureColaboradorInativado(nome);
+        if (!inativado) {
+            await supabase.from('Colaboradores').update({Ativo: 'NÃO'}).eq('Nome', nome);
+        }
+        alert('Colaborador desligado (inativado) com sucesso!');
         closeDesligarModal();
         hideEditModal();
         invalidateColaboradoresCache();
@@ -1922,16 +1935,14 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
     editAfastarBtn?.addEventListener('click', onAfastarClick);
-    editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);
-    editExcluirBtn?.addEventListener('click', async () => {
+    editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);    editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
             alert('Apenas administradores podem excluir colaboradores.');
             return;
         }
-        if (!editOriginal) return;
-        const ok = confirm('Tem certeza que deseja excluir este colaborador? ESTA AÇÃO É IRREVERSÍVEL!');
-        if (!ok) return;
-        try {
+        if (!editOriginal) return;        const ok1 = confirm('Deseja excluir o colaborador? Só faça isso em caso de duplicidade ou erros.');
+        if (!ok1) return;        const ok2 = confirm('Tem certeza que deseja excluir? Ação irreversível.');
+        if (!ok2) return;        try {
             editExcluirBtn.disabled = true;
             editExcluirBtn.textContent = 'Excluindo...';
             const {error} = await supabase.from('Colaboradores').delete().eq('Nome', editOriginal.Nome);
@@ -1948,8 +1959,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             editExcluirBtn.disabled = false;
             editExcluirBtn.textContent = 'Excluir Colaborador';
         }
-    });
-    editDesligarBtn?.addEventListener('click', async () => {
+    });    editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
         if (!colab) {
