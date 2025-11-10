@@ -1,5 +1,6 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-import qrcode from 'qrcode-generator';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import qrcode from 'qrcode-generator';
+const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
@@ -10,8 +11,10 @@ const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.UPC_A,
 ];
-const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
+const BRASILIA_TIMEZONE = 'America/Sao_Paulo';
+let state = {
     cacheData: [],
+    idPacoteMap: new Map(), // <-- OTIMIZAÇÃO 1.1: Adicionado Map para busca rápida
     isSeparaçãoProcessing: false,
     isCarregamentoProcessing: false,
     selectedDock: null,
@@ -21,7 +24,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     pendingDecodedText: null,
     lastPrintData: null,
     period: {start: null, end: null},
-};let dom = {
+};
+let dom = {
     dashboard: null,
     btnSeparação: null,
     btnCarregamento: null,
@@ -55,18 +59,22 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     relatorioModalClose: null,
     relatorioTitle: null,
     relatorioBody: null,
-};function getBrasiliaDate(asDateObject = false) {
+};
+function getBrasiliaDate(asDateObject = false) {
     const date = new Date();
     const formatter = new Intl.DateTimeFormat('sv-SE', {
         timeZone: BRASILIA_TIMEZONE,
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
-    });    if (asDateObject) {
+    });
+    if (asDateObject) {
         const parts = formatter.format(date).split('-').map(Number);
         return new Date(parts[0], parts[1] - 1, parts[2]);
-    }    return formatter.format(date);
-}function clampEndToToday(startStr, endStr) {
+    }
+    return formatter.format(date);
+}
+function clampEndToToday(startStr, endStr) {
     const todayISO = getBrasiliaDate(false);
     if (endStr > todayISO) {
         endStr = todayISO;
@@ -75,22 +83,26 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         startStr = endStr;
     }
     return [startStr, endStr];
-}function toast(message, type = 'info') {
+}
+function toast(message, type = 'info') {
     console.warn(`TOAST (${type}):`, message);
     alert(message);
-}function buildFunctionHeaders() {
+}
+function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}function buildSelectHeaders() {
+}
+function buildSelectHeaders() {
     return {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         Range: '0-1000',
     };
-}function formatarDataHora(isoString) {
+}
+function formatarDataHora(isoString) {
     if (!isoString) return '---';
     try {
         const dt = new Date(isoString);
@@ -105,7 +117,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     } catch {
         return '---';
     }
-}function formatarDataInicio(isoString) {
+}
+function formatarDataInicio(isoString) {
     if (!isoString) return '---';
     try {
         const dt = new Date(isoString);
@@ -118,13 +131,16 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     } catch {
         return '---';
     }
-}function waitForPaint() {
+}
+function waitForPaint() {
     return new Promise((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
     });
-}function sleep(ms) {
+}
+function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}async function printCurrentQr() {
+}
+async function printCurrentQr() {
     if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
         setSepStatus("Primeiro gere um QR Code para imprimir.", {error: true});
         return;
@@ -134,12 +150,14 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     await waitForPaint();
     await sleep(400);
     window.print();
-}function extractElevenDigits(str) {
+}
+function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}function normalizeScanned(input) {
+}
+function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
     if (s.startsWith('{') && s.endsWith('}')) {
@@ -155,7 +173,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}function openModal(modal) {
+}
+function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
@@ -185,7 +204,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     modal.addEventListener('click', modal._bound.onOverlayClick, true);
     const first = modal.querySelector('input, button, [tabindex]:not([tabindex="-1"])');
     if (first) setTimeout(() => first.focus(), 50);
-}function closeModal(modal) {
+}
+function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add('hidden');
@@ -193,12 +213,14 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     if (modal._bound?.onKeyDown) document.removeEventListener('keydown', modal._bound.onKeyDown);
     if (modal._bound?.onOverlayClick) modal.removeEventListener('click', modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}function resetSeparacaoModal() {
+}
+function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
-}function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
+}
+function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
     if (!preserveDock) {
@@ -209,7 +231,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = '';
     if (dom.carScan) dom.carScan.value = '';
     setCarStatus('');
-}function showScannerFeedback(type, message, sticky = false) {
+}
+function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector('span');
     if (textEl) textEl.textContent = message;
@@ -223,7 +246,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         dom.scannerFeedbackCloseBtn.style.display = 'block';
         if (!sticky) setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1500);
     }
-}function showScannerConfirm(decodedText, onYes, onNo) {
+}
+function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -242,7 +266,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     };
     dom.scannerConfirmYesBtn.addEventListener('click', yesHandler);
     dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
-}function createGlobalScannerModal() {
+}
+function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'auditoria-scanner-modal';
@@ -314,7 +339,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             }
         }
     });
-}function injectScannerButtons() {
+}
+function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [
         {input: dom.sepScan, id: 'sep-cam-btn'},
@@ -335,7 +361,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     });
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
-}function startGlobalScanner(targetModal) {
+}
+function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -388,7 +415,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
-}function stopGlobalScanner() {
+}
+function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add('hidden');
         if (dom._currentModal) {
@@ -416,7 +444,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}async function onGlobalScanSuccess(decodedText) {
+}
+async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -443,8 +472,10 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             state.globalScannerInstance?.resume();
         }
     );
-}function onGlobalScanError(_) {
-}async function handleSeparacaoFromScanner(idPacote) {
+}
+function onGlobalScanError(_) {
+}
+async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
     const usuarioEntrada = dom.sepUser?.value?.trim();
     if (!usuarioEntrada) {
@@ -460,8 +491,11 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
-        const idPacoteParaQr = pacote || idPacote;        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printCurrentQr();        if (isDuplicate) {
+        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printCurrentQr();
+        if (isDuplicate) {
             const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
             showScannerFeedback('error', friendly, true);
             stopGlobalScanner();
@@ -474,7 +508,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                 state.cacheData.unshift(insertedData[0]);
                 renderDashboard();
             }
-            showScannerFeedback('success', successMsg);            if (state.globalScannerInstance) {
+            showScannerFeedback('success', successMsg);
+            if (state.globalScannerInstance) {
                 setTimeout(() => {
                     try {
                         state.globalScannerInstance.resume();
@@ -495,7 +530,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     } finally {
         state.isSeparaçãoProcessing = false;
     }
-}async function handleCarregamentoFromScanner(decodedText) {
+}
+async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
     const cleaned = normalizeScanned(decodedText);
     try {
@@ -506,7 +542,7 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         const validation = await runCarregamentoValidation(cleaned, usuarioSaida, doca, ilha);
         if (validation.success) {
             showScannerFeedback('success', validation.message);
-            renderDashboard();
+            // renderDashboard(); // <-- OTIMIZAÇÃO 2.2: Removida renderização a cada bip
         } else {
             showScannerFeedback('error', validation.message, true);
             dom.carScan.value = cleaned;
@@ -518,26 +554,43 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     } finally {
         state.isCarregamentoProcessing = false;
     }
-}async function fetchDashboardData() {
+}
+async function fetchDashboardData() {
     if (!state.period.start || !state.period.end) {
         const todayISO = getBrasiliaDate(false);
         state.period.start = todayISO;
         state.period.end = todayISO;
-    }    const startDate = `${state.period.start}T00:00:00-03:00`;
-    const endDate = `${state.period.end}T23:59:59-03:00`;    const query = new URLSearchParams();
+    }
+    const startDate = `${state.period.start}T00:00:00-03:00`;
+    const endDate = `${state.period.end}T23:59:59-03:00`;
+    const query = new URLSearchParams();
     query.append('select', '*');
     query.append('DATA', `gte.${startDate}`);
     query.append('DATA', `lte.${endDate}`);
-    query.append('order', 'DATA.desc');    const url = `${SUPABASE_URL}/rest/v1/Carregamento?${query.toString()}`;    try {
+    query.append('order', 'DATA.desc');
+    const url = `${SUPABASE_URL}/rest/v1/Carregamento?${query.toString()}`;
+    try {
         const response = await fetch(url, {headers: buildSelectHeaders()});
         if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);
         const data = await response.json();
         state.cacheData = data;
+
+        // <-- OTIMIZAÇÃO 1.2: Popular o Map para busca rápida
+        state.idPacoteMap.clear();
+        for (const item of data) {
+            const id = extractElevenDigits(item['ID PACOTE']);
+            if (id) {
+                state.idPacoteMap.set(id, item);
+            }
+        }
+        // --- Fim da Otimização 1.2 ---
+
     } catch (err) {
         console.error('Falha ao carregar placar:', err);
         if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
     }
-}function processDashboardData(data) {
+}
+function processDashboardData(data) {
     if (!data || data.length === 0) return [];
     const rotasMap = new Map();
     for (const item of data) {
@@ -554,7 +607,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         let total = 0;
         let inicio = null;
         let ultimoCarregamento = null;
-        let usuario = '---';        for (const item of items) {
+        let usuario = '---';
+        for (const item of items) {
             total++;
             try {
                 const dataInicio = new Date(item.DATA);
@@ -562,8 +616,10 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                     inicio = dataInicio;
                 }
             } catch (e) {
-            }            if (item.VALIDACAO === 'BIPADO') {
-                verificados++;                if (item['DATA SAIDA']) {
+            }
+            if (item.VALIDACAO === 'BIPADO') {
+                verificados++;
+                if (item['DATA SAIDA']) {
                     try {
                         const dataCarregamento = new Date(item['DATA SAIDA']);
                         if (!ultimoCarregamento || dataCarregamento > ultimoCarregamento) {
@@ -574,9 +630,11 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                     }
                 }
             }
-        }        const pendentes = total - verificados;
+        }
+        const pendentes = total - verificados;
         const percentual = total > 0 ? Math.round((verificados / total) * 100) : 0;
-        const inicioFormatado = inicio ? formatarDataInicio(inicio.toISOString()) : '---';        rotasConsolidadas.push({
+        const inicioFormatado = inicio ? formatarDataInicio(inicio.toISOString()) : '---';
+        rotasConsolidadas.push({
             rota,
             inicio: inicioFormatado,
             usuario,
@@ -589,17 +647,24 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     }
     rotasConsolidadas.sort((a, b) => a.rota.localeCompare(b.rota));
     return rotasConsolidadas;
-}function renderDashboard() {
+}
+function renderDashboard() {
     const container = dom.dashboard;
     if (!container) return;
-    const rotasConsolidadas = processDashboardData(state.cacheData);    if (rotasConsolidadas.length === 0) {
+    const rotasConsolidadas = processDashboardData(state.cacheData);
+    if (rotasConsolidadas.length === 0) {
         container.innerHTML = '<p class="text-gray-500">Nenhum registro encontrado para este período.</p>';
         return;
-    }    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
-    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;    let html = '<div class="space-y-3">';    for (const rota of rotasConsolidadas) {
+    }
+    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
+    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;
+    let html = '<div class="space-y-3">';
+    for (const rota of rotasConsolidadas) {
         const statusHtml = rota.concluida
             ? `<div class="flex items-center space-x-1">${concluidaIcon} <span class="text-green-600 font-medium">Concluída</span></div>`
-            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;        const circleColor = rota.percentual === 100 ? 'text-green-500' : (rota.percentual > 60 ? 'text-blue-500' : 'text-yellow-500');        const progressCircle = `
+            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;
+        const circleColor = rota.percentual === 100 ? 'text-green-500' : (rota.percentual > 60 ? 'text-blue-500' : 'text-yellow-500');
+        const progressCircle = `
             <div class="relative w-16 h-16">
                 <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
                     <path class="text-gray-200"
@@ -618,7 +683,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                     <span class="text-lg font-semibold ${circleColor}">${rota.percentual}%</span>
                 </div>
             </div>
-        `;        html += `
+        `;
+        html += `
         <div class="rota-card bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer hover:shadow-md" data-rota="${rota.rota}">
             <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <div class="flex-shrink-0" style="min-width: 140px;">
@@ -642,46 +708,58 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             </div>
         </div>
         `;
-    }    html += '</div>';
-    container.innerHTML = html;    container.querySelectorAll('.rota-card').forEach(card => {
+    }
+    html += '</div>';
+    container.innerHTML = html;
+    container.querySelectorAll('.rota-card').forEach(card => {
         card.addEventListener('dblclick', () => {
             const rota = card.getAttribute('data-rota');
             openRelatorioModal(rota);
         });
     });
-}async function fetchAndRenderDashboard() {
+}
+async function fetchAndRenderDashboard() {
     await fetchDashboardData();
     renderDashboard();
-}function reorderControlsOverDashboard() {
+}
+function reorderControlsOverDashboard() {
     const root = document.getElementById('tab-auditoria-mangas');
     if (!root) return;
     const btn1 = document.getElementById('btn-iniciar-separacao');
     const btn2 = document.getElementById('btn-iniciar-carregamento');
-    const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');    const periodBlock = dom.periodBtn?.closest('.p-4');    if (!btn1 || !btn2 || !dashboardBlock) return;    let bar = document.getElementById('auditoria-controls-bar');
+    const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
+    const periodBlock = dom.periodBtn?.closest('.p-4');
+    if (!btn1 || !btn2 || !dashboardBlock) return;
+    let bar = document.getElementById('auditoria-controls-bar');
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'auditoria-controls-bar';
         bar.className = 'p-4 grid grid-cols-1 md:grid-cols-3 gap-4';
         dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
-    }    if (periodBlock && periodBlock.parentElement !== bar) {
+    }
+    if (periodBlock && periodBlock.parentElement !== bar) {
         bar.appendChild(periodBlock);
         periodBlock.style.padding = '0';
         dom.periodBtn.style.width = '100%';
         dom.periodBtn.style.height = '100%';
         dom.periodBtn.style.minHeight = '82px';
-    }    if (btn1.parentElement !== bar) bar.appendChild(btn1);
+    }
+    if (btn1.parentElement !== bar) bar.appendChild(btn1);
     if (btn2.parentElement !== bar) bar.appendChild(btn2);
-}function setSepStatus(message, {error = false} = {}) {
+}
+function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
     dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function clearSepQrCanvas() {
+}
+function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
     state.lastPrintData = null;
-}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+}
+function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
             console.warn('DOM do QR Code não encontrado, pulando geração.');
@@ -715,7 +793,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             reject(err);
         }
     });
-}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+}
+async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
     const response = await fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
@@ -727,18 +806,21 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         throw new Error(json?.error || 'Erro desconhecido');
     }
     return json;
-}function handleSepUserKeydown(e) {
+}
+function handleSepUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}function parseBulkEntries(raw) {
+}
+function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map(s => s.trim())
         .filter(s => s.length > 0);
-}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}
+async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
     let ok = 0, fail = 0;
     state.isSeparaçãoProcessing = true;
@@ -752,9 +834,11 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
             const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
             if (!numeracao) throw new Error('Resposta não contém numeração');
-            const idPacoteParaQr = pacote || idPacote;            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
+            const idPacoteParaQr = pacote || idPacote;
+            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
-            await printCurrentQr();            if (isDuplicate) {
+            await printCurrentQr();
+            if (isDuplicate) {
                 fail++;
                 setSepStatus(`Falhou ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
             } else {
@@ -774,7 +858,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}async function handleSeparaçãoSubmit(e) {
+}
+async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
     if (state.isSeparaçãoProcessing) return;
     e.preventDefault();
@@ -807,9 +892,11 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
         if (!numeracao) throw new Error('Resposta não contém numeração');
-        const idPacoteParaQr = pacote || idPacote;        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
+        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printCurrentQr();        dom.sepScan.value = '';
+        await printCurrentQr();
+        dom.sepScan.value = '';
         if (isDuplicate) {
             const friendly = message || 'Pacote já bipado. Reimpressão solicitada.';
             setSepStatus(friendly, {error: true});
@@ -830,14 +917,17 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}function setCarStatus(message, {error = false} = {}) {
+}
+function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
     dom.carStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.carStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function formatDockLabel(n) {
+}
+function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, '0')}`;
-}function ensureDockSelect() {
+}
+function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById('car-dock-select');
     if (!dom.carDockSelect) {
@@ -846,11 +936,11 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-      <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
-      <div class="mt-1">
-        <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
-      </div>
-    `;
+    <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
+    <div class="mt-1">
+      <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
+    </div>
+  `;
         const sel = wrap.querySelector('#car-dock-select');
         const opt0 = document.createElement('option');
         opt0.value = '';
@@ -877,7 +967,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     dom.carDockSelect.addEventListener('change', () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}function ensureIlhaSelect() {
+}
+function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
     if (!dom.carIlhaSelect) {
@@ -886,13 +977,13 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         const wrap = document.createElement('div');
         wrap.className = 'mt-4';
         wrap.innerHTML = `
-      <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
-      <div class="mt-1">
-        <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
-          <option value="">Carregando ilhas...</option>
-        </select>
-      </div>
-    `;
+    <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
+    <div class="mt-1">
+      <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
+        <option value="">Carregando ilhas...</option>
+      </select>
+    </div>
+  `;
         const dockBlock = dockSelect.closest('.mt-4');
         if (dockBlock && dockBlock.parentElement) {
             dockBlock.parentElement.insertBefore(wrap, dockBlock.nextSibling);
@@ -902,7 +993,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     dom.carIlhaSelect.addEventListener('change', () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}function populateIlhaSelect() {
+}
+function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
     rotas.sort();
@@ -921,7 +1013,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}async function processarValidacao(numeracao, usuarioSaida, doca) {
+}
+async function processarValidacao(numeracao, usuarioSaida, doca) {
     const body = {numeracao, usuario_saida: usuarioSaida, doca};
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
@@ -938,7 +1031,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         throw new Error(msg);
     }
     return json || {};
-}function handleCarUserKeydown(e) {
+}
+function handleCarUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -949,23 +1043,33 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             dom.carScan.focus();
         }
     }
-}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+}
+async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
-    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};    const item = state.cacheData.find(i => {        const a = extractElevenDigits(i['ID PACOTE']);
-        const b = extractElevenDigits(idPacoteScaneado);
-        return a && b && a === b;
-    });    if (!item) return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
+    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
+
+    // <-- OTIMIZAÇÃO 1.3: Trocado .find() por .get() para busca instantânea
+    const normalizedScannedId = extractElevenDigits(idPacoteScaneado);
+    const item = state.idPacoteMap.get(normalizedScannedId);
+    // --- Fim da Otimização 1.3 ---
+
+    if (!item) return {success: false, message: `Erro: Pacote ${idPacoteScaneado} não encontrado.`};
     if (item.ROTA !== ilha) return {
         success: false,
         message: `Erro: Pacote pertence à Rota ${item.ROTA}, não à Rota ${ilha}.`
-    };    const numeracaoParaBackend = item.NUMERACAO;
+    };
+    const numeracaoParaBackend = item.NUMERACAO;
     try {
         const dataSaidaISO = new Date().toISOString();
         const result = await processarValidacao(numeracaoParaBackend, usuarioSaida, doca);
-        const {updatedData, idempotent, message} = result || {};        let successMessage = `OK! ${numeracaoParaBackend} validada.`;
-        if (idempotent) successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === item.NUMERACAO);        if (index > -1) {            state.cacheData[index] = {
+        const {updatedData, idempotent, message} = result || {};
+        let successMessage = `OK! ${numeracaoParaBackend} validada.`;
+        if (idempotent) successMessage = message || `Manga ${numeracaoParaBackend} já estava validada.`;
+        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === item.NUMERACAO);
+        if (index > -1) {
+            state.cacheData[index] = {
                 ...state.cacheData[index],
                 ...updatedData,
                 "VALIDACAO": "BIPADO",
@@ -974,7 +1078,16 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                 "DOCA": doca,
                 "ROTA": ilha
             };
-        }        return {success: true, message: successMessage};    } catch (err) {
+
+            // <-- OTIMIZAÇÃO 1.2 (Extra): Atualiza o Map também
+            const id = extractElevenDigits(state.cacheData[index]['ID PACOTE']);
+            if (id) {
+                state.idPacoteMap.set(id, state.cacheData[index]);
+            }
+            // --- Fim da Otimização 1.2 (Extra) ---
+        }
+        return {success: true, message: successMessage};
+    } catch (err) {
         console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
         if (/não encontrada/i.test(msg)) return {
@@ -983,7 +1096,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         };
         return {success: false, message: `Erro: ${msg}`};
     }
-}async function handleCarregamentoSubmit(e) {
+}
+async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -1001,7 +1115,7 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         if (validation.success) {
             setCarStatus(validation.message, {error: false});
             dom.carScan.value = '';
-            renderDashboard();
+            // renderDashboard(); // <-- OTIMIZAÇÃO 2.1: Removida renderização a cada bip
             dom.carScan.focus();
         } else {
             setCarStatus(validation.message, {error: true});
@@ -1019,11 +1133,14 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             dom.carScan.focus();
         }
     }
-}function createRelatorioModal() {
-    if (document.getElementById('modal-relatorio-rota')) return;    const modal = document.createElement('div');
+}
+function createRelatorioModal() {
+    if (document.getElementById('modal-relatorio-rota')) return;
+    const modal = document.createElement('div');
     modal.id = 'modal-relatorio-rota';
     modal.className = 'modal-overlay hidden';
-    modal.style.zIndex = '1200';    modal.innerHTML = `
+    modal.style.zIndex = '1200';
+    modal.innerHTML = `
         <div class="modal-content" style="width: 95vw; max-width: 1200px;">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 id="relatorio-rota-title" class="text-xl font-semibold">Relatório - Rota</h3>
@@ -1032,14 +1149,21 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             <div id="relatorio-rota-body" style="max-height: 70vh; overflow-y: auto;">
                 </div>
         </div>
-    `;    document.body.appendChild(modal);    dom.relatorioModal = modal;
+    `;
+    document.body.appendChild(modal);
+    dom.relatorioModal = modal;
     dom.relatorioTitle = modal.querySelector('#relatorio-rota-title');
     dom.relatorioBody = modal.querySelector('#relatorio-rota-body');
-    dom.relatorioModalClose = modal.querySelector('#relatorio-rota-close');    dom.relatorioModalClose?.addEventListener('click', () => {
+    dom.relatorioModalClose = modal.querySelector('#relatorio-rota-close');
+    dom.relatorioModalClose?.addEventListener('click', () => {
         closeModal(dom.relatorioModal);
     });
-}function openRelatorioModal(rota) {
-    if (!dom.relatorioModal || !rota) return;    const items = state.cacheData.filter(item => item.ROTA === rota);    dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;    let tableHtml = `
+}
+function openRelatorioModal(rota) {
+    if (!dom.relatorioModal || !rota) return;
+    const items = state.cacheData.filter(item => item.ROTA === rota);
+    dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;
+    let tableHtml = `
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
                 <tr>
@@ -1054,10 +1178,13 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-    `;    items.sort((a, b) => new Date(a.DATA) - new Date(b.DATA));    for (const item of items) {
+    `;
+    items.sort((a, b) => new Date(a.DATA) - new Date(b.DATA));
+    for (const item of items) {
         const isBipado = item.VALIDACAO === 'BIPADO';
         const statusClass = isBipado ? 'text-green-600' : 'text-yellow-600';
-        const statusText = isBipado ? 'Carregado' : 'Aguardando';        tableHtml += `
+        const statusText = isBipado ? 'Carregado' : 'Aguardando';
+        tableHtml += `
             <tr class="text-sm text-gray-700">
                 <td class="px-4 py-3 whitespace-nowrap">${item['ID PACOTE'] || '---'}</td>
                 <td class="px-4 py-3 whitespace-nowrap font-medium">${item.NUMERACAO || '---'}</td>
@@ -1069,41 +1196,51 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                 <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
             </tr>
         `;
-    }    tableHtml += `</tbody></table>`;    dom.relatorioBody.innerHTML = tableHtml;
+    }
+    tableHtml += `</tbody></table>`;
+    dom.relatorioBody.innerHTML = tableHtml;
     openModal(dom.relatorioModal);
-}function updatePeriodLabel() {
+}
+function updatePeriodLabel() {
     if (!dom.periodBtn) return;
     if (!state.period.start || !state.period.end) {
         dom.periodBtn.textContent = 'Selecionar Período';
         return;
     }
-    ;    const format = (iso) => {
+    ;
+    const format = (iso) => {
         try {
             const [y, m, d] = iso.split('-');
             return `${d}/${m}/${y}`;
         } catch (e) {
             return iso;
         }
-    };    const start = format(state.period.start);
-    const end = format(state.period.end);    if (start === end) {
+    };
+    const start = format(state.period.start);
+    const end = format(state.period.end);
+    if (start === end) {
         dom.periodBtn.textContent = `Período: ${start}`;
     } else {
         dom.periodBtn.textContent = `Período: ${start} - ${end}`;
     }
-}function openPeriodModal() {
+}
+function openPeriodModal() {
     const today = getBrasiliaDate(true);
     const pad2 = (n) => String(n).padStart(2, '0');
-    const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;    const curStart = state.period.start || toISO(getBrasiliaDate(true));
-    const curEnd = state.period.end || toISO(getBrasiliaDate(true));    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const curStart = state.period.start || toISO(getBrasiliaDate(true));
+    const curEnd = state.period.end || toISO(getBrasiliaDate(true));
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
     const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);    const overlay = document.createElement('div');
+    const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    const overlay = document.createElement('div');
     overlay.id = 'cd-period-overlay';
     overlay.innerHTML = `
       <div class="cdp-card">
         <h3>Selecionar Período</h3>
         <div class="cdp-shortcuts">
-          <button id="cdp-today"    class="btn-salvar">Hoje</button>
-          <button id="cdp-yday"     class="btn-salvar">Ontem</button>
+          <button id="cdp-today"   class="btn-salvar">Hoje</button>
+          <button id="cdp-yday"    class="btn-salvar">Ontem</button>
           <button id="cdp-prevmo"  class="btn-salvar">Mês anterior</button>
         </div>
         <div class="dates-grid">
@@ -1114,7 +1251,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
           <button id="cdp-cancel" class="btn">Cancelar</button>
           <button id="cdp-apply"  class="btn-add">Aplicar</button>
         </div>
-      </div>`;    const cssId = 'cdp-style';
+      </div>`;
+    const cssId = 'cdp-style';
     if (!document.getElementById(cssId)) {
         const st = document.createElement('style');
         st.id = cssId;
@@ -1132,14 +1270,18 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             #cd-period-overlay .btn-add { background-color: #16a34a; }
           `;
         document.head.appendChild(st);
-    }    document.body.appendChild(overlay);    const elStart = overlay.querySelector('#cdp-period-start');
+    }
+    document.body.appendChild(overlay);
+    const elStart = overlay.querySelector('#cdp-period-start');
     const elEnd = overlay.querySelector('#cdp-period-end');
     const btnCancel = overlay.querySelector('#cdp-cancel');
     const btnApply = overlay.querySelector('#cdp-apply');
-    const close = () => overlay.remove();    overlay.addEventListener('click', (ev) => {
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', (ev) => {
         if (ev.target === overlay) close();
     });
-    btnCancel.onclick = close;    overlay.querySelector('#cdp-today').onclick = () => {
+    btnCancel.onclick = close;
+    overlay.querySelector('#cdp-today').onclick = () => {
         const iso = toISO(getBrasiliaDate(true));
         [state.period.start, state.period.end] = [iso, iso];
         updatePeriodLabel();
@@ -1177,12 +1319,16 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         close();
         fetchAndRenderDashboard();
     };
-}let initOnce = false;export function init() {
+}
+let initOnce = false;
+export function init() {
     if (initOnce) return;
-    initOnce = true;    dom.dashboard = document.getElementById('dashboard-stats');
+    initOnce = true;
+    dom.dashboard = document.getElementById('dashboard-stats');
     dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
-    dom.periodBtn = document.getElementById('auditoria-period-btn');    dom.modalSeparação = document.getElementById('modal-separacao');
+    dom.periodBtn = document.getElementById('auditoria-period-btn');
+    dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
     dom.sepUser = document.getElementById('sep-user-name');
     dom.sepScan = document.getElementById('sep-scan-input');
@@ -1190,17 +1336,22 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     dom.sepQrArea = document.getElementById('sep-qr-area');
     dom.sepQrTitle = document.getElementById('sep-qr-title');
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
-    dom.sepPrintBtn = document.getElementById('sep-print-btn');    dom.modalCarregamento = document.getElementById('modal-carregamento');
+    dom.sepPrintBtn = document.getElementById('sep-print-btn');
+    dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
-    dom.carStatus = document.getElementById('car-status');    const todayISO = getBrasiliaDate(false);
+    dom.carStatus = document.getElementById('car-status');
+    const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
-    updatePeriodLabel();    createGlobalScannerModal();
-    createRelatorioModal();    injectScannerButtons();
+    updatePeriodLabel();
+    createGlobalScannerModal();
+    createRelatorioModal();
+    injectScannerButtons();
     ensureDockSelect();
-    ensureIlhaSelect();    if (dom.btnSeparação) {
+    ensureIlhaSelect();
+    if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4', 'text-xl');
         dom.btnSeparação.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnSeparação.querySelector('.text-xl');
@@ -1217,7 +1368,9 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             span.classList.remove('text-xl');
             span.classList.add('text-lg');
         }
-    }    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnSeparação?.addEventListener('click', () => {
+    }
+    dom.periodBtn?.addEventListener('click', openPeriodModal);
+    dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) {
@@ -1234,7 +1387,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
-    });    dom.modalSepClose?.addEventListener('click', (ev) => {
+    });
+    dom.modalSepClose?.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalSeparação);
@@ -1245,10 +1399,12 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-    });    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
+    });
+    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
-    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener('click', async () => {
+    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
+    dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             if (state.lastPrintData) {
                 setSepStatus('Reimprimindo...');
@@ -1266,7 +1422,8 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
             console.error('Falha ao reimprimir etiqueta:', e);
             setSepStatus(`Erro ao reimprimir: ${e.message}`, {error: true});
         }
-    });    document.addEventListener('keydown', (e) => {
+    });
+    document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
                 e.preventDefault();
@@ -1276,32 +1433,41 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
                 dom.sepScan.focus();
             }
         }
-    });    [dom.sepScan, dom.carScan].forEach(inp => {
+    });
+    [dom.sepScan, dom.carScan].forEach(inp => {
         if (!inp) return;
         inp.addEventListener('paste', () => {
             setTimeout(() => {
                 inp.value = normalizeScanned(inp.value);
             }, 0);
         });
-    });    reorderControlsOverDashboard();
-    fetchAndRenderDashboard();    fetch(FUNC_SEPARACAO_URL, {
+    });
+    reorderControlsOverDashboard();
+    fetchAndRenderDashboard();
+    fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
         headers: buildFunctionHeaders(),
         body: JSON.stringify({action: 'preload'})
     }).catch(err => {
         console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
-    });    console.log('Módulo de Auditoria (Dashboard) inicializado [V22 - Correção Chaves c/ Espaço].');
-}export function destroy() {
+    });
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V22 - Correção Chaves c/ Espaço].');
+}
+export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();
-    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);    if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);    state.cacheData = [];
+    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
+    if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);
+    state.cacheData = [];
+    state.idPacoteMap?.clear(); // <-- OTIMIZAÇÃO 1.1: Limpar o Map ao destruir
     state.globalScannerInstance = null;
     state.currentScannerTarget = null;
     state.lastPrintData = null;
     state.period = {start: null, end: null};
     dom = {};
     initOnce = false;
-}if (typeof document !== 'undefined') {
+}
+if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             try {
