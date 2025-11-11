@@ -1,8 +1,14 @@
-import {supabase} from '../supabaseClient.js';const _cache = new Map();
+import {supabase} from '../supabaseClient.js';
+
+const _cache = new Map();
 const _inflight = new Map();
-const CACHE_TTL_MS = 10 * 60_000;function cacheKeyForColabs() {
+const CACHE_TTL_MS = 10 * 60_000;
+
+function cacheKeyForColabs() {
     return `colabs:ALL`;
-}async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
+}
+
+async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
     if (hit && (now - hit.ts) < hit.ttl) return hit.value;
@@ -18,13 +24,17 @@ const CACHE_TTL_MS = 10 * 60_000;function cacheKeyForColabs() {
     })();
     _inflight.set(key, p);
     return p;
-}function invalidateCache(keys = []) {
+}
+
+function invalidateCache(keys = []) {
     if (!keys.length) {
         _cache.clear();
         return;
     }
     keys.forEach(k => _cache.delete(k));
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -40,7 +50,9 @@ const CACHE_TTL_MS = 10 * 60_000;function cacheKeyForColabs() {
         }
     }
     return allData;
-}const HOST_SEL = '#hc-indice';
+}
+
+const HOST_SEL = '#hc-indice';
 const state = {
     mounted: false,
     loading: false,
@@ -72,7 +84,9 @@ const state = {
 };
 const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const root = () => document.documentElement;
-const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;function parseRGB(str) {
+const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
+
+function parseRGB(str) {
     if (!str) return {r: 0, g: 0, b: 0};
     const s = String(str).trim();
     if (s.startsWith('#')) {
@@ -85,7 +99,9 @@ const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim()
     }
     const m = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(s);
     return m ? {r: +m[1], g: +m[2], b: +m[3]} : {r: 30, g: 64, b: 124};
-}const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+}
+
+const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
 const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
 const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
@@ -94,28 +110,38 @@ const MONTH_ORDER = {
     'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
 };
 const sortMesAno = (a, b) => (a.ANO * 100 + a.mesOrder) - (b.ANO * 100 + b.mesOrder);
-const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDateMaybe(s) {
+const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;
+
+function parseDateMaybe(s) {
     const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(String(s || '').trim());
     if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
-}function formatDateLocal(iso) {
+}
+
+function formatDateLocal(iso) {
     if (!iso) return '';
     const datePart = iso.split('T')[0];
     const [y, m, d] = datePart.split('-');
     if (!y || !m || !d) return '';
     return `${d}/${m}/${y}`;
-}function daysBetween(d1, d2) {
+}
+
+function daysBetween(d1, d2) {
     const ms = 24 * 60 * 60 * 1000;
     const a = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
     const b = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
     return Math.floor((b - a) / ms);
-}function daysSinceAdmission(c) {
+}
+
+function daysSinceAdmission(c) {
     const raw = c?.['Data de admissão'] ?? c?.['Data de admissao'] ?? c?.Admissao ?? c?.['Data Admissão'] ?? c?.['Data Admissao'] ?? '';
     const d = parseDateMaybe(raw);
     if (!d) return null;
     return daysBetween(d, new Date());
-}function calcAgeFromStr(s) {
+}
+
+function calcAgeFromStr(s) {
     const d = parseDateMaybe(s);
     if (!d) return null;
     const now = new Date();
@@ -123,7 +149,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     const dm = now.getMonth() - d.getMonth();
     if (dm < 0 || (dm === 0 && now.getDate() < d.getDate())) a--;
     return a;
-}function ageBucket(a) {
+}
+
+function ageBucket(a) {
     if (a == null) return 'N/D';
     if (a < 20) return '<20';
     if (a < 30) return '20-29';
@@ -131,19 +159,27 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     if (a < 50) return '40-49';
     if (a < 60) return '50-59';
     return '60+';
-}function getNascimento(c) {
+}
+
+function getNascimento(c) {
     return c?.['Data de Nascimento'] || c?.['Data de nascimento'] || c?.Nascimento || c?.['Nascimento'] || '';
-}function mapGeneroLabel(raw) {
+}
+
+function mapGeneroLabel(raw) {
     const n = norm(raw);
     if (n.startsWith('MASC')) return 'Masculino';
     if (n.startsWith('FEM')) return 'Feminino';
     return n ? 'Outros' : 'N/D';
-}function mapCargoLabel(raw) {
+}
+
+function mapCargoLabel(raw) {
     const n = norm(raw);
     if (n === 'AUXILIAR') return 'Auxiliar';
     if (n === 'CONFERENTE') return 'Conferente';
     return 'Outros';
-}function mapSvcLabel(rawSvc) {
+}
+
+function mapSvcLabel(rawSvc) {
     const svc = String(rawSvc || 'N/D').toUpperCase();
     if (svc === 'SBA2' || svc === 'SBA4') {
         return 'SBA2/4';
@@ -152,7 +188,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         return 'SBA3/7';
     }
     return svc;
-}function mapDSR(raw) {
+}
+
+function mapDSR(raw) {
     const n = norm(raw);
     if (!n) return ['N/D'];
     const days = n.split(',').map(d => d.trim());
@@ -167,7 +205,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         return null;
     }).filter(Boolean);
     return mapped.length > 0 ? mapped : ['N/D'];
-}function palette() {
+}
+
+function palette() {
     const r = root();
     return [
         css(r, '--hcidx-p-1', '#02B1EE'),
@@ -179,7 +219,11 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         css(r, '--hcidx-p-7', '#7FB8EB'),
         css(r, '--hcidx-p-8', '#99CCFF')
     ];
-}let _resizeObs = null;function setResponsiveHeights() {
+}
+
+let _resizeObs = null;
+
+function setResponsiveHeights() {
     if (window.Chart) {
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
         Object.values(state.charts).forEach(ch => {
@@ -188,14 +232,18 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
             ch.resize();
         });
     }
-}function wireResizeObserver() {
+}
+
+function wireResizeObserver() {
     if (_resizeObs) return;
     const rootEl = document.querySelector('#hc-indice .hcidx-root');
     if (!rootEl) return;
     _resizeObs = new ResizeObserver(() => setResponsiveHeights());
     _resizeObs.observe(rootEl);
     window.addEventListener('resize', setResponsiveHeights);
-}function ensureMounted() {
+}
+
+function ensureMounted() {
     const host = document.querySelector(HOST_SEL);
     if (!host || state.mounted) return;
     ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
@@ -228,7 +276,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     state.mounted = true;
     setResponsiveHeights();
     wireResizeObserver();
-}async function ensureChartLib() {
+}
+
+async function ensureChartLib() {
     if (!window.Chart) await loadJs('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
     if (!window.ChartDataLabels) await loadJs('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js');
     try {
@@ -238,7 +288,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     Chart.defaults.responsive = true;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
-}function loadJs(src) {
+}
+
+function loadJs(src) {
     return new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = src;
@@ -246,16 +298,22 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         s.onerror = rej;
         document.head.appendChild(s);
     });
-}function showBusy(f) {
+}
+
+function showBusy(f) {
     const el = document.getElementById('hcidx-busy');
     if (el) el.style.display = f ? 'flex' : 'none';
-}const uniqueNonEmptySorted = (v) =>
+}
+
+const uniqueNonEmptySorted = (v) =>
     Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
-        .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
+        .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
+let _filtersPopulated = false;
+
+function populateFilters(allColabs, matrizesMap) {
     if (_filtersPopulated) return;
     const selM = document.getElementById('efet-filter-matriz');
     const selG = document.getElementById('efet-filter-gerencia');
@@ -276,7 +334,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         if (state.regiao) selR.value = state.regiao;
     }
     _filtersPopulated = true;
-}async function loadColabsCached() {
+}
+
+async function loadColabsCached() {
     const key = cacheKeyForColabs();
     return fetchOnce(key, async () => {
         let query = supabase.from('Colaboradores').select('*');
@@ -285,7 +345,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
         return rows;
     });
-}async function loadSpamData() {
+}
+
+async function loadSpamData() {
     return fetchOnce('spamData', async () => {
         const {data, error} = await supabase.from('Spam').select('"HC Fixo", "HC PT", SVC, REGIAO, MÊS, ANO');
         if (error) throw error;
@@ -301,7 +363,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             mesOrder: getMesOrder(r.MÊS)
         }));
     });
-}async function loadMatrizesData() {
+}
+
+async function loadMatrizesData() {
     return fetchOnce('matrizesData', async () => {
         const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
         if (error) throw error;
@@ -317,7 +381,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         });
         return map;
     });
-}async function refresh() {
+}
+
+async function refresh() {
     if (!state.mounted || state.loading) {
         if (state.loading) console.warn("Refresh chamado enquanto já estava carregando.");
         return;
@@ -376,7 +442,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         state.loading = false;
         showBusy(false);
     }
-}function wireSubtabs() {
+}
+
+function wireSubtabs() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
     const subButtons = host.querySelectorAll('.efet-subtab-btn');
@@ -410,7 +478,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             setResponsiveHeights();
         });
     });
-}function setDynamicChartHeight(chart, labels) {
+}
+
+function setDynamicChartHeight(chart, labels) {
     if (!chart || !chart.canvas || chart.options.indexAxis !== 'y') return;
     const pixelsPerBar = 32;
     const headerAndLegendHeight = 96;
@@ -424,7 +494,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             setTimeout(() => chart.resize(), 50);
         }
     }
-}function baseLegendConfig(pos, show) {
+}
+
+function baseLegendConfig(pos, show) {
     return {
         display: show,
         position: pos,
@@ -432,7 +504,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         align: 'center',
         labels: {boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true}
     };
-}function forceLegendBottom(chart) {
+}
+
+function forceLegendBottom(chart) {
     if (!chart?.options) return;
     const leg = chart.options.plugins.legend || (chart.options.plugins.legend = {});
     const lbls = leg.labels || (leg.labels = {});
@@ -447,7 +521,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     const w = chart.canvas?.parentElement?.clientWidth || 800;
     const size = Math.max(13, Math.min(16, Math.round(w / 48)));
     lbls.font = {size};
-}function baseOptsPercent(canvas, onClick, axis = 'x') {
+}
+
+function baseOptsPercent(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(13, Math.min(16, Math.round(w / 48)));
     const isHorizontal = axis === 'y';
@@ -475,7 +551,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             title: {display: false},
             legend: baseLegendConfig('bottom', true),
             datalabels: {
-                display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) > (isHorizontal ? 5 : 10),
+
+                display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) > 1,
                 clamp: true,
                 font: {size: baseSize + 1, weight: 'bold'},
                 color: (ctx) => {
@@ -487,7 +564,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 },
                 formatter: (value, ctx) => {
                     const p = Math.round(value);
-                    if (p <= 1) return '';
+
+                    if (p < 1) return '';
                     return `${p}% (${ctx.dataset._rawCounts?.[ctx.dataIndex] ?? '—'})`;
                 },
                 anchor: 'center',
@@ -505,7 +583,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}function baseOptsNumber(canvas, onClick, axis = 'x') {
+}
+
+function baseOptsNumber(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(12, Math.min(14, Math.round(w / 55)));
     const isHorizontal = axis === 'y';
@@ -568,7 +648,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}function createStackedBar(canvasId, onClick, axis = 'x') {
+}
+
+function createStackedBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsPercent(canvas, onClick, axis);
@@ -583,7 +665,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     });
     forceLegendBottom(chart);
     return chart;
-}function createBar(canvasId, onClick, axis = 'x') {
+}
+
+function createBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsNumber(canvas, onClick, axis);
@@ -595,25 +679,31 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     });
     forceLegendBottom(chart);
     return chart;
-}function splitByTurno(colabs) {
+}
+
+function splitByTurno(colabs) {
     const t1 = colabs.filter(c => c.Escala === 'T1');
     const t2 = colabs.filter(c => c.Escala === 'T2');
     const t3 = colabs.filter(c => c.Escala === 'T3');
     return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, colabs]};
-}function splitByRegiao(colabs) {
+}
+
+function splitByRegiao(colabs) {
     const map = new Map();
     colabs.forEach(c => {
         const r = String(c?.REGIAO || 'N/D');
         if (!map.has(r)) map.set(r, []);
         map.get(r).push(c);
     });
-    const entries = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', {sensitivity: 'base'}));
+    const entries = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { sensitivity: 'base' }));
     const labels = entries.map(([k]) => k);
     const groups = entries.map(([, arr]) => arr);
     labels.push('GERAL');
     groups.push(colabs.slice());
     return {labels, groups};
-}function ensureChartsCreatedService() {
+}
+
+function ensureChartsCreatedService() {
     if (!state.charts.idade) {
         state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'y');
         if (state.charts.idade) {
@@ -625,11 +715,32 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             if (state.charts.idade.options.scales.y.ticks) delete state.charts.idade.options.scales.y.ticks.callback;
         }
     }
-    if (!state.charts.genero) state.charts.genero = createStackedBar('ind-genero-bar', (chart, element) => toggleFilter('genero', chart, element), 'x');
+    if (!state.charts.genero) {
+        state.charts.genero = createStackedBar('ind-genero-bar', (chart, element) => toggleFilter('genero', chart, element), 'x');
+
+
+        if (state.charts.genero) {
+            if (state.charts.genero.options.elements.bar) {
+
+                state.charts.genero.options.elements.bar.barPercentage = 0.9;
+
+                state.charts.genero.options.elements.bar.categoryPercentage = 0.9;
+            }
+
+            state.charts.genero.options.plugins.datalabels.font = {
+                size: 11,
+                weight: 'bold'
+            };
+        }
+
+    }
     if (!state.charts.dsr) {
         const canvas = document.getElementById('ind-dsr-pie');
         if (canvas) {
-            const baseSize = Math.max(11, Math.min(14, Math.round((canvas?.parentElement?.clientWidth || 600) / 50)));
+
+            const baseSize = Math.max(13, Math.min(15, Math.round((canvas?.parentElement?.clientWidth || 600) / 45)));
+
+
             const options = {
                 layout: {padding: 6},
                 animation: {duration: 800, easing: 'easeOutQuart'},
@@ -672,7 +783,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const auxPrazoSvcId = document.getElementById('ind-aux-30-60-90-svc-bar') ? 'ind-aux-30-60-90-svc-bar' : 'ind-contrato-90d-svc-bar';
         state.charts.auxPrazoSvc = createStackedBar(auxPrazoSvcId, (chart, element) => toggleFilter('auxPrazoSvc', chart, element), 'y');
     }
-}function ensureChartsCreatedRegional() {
+}
+
+function ensureChartsCreatedRegional() {
     if (!state.charts.idadeRegiao) {
         const id = document.getElementById('reg-idade-bar') ? 'reg-idade-bar' : 'ind-idade-regiao-bar';
         state.charts.idadeRegiao = createStackedBar(id, null, 'x');
@@ -695,7 +808,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const id = document.getElementById('reg-aux-30-60-90-bar') ? 'reg-aux-30-60-90-bar' : 'ind-contrato-90d-regiao-bar';
         state.charts.auxPrazoRegiao = createStackedBar(id, null, 'x');
     }
-}function toggleFilter(type, chart, element) {
+}
+
+function toggleFilter(type, chart, element) {
     const set = state.interactive[type];
     if (!set) return;
     let label = (type === 'dsr')
@@ -707,7 +822,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}function applyInteractiveFilter(colabs) {
+}
+
+function applyInteractiveFilter(colabs) {
     let out = [...colabs];
     if (state.interactive.idade.size > 0) out = out.filter(c => state.interactive.idade.has(ageBucket(calcAgeFromStr(getNascimento(c)))));
     if (state.interactive.genero.size > 0) out = out.filter(c => state.interactive.genero.has(mapGeneroLabel(c.Genero)));
@@ -718,13 +835,17 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         });
     }
     return out;
-}function clearAllFilters() {
+}
+
+function clearAllFilters() {
     Object.values(state.interactive).forEach(set => set.clear());
     const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}function updateChartsNow() {
+}
+
+function updateChartsNow() {
     if (!state.charts.idade) {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
@@ -891,7 +1012,11 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 total
             };
         });
-        rows.sort((a, b) => b.pctEfetivo - a.pctEfetivo || a.svc.localeCompare(b.svc));
+
+
+        rows.sort((a, b) => b.pctEfetivo - a.pctEfetivo || b.rawEfetivo - a.rawEfetivo || a.svc.localeCompare(b.svc));
+
+
         const totalG = colabsAuxiliares.length || 1;
         const countsG = colabsAuxiliares.reduce((acc, c) => {
             if (norm(c.Contrato).includes('KN')) {
@@ -997,7 +1122,11 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 total
             };
         });
-        rows.sort((a, b) => b.total - a.total || a.svc.localeCompare(b.svc));
+
+
+        rows.sort((a, b) => a.rawMais90 - b.rawMais90 || a.svc.localeCompare(b.svc));
+
+
         const countsG = colabsAuxNaoKN.reduce((acc, c) => {
             const d = daysSinceAdmission(c);
             if (d != null) {
@@ -1045,7 +1174,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             ch.update();
         }
     }
-}function updateRegionalChartsNow() {
+}
+
+function updateRegionalChartsNow() {
     if (!state.charts.idadeRegiao) {
         console.warn("Tentando atualizar gráficos Regionais, mas eles não estão inicializados.");
         return;
@@ -1190,7 +1321,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             ch.update();
         }
     }
-}function updateEmEfetivacaoTable() {
+}
+
+function updateEmEfetivacaoTable() {
     const tbody = document.getElementById('efet-table-tbody');
     if (!tbody) {
         console.warn("Elemento #efet-table-tbody não encontrado. A tabela 'Em Efetivação' não pode ser populada.");
@@ -1220,7 +1353,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         `;
         tbody.appendChild(tr);
     });
-}function ensureChartsCreatedSpam() {
+}
+
+function ensureChartsCreatedSpam() {
     const pal = palette();
     if (!state.charts.spamHcEvolucaoSvc) {
         const chart = createBar('spam-chart-evolucao-svc', null, 'x');
@@ -1338,11 +1473,16 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             state.charts.spamHcVsAux = chart;
         }
     }
-}async function updateSpamCharts(matrizesMap, svcsDoGerente) {
+}
+
+async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
-    ensureChartsCreatedSpam();    const [allSpamData] = await Promise.all([
+    ensureChartsCreatedSpam();
+    const [allSpamData] = await Promise.all([
         loadSpamData(),
-    ]);    const colabsAtivos = state.colabs;    const spamData = allSpamData.filter(r => {
+    ]);
+    const colabsAtivos = state.colabs;
+    const spamData = allSpamData.filter(r => {
         if (state.regiao && r.REGIAO !== state.regiao) {
             return false;
         }
@@ -1352,9 +1492,11 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         }
         return true;
-    });    const pal = palette();
+    });
+    const pal = palette();
     const allMonths = [...spamData].sort(sortMesAno);
-    const latestMonth = allMonths.pop();    if (!latestMonth) {
+    const latestMonth = allMonths.pop();
+    if (!latestMonth) {
         console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
             if (chart && chart.canvas.id.startsWith('spam-')) {
@@ -1364,10 +1506,12 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         });
         return;
-    }    const {MÊS: mesAtual, ANO: anoAtual} = latestMonth;
+    }
+    const {MÊS: mesAtual, ANO: anoAtual} = latestMonth;
     const mesAtualLabel = `${mesAtual.slice(0, 3)}/${anoAtual}`;
     const previousMonth = allMonths.filter(m => m.ANO < anoAtual || (m.ANO === anoAtual && m.mesOrder < latestMonth.mesOrder)).pop();
-    const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;    if (state.charts.spamHcEvolucaoSvc) {
+    const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;
+    if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
         const svcsSet = new Set();
@@ -1458,15 +1602,17 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(regiao => {
                 return dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0;
-            });            // ADICIONADO: Calcula o total do mês e adiciona ao array de dados
+            });
             const totalMes = data.reduce((a, b) => a + b, 0);
-            data.push(totalMes);            return {
+            data.push(totalMes);
+            return {
                 label: mesLabel,
                 data: data,
                 backgroundColor: pal[i % pal.length],
             };
-        });        // ADICIONADO: Adiciona o label 'GERAL' para corresponder aos dados
-        labels.push('GERAL');        const chart = state.charts.spamHcEvolucaoRegiao;
+        });
+        labels.push('GERAL');
+        const chart = state.charts.spamHcEvolucaoRegiao;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
@@ -1516,14 +1662,15 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
         const labels = [...allSvcs].sort();
         const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
-        const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);        // ADICIONADO: Adiciona a barra GERAL (Soma)
+        const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
         const totalSpam = dataHcTotalSpam.reduce((a, b) => a + b, 0);
         const totalReal = dataAuxAtivoReal.reduce((a, b) => a + b, 0);
         dataHcTotalSpam.push(totalSpam);
         dataAuxAtivoReal.push(totalReal);
-        labels.push('GERAL');        // ADICIONADO: Calcula o max para a escala (sem o GERAL, para não achatar os outros)
+        labels.push('GERAL');
         const maxSpamSemGeral = dataHcTotalSpam.length > 1 ? Math.max(...dataHcTotalSpam.slice(0, -1)) : (dataHcTotalSpam[0] || 0);
-        const maxRealSemGeral = dataAuxAtivoReal.length > 1 ? Math.max(...dataAuxAtivoReal.slice(0, -1)) : (dataAuxAtivoReal[0] || 0);        const maxHcParaEscala = Math.max(maxSpamSemGeral, maxRealSemGeral);
+        const maxRealSemGeral = dataAuxAtivoReal.length > 1 ? Math.max(...dataAuxAtivoReal.slice(0, -1)) : (dataAuxAtivoReal[0] || 0);
+        const maxHcParaEscala = Math.max(maxSpamSemGeral, maxRealSemGeral);
         const chart = state.charts.spamHcVsAux;
         if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
@@ -1549,7 +1696,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         ];
         chart.update();
     }
-}export async function init() {
+}
+
+export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         console.warn('Host #hc-indice não encontrado.');
@@ -1578,7 +1727,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     } else {
         await refresh();
     }
-}export function destroy() {
+}
+
+export function destroy() {
     if (state.mounted) {
         console.log('Destruindo estado de Efetivações.');
         Object.values(state.charts).forEach(chart => chart?.destroy());

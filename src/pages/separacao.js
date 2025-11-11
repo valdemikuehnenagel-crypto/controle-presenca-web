@@ -15,7 +15,7 @@ const SUPPORTED_FORMATS = [
 const BRASILIA_TIMEZONE = 'America/Sao_Paulo';
 let state = {
     cacheData: [],
-    idPacoteMap: new Map(), // <-- OTIMIZAÇÃO 1.1: Mantido para popular o <select> de ilhas
+    idPacoteMap: new Map(),
     isSeparaçãoProcessing: false,
     isCarregamentoProcessing: false,
     selectedDock: null,
@@ -532,7 +532,7 @@ async function handleSeparacaoFromScanner(idPacote) {
             const successMsg = `Sucesso! Manga ${numeracao} (Rota ${ilha})`;
             if (insertedData && insertedData[0]) {
                 state.cacheData.unshift(insertedData[0]);
-                // Adiciona ao Map também
+
                 const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
                 if (id) {
                     state.idPacoteMap.set(id, insertedData[0]);
@@ -574,7 +574,7 @@ async function handleCarregamentoFromScanner(decodedText) {
         const validation = await runCarregamentoValidation(cleaned, usuarioSaida, doca, ilha);
         if (validation.success) {
             showScannerFeedback('success', validation.message);
-            // renderDashboard(); // <-- OTIMIZAÇÃO 2.2: Removida renderização a cada bip
+
         } else {
             showScannerFeedback('error', validation.message, true);
             dom.carScan.value = cleaned;
@@ -608,16 +608,16 @@ async function fetchDashboardData() {
         const data = await response.json();
         state.cacheData = data;
 
-        // <-- OTIMIZAÇÃO 1.2: Popular o Map para busca rápida
+
         state.idPacoteMap.clear();
         for (const item of data) {
-            // O ID do pacote de AMOSTRA é a chave
+
             const id = extractElevenDigits(item['ID PACOTE']);
             if (id) {
                 state.idPacoteMap.set(id, item);
             }
         }
-        // --- Fim da Otimização 1.2 ---
+
 
     } catch (err) {
         console.error('Falha ao carregar placar:', err);
@@ -680,7 +680,8 @@ function processDashboardData(data) {
             concluida: pendentes === 0 && total > 0
         });
     }
-    rotasConsolidadas.sort((a, b) => a.rota.localeCompare(b.rota));
+
+    rotasConsolidadas.sort((a, b) => b.percentual - a.percentual);
     return rotasConsolidadas;
 }
 
@@ -956,7 +957,7 @@ async function handleSeparaçãoSubmit(e) {
             setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
             if (insertedData && insertedData[0]) {
                 state.cacheData.unshift(insertedData[0]);
-                // Adiciona ao Map também
+
                 const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
                 if (id) {
                     state.idPacoteMap.set(id, insertedData[0]);
@@ -1077,12 +1078,12 @@ function populateIlhaSelect() {
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
 }
 
-// =================================================================
-// INÍCIO DA MUDANÇA (LÓGICA DE VALIDAÇÃO)
-// =================================================================
+
+
+
 
 async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
-    // A função agora envia o ID do pacote bipado e a Rota selecionada
+
     const body = {
         id_pacote: idPacoteScaneado,
         rota_selecionada: rotaSelecionada,
@@ -1125,16 +1126,16 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
     if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
 
-    // A lógica de validação foi MOVIDA para o backend.
-    // O frontend apenas envia os dados e aguarda a resposta.
+
+
 
     try {
-        // Envia o ID do PACOTE (ou Manga) bipado e a ROTA selecionada
+
         const result = await processarValidacao(idPacoteScaneado, ilha, usuarioSaida, doca);
 
         const {updatedData, idempotent, message} = result || {};
 
-        // Precisamos saber qual manga foi atualizada no backend
+
         const updatedNumeracao = updatedData?.NUMERACAO;
         if (!updatedNumeracao) {
             throw new Error("Backend não retornou dados da manga atualizada.");
@@ -1143,21 +1144,21 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
         let successMessage = `OK! ${updatedNumeracao} validada.`;
         if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já estava validada.`;
 
-        // Atualiza o cache local com os dados que o backend retornou
+
         const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
         if (index > -1) {
             state.cacheData[index] = {
                 ...state.cacheData[index],
-                ...updatedData, // Mescla os dados atualizados (VALIDACAO, DATA SAIDA, etc.)
+                ...updatedData,
             };
 
-            // Atualiza o Map (caso o pacote de amostra tenha sido atualizado)
+
             const id = extractElevenDigits(state.cacheData[index]['ID PACOTE']);
             if (id) {
                 state.idPacoteMap.set(id, state.cacheData[index]);
             }
         } else {
-            // Se, por algum motivo, a manga não estava no cache, a adicionamos
+
             state.cacheData.unshift(updatedData);
             const id = extractElevenDigits(updatedData['ID PACOTE']);
             if (id) {
@@ -1183,18 +1184,18 @@ async function handleCarregamentoSubmit(e) {
     dom.carIlhaSelect && (dom.carIlhaSelect.disabled = true);
     setCarStatus('Validando...');
 
-    // O idPacoteScaneado pode ser um ID de Pacote (458...) ou uma Numeração (L_4368)
+
     const idPacoteScaneado = normalizeScanned(dom.carScan?.value?.trim());
     const usuarioSaida = dom.carUser?.value?.trim();
     const doca = state.selectedDock || dom.carDockSelect?.value || '';
-    const ilha = state.selectedIlha || dom.carIlhaSelect?.value || ''; // Esta é a ROTA selecionada
+    const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
 
     try {
         const validation = await runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha);
         if (validation.success) {
             setCarStatus(validation.message, {error: false});
             dom.carScan.value = '';
-            // renderDashboard(); // <-- OTIMIZAÇÃO 2.1: Removida renderização a cada bip
+
             dom.carScan.focus();
         } else {
             setCarStatus(validation.message, {error: true});
@@ -1214,9 +1215,9 @@ async function handleCarregamentoSubmit(e) {
     }
 }
 
-// =================================================================
-// FIM DA MUDANÇA
-// =================================================================
+
+
+
 
 function createRelatorioModal() {
     if (document.getElementById('modal-relatorio-rota')) return;
@@ -1549,7 +1550,7 @@ export function destroy() {
     if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
     if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);
     state.cacheData = [];
-    state.idPacoteMap?.clear(); // <-- OTIMIZAÇÃO 1.1: Limpar o Map ao destruir
+    state.idPacoteMap?.clear();
     state.globalScannerInstance = null;
     state.currentScannerTarget = null;
     state.lastPrintData = null;

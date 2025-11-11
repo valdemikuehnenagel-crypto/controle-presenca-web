@@ -3135,3 +3135,39 @@
 }#main-content > header #userAvatar {
     border-color: #02B1EE;
 }
+
+ /* --- CSS PARA MENU DE AVATAR --- */
+.custom-context-menu {
+    position: fixed;
+    z-index: 10000;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    padding: 6px;
+    min-width: 160px;
+    border: 1px solid #e7ebf4;
+}
+
+.custom-context-menu button {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    color: #242c4c;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.custom-context-menu button:hover {
+    background-color: #f0f3f7;
+}
+
+.user-avatar.uploading {
+    opacity: 0.5;
+    cursor: progress;
+    filter: blur(1px);
+}
