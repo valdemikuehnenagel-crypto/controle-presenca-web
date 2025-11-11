@@ -3,6 +3,8 @@ import {supabase} from '../supabaseClient.js';
 const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
+const MIN_LABEL_FONT_PX = 12;
+const MIN_SEGMENT_PERCENT = 9;
 
 function cacheKeyForColabs() {
     return `colabs:ALL`;
@@ -104,7 +106,7 @@ function parseRGB(str) {
 const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
 const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
-const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
+const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'N/D'];
 const MONTH_ORDER = {
     'JANEIRO': 1, 'FEVEREIRO': 2, 'MARÇO': 3, 'ABRIL': 4, 'MAIO': 5, 'JUNHO': 6,
     'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
@@ -307,7 +309,7 @@ function showBusy(f) {
 
 const uniqueNonEmptySorted = (v) =>
     Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
-        .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+        .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -380,6 +382,50 @@ async function loadMatrizesData() {
             }
         });
         return map;
+    });
+}
+
+function enforceMinSegmentPct(percs, minPct) {
+    const arr = percs.map(v => Math.max(0, +v || 0));
+    const nonZeroIdx = arr.map((v, i) => v > 0 ? i : -1).filter(i => i >= 0);
+    const k = nonZeroIdx.length;
+    if (k === 0) return arr.map(() => 0);
+    const effMin = Math.min(minPct, 100 / k - 1e-9);
+    const sumOriginal = nonZeroIdx.reduce((s, i) => s + arr[i], 0) || 1;
+    const floorsSum = effMin * k;
+    let available = Math.max(0, 100 - floorsSum);
+    const out = arr.slice();
+    nonZeroIdx.forEach(i => {
+        const share = available * (arr[i] / sumOriginal);
+        out[i] = effMin + share;
+    });
+    const total = out.reduce((a, b) => a + b, 0);
+    const diff = 100 - total;
+    if (Math.abs(diff) > 1e-6) {
+        let maxIdx = nonZeroIdx[0];
+        nonZeroIdx.forEach(i => {
+            if (out[i] > out[maxIdx]) maxIdx = i;
+        });
+        out[maxIdx] += diff;
+    }
+    return out;
+}
+
+function applyMinWidthToStack(datasets, minPct) {
+    if (!datasets || datasets.length === 0) return;
+    const n = Math.max(...datasets.map(ds => ds.data?.length || 0));
+    for (let j = 0; j < n; j++) {
+        const real = datasets.map(ds => +((ds.data?.[j]) || 0));
+        const rendered = enforceMinSegmentPct(real, minPct);
+        datasets.forEach((ds, idx) => {
+            if (!ds._realPct) ds._realPct = [];
+            if (!ds._renderData) ds._renderData = [];
+            ds._realPct[j] = real[idx];
+            ds._renderData[j] = rendered[idx];
+        });
+    }
+    datasets.forEach(ds => {
+        ds.data = ds._renderData;
     });
 }
 
@@ -541,7 +587,9 @@ function baseOptsPercent(canvas, onClick, axis = 'x') {
     };
     return {
         indexAxis: axis,
-        layout: {padding: {top: 12, left: 10, right: 18, bottom: 10}},
+        layout: {
+            padding: {top: 16, left: 10, right: 18, bottom: 10}
+        },
         interaction: {mode: 'nearest', axis: isHorizontal ? 'y' : 'x', intersect: true},
         animation: {duration: 800, easing: 'easeOutQuart'},
         onClick: (e, elements, chart) => {
@@ -551,32 +599,42 @@ function baseOptsPercent(canvas, onClick, axis = 'x') {
             title: {display: false},
             legend: baseLegendConfig('bottom', true),
             datalabels: {
-
-                display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) > 1,
-                clamp: true,
-                font: {size: baseSize + 1, weight: 'bold'},
+                clip: false,
+                clamp: false,
+                display: (ctx) => {
+                    const real = ctx.dataset._realPct?.[ctx.dataIndex];
+                    const v = (real != null) ? real : (+ctx.dataset.data[ctx.dataIndex] || 0);
+                    return v > 0;
+                },
+                font: () => ({size: Math.max(MIN_LABEL_FONT_PX, baseSize + 1), weight: 'bold'}),
                 color: (ctx) => {
-                    if (ctx.dataset.label === 'Potencial (>90d)') return '#fff';
                     const bg = Array.isArray(ctx.dataset.backgroundColor)
                         ? ctx.dataset.backgroundColor[ctx.dataIndex]
                         : ctx.dataset.backgroundColor;
                     return bestLabel(bg);
                 },
-                formatter: (value, ctx) => {
-                    const p = Math.round(value);
-
-                    if (p < 1) return '';
-                    return `${p}% (${ctx.dataset._rawCounts?.[ctx.dataIndex] ?? '—'})`;
-                },
                 anchor: 'center',
-                align: 'center'
+                align: 'center',
+                offset: 0,
+                formatter: (value, ctx) => {
+                    const real = ctx.dataset._realPct?.[ctx.dataIndex];
+                    const use = (real != null) ? real : (+value || 0);
+                    if (use <= 0) return '';
+                    const pct = use < 1 ? 1 : Math.round(use);
+                    const count = ctx.dataset._rawCounts?.[ctx.dataIndex];
+                    return count != null ? `${pct}% (${count})` : `${pct}%`;
+                }
             },
             tooltip: {
                 displayColors: false,
                 filter: (item) => (item.parsed?.y ?? item.parsed?.x) > 0,
                 callbacks: {
                     title: (items) => items?.[0]?.label ?? '',
-                    label: (ctx) => `${ctx.dataset?.label ? `${ctx.dataset.label}: ` : ''}${Math.round(isHorizontal ? ctx.parsed?.x : ctx.parsed?.y ?? 0)}% (${ctx.dataset._rawCounts?.[ctx.dataIndex] ?? 0})`
+                    label: (ctx) => {
+                        const real = ctx.dataset._realPct?.[ctx.dataIndex];
+                        const pct = Math.round(real != null ? real : ((ctx.chart?.options?.indexAxis === 'y') ? ctx.parsed?.x : ctx.parsed?.y) || 0);
+                        return `${ctx.dataset?.label ? `${ctx.dataset.label}: ` : ''}${pct}% (${ctx.dataset._rawCounts?.[ctx.dataIndex] ?? 0})`;
+                    }
                 }
             }
         },
@@ -695,7 +753,7 @@ function splitByRegiao(colabs) {
         if (!map.has(r)) map.set(r, []);
         map.get(r).push(c);
     });
-    const entries = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', { sensitivity: 'base' }));
+    const entries = [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR', {sensitivity: 'base'}));
     const labels = entries.map(([k]) => k);
     const groups = entries.map(([, arr]) => arr);
     labels.push('GERAL');
@@ -705,42 +763,19 @@ function splitByRegiao(colabs) {
 
 function ensureChartsCreatedService() {
     if (!state.charts.idade) {
-        state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'y');
-        if (state.charts.idade) {
-            state.charts.idade.options.plugins.datalabels.formatter = (value) => {
-                const percentage = Math.round(value);
-                return percentage > 1 ? `${percentage}%` : '';
-            };
-            if (state.charts.idade.options.scales.x.ticks) delete state.charts.idade.options.scales.x.ticks.callback;
-            if (state.charts.idade.options.scales.y.ticks) delete state.charts.idade.options.scales.y.ticks.callback;
-        }
+        state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'x');
     }
     if (!state.charts.genero) {
         state.charts.genero = createStackedBar('ind-genero-bar', (chart, element) => toggleFilter('genero', chart, element), 'x');
-
-
-        if (state.charts.genero) {
-            if (state.charts.genero.options.elements.bar) {
-
-                state.charts.genero.options.elements.bar.barPercentage = 0.9;
-
-                state.charts.genero.options.elements.bar.categoryPercentage = 0.9;
-            }
-
-            state.charts.genero.options.plugins.datalabels.font = {
-                size: 11,
-                weight: 'bold'
-            };
+        if (state.charts.genero && state.charts.genero.options.elements.bar) {
+            state.charts.genero.options.elements.bar.barPercentage = 0.9;
+            state.charts.genero.options.elements.bar.categoryPercentage = 0.9;
         }
-
     }
     if (!state.charts.dsr) {
         const canvas = document.getElementById('ind-dsr-pie');
         if (canvas) {
-
             const baseSize = Math.max(13, Math.min(15, Math.round((canvas?.parentElement?.clientWidth || 600) / 45)));
-
-
             const options = {
                 layout: {padding: 6},
                 animation: {duration: 800, easing: 'easeOutQuart'},
@@ -753,7 +788,7 @@ function ensureChartsCreatedService() {
                         display: true,
                         formatter: (v) => `${Math.round(+v)}%`,
                         color: (ctx) => bestLabel(Array.isArray(ctx.dataset.backgroundColor) ? ctx.dataset.backgroundColor[ctx.dataIndex] : ctx.dataset.backgroundColor),
-                        font: {size: baseSize, weight: 'bold'},
+                        font: {size: Math.max(MIN_LABEL_FONT_PX, baseSize), weight: 'bold'},
                         anchor: 'center',
                         align: 'center',
                         clamp: true
@@ -789,12 +824,6 @@ function ensureChartsCreatedRegional() {
     if (!state.charts.idadeRegiao) {
         const id = document.getElementById('reg-idade-bar') ? 'reg-idade-bar' : 'ind-idade-regiao-bar';
         state.charts.idadeRegiao = createStackedBar(id, null, 'x');
-        if (state.charts.idadeRegiao) {
-            state.charts.idadeRegiao.options.plugins.datalabels.formatter = (value) => {
-                const p = Math.round(value);
-                return p > 1 ? `${p}%` : '';
-            };
-        }
     }
     if (!state.charts.generoRegiao) {
         const id = document.getElementById('reg-genero-bar') ? 'reg-genero-bar' : 'ind-genero-regiao-bar';
@@ -867,12 +896,13 @@ function updateChartsNow() {
         const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = AGE_BUCKETS.map((b, i) => {
             const raw = counts.map(m => m.get(b) || 0);
-            const data = raw.map((v, x) => (v * 100) / totals[x]);
+            const pctReal = raw.map((v, x) => (v * 100) / totals[x]);
             const sel = state.interactive.idade;
             const base = pal[i % pal.length];
             const bg = sel.size === 0 || sel.has(b) ? base : createOpacity(base, 0.2);
-            return {label: b, data, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
+            return {label: b, data: pctReal, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
         });
+        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         if (state.charts.idade) {
             state.charts.idade.data.labels = labels;
             state.charts.idade.data.datasets = datasets;
@@ -893,14 +923,15 @@ function updateChartsNow() {
         const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = cats.map((cat, i) => {
             const raw = counts.map(m => m.get(cat) || 0);
-            const data = raw.map((v, x) => (v * 100) / totals[x]);
+            const pctReal = raw.map((v, x) => (v * 100) / totals[x]);
             let color = pal[i % pal.length];
             if (cat === 'Masculino') color = css(root(), '--hcidx-gender-male', '#02B1EE');
             if (cat === 'Feminino') color = css(root(), '--hcidx-gender-female', '#FF5C8A');
             const sel = state.interactive.genero;
             const bg = sel.size === 0 || sel.has(cat) ? color : createOpacity(color, 0.2);
-            return {label: cat, data, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
+            return {label: cat, data: pctReal, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
         });
+        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         if (state.charts.genero) {
             state.charts.genero.data.labels = labels;
             state.charts.genero.data.datasets = datasets;
@@ -908,29 +939,23 @@ function updateChartsNow() {
         }
     }
     {
-        const m = new Map(DOW_LABELS.map(d => [d, 0]));
+        const labels = DOW_LABELS.slice();
+        const counts = new Map(labels.map(k => [k, 0]));
         colabsAuxiliares.forEach(c => {
-            const keys = mapDSR(c?.DSR);
-            keys.forEach(k => {
-                if (m.has(k)) m.set(k, (m.get(k) || 0) + 1);
-            });
+            const dsrDays = mapDSR(c.DSR);
+            dsrDays.forEach(d => counts.set(d, (counts.get(d) || 0) + 1));
         });
-        const pairs = [...m.entries()];
-        const total = pairs.reduce((a, [, v]) => a + v, 0) || 1;
-        const lbls = pairs.map(p => p[0]);
-        const counts = pairs.map(p => p[1]);
-        const pct = counts.map(v => (v * 100) / total);
-        const ch = state.charts.dsr;
-        if (ch) {
-            ch.data.labels = lbls;
-            ch.data.datasets[0].data = pct;
-            ch.data.datasets[0]._rawCounts = counts;
-            const sel = state.interactive.dsr;
-            ch.data.datasets[0].backgroundColor = lbls.map((lbl, i) => {
-                const base = pal[i % pal.length];
-                return (sel.size === 0 || sel.has(lbl)) ? base : (base + '55');
-            });
-            ch.update('none');
+        const rawArr = labels.map(l => counts.get(l) || 0);
+        const totalMarks = rawArr.reduce((a, b) => a + b, 0) || 1;
+        const pctArr = rawArr.map(v => (v * 100) / totalMarks);
+        if (state.charts.dsr) {
+            state.charts.dsr.data.labels = labels;
+            state.charts.dsr.data.datasets = [{
+                data: pctArr,
+                backgroundColor: palette().slice(0, labels.length),
+                _rawCounts: rawArr
+            }];
+            state.charts.dsr.update();
         }
     }
     {
@@ -963,12 +988,13 @@ function updateChartsNow() {
         const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = cats.map((cat, i) => {
             const raw = counts.map(m => m.get(cat) || 0);
-            const data = raw.map((v, x) => (v * 100) / totals[x]);
+            const pctReal = raw.map((v, x) => (v * 100) / totals[x]);
             const sel = state.interactive.contrato;
             const base = colors[i];
-            const bg = sel.size === 0 || sel.has(cat) ? base : createOpacity(base, 0.2);
-            return {label: cat, data, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
+            const bg = sel.size === 0 || sel.has(cat) ? base : (base + '33');
+            return {label: cat, data: pctReal, backgroundColor: bg, _rawCounts: raw, borderWidth: 0};
         });
+        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         const ch = state.charts.contrato;
         if (ch) {
             setDynamicChartHeight(ch, labels);
@@ -1012,20 +1038,12 @@ function updateChartsNow() {
                 total
             };
         });
-
-
         rows.sort((a, b) => b.pctEfetivo - a.pctEfetivo || b.rawEfetivo - a.rawEfetivo || a.svc.localeCompare(b.svc));
-
-
         const totalG = colabsAuxiliares.length || 1;
         const countsG = colabsAuxiliares.reduce((acc, c) => {
-            if (norm(c.Contrato).includes('KN')) {
-                acc.efetivo++;
-            } else if (norm(c.Efetivacao) === 'ABERTO') {
-                acc.emEfetivacao++;
-            } else {
-                (daysSinceAdmission(c) > 90) ? acc.potencial++ : acc.temp90++;
-            }
+            if (norm(c.Contrato).includes('KN')) acc.efetivo++;
+            else if (norm(c.Efetivacao) === 'ABERTO') acc.emEfetivacao++;
+            else (daysSinceAdmission(c) > 90) ? acc.potencial++ : acc.temp90++;
             return acc;
         }, {efetivo: 0, emEfetivacao: 0, temp90: 0, potencial: 0});
         const lbls = rows.map(r => r.svc);
@@ -1053,8 +1071,7 @@ function updateChartsNow() {
         const ch = state.charts.contratoSvc;
         if (ch) {
             setDynamicChartHeight(ch, lbls);
-            ch.data.labels = lbls;
-            ch.data.datasets = [
+            const datasets = [
                 {
                     label: 'Efetivo',
                     data: dsData.efetivo.pct,
@@ -1084,6 +1101,9 @@ function updateChartsNow() {
                     borderWidth: 0
                 }
             ];
+            applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
+            ch.data.labels = lbls;
+            ch.data.datasets = datasets;
             ch.update();
         }
     }
@@ -1122,11 +1142,7 @@ function updateChartsNow() {
                 total
             };
         });
-
-
         rows.sort((a, b) => a.rawMais90 - b.rawMais90 || a.svc.localeCompare(b.svc));
-
-
         const countsG = colabsAuxNaoKN.reduce((acc, c) => {
             const d = daysSinceAdmission(c);
             if (d != null) {
@@ -1139,21 +1155,21 @@ function updateChartsNow() {
         }, {g30: 0, g60: 0, g90: 0, gMais90: 0});
         const totalG = colabsAuxNaoKN.length || 1;
         const lbls = rows.map(r => r.svc);
-        const ds = {
+        const dsMap = {
             '≤30d': {pct: rows.map(r => r.pct30), raw: rows.map(r => r.raw30)},
             '31–60d': {pct: rows.map(r => r.pct60), raw: rows.map(r => r.raw60)},
             '61–90d': {pct: rows.map(r => r.pct90), raw: rows.map(r => r.raw90)},
             '>90d': {pct: rows.map(r => r.pctMais90), raw: rows.map(r => r.rawMais90)}
         };
         lbls.push('GERAL');
-        ds['≤30d'].pct.push((countsG.g30 * 100) / totalG);
-        ds['≤30d'].raw.push(countsG.g30);
-        ds['31–60d'].pct.push((countsG.g60 * 100) / totalG);
-        ds['31–60d'].raw.push(countsG.g60);
-        ds['61–90d'].pct.push((countsG.g90 * 100) / totalG);
-        ds['61–90d'].raw.push(countsG.g90);
-        ds['>90d'].pct.push((countsG.gMais90 * 100) / totalG);
-        ds['>90d'].raw.push(countsG.gMais90);
+        dsMap['≤30d'].pct.push((countsG.g30 * 100) / totalG);
+        dsMap['≤30d'].raw.push(countsG.g30);
+        dsMap['31–60d'].pct.push((countsG.g60 * 100) / totalG);
+        dsMap['31–60d'].raw.push(countsG.g60);
+        dsMap['61–90d'].pct.push((countsG.g90 * 100) / totalG);
+        dsMap['61–90d'].raw.push(countsG.g90);
+        dsMap['>90d'].pct.push((countsG.gMais90 * 100) / totalG);
+        dsMap['>90d'].raw.push(countsG.gMais90);
         const colors = [
             css(root(), '--hcidx-p-2', '#003369'),
             css(root(), '--hcidx-p-3', '#69D4FF'),
@@ -1163,14 +1179,16 @@ function updateChartsNow() {
         const ch = state.charts.auxPrazoSvc;
         if (ch) {
             setDynamicChartHeight(ch, lbls);
-            ch.data.labels = lbls;
-            ch.data.datasets = Object.keys(ds).map((key, i) => ({
+            const datasets = Object.keys(dsMap).map((key, i) => ({
                 label: key,
-                data: ds[key].pct,
+                data: dsMap[key].pct,
                 backgroundColor: colors[i],
-                _rawCounts: ds[key].raw,
+                _rawCounts: dsMap[key].raw,
                 borderWidth: 0
             }));
+            applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
+            ch.data.labels = lbls;
+            ch.data.datasets = datasets;
             ch.update();
         }
     }
@@ -1197,9 +1215,10 @@ function updateRegionalChartsNow() {
         const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = AGE_BUCKETS.map((b, i) => {
             const raw = counts.map(m => m.get(b) || 0);
-            const data = raw.map((v, x) => (v * 100) / totals[x]);
-            return {label: b, data, backgroundColor: pal[i % pal.length], _rawCounts: raw, borderWidth: 0};
+            const pctReal = raw.map((v, x) => (v * 100) / totals[x]);
+            return {label: b, data: pctReal, backgroundColor: pal[i % pal.length], _rawCounts: raw, borderWidth: 0};
         });
+        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         const ch = state.charts.idadeRegiao;
         if (ch) {
             ch.data.labels = labels;
@@ -1221,12 +1240,13 @@ function updateRegionalChartsNow() {
         const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = cats.map((cat, i) => {
             const raw = counts.map(m => m.get(cat) || 0);
-            const data = raw.map((v, x) => (v * 100) / totals[x]);
+            const pctReal = raw.map((v, x) => (v * 100) / totals[x]);
             let color = pal[i % pal.length];
             if (cat === 'Masculino') color = css(root(), '--hcidx-gender-male', '#02B1EE');
             if (cat === 'Feminino') color = css(root(), '--hcidx-gender-female', '#FF5C8A');
-            return {label: cat, data, backgroundColor: color, _rawCounts: raw, borderWidth: 0};
+            return {label: cat, data: pctReal, backgroundColor: color, _rawCounts: raw, borderWidth: 0};
         });
+        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         const ch = state.charts.generoRegiao;
         if (ch) {
             ch.data.labels = labels;
@@ -1246,27 +1266,19 @@ function updateRegionalChartsNow() {
         const counts = groups.map(g => {
             const m = new Map(cats.map(k => [k, 0]));
             g.forEach(c => {
-                if (norm(c.Contrato).includes('KN')) {
-                    m.set('Efetivo', m.get('Efetivo') + 1);
-                } else if (norm(c.Efetivacao) === 'ABERTO') {
-                    m.set('Em efetivação', m.get('Em efetivação') + 1);
-                } else {
-                    const dias = daysSinceAdmission(c);
-                    if (dias != null && dias > 90) {
-                        m.set('Potencial (>90d)', m.get('Potencial (>90d)') + 1);
-                    } else {
-                        m.set('Temporário (≤90d)', m.get('Temporário (≤90d)') + 1);
-                    }
-                }
+                if (norm(c.Contrato).includes('KN')) m.set('Efetivo', m.get('Efetivo') + 1);
+                else if (norm(c.Efetivacao) === 'ABERTO') m.set('Em efetivação', m.get('Em efetivação') + 1);
+                else (daysSinceAdmission(c) > 90) ? m.set('Potencial (>90d)', m.get('Potencial (>90d)') + 1) : m.set('Temporário (≤90d)', m.get('Temporário (≤90d)') + 1);
             });
             return m;
         });
         const totals = counts.map(m => [...m.values()].reduce((a, b) => a + b, 0) || 1);
         const datasets = cats.map((cat, i) => {
             const raw = counts.map(m => m.get(cat) || 0);
-            const data = raw.map((v, x) => (v * 100) / totals[x]);
-            return {label: cat, data, backgroundColor: colors[i], _rawCounts: raw, borderWidth: 0};
+            const pctReal = raw.map((v, x) => (v * 100) / totals[x]);
+            return {label: cat, data: pctReal, backgroundColor: colors[i], _rawCounts: raw, borderWidth: 0};
         });
+        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         const ch = state.charts.contratoRegiao;
         if (ch) {
             ch.data.labels = labels;
@@ -1310,14 +1322,16 @@ function updateRegionalChartsNow() {
         ];
         const ch = state.charts.auxPrazoRegiao;
         if (ch) {
-            ch.data.labels = labels;
-            ch.data.datasets = Object.keys(ds).map((key, i) => ({
+            const datasets = Object.keys(ds).map((key, i) => ({
                 label: key,
                 data: ds[key].pct,
                 backgroundColor: colors[i],
                 _rawCounts: ds[key].raw,
                 borderWidth: 0
             }));
+            applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
+            ch.data.labels = labels;
+            ch.data.datasets = datasets;
             ch.update();
         }
     }
@@ -1478,19 +1492,11 @@ function ensureChartsCreatedSpam() {
 async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
-    const [allSpamData] = await Promise.all([
-        loadSpamData(),
-    ]);
+    const [allSpamData] = await Promise.all([loadSpamData()]);
     const colabsAtivos = state.colabs;
     const spamData = allSpamData.filter(r => {
-        if (state.regiao && r.REGIAO !== state.regiao) {
-            return false;
-        }
-        if (svcsDoGerente) {
-            if (!svcsDoGerente.has(r.SVC)) {
-                return false;
-            }
-        }
+        if (state.regiao && r.REGIAO !== state.regiao) return false;
+        if (svcsDoGerente) if (!svcsDoGerente.has(r.SVC)) return false;
         return true;
     });
     const pal = palette();
@@ -1531,14 +1537,8 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
         });
         const datasets = meses.map((mesLabel, i) => {
-            const data = labels.map(svc => {
-                return dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0;
-            });
-            return {
-                label: mesLabel,
-                data: data,
-                backgroundColor: pal[i % pal.length],
-            };
+            const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
+            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
         let maxHcParaEscala = 0;
         datasets.forEach(ds => {
@@ -1600,16 +1600,10 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
         });
         const datasets = meses.map((mesLabel, i) => {
-            const data = labels.map(regiao => {
-                return dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0;
-            });
+            const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);
             const totalMes = data.reduce((a, b) => a + b, 0);
             data.push(totalMes);
-            return {
-                label: mesLabel,
-                data: data,
-                backgroundColor: pal[i % pal.length],
-            };
+            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
         labels.push('GERAL');
         const chart = state.charts.spamHcEvolucaoRegiao;
@@ -1630,15 +1624,9 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         const dataValues = dataSorted.map(d => d[1]);
         const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;
         const chart = state.charts.spamHcGerente;
-        if (chart.options.scales.x) {
-            chart.options.scales.x.max = maxHc * 1.25;
-        }
+        if (chart.options.scales.x) chart.options.scales.x.max = maxHc * 1.25;
         chart.data.labels = dataSorted.map(d => d[0]);
-        chart.data.datasets = [{
-            label: `HC Total (${mesAtualLabel})`,
-            data: dataValues,
-            backgroundColor: pal[1],
-        }];
+        chart.data.datasets = [{label: `HC Total (${mesAtualLabel})`, data: dataValues, backgroundColor: pal[1]}];
         setDynamicChartHeight(chart, dataSorted.map(d => d[0]));
         chart.update();
     }
@@ -1652,13 +1640,11 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             }
         });
         const hcPorSvc = new Map();
-        spamData
-            .filter(r => r.MÊS === mesAtual && r.ANO === anoAtual)
-            .forEach(r => {
-                const svcAgrupado = mapSvcLabel(r.SVC);
-                const totalAnterior = hcPorSvc.get(svcAgrupado) || 0;
-                hcPorSvc.set(svcAgrupado, totalAnterior + r.HC_Total);
-            });
+        spamData.filter(r => r.MÊS === mesAtual && r.ANO === anoAtual).forEach(r => {
+            const svcAgrupado = mapSvcLabel(r.SVC);
+            const totalAnterior = hcPorSvc.get(svcAgrupado) || 0;
+            hcPorSvc.set(svcAgrupado, totalAnterior + r.HC_Total);
+        });
         const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
         const labels = [...allSvcs].sort();
         const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
@@ -1674,25 +1660,13 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         const chart = state.charts.spamHcVsAux;
         if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
-            if (chart.options.scales.y.max < 10) {
-                chart.options.scales.y.max = 10;
-            }
+            if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
         }
         const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);
         chart.data.labels = labels;
         chart.data.datasets = [
-            {
-                label: `HC Total (SPAM)`,
-                data: dataHcTotalSpam,
-                backgroundColor: pal[1],
-                _deltas: deltas.map(d => 0)
-            },
-            {
-                label: 'HC Real (Auxiliares Ativos)',
-                data: dataAuxAtivoReal,
-                backgroundColor: pal[0],
-                _deltas: deltas
-            }
+            {label: `HC Total (SPAM)`, data: dataHcTotalSpam, backgroundColor: pal[1], _deltas: deltas.map(d => 0)},
+            {label: 'HC Real (Auxiliares Ativos)', data: dataAuxAtivoReal, backgroundColor: pal[0], _deltas: deltas}
         ];
         chart.update();
     }
@@ -1717,11 +1691,8 @@ export async function init() {
         activeSubtabBtn.classList.add('active');
         const scrollContainer = document.querySelector('.container');
         if (scrollContainer) {
-            if (viewName === 'efet-em-efetivacao') {
-                scrollContainer.classList.add('travar-scroll-pagina');
-            } else {
-                scrollContainer.classList.remove('travar-scroll-pagina');
-            }
+            if (viewName === 'efet-em-efetivacao') scrollContainer.classList.add('travar-scroll-pagina');
+            else scrollContainer.classList.remove('travar-scroll-pagina');
         }
         await refresh();
     } else {
@@ -1739,20 +1710,10 @@ export function destroy() {
         }
         window.removeEventListener('resize', setResponsiveHeights);
         state.charts = {
-            idade: null,
-            genero: null,
-            dsr: null,
-            contrato: null,
-            contratoSvc: null,
-            auxPrazoSvc: null,
-            idadeRegiao: null,
-            generoRegiao: null,
-            contratoRegiao: null,
-            auxPrazoRegiao: null,
-            spamHcEvolucaoSvc: null,
-            spamHcEvolucaoRegiao: null,
-            spamHcGerente: null,
-            spamHcVsAux: null
+            idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null,
+            auxPrazoSvc: null, idadeRegiao: null, generoRegiao: null, contratoRegiao: null,
+            auxPrazoRegiao: null, spamHcEvolucaoSvc: null, spamHcEvolucaoRegiao: null,
+            spamHcGerente: null, spamHcVsAux: null
         };
         _filtersPopulated = false;
         state.matriz = '';

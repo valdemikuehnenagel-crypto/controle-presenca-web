@@ -1,4 +1,8 @@
-import html2canvas from 'html2canvas';import {createClient} from '@supabase/supabase-js';const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);const userInfoEl = document.getElementById('userInfo');
+import html2canvas from 'html2canvas';
+import {createClient} from '@supabase/supabase-js';
+
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
+const userInfoEl = document.getElementById('userInfo');
 const logoutBtn = document.getElementById('logoutBtn');
 const screenshotBtn = document.getElementById('screenshotBtn');
 const contentArea = document.getElementById('content-area');
@@ -6,10 +10,15 @@ const tabButtons = document.querySelectorAll('.tab-btn');
 const addModal = document.getElementById('addModal');
 const cancelBtn = document.getElementById('cancelBtn');
 const menuToggleBtn = document.getElementById('menu-toggle');
-const sidebarOverlay = document.getElementById('sidebar-overlay');let currentModule = null;
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+let currentModule = null;
 let isLoadingPage = false;
-let loadToken = 0;const pageModules = import.meta.glob('/src/pages/*.js');
-const LAST_PAGE_KEY = 'knc:lastPage';const normalizePage = (name) => String(name || '').trim().toLowerCase();function setActiveTab(pageName) {
+let loadToken = 0;
+const pageModules = import.meta.glob('/src/pages/*.js');
+const LAST_PAGE_KEY = 'knc:lastPage';
+const normalizePage = (name) => String(name || '').trim().toLowerCase();
+
+function setActiveTab(pageName) {
     const p = normalizePage(pageName);
     tabButtons.forEach(btn => {
         btn.classList.toggle('active', normalizePage(btn.dataset.page) === p);
@@ -22,7 +31,9 @@ const LAST_PAGE_KEY = 'knc:lastPage';const normalizePage = (name) => String(name
     if (location.hash !== newHash) {
         history.replaceState(null, '', newHash);
     }
-}function getInitialPage() {
+}
+
+function getInitialPage() {
     const fromHash = normalizePage(location.hash.replace(/^#\/?/, ''));
     const fromStore = normalizePage(localStorage.getItem(LAST_PAGE_KEY));
     const fallback = 'colaboradores';
@@ -30,7 +41,9 @@ const LAST_PAGE_KEY = 'knc:lastPage';const normalizePage = (name) => String(name
     if (fromHash && exists(fromHash)) return fromHash;
     if (fromStore && exists(fromStore)) return fromStore;
     return fallback;
-}if (menuToggleBtn) {
+}
+
+if (menuToggleBtn) {
     menuToggleBtn.addEventListener('click', () => {
         document.body.classList.toggle('sidebar-collapsed');
     });
@@ -40,12 +53,15 @@ if (sidebarOverlay) {
         document.body.classList.add('sidebar-collapsed');
     });
 }
-document.body.classList.add('sidebar-collapsed');function checkSession() {
+document.body.classList.add('sidebar-collapsed');
+
+function checkSession() {
     const userDataString = localStorage.getItem('userSession');
     if (!userDataString) {
         window.location.href = '/index.html';
         return;
-    }    try {
+    }
+    try {
         const user = JSON.parse(userDataString);
         const userType = (user && user.Tipo) ? user.Tipo.trim().toUpperCase() : '';
         const restrictedPage = 'separacao';
@@ -104,26 +120,36 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
             const fullName = user?.Nome || 'Usuário';
             const firstName = fullName.split(' ')[0];
             userInfoEl.textContent = `${greeting}, ${firstName}!`;
-        }        try {
+        }
+        try {
             if (userAvatarEl) {
-                if (user?.avatar_url) {                    userAvatarEl.src = user.avatar_url.toLowerCase();
-                } else {                    userAvatarEl.src = '/imagens/default-avatar.png';
-                }                userAvatarEl.classList.remove('hidden');                setupAvatarUpload(userAvatarEl);
+                if (user?.avatar_url) {
+                    userAvatarEl.src = user.avatar_url.toLowerCase();
+                } else {
+                    userAvatarEl.src = '/imagens/default-avatar.png';
+                }
+                userAvatarEl.classList.remove('hidden');
+                setupAvatarUpload(userAvatarEl);
             }
         } catch (e) {
             console.warn('Falha ao renderizar avatar:', e);
-        }    } catch (e) {
+        }
+    } catch (e) {
         console.error('Sessão inválida:', e);
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     }
-}function setLoading(on) {
+}
+
+function setLoading(on) {
     isLoadingPage = !!on;
     if (!contentArea) return;
     if (on) {
         contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
     }
-}async function loadPage(pageName) {
+}
+
+async function loadPage(pageName) {
     if (!pageName || isLoadingPage) return;
     isLoadingPage = true;
     const myToken = ++loadToken;
@@ -170,48 +196,68 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
             if (contentArea) contentArea.classList.remove('fade-out');
         }
     }
-}function showAddModal() {
+}
+
+function showAddModal() {
     if (addModal) addModal.classList.remove('hidden');
-}function hideAddModal() {
+}
+
+function hideAddModal() {
     if (addModal) addModal.classList.add('hidden');
-}let hiddenAvatarInput = null; /**
+}
+
+let hiddenAvatarInput = null;
+
+/**
  * Cria e configura o input de arquivo e o menu de contexto.
  */
-function setupAvatarUpload(avatarElement) {    if (!hiddenAvatarInput) {
+function setupAvatarUpload(avatarElement) {
+    if (!hiddenAvatarInput) {
         hiddenAvatarInput = document.createElement('input');
         hiddenAvatarInput.type = 'file';
         hiddenAvatarInput.accept = 'image/png, image/jpeg';
         hiddenAvatarInput.style.display = 'none';
-        document.body.appendChild(hiddenAvatarInput);        hiddenAvatarInput.addEventListener('change', (event) => {
+        document.body.appendChild(hiddenAvatarInput);
+        hiddenAvatarInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
                 uploadAvatar(file, avatarElement);
-            }            hiddenAvatarInput.value = '';
+            }
+            hiddenAvatarInput.value = '';
         });
-    }    const removeOldMenu = () => {
+    }
+    const removeOldMenu = () => {
         const oldMenu = document.getElementById('avatar-context-menu');
         if (oldMenu) {
             oldMenu.remove();
-        }        document.removeEventListener('click', removeOldMenu);
+        }
+        document.removeEventListener('click', removeOldMenu);
         document.removeEventListener('contextmenu', removeOldMenu);
-    };    avatarElement.addEventListener('contextmenu', (e) => {
+    };
+    avatarElement.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        removeOldMenu();         const menu = document.createElement('div');
+        removeOldMenu();
+        const menu = document.createElement('div');
         menu.id = 'avatar-context-menu';
         menu.className = 'custom-context-menu';
         menu.style.top = `${e.clientY}px`;
-        menu.style.left = `${e.clientX}px`;        const changeButton = document.createElement('button');
+        menu.style.left = `${e.clientX}px`;
+        const changeButton = document.createElement('button');
         changeButton.textContent = 'Alterar foto';
         changeButton.onclick = () => {
             hiddenAvatarInput.click();
             removeOldMenu();
-        };        menu.appendChild(changeButton);
-        document.body.appendChild(menu);        setTimeout(() => {
+        };
+        menu.appendChild(changeButton);
+        document.body.appendChild(menu);
+        setTimeout(() => {
             document.addEventListener('click', removeOldMenu, {once: true});
             document.addEventListener('contextmenu', removeOldMenu, {once: true});
         }, 0);
     });
-}/**
+}
+
+/**
  * Faz o upload do arquivo para o Supabase e atualiza o banco de dados.
  */
 async function uploadAvatar(file, avatarElement) {
@@ -219,38 +265,56 @@ async function uploadAvatar(file, avatarElement) {
     if (!userDataString) {
         alert('Sessão expirada. Faça login novamente.');
         return;
-    }    let user;
+    }
+    let user;
     try {
         user = JSON.parse(userDataString);
     } catch (e) {
         alert('Erro ao ler dados do usuário.');
         return;
-    }    if (!user || !user.Usuario) {
+    }
+    if (!user || !user.Usuario) {
         alert('Não foi possível identificar o usuário.');
         return;
-    }    try {
-        avatarElement.classList.add('uploading');         const fileExt = file.name.split('.').pop();        const safeUserName = user.Usuario.toLowerCase()
+    }
+    try {
+        avatarElement.classList.add('uploading');
+        const fileExt = file.name.split('.').pop();
+        const safeUserName = user.Usuario.toLowerCase()
             .replace(/\./g, '-')
-            .replace(/@/g, '-at-');         const fileName = `${safeUserName}-avatar.${fileExt}`;        const {error: uploadError} = await supabase.storage
+            .replace(/@/g, '-at-');
+        const fileName = `${safeUserName}-avatar.${fileExt}`;
+        const {error: uploadError} = await supabase.storage
             .from('avatars')
             .upload(fileName, file, {
                 cacheControl: '3600',
                 upsert: true
-            });        if (uploadError) throw uploadError;        const {data: publicUrlData} = supabase.storage
+            });
+        if (uploadError) throw uploadError;
+        const {data: publicUrlData} = supabase.storage
             .from('avatars')
-            .getPublicUrl(fileName);        if (!publicUrlData) throw new Error('Não foi possível obter a URL pública da imagem.');        const newAvatarUrl = `${publicUrlData.publicUrl.toLowerCase()}?t=${new Date().getTime()}`;        const dbAvatarUrl = newAvatarUrl.split('?t=')[0];
+            .getPublicUrl(fileName);
+        if (!publicUrlData) throw new Error('Não foi possível obter a URL pública da imagem.');
+        const newAvatarUrl = `${publicUrlData.publicUrl.toLowerCase()}?t=${new Date().getTime()}`;
+        const dbAvatarUrl = newAvatarUrl.split('?t=')[0];
         const {error: updateError} = await supabase
             .from('Logins')
             .update({avatar_url: dbAvatarUrl})
-            .eq('Usuario', user.Usuario);        if (updateError) throw updateError;        user.avatar_url = dbAvatarUrl;
-        localStorage.setItem('userSession', JSON.stringify(user));        avatarElement.src = newAvatarUrl;
+            .eq('Usuario', user.Usuario);
+        if (updateError) throw updateError;
+        user.avatar_url = dbAvatarUrl;
+        localStorage.setItem('userSession', JSON.stringify(user));
+        avatarElement.src = newAvatarUrl;
         avatarElement.classList.remove('uploading');
-        alert('Foto de perfil atualizada com sucesso!');    } catch (error) {
+        alert('Foto de perfil atualizada com sucesso!');
+    } catch (error) {
         console.error('Erro ao atualizar avatar:', error);
         alert(`Falha ao atualizar a foto: ${error.message}`);
         avatarElement.classList.remove('uploading');
     }
-}tabButtons.forEach((button) => {
+}
+
+tabButtons.forEach((button) => {
     button.addEventListener('click', () => {
         if (isLoadingPage) return;
         const page = button.dataset.page;
@@ -258,12 +322,14 @@ async function uploadAvatar(file, avatarElement) {
         loadPage(page);
         document.body.classList.add('sidebar-collapsed');
     });
-});if (logoutBtn) {
+});
+if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     });
-}if (screenshotBtn) {
+}
+if (screenshotBtn) {
     screenshotBtn.addEventListener('click', () => {
         console.log('Iniciando captura de tela...');
         const originalText = screenshotBtn.textContent;
@@ -292,18 +358,23 @@ async function uploadAvatar(file, avatarElement) {
             screenshotBtn.textContent = originalText;
         });
     });
-}document.addEventListener('open-add-modal', showAddModal);
+}
+document.addEventListener('open-add-modal', showAddModal);
 if (cancelBtn) {
     cancelBtn.addEventListener('click', hideAddModal);
-}document.addEventListener('colaborador-added', () => {
+}
+document.addEventListener('colaborador-added', () => {
     hideAddModal();
     const isColaboradoresAtivo = document.querySelector('[data-page="colaboradores"].active');
     if (isColaboradoresAtivo && currentModule && typeof currentModule.init === 'function') {
         currentModule.init();
     }
-});checkSession();const firstPage = getInitialPage();
+});
+checkSession();
+const firstPage = getInitialPage();
 setActiveTab(firstPage);
-loadPage(firstPage);window.addEventListener('hashchange', () => {
+loadPage(firstPage);
+window.addEventListener('hashchange', () => {
     const pg = normalizePage(location.hash.replace(/^#\/?/, ''));
     if (!pg) return;
     try {
