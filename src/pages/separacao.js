@@ -1,7 +1,5 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-import qrcode from 'qrcode-generator';
-
-const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import qrcode from 'qrcode-generator';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
@@ -12,8 +10,7 @@ const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.UPC_A,
 ];
-const BRASILIA_TIMEZONE = 'America/Sao_Paulo';
-let state = {
+const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     cacheData: [],
     idPacoteMap: new Map(),
     isSeparaçãoProcessing: false,
@@ -25,13 +22,11 @@ let state = {
     pendingDecodedText: null,
     lastPrintData: null,
     period: {start: null, end: null},
-};
-let dom = {
-    dashboard: null,
-    btnSeparação: null,
+};let dom = {
+    dashboard: null,    summaryContainer: null,
+    routesContainer: null,    btnSeparação: null,
     btnCarregamento: null,
-    periodBtn: null,
-    modalSeparação: null,
+    periodBtn: null,    modalSeparação: null,
     modalSepClose: null,
     sepUser: null,
     sepScan: null,
@@ -40,29 +35,203 @@ let dom = {
     sepQrTitle: null,
     sepQrCanvas: null,
     sepPrintBtn: null,
-    sepCamBtn: null,
-    modalCarregamento: null,
+    sepCamBtn: null,    modalCarregamento: null,
     modalCarClose: null,
     carUser: null,
     carDockSelect: null,
     carIlhaSelect: null,
     carScan: null,
     carStatus: null,
-    carCamBtn: null,
-    scannerModal: null,
+    carCamBtn: null,    scannerModal: null,
     scannerContainer: null,
-    scannerCancelBtn: null, scannerFeedbackOverlay: null,
-    scannerFeedbackCloseBtn: null, scannerConfirmOverlay: null,
+    scannerCancelBtn: null,
+    scannerFeedbackOverlay: null,
+    scannerFeedbackCloseBtn: null,
+    scannerConfirmOverlay: null,
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
-    scannerConfirmNoBtn: null,
-    relatorioModal: null,
+    scannerConfirmNoBtn: null,    relatorioModal: null,
     relatorioModalClose: null,
     relatorioTitle: null,
-    relatorioBody: null,
-};
-
-function getBrasiliaDate(asDateObject = false) {
+    relatorioBody: null,    netBanner: null,
+    netMsg: null,
+    netForceBtn: null,
+    netCloseBtn: null,
+};let eventHandlers = {
+    onOnline: null,
+    onSepSuccess: null,
+    onCarSuccess: null,
+};const NET_TIMEOUT_MS = 8000;
+const OUTBOX_KEY = 'auditoriaOutboxV1';
+let outbox = { queue: [], sending: false };function loadOutbox() {
+    try {
+        const raw = localStorage.getItem(OUTBOX_KEY);
+        outbox = raw ? JSON.parse(raw) : { queue: [], sending: false };
+        if (!Array.isArray(outbox.queue)) outbox.queue = [];
+    } catch { outbox = { queue: [], sending: false }; }
+}
+function saveOutbox() {
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); } catch {}
+}function installNetworkBanner() {
+    if (document.getElementById('net-banner')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'net-banner';
+    wrap.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-[1200] hidden';
+    wrap.innerHTML = `
+    <div class="px-4 py-3 rounded-lg shadow-lg border border-yellow-300 bg-yellow-50 text-yellow-900 flex items-center gap-3">
+      <span id="net-msg" class="text-sm font-medium">Falha na conexão com a rede… Tentando registrar</span>
+      <button id="net-force" class="px-3 py-1 rounded-md bg-yellow-600 text-white text-sm font-semibold hover:bg-yellow-700">Forçar envio</button>
+      <button id="net-close" class="px-2 py-1 rounded-md border text-sm">Fechar</button>
+    </div>`;
+    document.body.appendChild(wrap);
+    dom.netBanner = wrap;
+    dom.netMsg = wrap.querySelector('#net-msg');
+    dom.netForceBtn = wrap.querySelector('#net-force');
+    dom.netCloseBtn = wrap.querySelector('#net-close');    dom.netForceBtn.addEventListener('click', () => processOutbox(true));
+    dom.netCloseBtn.addEventListener('click', () => hideNetBanner());
+}function showNetBanner(msg) {
+    if (!dom.netBanner) installNetworkBanner();
+    if (dom.netMsg && msg) dom.netMsg.textContent = msg;
+    dom.netBanner.classList.remove('hidden');
+}
+function updateNetBannerCount() {
+    const n = outbox.queue.length;
+    showNetBanner(`Falha na conexão com a rede… Tentando registrar (${n} na fila)`);
+}
+function hideNetBannerSoon(okMsg='Tudo certo: itens enviados') {
+    if (!dom.netBanner) return;
+    if (dom.netMsg) dom.netMsg.textContent = okMsg;
+    setTimeout(() => dom.netBanner.classList.add('hidden'), 1500);
+}
+function hideNetBanner() {
+    dom.netBanner?.classList.add('hidden');
+}function fetchWithTimeout(url, opt={}, timeoutMs=NET_TIMEOUT_MS) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const merged = { ...opt, signal: ctrl.signal };
+    return fetch(url, merged).finally(() => clearTimeout(t));
+}function isNetworkLikeError(err) {
+    const s = String(err?.message || err || '').toLowerCase();
+    return s.includes('network') || s.includes('failed to fetch') || s.includes('abort') || s.includes('timeout');
+}function enqueueTask(task) {
+    loadOutbox();
+    outbox.queue.push(task);
+    saveOutbox();
+    updateNetBannerCount();
+    setTimeout(() => processOutbox(), 1200);
+}async function processOutbox(force=false) {
+    loadOutbox();
+    if (outbox.sending) return;
+    if (!force && !navigator.onLine) {
+        updateNetBannerCount();
+        return;
+    }
+    outbox.sending = true; saveOutbox();    try {
+        while (outbox.queue.length > 0) {
+            updateNetBannerCount();
+            const task = outbox.queue[0];
+            try {
+                const res = await fetchWithTimeout(task.url, {
+                    method: 'POST',
+                    headers: buildFunctionHeaders(),
+                    body: JSON.stringify(task.body)
+                });
+                const json = await res.json().catch(() => ({}));                if (!res.ok && !json?.isDuplicate && !json?.idempotent) {
+                    console.error('[Outbox] Falha definitiva:', json);
+                    outbox.queue.shift(); saveOutbox();
+                    window.dispatchEvent(new CustomEvent('outbox:failure', { detail: { task, json } }));
+                    continue;
+                }                outbox.queue.shift(); saveOutbox();
+                window.dispatchEvent(new CustomEvent('outbox:success', { detail: { task, json } }));
+                if (task.kind === 'separacao') {
+                    window.dispatchEvent(new CustomEvent('outbox:separacao:success', { detail: { task, json } }));
+                } else if (task.kind === 'carregamento') {
+                    window.dispatchEvent(new CustomEvent('outbox:carregamento:success', { detail: { task, json } }));
+                }
+            } catch (err) {
+                if (isNetworkLikeError(err)) {
+                    console.warn('[Outbox] Rede ainda indisponível, mantendo fila.');
+                    updateNetBannerCount();
+                    break;
+                }
+                console.error('[Outbox] Erro inesperado, descartando item:', err);
+                outbox.queue.shift(); saveOutbox();
+            }
+        }
+    } finally {
+        outbox.sending = false; saveOutbox();
+        if (outbox.queue.length === 0) hideNetBannerSoon();
+        else updateNetBannerCount();
+    }
+}async function tryPostOrQueue(kind, url, body) {
+    try {
+        const res = await fetchWithTimeout(url, {
+            method: 'POST',
+            headers: buildFunctionHeaders(),
+            body: JSON.stringify(body)
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok && !json?.isDuplicate && !json?.idempotent) {
+            const msg = json?.error || `Falha (HTTP ${res.status})`;
+            throw new Error(msg);
+        }
+        return { queued: false, json };
+    } catch (err) {
+        if (isNetworkLikeError(err) || !navigator.onLine) {
+            enqueueTask({
+                id: `${kind}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                kind,
+                url,
+                body,
+                createdAt: Date.now()
+            });
+            showNetBanner('Falha na conexão com a rede… Tentando registrar (1 na fila)');
+            return { queued: true };
+        }
+        throw err;
+    }
+}function handleOutboxSepSuccess(ev) {
+    const { json } = ev.detail || {};
+    try {
+        const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json || {};
+        if (!numeracao) return;        if (insertedData && insertedData[0]) {
+            state.cacheData.unshift(insertedData[0]);
+            const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
+            if (id) state.idPacoteMap.set(id, insertedData[0]);
+        }
+        renderDashboard();        if (pacote) {
+            state.lastPrintData = { dataForQr: pacote, ilha, mangaLabel: numeracao };
+        }
+        const friendly = isDuplicate
+            ? (message || 'Pacote já bipado. Reimpressão permitida.')
+            : `Manga ${numeracao} (Rota ${ilha}) registrada (enviada após reconexão).`;
+        setSepStatus(`${friendly} — Use "Reimprimir" se precisar.`, { error: false });        try { state.globalScannerInstance?.resume(); } catch {}
+    } catch (e) {
+        console.error('[Outbox] pós-sucesso separação falhou:', e);
+    }
+}function handleOutboxCarSuccess(ev) {
+    const { json } = ev.detail || {};
+    try {
+        const { updatedData, idempotent, message } = json || {};
+        const updatedNumeracao = updatedData?.NUMERACAO;
+        if (!updatedNumeracao) return;        const idx = state.cacheData.findIndex(i => i.NUMERACAO === updatedNumeracao);
+        if (idx > -1) {
+            state.cacheData[idx] = { ...state.cacheData[idx], ...updatedData };
+            const id = extractElevenDigits(state.cacheData[idx]['ID PACOTE']);
+            if (id) state.idPacoteMap.set(id, state.cacheData[idx]);
+        } else {
+            state.cacheData.unshift(updatedData);
+            const id = extractElevenDigits(updatedData['ID PACOTE']);
+            if (id) state.idPacoteMap.set(id, updatedData);
+        }
+        renderDashboard();        const okMsg = idempotent
+            ? (message || `Manga ${updatedNumeracao} já estava validada.`)
+            : `OK! ${updatedNumeracao} validada (após reconexão).`;
+        setCarStatus(okMsg, { error: false });
+    } catch (e) {
+        console.error('[Outbox] pós-sucesso carregamento falhou:', e);
+    }
+}function getBrasiliaDate(asDateObject = false) {
     const date = new Date();
     const formatter = new Intl.DateTimeFormat('sv-SE', {
         timeZone: BRASILIA_TIMEZONE,
@@ -75,83 +244,51 @@ function getBrasiliaDate(asDateObject = false) {
         return new Date(parts[0], parts[1] - 1, parts[2]);
     }
     return formatter.format(date);
-}
-
-function clampEndToToday(startStr, endStr) {
+}function clampEndToToday(startStr, endStr) {
     const todayISO = getBrasiliaDate(false);
-    if (endStr > todayISO) {
-        endStr = todayISO;
-    }
-    if (startStr > endStr) {
-        startStr = endStr;
-    }
+    if (endStr > todayISO) endStr = todayISO;
+    if (startStr > endStr) startStr = endStr;
     return [startStr, endStr];
-}
-
-function toast(message, type = 'info') {
+}function toast(message, type = 'info') {
     console.warn(`TOAST (${type}):`, message);
     alert(message);
-}
-
-function buildFunctionHeaders() {
+}function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}
-
-function buildSelectHeaders() {
+}function buildSelectHeaders() {
     return {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         Range: '0-1000',
     };
-}
-
-function formatarDataHora(isoString) {
+}function formatarDataHack(isoString, formatOptions) {
     if (!isoString) return '---';
     try {
-        const dt = new Date(isoString);
-        return dt.toLocaleString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
+        let dt;
+        if (isoString.includes('+00') || isoString.endsWith('Z')) {
+            const localIso = isoString.substring(0, 19).replace('T', ' ');
+            dt = new Date(localIso);
+        } else {
+            dt = new Date(isoString);
+        }
+        return dt.toLocaleString('pt-BR', formatOptions);
     } catch {
         return '---';
     }
 }
-
+function formatarDataHora(isoString) {
+    const options = { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' };
+    return formatarDataHack(isoString, options);
+}
 function formatarDataInicio(isoString) {
     if (!isoString) return '---';
-    try {
-        const dt = new Date(isoString);
-        return dt.toLocaleString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-        }).replace(',', '') + 'h';
-    } catch {
-        return '---';
-    }
-}
-
-function waitForPaint() {
-    return new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
-}
-
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function printCurrentQr() {
+    const options = { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' };
+    try { return formatarDataHack(isoString, options).replace(',', '') + 'h'; } catch { return '---'; }
+}function waitForPaint() { return new Promise((r)=>{ requestAnimationFrame(()=>requestAnimationFrame(r)); }); }
+function sleep(ms) { return new Promise(r=>setTimeout(r, ms)); }async function printCurrentQr() {
     if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
         setSepStatus("Primeiro gere um QR Code para imprimir.", {error: true});
         return;
@@ -161,15 +298,12 @@ async function printCurrentQr() {
     await waitForPaint();
     await sleep(400);
     window.print();
-}
-
-function extractElevenDigits(str) {
+}function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
     if (digits.length >= 11) return digits.slice(-11);
     return null;
 }
-
 function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
@@ -179,16 +313,13 @@ function normalizeScanned(input) {
             const idFromJson = obj?.id ?? obj?.ID ?? obj?.Id;
             const cleaned = extractElevenDigits(idFromJson);
             if (cleaned) return cleaned;
-        } catch {
-        }
+        } catch {}
     }
     const seq = s.match(/\d{11,}/);
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}
-
-function openModal(modal) {
+}function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
@@ -219,7 +350,6 @@ function openModal(modal) {
     const first = modal.querySelector('input, button, [tabindex]:not([tabindex="-1"])');
     if (first) setTimeout(() => first.focus(), 50);
 }
-
 function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
     if (state.globalScannerInstance) stopGlobalScanner();
@@ -228,15 +358,12 @@ function closeModal(modal) {
     if (modal._bound?.onKeyDown) document.removeEventListener('keydown', modal._bound.onKeyDown);
     if (modal._bound?.onOverlayClick) modal.removeEventListener('click', modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}
-
-function resetSeparacaoModal() {
+}function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
 }
-
 function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
@@ -248,9 +375,7 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = '';
     if (dom.carScan) dom.carScan.value = '';
     setCarStatus('');
-}
-
-function showScannerFeedback(type, message, sticky = false) {
+}function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector('span');
     if (textEl) textEl.textContent = message;
@@ -264,9 +389,7 @@ function showScannerFeedback(type, message, sticky = false) {
         dom.scannerFeedbackCloseBtn.style.display = 'block';
         if (!sticky) setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1500);
     }
-}
-
-function showScannerConfirm(decodedText, onYes, onNo) {
+}function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -285,9 +408,7 @@ function showScannerConfirm(decodedText, onYes, onNo) {
     };
     dom.scannerConfirmYesBtn.addEventListener('click', yesHandler);
     dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
-}
-
-function createGlobalScannerModal() {
+}function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'auditoria-scanner-modal';
@@ -359,9 +480,7 @@ function createGlobalScannerModal() {
             }
         }
     });
-}
-
-function injectScannerButtons() {
+}function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [
         {input: dom.sepScan, id: 'sep-cam-btn'},
@@ -382,9 +501,7 @@ function injectScannerButtons() {
     });
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
-}
-
-function startGlobalScanner(targetModal) {
+}function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -438,7 +555,6 @@ function startGlobalScanner(targetModal) {
         stopGlobalScanner();
     }
 }
-
 function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add('hidden');
@@ -467,9 +583,7 @@ function stopGlobalScanner() {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}
-
-async function onGlobalScanSuccess(decodedText) {
+}async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -497,347 +611,7 @@ async function onGlobalScanSuccess(decodedText) {
         }
     );
 }
-
-function onGlobalScanError(_) {
-}
-
-async function handleSeparacaoFromScanner(idPacote) {
-    if (state.isSeparaçãoProcessing) return;
-    const usuarioEntrada = dom.sepUser?.value?.trim();
-    if (!usuarioEntrada) {
-        showScannerFeedback('error', 'Colaborador não definido. Feche a câmera e digite seu nome.', true);
-        stopGlobalScanner();
-        setSepStatus('Digite o nome do colaborador', {error: true});
-        dom.sepUser?.focus();
-        return;
-    }
-    state.isSeparaçãoProcessing = true;
-    const dataScan = new Date().toISOString();
-    try {
-        const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
-        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
-        if (!numeracao) throw new Error('Resposta não contém numeração');
-        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
-        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printCurrentQr();
-        if (isDuplicate) {
-            const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
-            showScannerFeedback('error', friendly, true);
-            stopGlobalScanner();
-            setSepStatus(friendly, {error: true});
-            dom.sepScan.value = idPacote;
-            dom.sepScan.focus();
-        } else {
-            const successMsg = `Sucesso! Manga ${numeracao} (Rota ${ilha})`;
-            if (insertedData && insertedData[0]) {
-                state.cacheData.unshift(insertedData[0]);
-
-                const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
-                if (id) {
-                    state.idPacoteMap.set(id, insertedData[0]);
-                }
-                renderDashboard();
-            }
-            showScannerFeedback('success', successMsg);
-            if (state.globalScannerInstance) {
-                setTimeout(() => {
-                    try {
-                        state.globalScannerInstance.resume();
-                    } catch (e) {
-                        console.warn("Erro ao resumir scanner:", e);
-                    }
-                }, 750);
-            }
-        }
-    } catch (err) {
-        console.error('Erro Separação (Scanner):', err);
-        const friendly = `ERRO: ${err.message || err}`;
-        showScannerFeedback('error', friendly, true);
-        stopGlobalScanner();
-        setSepStatus(friendly, {error: true});
-        dom.sepScan.value = idPacote;
-        dom.sepScan.focus();
-    } finally {
-        state.isSeparaçãoProcessing = false;
-    }
-}
-
-async function handleCarregamentoFromScanner(decodedText) {
-    if (state.isCarregamentoProcessing) return;
-    const cleaned = normalizeScanned(decodedText);
-    try {
-        state.isCarregamentoProcessing = true;
-        const usuarioSaida = dom.carUser?.value?.trim();
-        const doca = state.selectedDock || dom.carDockSelect?.value || '';
-        const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
-        const validation = await runCarregamentoValidation(cleaned, usuarioSaida, doca, ilha);
-        if (validation.success) {
-            showScannerFeedback('success', validation.message);
-
-        } else {
-            showScannerFeedback('error', validation.message, true);
-            dom.carScan.value = cleaned;
-            dom.carScan.select();
-        }
-    } catch (err) {
-        showScannerFeedback('error', err.message || 'Erro desconhecido', true);
-        setCarStatus(err.message, {error: true});
-    } finally {
-        state.isCarregamentoProcessing = false;
-    }
-}
-
-async function fetchDashboardData() {
-    if (!state.period.start || !state.period.end) {
-        const todayISO = getBrasiliaDate(false);
-        state.period.start = todayISO;
-        state.period.end = todayISO;
-    }
-    const startDate = `${state.period.start}T00:00:00-03:00`;
-    const endDate = `${state.period.end}T23:59:59-03:00`;
-    const query = new URLSearchParams();
-    query.append('select', '*');
-    query.append('DATA', `gte.${startDate}`);
-    query.append('DATA', `lte.${endDate}`);
-    query.append('order', 'DATA.desc');
-    const url = `${SUPABASE_URL}/rest/v1/Carregamento?${query.toString()}`;
-    try {
-        const response = await fetch(url, {headers: buildSelectHeaders()});
-        if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);
-        const data = await response.json();
-        state.cacheData = data;
-
-
-        state.idPacoteMap.clear();
-        for (const item of data) {
-
-            const id = extractElevenDigits(item['ID PACOTE']);
-            if (id) {
-                state.idPacoteMap.set(id, item);
-            }
-        }
-
-
-    } catch (err) {
-        console.error('Falha ao carregar placar:', err);
-        if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
-    }
-}
-
-function processDashboardData(data) {
-    if (!data || data.length === 0) return [];
-    const rotasMap = new Map();
-    for (const item of data) {
-        const rota = item.ROTA;
-        if (!rota) continue;
-        if (!rotasMap.has(rota)) {
-            rotasMap.set(rota, []);
-        }
-        rotasMap.get(rota).push(item);
-    }
-    const rotasConsolidadas = [];
-    for (const [rota, items] of rotasMap.entries()) {
-        let verificados = 0;
-        let total = 0;
-        let inicio = null;
-        let ultimoCarregamento = null;
-        let usuario = '---';
-        for (const item of items) {
-            total++;
-            try {
-                const dataInicio = new Date(item.DATA);
-                if (!inicio || dataInicio < inicio) {
-                    inicio = dataInicio;
-                }
-            } catch (e) {
-            }
-            if (item.VALIDACAO === 'BIPADO') {
-                verificados++;
-                if (item['DATA SAIDA']) {
-                    try {
-                        const dataCarregamento = new Date(item['DATA SAIDA']);
-                        if (!ultimoCarregamento || dataCarregamento > ultimoCarregamento) {
-                            ultimoCarregamento = dataCarregamento;
-                            usuario = item['BIPADO SAIDA'] || '---';
-                        }
-                    } catch (e) {
-                    }
-                }
-            }
-        }
-        const pendentes = total - verificados;
-        const percentual = total > 0 ? Math.round((verificados / total) * 100) : 0;
-        const inicioFormatado = inicio ? formatarDataInicio(inicio.toISOString()) : '---';
-        rotasConsolidadas.push({
-            rota,
-            inicio: inicioFormatado,
-            usuario,
-            verificados,
-            pendentes,
-            total,
-            percentual,
-            concluida: pendentes === 0 && total > 0
-        });
-    }
-
-    rotasConsolidadas.sort((a, b) => b.percentual - a.percentual);
-    return rotasConsolidadas;
-}
-
-function renderDashboard() {
-    const container = dom.dashboard;
-    if (!container) return;
-    const rotasConsolidadas = processDashboardData(state.cacheData);
-    if (rotasConsolidadas.length === 0) {
-        container.innerHTML = '<p class="text-gray-500">Nenhum registro encontrado para este período.</p>';
-        return;
-    }
-    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
-    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;
-    let html = '<div class="space-y-3">';
-    for (const rota of rotasConsolidadas) {
-        const statusHtml = rota.concluida
-            ? `<div class="flex items-center space-x-1">${concluidaIcon} <span class="text-green-600 font-medium">Concluída</span></div>`
-            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;
-        const circleColor = rota.percentual === 100 ? 'text-green-500' : (rota.percentual > 60 ? 'text-blue-500' : 'text-yellow-500');
-        const progressCircle = `
-            <div class="relative w-16 h-16">
-                <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
-                    <path class="text-gray-200"
-                        d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke-width="3.5" stroke="currentColor" />
-                    <path class="${circleColor}"
-                        stroke-dasharray="${rota.percentual}, 100"
-                        d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" />
-                </svg>
-                <div class="absolute inset-0 flex items-center justify-center">
-                    <span class="text-lg font-semibold ${circleColor}">${rota.percentual}%</span>
-                </div>
-            </div>
-        `;
-        html += `
-        <div class="rota-card bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer hover:shadow-md" data-rota="${rota.rota}">
-            <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <div class="flex-shrink-0" style="min-width: 140px;">
-                    <h5 class="text-xl font-bold text-gray-800">Rota ${rota.rota}</h5>
-                    <span class="text-sm text-gray-500">Início: ${rota.inicio}</span>
-                </div>
-                <div class="flex-shrink-0" style="min-width: 150px;">
-                    <span class="text-sm font-medium text-gray-700">${rota.usuario}</span>
-                    <span class="block text-xs text-gray-500">Último Carregamento</span>
-                </div>
-                <div class="flex-shrink-0">
-                    ${progressCircle}
-                </div>
-                <div class="flex-shrink-0 text-sm text-gray-700" style="min-width: 140px;">
-                    <div><b>${rota.verificados}</b> pacotes verificados</div>
-                    <div class="text-gray-500"><b>${rota.total}</b> total</div>
-                </div>
-                <div class="flex-shrink-0" style="min-width: 130px;">
-                    ${statusHtml}
-                </div>
-            </div>
-        </div>
-        `;
-    }
-    html += '</div>';
-    container.innerHTML = html;
-    container.querySelectorAll('.rota-card').forEach(card => {
-        card.addEventListener('dblclick', () => {
-            const rota = card.getAttribute('data-rota');
-            openRelatorioModal(rota);
-        });
-    });
-}
-
-async function fetchAndRenderDashboard() {
-    await fetchDashboardData();
-    renderDashboard();
-}
-
-function reorderControlsOverDashboard() {
-    const root = document.getElementById('tab-auditoria-mangas');
-    if (!root) return;
-    const btn1 = document.getElementById('btn-iniciar-separacao');
-    const btn2 = document.getElementById('btn-iniciar-carregamento');
-    const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
-    const periodBlock = dom.periodBtn?.closest('.p-4');
-    if (!btn1 || !btn2 || !dashboardBlock) return;
-    let bar = document.getElementById('auditoria-controls-bar');
-    if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'auditoria-controls-bar';
-        bar.className = 'p-4 grid grid-cols-1 md:grid-cols-3 gap-4';
-        dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
-    }
-    if (periodBlock && periodBlock.parentElement !== bar) {
-        bar.appendChild(periodBlock);
-        periodBlock.style.padding = '0';
-        dom.periodBtn.style.width = '100%';
-        dom.periodBtn.style.height = '100%';
-        dom.periodBtn.style.minHeight = '82px';
-    }
-    if (btn1.parentElement !== bar) bar.appendChild(btn1);
-    if (btn2.parentElement !== bar) bar.appendChild(btn2);
-}
-
-function setSepStatus(message, {error = false} = {}) {
-    if (!dom.sepStatus) return;
-    dom.sepStatus.textContent = message;
-    dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
-    dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}
-
-function clearSepQrCanvas() {
-    if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
-    if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
-    if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
-    state.lastPrintData = null;
-}
-
-function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
-    return new Promise((resolve, reject) => {
-        if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
-            console.warn('DOM do QR Code não encontrado, pulando geração.');
-            return resolve();
-        }
-        clearSepQrCanvas();
-        try {
-            const qr = qrcode(0, 'M');
-            qr.addData(String(dataForQr));
-            qr.make();
-            const svgString = qr.createSvgTag(10, 10);
-            const img = new Image();
-            img.onload = () => {
-                dom.sepQrCanvas.appendChild(img);
-                const labelPrincipal = mangaLabel || dataForQr;
-                dom.sepQrTitle.innerHTML =
-                    `<div class="qr-num">${labelPrincipal}</div>` +
-                    (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
-                dom.sepQrArea.style.display = 'block';
-                resolve();
-            };
-            img.onerror = (err) => {
-                console.error('Falha ao carregar o QR Code SVG como imagem.', err);
-                reject(new Error('Falha ao renderizar QR Code'));
-            };
-            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
-            img.style.width = '100%';
-            img.style.height = 'auto';
-        } catch (err) {
-            console.error('Erro durante a geração do qrcode-generator:', err);
-            reject(err);
-        }
-    });
-}
-
-async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+function onGlobalScanError(_) {}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
     const response = await fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
@@ -849,51 +623,94 @@ async function processarPacote(idPacote, dataScan, usuarioEntrada) {
         throw new Error(json?.error || 'Erro desconhecido');
     }
     return json;
-}
-
-function handleSepUserKeydown(e) {
+}async function handleSeparacaoFromScanner(idPacote) {
+    if (state.isSeparaçãoProcessing) return;
+    const usuarioEntrada = dom.sepUser?.value?.trim();
+    if (!usuarioEntrada) {
+        showScannerFeedback('error', 'Colaborador não definido. Feche a câmera e digite seu nome.', true);
+        stopGlobalScanner();
+        setSepStatus('Digite o nome do colaborador', {error: true});
+        dom.sepUser?.focus();
+        return;
+    }    state.isSeparaçãoProcessing = true;
+    const dataScan = new Date().toISOString();    try {
+        const body = { id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada };
+        const { queued, json } = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);        if (queued) {
+            showScannerFeedback('error', 'Falha na conexão com a rede… Tentando registrar', true);
+            stopGlobalScanner();
+            setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', { error: true });
+            dom.sepScan.value = idPacote;
+            dom.sepScan.focus();
+            return;
+        }        const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json;
+        if (!numeracao) throw new Error('Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = { dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao };
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printCurrentQr();        if (isDuplicate) {
+            const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
+            showScannerFeedback('error', friendly, true);
+            stopGlobalScanner();
+            setSepStatus(friendly, { error: true });
+            dom.sepScan.value = idPacote;
+            dom.sepScan.focus();
+        } else {
+            if (insertedData && insertedData[0]) {
+                state.cacheData.unshift(insertedData[0]);
+                const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
+                if (id) state.idPacoteMap.set(id, insertedData[0]);
+                renderDashboard();
+            }
+            showScannerFeedback('success', `Sucesso! Manga ${numeracao} (Rota ${ilha})`);
+            setTimeout(() => { try { state.globalScannerInstance?.resume(); } catch {} }, 750);
+        }
+    } catch (err) {
+        console.error('Erro Separação (Scanner):', err);
+        const friendly = `ERRO: ${err.message || err}`;
+        showScannerFeedback('error', friendly, true);
+        stopGlobalScanner();
+        setSepStatus(friendly, { error: true });
+        dom.sepScan.value = idPacote;
+        dom.sepScan.focus();
+    } finally {
+        state.isSeparaçãoProcessing = false;
+    }
+}function handleSepUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}
-
-function parseBulkEntries(raw) {
+}function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map(s => s.trim())
         .filter(s => s.length > 0);
-}
-
-async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
-    let ok = 0, fail = 0;
+    let ok = 0, fail = 0, dup = 0, queued = 0;
     state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
-    dom.sepUser.disabled = true;
-    for (let i = 0; i < total; i++) {
+    dom.sepUser.disabled = true;    for (let i = 0; i < total; i++) {
         const idPacote = ids[i];
         setSepStatus(`Processando ${i + 1}/${total}: ${idPacote}...`);
         try {
-            const dataScan = new Date().toISOString();
-            const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
-            const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
-            if (!numeracao) throw new Error('Resposta não contém numeração');
-            const idPacoteParaQr = pacote || idPacote;
-            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
+            const dataScan = new Date().toISOString();            const body = { id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada };
+            const { queued: wasQueued, json } = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);            if (wasQueued) {
+                queued++;
+                setSepStatus(`Sem rede: ${i + 1}/${total}: ${idPacote} enfileirado.`, { error: true });
+                continue;
+            }            const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json || {};
+            if (!numeracao) throw new Error('Resposta não contém numeração');            const idPacoteParaQr = pacote || idPacote;
+            state.lastPrintData = { dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao };
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
-            await printCurrentQr();
-            if (isDuplicate) {
-                fail++;
-                setSepStatus(`Falhou ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
+            await printCurrentQr();            if (isDuplicate) {
+                dup++;
+                setSepStatus(`Duplicado ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
             } else {
                 if (insertedData && insertedData[0]) {
                     state.cacheData.unshift(insertedData[0]);
                     const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
-                    if (id) {
-                        state.idPacoteMap.set(id, insertedData[0]);
-                    }
+                    if (id) state.idPacoteMap.set(id, insertedData[0]);
                 }
                 ok++;
             }
@@ -904,15 +721,18 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
         }
     }
     renderDashboard();
-    setSepStatus(`Lote concluído: ${ok} sucesso(s), ${fail} falha(s).`, {error: fail > 0});
-    dom.sepScan.value = '';
+    const resumo = [
+        `${ok} sucesso(s)`,
+        dup ? `${dup} duplicado(s)` : null,
+        fail ? `${fail} falha(s)` : null,
+        queued ? `${queued} enfileirado(s)` : null
+    ].filter(Boolean).join(', ');
+    setSepStatus(`Lote concluído: ${resumo}.`, {error: (fail + queued) > 0});    dom.sepScan.value = '';
     dom.sepScan.focus();
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}
-
-async function handleSeparaçãoSubmit(e) {
+}async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
     if (state.isSeparaçãoProcessing) return;
     e.preventDefault();
@@ -942,26 +762,24 @@ async function handleSeparaçãoSubmit(e) {
     setSepStatus('Processando...');
     clearSepQrCanvas();
     try {
-        const result = await processarPacote(idPacote, dataScan, usuarioEntrada);
-        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = result;
-        if (!numeracao) throw new Error('Resposta não contém numeração');
-        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha: ilha, mangaLabel: numeracao};
+        const body = { id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada };
+        const { queued, json } = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);        if (queued) {
+            setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', { error: true });
+            return;
+        }        const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json;
+        if (!numeracao) throw new Error('Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = { dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao };
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
         await printCurrentQr();
-        dom.sepScan.value = '';
-        if (isDuplicate) {
+        dom.sepScan.value = '';        if (isDuplicate) {
             const friendly = message || 'Pacote já bipado. Reimpressão solicitada.';
-            setSepStatus(friendly, {error: true});
+            setSepStatus(friendly, { error: true });
         } else {
             setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
             if (insertedData && insertedData[0]) {
                 state.cacheData.unshift(insertedData[0]);
-
                 const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
-                if (id) {
-                    state.idPacoteMap.set(id, insertedData[0]);
-                }
+                if (id) state.idPacoteMap.set(id, insertedData[0]);
                 renderDashboard();
             }
         }
@@ -975,19 +793,13 @@ async function handleSeparaçãoSubmit(e) {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}
-
-function setCarStatus(message, {error = false} = {}) {
+}function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
     dom.carStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.carStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
 }
-
-function formatDockLabel(n) {
-    return `DOCA ${String(n).padStart(2, '0')}`;
-}
-
+function formatDockLabel(n) { return `DOCA ${String(n).padStart(2, '0')}`; }
 function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById('car-dock-select');
@@ -1029,7 +841,6 @@ function ensureDockSelect() {
         state.selectedDock = dom.carDockSelect.value || null;
     });
 }
-
 function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
@@ -1056,7 +867,6 @@ function ensureIlhaSelect() {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
 }
-
 function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
@@ -1076,38 +886,21 @@ function populateIlhaSelect() {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}
-
-
-
-
-
-async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
-
-    const body = {
-        id_pacote: idPacoteScaneado,
-        rota_selecionada: rotaSelecionada,
-        usuario_saida: usuarioSaida,
-        doca: doca
-    };
+}async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
+    const body = { id_pacote: idPacoteScaneado, rota_selecionada: rotaSelecionada, usuario_saida: usuarioSaida, doca };
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
         headers: buildFunctionHeaders(),
         body: JSON.stringify(body),
     });
     let json = null;
-    try {
-        json = await response.json();
-    } catch {
-    }
+    try { json = await response.json(); } catch {}
     if (!response.ok) {
         const msg = json?.error || `Falha (HTTP ${response.status})`;
         throw new Error(msg);
     }
     return json || {};
-}
-
-function handleCarUserKeydown(e) {
+}function handleCarUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -1118,63 +911,55 @@ function handleCarUserKeydown(e) {
             dom.carScan.focus();
         }
     }
-}
-
-async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
     if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
-
-
-
-
     try {
-
-        const result = await processarValidacao(idPacoteScaneado, ilha, usuarioSaida, doca);
-
-        const {updatedData, idempotent, message} = result || {};
-
-
+        const body = { id_pacote: idPacoteScaneado, rota_selecionada: ilha, usuario_saida: usuarioSaida, doca };
+        const { queued, json } = await tryPostOrQueue('carregamento', FUNC_CARREGAMENTO_URL, body);        if (queued) {
+            return { success: false, message: 'Falha na conexão com a rede… Tentando registrar (item na fila). Clique em "Forçar envio" ou aguarde.' };
+        }        const { updatedData, idempotent, message } = json || {};
         const updatedNumeracao = updatedData?.NUMERACAO;
-        if (!updatedNumeracao) {
-            throw new Error("Backend não retornou dados da manga atualizada.");
-        }
-
-        let successMessage = `OK! ${updatedNumeracao} validada.`;
-        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já estava validada.`;
-
-
-        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
+        if (!updatedNumeracao) throw new Error("Backend não retornou dados da manga atualizada.");        let successMessage = `OK! ${updatedNumeracao} validada.`;
+        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já estava validada.`;        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
         if (index > -1) {
-            state.cacheData[index] = {
-                ...state.cacheData[index],
-                ...updatedData,
-            };
-
-
-            const id = extractElevenDigits(state.cacheData[index]['ID PACOTE']);
-            if (id) {
-                state.idPacoteMap.set(id, state.cacheData[index]);
-            }
+            state.cacheData[index] = { ...state.cacheData[index], ...updatedData };
+            const id = extractElevenDigits(state.cacheData[index]['ID PACOTE']); if (id) state.idPacoteMap.set(id, state.cacheData[index]);
         } else {
-
             state.cacheData.unshift(updatedData);
-            const id = extractElevenDigits(updatedData['ID PACOTE']);
-            if (id) {
-                state.idPacoteMap.set(id, updatedData);
-            }
+            const id = extractElevenDigits(updatedData['ID PACOTE']); if (id) state.idPacoteMap.set(id, updatedData);
         }
-
-        return {success: true, message: successMessage};
+        return { success: true, message: successMessage };
     } catch (err) {
         console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
         return {success: false, message: `Erro: ${msg}`};
     }
-}
-
-async function handleCarregamentoSubmit(e) {
+}async function handleCarregamentoFromScanner(decodedText) {
+    if (state.isCarregamentoProcessing) return;
+    const cleaned = normalizeScanned(decodedText);
+    try {
+        state.isCarregamentoProcessing = true;
+        const usuarioSaida = dom.carUser?.value?.trim();
+        const doca = state.selectedDock || dom.carDockSelect?.value || '';
+        const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
+        const validation = await runCarregamentoValidation(cleaned, usuarioSaida, doca, ilha);
+        if (validation.success) {
+            showScannerFeedback('success', validation.message);
+        } else {
+            showScannerFeedback('error', validation.message, true);
+            dom.carScan.value = cleaned;
+            dom.carScan.select();
+        }
+    } catch (err) {
+        showScannerFeedback('error', err.message || 'Erro desconhecido', true);
+        setCarStatus(err.message, {error: true});
+    } finally {
+        state.isCarregamentoProcessing = false;
+    }
+}async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -1183,19 +968,15 @@ async function handleCarregamentoSubmit(e) {
     dom.carDockSelect && (dom.carDockSelect.disabled = true);
     dom.carIlhaSelect && (dom.carIlhaSelect.disabled = true);
     setCarStatus('Validando...');
-
-
     const idPacoteScaneado = normalizeScanned(dom.carScan?.value?.trim());
     const usuarioSaida = dom.carUser?.value?.trim();
     const doca = state.selectedDock || dom.carDockSelect?.value || '';
     const ilha = state.selectedIlha || dom.carIlhaSelect?.value || '';
-
     try {
         const validation = await runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha);
         if (validation.success) {
             setCarStatus(validation.message, {error: false});
             dom.carScan.value = '';
-
             dom.carScan.focus();
         } else {
             setCarStatus(validation.message, {error: true});
@@ -1213,13 +994,243 @@ async function handleCarregamentoSubmit(e) {
             dom.carScan.focus();
         }
     }
+}async function fetchDashboardData() {
+    if (!state.period.start || !state.period.end) {
+        const todayISO = getBrasiliaDate(false);
+        state.period.start = todayISO;
+        state.period.end = todayISO;
+    }
+    const startDate = `${state.period.start}T00:00:00-03:00`;
+    const endDate = `${state.period.end}T23:59:59-03:00`;
+    const query = new URLSearchParams();
+    query.append('select', '*');
+    query.append('DATA', `gte.${startDate}`);
+    query.append('DATA', `lte.${endDate}`);
+    query.append('order', 'DATA.desc');
+    const url = `${SUPABASE_URL}/rest/v1/Carregamento?${query.toString()}`;
+    try {
+        const response = await fetch(url, {headers: buildSelectHeaders()});
+        if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);
+        const data = await response.json();
+        state.cacheData = data;
+        state.idPacoteMap.clear();
+        for (const item of data) {
+            const id = extractElevenDigits(item['ID PACOTE']);
+            if (id) state.idPacoteMap.set(id, item);
+        }
+    } catch (err) {
+        console.error('Falha ao carregar placar:', err);
+        if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
+    }
+}function processDashboardData(data) {
+    if (!data || data.length === 0) return [];
+    const rotasMap = new Map();
+    for (const item of data) {
+        const rota = item.ROTA;
+        if (!rota) continue;
+        if (!rotasMap.has(rota)) rotasMap.set(rota, []);
+        rotasMap.get(rota).push(item);
+    }
+    const rotasConsolidadas = [];
+    for (const [rota, items] of rotasMap.entries()) {
+        let verificados = 0;
+        let total = 0;
+        let inicio = null;
+        let ultimoCarregamento = null;
+        let usuario = '---';
+        for (const item of items) {
+            total++;
+            try {
+                const dataInicio = new Date(item.DATA);
+                if (!inicio || dataInicio < inicio) inicio = dataInicio;
+            } catch {}
+            if (item.VALIDACAO === 'BIPADO') {
+                verificados++;
+                if (item['DATA SAIDA']) {
+                    try {
+                        const dataCarregamento = new Date(item['DATA SAIDA']);
+                        if (!ultimoCarregamento || dataCarregamento > ultimoCarregamento) {
+                            ultimoCarregamento = dataCarregamento;
+                            usuario = item['BIPADO SAIDA'] || '---';
+                        }
+                    } catch {}
+                }
+            }
+        }
+        const pendentes = total - verificados;
+        const percentual = total > 0 ? Math.round((verificados / total) * 100) : 0;
+        const inicioFormatado = inicio ? formatarDataInicio(inicio.toISOString()) : '---';
+        const ultimoCarregamentoFormatado = ultimoCarregamento ? formatarDataInicio(ultimoCarregamento.toISOString()) : '---';        rotasConsolidadas.push({
+            rota,
+            inicio: inicioFormatado,
+            ultimoCarregamento: ultimoCarregamentoFormatado,
+            usuario,
+            verificados,
+            pendentes,
+            total,
+            percentual,
+            concluida: pendentes === 0 && total > 0
+        });
+    }
+    rotasConsolidadas.sort((a, b) => a.percentual - b.percentual);
+    return rotasConsolidadas;
+}function renderDashboard() {
+    const summaryContainer = dom.summaryContainer;
+    const routesContainer = dom.dashboard;
+    if (!summaryContainer || !routesContainer) return;    const rotasConsolidadas = processDashboardData(state.cacheData);    const totalGeralPacotes = rotasConsolidadas.reduce((acc, r) => acc + r.total, 0);
+    const totalGeralVerificados = rotasConsolidadas.reduce((acc, r) => acc + r.verificados, 0);
+    const totalGeralPendentes = totalGeralPacotes - totalGeralVerificados;
+    const percVerificados = totalGeralPacotes > 0 ? (totalGeralVerificados / totalGeralPacotes) * 100 : 0;
+    const percPendentes = totalGeralPacotes > 0 ? (totalGeralPendentes / totalGeralPacotes) * 100 : 0;    let resumoHtml = `
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 text-center">
+            <span class="block text-sm font-medium text-gray-500 uppercase">Carregamentos</span>
+            <span class="block text-4xl font-bold text-auditoria-primary">${totalGeralVerificados}</span>
+            <span class="block text-sm text-gray-500">de ${totalGeralPacotes}</span>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 text-center">
+            <span class="block text-sm font-medium text-gray-500 uppercase">Concluído</span>
+            <span class="block text-4xl font-bold text-green-600">${percVerificados.toFixed(2)}%</span>
+            <span class="block text-sm text-gray-500">(${totalGeralVerificados} concluídos)</span>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 text-center">
+            <span class="block text-sm font-medium text-gray-500 uppercase">Em Andamento</span>
+            <span class="block text-4xl font-bold text-yellow-600">${percPendentes.toFixed(2)}%</span>
+            <span class="block text-sm text-gray-500">(${totalGeralPendentes} pendentes)</span>
+        </div>
+    </div>
+    `;    if (rotasConsolidadas.length === 0) {
+        routesContainer.innerHTML = '<p class="text-gray-500">Nenhum registro encontrado para este período.</p>';
+        summaryContainer.innerHTML = resumoHtml;
+        return;
+    }    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
+    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;    let rotasHtml = '<div class="space-y-3">';    for (const rota of rotasConsolidadas) {
+        const statusHtml = rota.concluida
+            ? `<div class="flex items-center space-x-1">${concluidaIcon} <span class="text-green-600 font-medium">Concluída</span></div>`
+            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;        const circleColor = rota.percentual === 100 ? 'text-green-500' : 'text-auditoria-accent';        const progressCircle = `
+            <div class="relative w-16 h-16">
+                <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
+                    <path class="text-gray-200"
+                        d="M18 2.0845
+                        a 15.9155 15.9155 0 0 1 0 31.831
+                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" stroke-width="3.5" stroke="currentColor" />
+                    <path class="${circleColor}"
+                        stroke-dasharray="${rota.percentual}, 100"
+                        d="M18 2.0845
+                        a 15.9155 15.9155 0 0 1 0 31.831
+                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                        fill="none" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" />
+                </svg>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <span class="text-lg font-semibold ${circleColor}">${rota.percentual}%</span>
+                </div>
+            </div>
+        `;
+        rotasHtml += `
+        <div class="rota-card bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer hover:shadow-md" data-rota="${rota.rota}">
+            <div class="flex flex-wrap items-center justify-evenly gap-x-4 gap-y-2">
+            <div class="flex-shrink-0" style="min-width: 140px;">
+                    <h5 class="text-xl font-bold text-gray-800">Rota ${rota.rota}</h5>
+                    <span class="text-sm text-gray-500">Início: ${rota.inicio}</span>
+                </div>                <div class="flex-shrink-0" style="min-width: 150px;">
+                    <span class="text-sm font-medium text-gray-700">${rota.ultimoCarregamento}</span>
+                    <span class="block text-xs text-gray-500">Ult. Carreg. (${rota.usuario})</span>
+                </div>                <div class="flex-shrink-0">
+                    ${progressCircle}
+                </div>
+                <div class="flex-shrink-0 text-sm text-gray-700" style="min-width: 140px;">
+                    <div><b>${rota.verificados}</b> pacotes verificados</div>
+                    <div class="text-gray-500"><b>${rota.total}</b> total</div>
+                </div>
+                <div class="flex-shrink-0" style="min-width: 130px;">
+                    ${statusHtml}
+                </div>
+            </div>
+        </div>
+        `;
+    }
+    rotasHtml += '</div>';    summaryContainer.innerHTML = resumoHtml;
+    routesContainer.innerHTML = rotasHtml;    routesContainer.querySelectorAll('.rota-card').forEach(card => {
+        card.addEventListener('dblclick', () => {
+            const rota = card.getAttribute('data-rota');
+            openRelatorioModal(rota);
+        });
+    });
+}async function fetchAndRenderDashboard() {
+    await fetchDashboardData();
+    renderDashboard();
+}function reorderControlsOverDashboard() {
+    const root = document.getElementById('tab-auditoria-mangas');
+    if (!root) return;
+    const btn1 = document.getElementById('btn-iniciar-separacao');
+    const btn2 = document.getElementById('btn-iniciar-carregamento');
+    const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
+    const periodBlock = dom.periodBtn?.closest('.p-4');
+    if (!btn1 || !btn2 || !dashboardBlock) return;
+    let bar = document.getElementById('auditoria-controls-bar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'auditoria-controls-bar';
+        bar.className = 'p-4 grid grid-cols-1 md:grid-cols-3 gap-4';
+        dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
+    }
+    if (periodBlock && periodBlock.parentElement !== bar) {
+        bar.appendChild(periodBlock);
+        periodBlock.style.padding = '0';
+        dom.periodBtn.style.width = '100%';
+        dom.periodBtn.style.height = '100%';
+        dom.periodBtn.style.minHeight = '82px';
+    }
+    if (btn1.parentElement !== bar) bar.appendChild(btn1);
+    if (btn2.parentElement !== bar) bar.appendChild(btn2);
+}function setSepStatus(message, {error = false} = {}) {
+    if (!dom.sepStatus) return;
+    dom.sepStatus.textContent = message;
+    dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
+    dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
 }
-
-
-
-
-
-function createRelatorioModal() {
+function clearSepQrCanvas() {
+    if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
+    if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
+    if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
+    state.lastPrintData = null;
+}
+function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+    return new Promise((resolve, reject) => {
+        if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
+            console.warn('DOM do QR Code não encontrado, pulando geração.');
+            return resolve();
+        }
+        clearSepQrCanvas();
+        try {
+            const qr = qrcode(0, 'M');
+            qr.addData(String(dataForQr));
+            qr.make();
+            const svgString = qr.createSvgTag(10, 10);
+            const img = new Image();
+            img.onload = () => {
+                dom.sepQrCanvas.appendChild(img);
+                const labelPrincipal = mangaLabel || dataForQr;
+                dom.sepQrTitle.innerHTML =
+                    `<div class="qr-num">${labelPrincipal}</div>` +
+                    (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
+                dom.sepQrArea.style.display = 'block';
+                resolve();
+            };
+            img.onerror = (err) => {
+                console.error('Falha ao carregar o QR Code SVG como imagem.', err);
+                reject(new Error('Falha ao renderizar QR Code'));
+            };
+            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
+            img.style.width = '100%';
+            img.style.height = 'auto';
+        } catch (err) {
+            console.error('Erro durante a geração do qrcode-generator:', err);
+            reject(err);
+        }
+    });
+}function createRelatorioModal() {
     if (document.getElementById('modal-relatorio-rota')) return;
     const modal = document.createElement('div');
     modal.id = 'modal-relatorio-rota';
@@ -1244,7 +1255,6 @@ function createRelatorioModal() {
         closeModal(dom.relatorioModal);
     });
 }
-
 function openRelatorioModal(rota) {
     if (!dom.relatorioModal || !rota) return;
     const items = state.cacheData.filter(item => item.ROTA === rota);
@@ -1286,33 +1296,20 @@ function openRelatorioModal(rota) {
     tableHtml += `</tbody></table>`;
     dom.relatorioBody.innerHTML = tableHtml;
     openModal(dom.relatorioModal);
-}
-
-function updatePeriodLabel() {
+}function updatePeriodLabel() {
     if (!dom.periodBtn) return;
     if (!state.period.start || !state.period.end) {
         dom.periodBtn.textContent = 'Selecionar Período';
         return;
     }
-    ;
     const format = (iso) => {
-        try {
-            const [y, m, d] = iso.split('-');
-            return `${d}/${m}/${y}`;
-        } catch (e) {
-            return iso;
-        }
+        try { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; }
+        catch (e) { return iso; }
     };
     const start = format(state.period.start);
     const end = format(state.period.end);
-    if (start === end) {
-        dom.periodBtn.textContent = `Período: ${start}`;
-    } else {
-        dom.periodBtn.textContent = `Período: ${start} - ${end}`;
-    }
-}
-
-function openPeriodModal() {
+    dom.periodBtn.textContent = (start === end) ? `Período: ${start}` : `Período: ${start} - ${end}`;
+}function openPeriodModal() {
     const today = getBrasiliaDate(true);
     const pad2 = (n) => String(n).padStart(2, '0');
     const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -1365,23 +1362,17 @@ function openPeriodModal() {
     const btnCancel = overlay.querySelector('#cdp-cancel');
     const btnApply = overlay.querySelector('#cdp-apply');
     const close = () => overlay.remove();
-    overlay.addEventListener('click', (ev) => {
-        if (ev.target === overlay) close();
-    });
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
     btnCancel.onclick = close;
     overlay.querySelector('#cdp-today').onclick = () => {
         const iso = toISO(getBrasiliaDate(true));
         [state.period.start, state.period.end] = [iso, iso];
-        updatePeriodLabel();
-        close();
-        fetchAndRenderDashboard();
+        updatePeriodLabel(); close(); fetchAndRenderDashboard();
     };
     overlay.querySelector('#cdp-yday').onclick = () => {
         const iso = toISO(yesterday);
         [state.period.start, state.period.end] = [iso, iso];
-        updatePeriodLabel();
-        close();
-        fetchAndRenderDashboard();
+        updatePeriodLabel(); close(); fetchAndRenderDashboard();
     };
     overlay.querySelector('#cdp-prevmo').onclick = () => {
         const s = toISO(prevStart);
@@ -1389,36 +1380,63 @@ function openPeriodModal() {
         const [cs, ce] = clampEndToToday(s, e);
         state.period.start = cs;
         state.period.end = ce;
-        updatePeriodLabel();
-        close();
-        fetchAndRenderDashboard();
+        updatePeriodLabel(); close(); fetchAndRenderDashboard();
     };
     btnApply.onclick = () => {
         let sVal = (elStart?.value || '').slice(0, 10);
         let eVal = (elEnd?.value || '').slice(0, 10);
-        if (!sVal || !eVal) {
-            toast('Selecione as duas datas.', 'info');
-            return;
-        }
+        if (!sVal || !eVal) { toast('Selecione as duas datas.', 'info'); return; }
         [sVal, eVal] = clampEndToToday(sVal, eVal);
         state.period.start = sVal;
         state.period.end = eVal;
-        updatePeriodLabel();
-        close();
-        fetchAndRenderDashboard();
+        updatePeriodLabel(); close(); fetchAndRenderDashboard();
     };
-}
-
-let initOnce = false;
-
-export function init() {
+}function injectAuditoriaStyles() {
+    if (document.getElementById('auditoria-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'auditoria-styles';
+    style.textContent = `
+        :root {
+            --auditoria-primary: #003369;
+            --auditoria-accent: #02B1EE;
+            --auditoria-border: #eceff5;
+            --auditoria-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+            --auditoria-muted: #6b7280;
+        }
+        .text-auditoria-accent { color: var(--auditoria-accent) !important; }
+        .text-auditoria-primary { color: var(--auditoria-primary) !important; }        #auditoria-summary-container .bg-white,
+        .rota-card { border-radius: 14px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; }
+        #auditoria-summary-container .text-blue-600 { color: var(--auditoria-primary) !important; }
+        .rota-card h5 { color: var(--auditoria-primary) !important; }
+        .rota-card .text-gray-500, .rota-card .text-xs, #auditoria-summary-container .text-gray-500 { color: var(--auditoria-muted) !important; }        #auditoria-controls-bar button {
+            border-radius: 12px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; transition: all .2s ease;
+        }
+        #auditoria-controls-bar button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12) !important; }
+        #btn-iniciar-separacao { background-color: var(--auditoria-primary) !important; color: white !important; }
+        #btn-iniciar-carregamento { background-color: var(--auditoria-accent) !important; color: white !important; }
+        #auditoria-period-btn { background-color: #fff !important; color: var(--auditoria-primary) !important; font-weight: 600; }        .auditoria-main-container { display: flex; flex-direction: column; height: 100%; }
+        #auditoria-controls-bar { flex-shrink: 0; background: #f9fafb; position: sticky; top: 0; z-index: 10; }
+        #auditoria-summary-container { flex-shrink: 0; padding: 0 16px; background: #f9fafb; position: sticky; top: 110px; z-index: 9; }
+        #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }
+    `;
+    document.head.appendChild(style);
+}let initOnce = false;export function init() {
     if (initOnce) return;
-    initOnce = true;
-    dom.dashboard = document.getElementById('dashboard-stats');
-    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
+    initOnce = true;    dom.dashboard = document.getElementById('dashboard-stats');    const dashboardBlock = dom.dashboard?.closest('.p-4');
+    if (dashboardBlock) {
+        const parent = dashboardBlock.parentElement;
+        if (parent) {
+            parent.classList.add('auditoria-main-container');
+            dom.summaryContainer = document.createElement('div');
+            dom.summaryContainer.id = 'auditoria-summary-container';
+            parent.insertBefore(dom.summaryContainer, dashboardBlock);            dom.routesContainer = document.createElement('div');
+            dom.routesContainer.id = 'auditoria-routes-container';
+            parent.insertBefore(dom.routesContainer, dashboardBlock);
+            dom.routesContainer.appendChild(dashboardBlock);
+        }
+    }    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
-    dom.periodBtn = document.getElementById('auditoria-period-btn');
-    dom.modalSeparação = document.getElementById('modal-separacao');
+    dom.periodBtn = document.getElementById('auditoria-period-btn');    dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
     dom.sepUser = document.getElementById('sep-user-name');
     dom.sepScan = document.getElementById('sep-scan-input');
@@ -1426,13 +1444,11 @@ export function init() {
     dom.sepQrArea = document.getElementById('sep-qr-area');
     dom.sepQrTitle = document.getElementById('sep-qr-title');
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
-    dom.sepPrintBtn = document.getElementById('sep-print-btn');
-    dom.modalCarregamento = document.getElementById('modal-carregamento');
+    dom.sepPrintBtn = document.getElementById('sep-print-btn');    dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
-    dom.carStatus = document.getElementById('car-status');
-    const todayISO = getBrasiliaDate(false);
+    dom.carStatus = document.getElementById('car-status');    injectAuditoriaStyles();    const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
     updatePeriodLabel();
@@ -1440,34 +1456,22 @@ export function init() {
     createRelatorioModal();
     injectScannerButtons();
     ensureDockSelect();
-    ensureIlhaSelect();
-    if (dom.btnSeparação) {
+    ensureIlhaSelect();    if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4', 'text-xl');
         dom.btnSeparação.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnSeparação.querySelector('.text-xl');
-        if (span) {
-            span.classList.remove('text-xl');
-            span.classList.add('text-lg');
-        }
+        if (span) { span.classList.remove('text-xl'); span.classList.add('text-lg'); }
     }
     if (dom.btnCarregamento) {
         dom.btnCarregamento.classList.remove('px-6', 'py-4', 'text-xl');
         dom.btnCarregamento.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnCarregamento.querySelector('.text-xl');
-        if (span) {
-            span.classList.remove('text-xl');
-            span.classList.add('text-lg');
-        }
-    }
-    dom.periodBtn?.addEventListener('click', openPeriodModal);
-    dom.btnSeparação?.addEventListener('click', () => {
+        if (span) { span.classList.remove('text-xl'); span.classList.add('text-lg'); }
+    }    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
-        if (dom.sepUser && !dom.sepUser.value) {
-            dom.sepUser.focus();
-        } else {
-            dom.sepScan?.focus();
-        }
+        if (dom.sepUser && !dom.sepUser.value) dom.sepUser.focus();
+        else dom.sepScan?.focus();
     });
     dom.btnCarregamento?.addEventListener('click', () => {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
@@ -1477,24 +1481,19 @@ export function init() {
         else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
-    });
-    dom.modalSepClose?.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+    });    dom.modalSepClose?.addEventListener('click', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
         closeModal(dom.modalSeparação);
         resetSeparacaoModal();
     });
     dom.modalCarClose?.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         closeModal(dom.modalCarregamento);
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-    });
-    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
+    });    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
-    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
-    dom.sepPrintBtn?.addEventListener('click', async () => {
+    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             if (state.lastPrintData) {
                 setSepStatus('Reimprimindo...');
@@ -1512,44 +1511,47 @@ export function init() {
             console.error('Falha ao reimprimir etiqueta:', e);
             setSepStatus(`Erro ao reimprimir: ${e.message}`, {error: true});
         }
-    });
-    document.addEventListener('keydown', (e) => {
+    });    document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
-            if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
-                e.preventDefault();
-                dom.carScan.focus();
-            } else if (dom._currentModal === dom.modalSeparação && dom.sepScan) {
-                e.preventDefault();
-                dom.sepScan.focus();
-            }
+            if (dom._currentModal === dom.modalCarregamento && dom.carScan) { e.preventDefault(); dom.carScan.focus(); }
+            else if (dom._currentModal === dom.modalSeparação && dom.sepScan) { e.preventDefault(); dom.sepScan.focus(); }
         }
     });
     [dom.sepScan, dom.carScan].forEach(inp => {
         if (!inp) return;
         inp.addEventListener('paste', () => {
-            setTimeout(() => {
-                inp.value = normalizeScanned(inp.value);
-            }, 0);
+            setTimeout(() => { inp.value = normalizeScanned(inp.value); }, 0);
         });
-    });
-    reorderControlsOverDashboard();
-    fetchAndRenderDashboard();
-    fetch(FUNC_SEPARACAO_URL, {
+    });    reorderControlsOverDashboard();
+    fetchAndRenderDashboard();    fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
         headers: buildFunctionHeaders(),
         body: JSON.stringify({action: 'preload'})
     }).catch(err => {
         console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
-    });
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V22 - Correção Chaves c/ Espaço].');
-}
-
-export function destroy() {
+    });    installNetworkBanner();
+    loadOutbox();    eventHandlers.onOnline = () => processOutbox(true);
+    eventHandlers.onSepSuccess = (ev) => handleOutboxSepSuccess(ev);
+    eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);    window.addEventListener('online', eventHandlers.onOnline);
+    window.addEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
+    window.addEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);    if (outbox.queue.length > 0) showNetBanner('Itens pendentes: tentando enviar…');
+    setTimeout(() => processOutbox(), 2000);    console.log('Módulo de Auditoria (Dashboard) inicializado [V26 - Outbox/Retry + Sticky/Sort/Align].');
+}export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
-    if (state.globalScannerInstance) stopGlobalScanner();
-    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
-    if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);
-    state.cacheData = [];
+    if (state.globalScannerInstance) stopGlobalScanner();    const styleTag = document.getElementById('auditoria-styles');
+    if (styleTag) styleTag.parentElement.removeChild(styleTag);    const dashboardBlock = dom.dashboard?.closest('.p-4');
+    if (dashboardBlock && dom.routesContainer && dom.summaryContainer) {
+        const mainContainer = dom.routesContainer.parentElement;
+        if (mainContainer) {
+            mainContainer.insertBefore(dashboardBlock, dom.routesContainer);
+            mainContainer.removeChild(dom.routesContainer);
+            mainContainer.removeChild(dom.summaryContainer);
+            mainContainer.classList.remove('auditoria-main-container');
+        }
+    }    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
+    if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
+    if (eventHandlers.onSepSuccess) window.removeEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
+    if (eventHandlers.onCarSuccess) window.removeEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);    eventHandlers = { onOnline: null, onSepSuccess: null, onCarSuccess: null };    state.cacheData = [];
     state.idPacoteMap?.clear();
     state.globalScannerInstance = null;
     state.currentScannerTarget = null;
@@ -1557,22 +1559,12 @@ export function destroy() {
     state.period = {start: null, end: null};
     dom = {};
     initOnce = false;
-}
-
-if (typeof document !== 'undefined') {
+}if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            try {
-                init();
-            } catch (e) {
-                console.error('[auditoria] init falhou:', e);
-            }
+            try { init(); } catch (e) { console.error('[auditoria] init falhou:', e); }
         });
     } else {
-        try {
-            init();
-        } catch (e) {
-            console.error('[auditoria] init falhou:', e);
-        }
+        try { init(); } catch (e) { console.error('[auditoria] init falhou:', e); }
     }
 }

@@ -1,17 +1,15 @@
-// index.ts - Supabase Edge Function (V3 - Suporte a Reimpressão e Pré-Cache)
-
 import {serve} from "https://deno.land/std@0.177.0/http/server.ts";
 import * as djwt from "https://deno.land/x/djwt@v2.8/mod.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 
-// --- Configuração do Google Sheets ---
+
 const SPREADSHEET_ID = "1SialDvwRRDfuJwdUAn4tXFVgbR6CYqdXtKD5xJFuG1A";
 const SHEET_RANGE = "'Consolidado CONQUISTA'!A:C"; // ID, Rota, Rotas
 const GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token";
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
 const CACHE_TTL_SECONDS = 300; // 5 minutos para o cache da planilha
 
-// --- Definição do Cache Global ---
+
 interface CacheState {
     googleAccessToken: string | null;
     tokenExpiry: number | null; // UNIX timestamp em segundos
@@ -28,8 +26,6 @@ const globalCache: CacheState = {
     mapLastFetched: null,
 };
 
-// --- Fim da Definição do Cache ---
-
 
 function pemToBinary(pem: string): ArrayBuffer {
     const base64 = pem
@@ -43,19 +39,18 @@ function pemToBinary(pem: string): ArrayBuffer {
     return bytes.buffer;
 }
 
-// --- getGoogleAccessToken (com cache) ---
+
 async function getGoogleAccessToken(
     clientEmail: string,
     privateKey: string,
 ): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
 
-    // 1. Verifica o cache primeiro
+
     if (globalCache.googleAccessToken && globalCache.tokenExpiry && globalCache.tokenExpiry > (now + 60)) {
         return globalCache.googleAccessToken;
     }
 
-    // 2. Se o cache falhar, busca um novo token
     try {
         const formattedPrivateKey = privateKey.replace(/\\n/g, "\n");
 
