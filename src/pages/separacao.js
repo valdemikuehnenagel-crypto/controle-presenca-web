@@ -1,9 +1,8 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-import qrcode from 'qrcode-generator';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import qrcode from 'qrcode-generator';import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
-const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
-const SUPPORTED_FORMATS = [
+const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.QR_CODE,
     Html5QrcodeSupportedFormats.CODE_128,
     Html5QrcodeSupportedFormats.CODE_39,
@@ -22,11 +21,15 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     pendingDecodedText: null,
     lastPrintData: null,
     period: {start: null, end: null},
+    isImporting: false,
 };let dom = {
-    dashboard: null,    summaryContainer: null,
-    routesContainer: null,    btnSeparação: null,
+    dashboard: null,
+    summaryContainer: null,
+    routesContainer: null,
+    btnSeparação: null,
     btnCarregamento: null,
-    periodBtn: null,    modalSeparação: null,
+    periodBtn: null,
+    btnImportarConsolidado: null,    modalSeparação: null,
     modalSepClose: null,
     sepUser: null,
     sepScan: null,
@@ -53,7 +56,11 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     scannerConfirmNoBtn: null,    relatorioModal: null,
     relatorioModalClose: null,
     relatorioTitle: null,
-    relatorioBody: null,    netBanner: null,
+    relatorioBody: null,    modalImportar: null,
+    importCloseBtn: null,
+    importTextarea: null,
+    importSubmitBtn: null,
+    importStatus: null,    netBanner: null,
     netMsg: null,
     netForceBtn: null,
     netCloseBtn: null,
@@ -63,15 +70,109 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     onCarSuccess: null,
 };const NET_TIMEOUT_MS = 8000;
 const OUTBOX_KEY = 'auditoriaOutboxV1';
-let outbox = { queue: [], sending: false };function loadOutbox() {
+let outbox = {queue: [], sending: false};function createImportarModal() {
+    if (document.getElementById('modal-importar-consolidado')) return;
+    const modal = document.createElement('div');
+    modal.id = 'modal-importar-consolidado';
+    modal.className = 'modal-overlay hidden';
+    modal.style.zIndex = '1200';
+    modal.innerHTML = `
+        <div class="modal-content" style="width: 95vw; max-width: 800px;">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-semibold">Importar Consolidado SBA7</h3>
+                <button id="importar-consolidado-close" class="modal-close" type="button">&times;</button>
+            </div>
+            <div id="importar-consolidado-body">
+                <p class="text-sm text-gray-600 mb-2">Cole os dados (CTRL+V) do seu consolidado no formato <strong>ID_PACOTE [espaço/tab] ROTA</strong>, um por linha.</p>
+                <p class="text-xs text-red-600 mb-4"><strong>ATENÇÃO:</strong> Isso vai apagar TODOS os dados antigos e substituir pelos novos.</p>
+                <textarea id="importar-textarea" class="w-full h-64 p-2 border border-gray-300 rounded-md font-mono text-sm" placeholder="45662053071 G22_PM1\n45662604505 L21_PM1\n..."></textarea>
+                <div id="importar-status" class="mt-2 text-sm font-medium text-gray-700 h-6"></div>
+                <div class="mt-4 flex justify-end">
+                    <button id="importar-submit-btn" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow hover:bg-green-700">
+                        Importar Dados
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    dom.modalImportar = modal;
+    dom.importCloseBtn = modal.querySelector('#importar-consolidado-close');
+    dom.importTextarea = modal.querySelector('#importar-textarea');
+    dom.importSubmitBtn = modal.querySelector('#importar-submit-btn');
+    dom.importStatus = modal.querySelector('#importar-status');
+}async function handleImportarConsolidado() {
+    if (state.isImporting) return;    const rawText = dom.importTextarea.value;
+    if (!rawText || !rawText.trim()) {
+        dom.importStatus.textContent = "Área de texto vazia.";
+        dom.importStatus.className = 'mt-2 text-sm font-medium text-red-600 h-6';
+        return;
+    }    state.isImporting = true;
+    dom.importSubmitBtn.disabled = true;
+    dom.importSubmitBtn.textContent = 'Importando...';
+    dom.importStatus.className = 'mt-2 text-sm font-medium text-blue-600 h-6';
+    dom.importStatus.textContent = "Preparando dados...";    const lines = rawText.trim().split('\n');
+    const rows = [];
+    let idx = 0;    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;        const parts = trimmedLine.split(/\s+/);
+        if (parts.length >= 2 && parts[0].length >= 11) {
+            const id = parts[0].trim();
+            const rota = parts[1].trim();
+            const rotaOtimizada = rota.charAt(0).toUpperCase();            rows.push({
+                "ID": id,
+                "Rota": rota,
+                "Rota Otimizada": rotaOtimizada
+            });
+            idx++;
+        } else {
+            console.warn('Linha ignorada (formato inválido):', line);
+        }
+    }    if (rows.length === 0) {
+        dom.importStatus.textContent = "Nenhum dado válido encontrado para importar.";
+        dom.importStatus.className = 'mt-2 text-sm font-medium text-red-600 h-6';
+        state.isImporting = false;
+        dom.importSubmitBtn.disabled = false;
+        dom.importSubmitBtn.textContent = 'Importar Dados';
+        return;
+    }    try {
+        dom.importStatus.textContent = `Encontrados ${rows.length} registros. Limpando tabela antiga...`;        const {error: deleteError} = await supabase
+            .from('Consolidado SBA7')
+            .delete()
+            .neq('ID', 'dummy-id-que-nunca-vai-existir');        if (deleteError) {
+            console.error('Erro ao limpar tabela:', deleteError);
+            throw new Error(`Falha ao limpar tabela antiga: ${deleteError.message}`);
+        }        dom.importStatus.textContent = `Tabela limpa. Inserindo ${rows.length} novos registros...`;        const {error: insertError} = await supabase
+            .from('Consolidado SBA7')
+            .insert(rows);        if (insertError) {
+            console.error('Erro ao inserir dados:', insertError);
+            throw new Error(`Falha ao inserir novos dados: ${insertError.message}`);
+        }        dom.importStatus.textContent = `Sucesso! ${rows.length} registros importados.`;
+        dom.importStatus.className = 'mt-2 text-sm font-medium text-green-600 h-6';
+        dom.importTextarea.value = '';        setTimeout(() => {
+            closeModal(dom.modalImportar);
+        }, 2000);    } catch (err) {
+        console.error('Erro na importação:', err);
+        dom.importStatus.textContent = `Erro: ${err.message}`;
+        dom.importStatus.className = 'mt-2 text-sm font-medium text-red-600 h-6';
+    } finally {
+        state.isImporting = false;
+        dom.importSubmitBtn.disabled = false;
+        dom.importSubmitBtn.textContent = 'Importar Dados';
+    }
+}function loadOutbox() {
     try {
         const raw = localStorage.getItem(OUTBOX_KEY);
-        outbox = raw ? JSON.parse(raw) : { queue: [], sending: false };
+        outbox = raw ? JSON.parse(raw) : {queue: [], sending: false};
         if (!Array.isArray(outbox.queue)) outbox.queue = [];
-    } catch { outbox = { queue: [], sending: false }; }
-}
-function saveOutbox() {
-    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); } catch {}
+    } catch {
+        outbox = {queue: [], sending: false};
+    }
+}function saveOutbox() {
+    try {
+        localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
+    } catch {
+    }
 }function installNetworkBanner() {
     if (document.getElementById('net-banner')) return;
     const wrap = document.createElement('div');
@@ -87,28 +188,26 @@ function saveOutbox() {
     dom.netBanner = wrap;
     dom.netMsg = wrap.querySelector('#net-msg');
     dom.netForceBtn = wrap.querySelector('#net-force');
-    dom.netCloseBtn = wrap.querySelector('#net-close');    dom.netForceBtn.addEventListener('click', () => processOutbox(true));
+    dom.netCloseBtn = wrap.querySelector('#net-close');
+    dom.netForceBtn.addEventListener('click', () => processOutbox(true));
     dom.netCloseBtn.addEventListener('click', () => hideNetBanner());
 }function showNetBanner(msg) {
     if (!dom.netBanner) installNetworkBanner();
     if (dom.netMsg && msg) dom.netMsg.textContent = msg;
     dom.netBanner.classList.remove('hidden');
-}
-function updateNetBannerCount() {
+}function updateNetBannerCount() {
     const n = outbox.queue.length;
     showNetBanner(`Falha na conexão com a rede… Tentando registrar (${n} na fila)`);
-}
-function hideNetBannerSoon(okMsg='Tudo certo: itens enviados') {
+}function hideNetBannerSoon(okMsg = 'Tudo certo: itens enviados') {
     if (!dom.netBanner) return;
     if (dom.netMsg) dom.netMsg.textContent = okMsg;
     setTimeout(() => dom.netBanner.classList.add('hidden'), 1500);
-}
-function hideNetBanner() {
+}function hideNetBanner() {
     dom.netBanner?.classList.add('hidden');
-}function fetchWithTimeout(url, opt={}, timeoutMs=NET_TIMEOUT_MS) {
+}function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const merged = { ...opt, signal: ctrl.signal };
+    const merged = {...opt, signal: ctrl.signal};
     return fetch(url, merged).finally(() => clearTimeout(t));
 }function isNetworkLikeError(err) {
     const s = String(err?.message || err || '').toLowerCase();
@@ -119,14 +218,16 @@ function hideNetBanner() {
     saveOutbox();
     updateNetBannerCount();
     setTimeout(() => processOutbox(), 1200);
-}async function processOutbox(force=false) {
+}async function processOutbox(force = false) {
     loadOutbox();
     if (outbox.sending) return;
     if (!force && !navigator.onLine) {
         updateNetBannerCount();
         return;
     }
-    outbox.sending = true; saveOutbox();    try {
+    outbox.sending = true;
+    saveOutbox();
+    try {
         while (outbox.queue.length > 0) {
             updateNetBannerCount();
             const task = outbox.queue[0];
@@ -136,17 +237,21 @@ function hideNetBanner() {
                     headers: buildFunctionHeaders(),
                     body: JSON.stringify(task.body)
                 });
-                const json = await res.json().catch(() => ({}));                if (!res.ok && !json?.isDuplicate && !json?.idempotent) {
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok && !json?.isDuplicate && !json?.idempotent) {
                     console.error('[Outbox] Falha definitiva:', json);
-                    outbox.queue.shift(); saveOutbox();
-                    window.dispatchEvent(new CustomEvent('outbox:failure', { detail: { task, json } }));
+                    outbox.queue.shift();
+                    saveOutbox();
+                    window.dispatchEvent(new CustomEvent('outbox:failure', {detail: {task, json}}));
                     continue;
-                }                outbox.queue.shift(); saveOutbox();
-                window.dispatchEvent(new CustomEvent('outbox:success', { detail: { task, json } }));
+                }
+                outbox.queue.shift();
+                saveOutbox();
+                window.dispatchEvent(new CustomEvent('outbox:success', {detail: {task, json}}));
                 if (task.kind === 'separacao') {
-                    window.dispatchEvent(new CustomEvent('outbox:separacao:success', { detail: { task, json } }));
+                    window.dispatchEvent(new CustomEvent('outbox:separacao:success', {detail: {task, json}}));
                 } else if (task.kind === 'carregamento') {
-                    window.dispatchEvent(new CustomEvent('outbox:carregamento:success', { detail: { task, json } }));
+                    window.dispatchEvent(new CustomEvent('outbox:carregamento:success', {detail: {task, json}}));
                 }
             } catch (err) {
                 if (isNetworkLikeError(err)) {
@@ -155,11 +260,13 @@ function hideNetBanner() {
                     break;
                 }
                 console.error('[Outbox] Erro inesperado, descartando item:', err);
-                outbox.queue.shift(); saveOutbox();
+                outbox.queue.shift();
+                saveOutbox();
             }
         }
     } finally {
-        outbox.sending = false; saveOutbox();
+        outbox.sending = false;
+        saveOutbox();
         if (outbox.queue.length === 0) hideNetBannerSoon();
         else updateNetBannerCount();
     }
@@ -175,7 +282,7 @@ function hideNetBanner() {
             const msg = json?.error || `Falha (HTTP ${res.status})`;
             throw new Error(msg);
         }
-        return { queued: false, json };
+        return {queued: false, json};
     } catch (err) {
         if (isNetworkLikeError(err) || !navigator.onLine) {
             enqueueTask({
@@ -186,37 +293,44 @@ function hideNetBanner() {
                 createdAt: Date.now()
             });
             showNetBanner('Falha na conexão com a rede… Tentando registrar (1 na fila)');
-            return { queued: true };
+            return {queued: true};
         }
         throw err;
     }
 }function handleOutboxSepSuccess(ev) {
-    const { json } = ev.detail || {};
+    const {json} = ev.detail || {};
     try {
-        const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json || {};
-        if (!numeracao) return;        if (insertedData && insertedData[0]) {
+        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json || {};
+        if (!numeracao) return;
+        if (insertedData && insertedData[0]) {
             state.cacheData.unshift(insertedData[0]);
             const id = extractElevenDigits(insertedData[0]['ID PACOTE']);
             if (id) state.idPacoteMap.set(id, insertedData[0]);
         }
-        renderDashboard();        if (pacote) {
-            state.lastPrintData = { dataForQr: pacote, ilha, mangaLabel: numeracao };
+        renderDashboard();
+        if (pacote) {
+            state.lastPrintData = {dataForQr: pacote, ilha, mangaLabel: numeracao};
         }
         const friendly = isDuplicate
             ? (message || 'Pacote já bipado. Reimpressão permitida.')
             : `Manga ${numeracao} (Rota ${ilha}) registrada (enviada após reconexão).`;
-        setSepStatus(`${friendly} — Use "Reimprimir" se precisar.`, { error: false });        try { state.globalScannerInstance?.resume(); } catch {}
+        setSepStatus(`${friendly} — Use "Reimprimir" se precisar.`, {error: false});
+        try {
+            state.globalScannerInstance?.resume();
+        } catch {
+        }
     } catch (e) {
         console.error('[Outbox] pós-sucesso separação falhou:', e);
     }
 }function handleOutboxCarSuccess(ev) {
-    const { json } = ev.detail || {};
+    const {json} = ev.detail || {};
     try {
-        const { updatedData, idempotent, message } = json || {};
+        const {updatedData, idempotent, message} = json || {};
         const updatedNumeracao = updatedData?.NUMERACAO;
-        if (!updatedNumeracao) return;        const idx = state.cacheData.findIndex(i => i.NUMERACAO === updatedNumeracao);
+        if (!updatedNumeracao) return;
+        const idx = state.cacheData.findIndex(i => i.NUMERACAO === updatedNumeracao);
         if (idx > -1) {
-            state.cacheData[idx] = { ...state.cacheData[idx], ...updatedData };
+            state.cacheData[idx] = {...state.cacheData[idx], ...updatedData};
             const id = extractElevenDigits(state.cacheData[idx]['ID PACOTE']);
             if (id) state.idPacoteMap.set(id, state.cacheData[idx]);
         } else {
@@ -224,10 +338,11 @@ function hideNetBanner() {
             const id = extractElevenDigits(updatedData['ID PACOTE']);
             if (id) state.idPacoteMap.set(id, updatedData);
         }
-        renderDashboard();        const okMsg = idempotent
+        renderDashboard();
+        const okMsg = idempotent
             ? (message || `Manga ${updatedNumeracao} já estava validada.`)
             : `OK! ${updatedNumeracao} validada (após reconexão).`;
-        setCarStatus(okMsg, { error: false });
+        setCarStatus(okMsg, {error: false});
     } catch (e) {
         console.error('[Outbox] pós-sucesso carregamento falhou:', e);
     }
@@ -278,17 +393,31 @@ function hideNetBanner() {
     } catch {
         return '---';
     }
-}
-function formatarDataHora(isoString) {
-    const options = { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' };
+}function formatarDataHora(isoString) {
+    const options = {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    };
     return formatarDataHack(isoString, options);
-}
-function formatarDataInicio(isoString) {
+}function formatarDataInicio(isoString) {
     if (!isoString) return '---';
-    const options = { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' };
-    try { return formatarDataHack(isoString, options).replace(',', '') + 'h'; } catch { return '---'; }
-}function waitForPaint() { return new Promise((r)=>{ requestAnimationFrame(()=>requestAnimationFrame(r)); }); }
-function sleep(ms) { return new Promise(r=>setTimeout(r, ms)); }async function printCurrentQr() {
+    const options = {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'};
+    try {
+        return formatarDataHack(isoString, options).replace(',', '') + 'h';
+    } catch {
+        return '---';
+    }
+}function waitForPaint() {
+    return new Promise((r) => {
+        requestAnimationFrame(() => requestAnimationFrame(r));
+    });
+}function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}async function printCurrentQr() {
     if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
         setSepStatus("Primeiro gere um QR Code para imprimir.", {error: true});
         return;
@@ -303,8 +432,7 @@ function sleep(ms) { return new Promise(r=>setTimeout(r, ms)); }async function p
     const digits = String(str).replace(/\D+/g, '');
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}
-function normalizeScanned(input) {
+}function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
     if (s.startsWith('{') && s.endsWith('}')) {
@@ -313,7 +441,8 @@ function normalizeScanned(input) {
             const idFromJson = obj?.id ?? obj?.ID ?? obj?.Id;
             const cleaned = extractElevenDigits(idFromJson);
             if (cleaned) return cleaned;
-        } catch {}
+        } catch {
+        }
     }
     const seq = s.match(/\d{11,}/);
     if (seq) return seq[0].slice(-11);
@@ -347,10 +476,9 @@ function normalizeScanned(input) {
     };
     document.addEventListener('keydown', modal._bound.onKeyDown);
     modal.addEventListener('click', modal._bound.onOverlayClick, true);
-    const first = modal.querySelector('input, button, [tabindex]:not([tabindex="-1"])');
+    const first = modal.querySelector('input, button, textarea, [tabindex]:not([tabindex="-1"])');
     if (first) setTimeout(() => first.focus(), 50);
-}
-function closeModal(modal) {
+}function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add('hidden');
@@ -363,8 +491,7 @@ function closeModal(modal) {
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
-}
-function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
+}function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
     if (!preserveDock) {
@@ -554,8 +681,7 @@ function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {})
         setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
-}
-function stopGlobalScanner() {
+}function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add('hidden');
         if (dom._currentModal) {
@@ -610,17 +736,15 @@ function stopGlobalScanner() {
             state.globalScannerInstance?.resume();
         }
     );
-}
-function onGlobalScanError(_) {}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
-    const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
-    const response = await fetch(FUNC_SEPARACAO_URL, {
+}function onGlobalScanError(_) {
+}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+    const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};    const response = await fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
         headers: buildFunctionHeaders(),
         body: JSON.stringify(body),
     });
     const json = await response.json().catch(() => ({}));
-    if (!response.ok && !json?.isDuplicate) {
-        throw new Error(json?.error || 'Erro desconhecido');
+    if (!response.ok && !json?.isDuplicate) {        throw new Error(json?.error || 'Erro desconhecido');
     }
     return json;
 }async function handleSeparacaoFromScanner(idPacote) {
@@ -634,23 +758,21 @@ function onGlobalScanError(_) {}async function processarPacote(idPacote, dataSca
         return;
     }    state.isSeparaçãoProcessing = true;
     const dataScan = new Date().toISOString();    try {
-        const body = { id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada };
-        const { queued, json } = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);        if (queued) {
+        const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
+        const {queued, json} = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);        if (queued) {
             showScannerFeedback('error', 'Falha na conexão com a rede… Tentando registrar', true);
             stopGlobalScanner();
-            setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', { error: true });
+            setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', {error: true});
             dom.sepScan.value = idPacote;
             dom.sepScan.focus();
             return;
-        }        const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json;
-        if (!numeracao) throw new Error('Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = { dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao };
-        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printCurrentQr();        if (isDuplicate) {
+        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
+        if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);        if (isDuplicate) {
             const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
-            showScannerFeedback('error', friendly, true);
-            stopGlobalScanner();
-            setSepStatus(friendly, { error: true });
+            showScannerFeedback('error', friendly, true);            stopGlobalScanner();
+            await sleep(50);
+            await printCurrentQr();            setSepStatus(friendly, {error: true});
             dom.sepScan.value = idPacote;
             dom.sepScan.focus();
         } else {
@@ -660,15 +782,15 @@ function onGlobalScanError(_) {}async function processarPacote(idPacote, dataSca
                 if (id) state.idPacoteMap.set(id, insertedData[0]);
                 renderDashboard();
             }
-            showScannerFeedback('success', `Sucesso! Manga ${numeracao} (Rota ${ilha})`);
-            setTimeout(() => { try { state.globalScannerInstance?.resume(); } catch {} }, 750);
-        }
+            showScannerFeedback('success', `Sucesso! Manga ${numeracao} (Rota ${ilha})`);            stopGlobalScanner();
+            await sleep(50);
+            await printCurrentQr();        }
     } catch (err) {
         console.error('Erro Separação (Scanner):', err);
         const friendly = `ERRO: ${err.message || err}`;
         showScannerFeedback('error', friendly, true);
         stopGlobalScanner();
-        setSepStatus(friendly, { error: true });
+        setSepStatus(friendly, {error: true});
         dom.sepScan.value = idPacote;
         dom.sepScan.focus();
     } finally {
@@ -690,20 +812,25 @@ function onGlobalScanError(_) {}async function processarPacote(idPacote, dataSca
     let ok = 0, fail = 0, dup = 0, queued = 0;
     state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
-    dom.sepUser.disabled = true;    for (let i = 0; i < total; i++) {
+    dom.sepUser.disabled = true;
+    for (let i = 0; i < total; i++) {
         const idPacote = ids[i];
         setSepStatus(`Processando ${i + 1}/${total}: ${idPacote}...`);
         try {
-            const dataScan = new Date().toISOString();            const body = { id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada };
-            const { queued: wasQueued, json } = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);            if (wasQueued) {
+            const dataScan = new Date().toISOString();
+            const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
+            const {queued: wasQueued, json} = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);
+            if (wasQueued) {
                 queued++;
-                setSepStatus(`Sem rede: ${i + 1}/${total}: ${idPacote} enfileirado.`, { error: true });
+                setSepStatus(`Sem rede: ${i + 1}/${total}: ${idPacote} enfileirado.`, {error: true});
                 continue;
-            }            const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json || {};
-            if (!numeracao) throw new Error('Resposta não contém numeração');            const idPacoteParaQr = pacote || idPacote;
-            state.lastPrintData = { dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao };
+            }
+            const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json || {};
+            if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');            const idPacoteParaQr = pacote || idPacote;
+            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
-            await printCurrentQr();            if (isDuplicate) {
+            await printCurrentQr();
+            if (isDuplicate) {
                 dup++;
                 setSepStatus(`Duplicado ${i + 1}/${total}: ${idPacote} — ${message || 'Pacote já bipado'}`, {error: true});
             } else {
@@ -727,7 +854,8 @@ function onGlobalScanError(_) {}async function processarPacote(idPacote, dataSca
         fail ? `${fail} falha(s)` : null,
         queued ? `${queued} enfileirado(s)` : null
     ].filter(Boolean).join(', ');
-    setSepStatus(`Lote concluído: ${resumo}.`, {error: (fail + queued) > 0});    dom.sepScan.value = '';
+    setSepStatus(`Lote concluído: ${resumo}.`, {error: (fail + queued) > 0});
+    dom.sepScan.value = '';
     dom.sepScan.focus();
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
@@ -762,18 +890,20 @@ function onGlobalScanError(_) {}async function processarPacote(idPacote, dataSca
     setSepStatus('Processando...');
     clearSepQrCanvas();
     try {
-        const body = { id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada };
-        const { queued, json } = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);        if (queued) {
-            setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', { error: true });
+        const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
+        const {queued, json} = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);
+        if (queued) {
+            setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', {error: true});
             return;
-        }        const { numeracao, ilha, insertedData, pacote, isDuplicate, message } = json;
-        if (!numeracao) throw new Error('Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = { dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao };
+        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
+        if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
         await printCurrentQr();
-        dom.sepScan.value = '';        if (isDuplicate) {
+        dom.sepScan.value = '';
+        if (isDuplicate) {
             const friendly = message || 'Pacote já bipado. Reimpressão solicitada.';
-            setSepStatus(friendly, { error: true });
+            setSepStatus(friendly, {error: true});
         } else {
             setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
             if (insertedData && insertedData[0]) {
@@ -798,9 +928,9 @@ function onGlobalScanError(_) {}async function processarPacote(idPacote, dataSca
     dom.carStatus.textContent = message;
     dom.carStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.carStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}
-function formatDockLabel(n) { return `DOCA ${String(n).padStart(2, '0')}`; }
-function ensureDockSelect() {
+}function formatDockLabel(n) {
+    return `DOCA ${String(n).padStart(2, '0')}`;
+}function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById('car-dock-select');
     if (!dom.carDockSelect) {
@@ -840,8 +970,7 @@ function ensureDockSelect() {
     dom.carDockSelect.addEventListener('change', () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}
-function ensureIlhaSelect() {
+}function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
     if (!dom.carIlhaSelect) {
@@ -866,8 +995,7 @@ function ensureIlhaSelect() {
     dom.carIlhaSelect.addEventListener('change', () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}
-function populateIlhaSelect() {
+}function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
     rotas.sort();
@@ -887,14 +1015,17 @@ function populateIlhaSelect() {
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
 }async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
-    const body = { id_pacote: idPacoteScaneado, rota_selecionada: rotaSelecionada, usuario_saida: usuarioSaida, doca };
+    const body = {id_pacote: idPacoteScaneado, rota_selecionada: rotaSelecionada, usuario_saida: usuarioSaida, doca};
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
         headers: buildFunctionHeaders(),
         body: JSON.stringify(body),
     });
     let json = null;
-    try { json = await response.json(); } catch {}
+    try {
+        json = await response.json();
+    } catch {
+    }
     if (!response.ok) {
         const msg = json?.error || `Falha (HTTP ${response.status})`;
         throw new Error(msg);
@@ -917,21 +1048,30 @@ function populateIlhaSelect() {
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
     if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
     try {
-        const body = { id_pacote: idPacoteScaneado, rota_selecionada: ilha, usuario_saida: usuarioSaida, doca };
-        const { queued, json } = await tryPostOrQueue('carregamento', FUNC_CARREGAMENTO_URL, body);        if (queued) {
-            return { success: false, message: 'Falha na conexão com a rede… Tentando registrar (item na fila). Clique em "Forçar envio" ou aguarde.' };
-        }        const { updatedData, idempotent, message } = json || {};
+        const body = {id_pacote: idPacoteScaneado, rota_selecionada: ilha, usuario_saida: usuarioSaida, doca};
+        const {queued, json} = await tryPostOrQueue('carregamento', FUNC_CARREGAMENTO_URL, body);
+        if (queued) {
+            return {
+                success: false,
+                message: 'Falha na conexão com a rede… Tentando registrar (item na fila). Clique em "Forçar envio" ou aguarde.'
+            };
+        }
+        const {updatedData, idempotent, message} = json || {};
         const updatedNumeracao = updatedData?.NUMERACAO;
-        if (!updatedNumeracao) throw new Error("Backend não retornou dados da manga atualizada.");        let successMessage = `OK! ${updatedNumeracao} validada.`;
-        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já estava validada.`;        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
+        if (!updatedNumeracao) throw new Error("Backend não retornou dados da manga atualizada.");
+        let successMessage = `OK! ${updatedNumeracao} validada.`;
+        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já estava validada.`;
+        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
         if (index > -1) {
-            state.cacheData[index] = { ...state.cacheData[index], ...updatedData };
-            const id = extractElevenDigits(state.cacheData[index]['ID PACOTE']); if (id) state.idPacoteMap.set(id, state.cacheData[index]);
+            state.cacheData[index] = {...state.cacheData[index], ...updatedData};
+            const id = extractElevenDigits(state.cacheData[index]['ID PACOTE']);
+            if (id) state.idPacoteMap.set(id, state.cacheData[index]);
         } else {
             state.cacheData.unshift(updatedData);
-            const id = extractElevenDigits(updatedData['ID PACOTE']); if (id) state.idPacoteMap.set(id, updatedData);
+            const id = extractElevenDigits(updatedData['ID PACOTE']);
+            if (id) state.idPacoteMap.set(id, updatedData);
         }
-        return { success: true, message: successMessage };
+        return {success: true, message: successMessage};
     } catch (err) {
         console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
@@ -1043,7 +1183,8 @@ function populateIlhaSelect() {
             try {
                 const dataInicio = new Date(item.DATA);
                 if (!inicio || dataInicio < inicio) inicio = dataInicio;
-            } catch {}
+            } catch {
+            }
             if (item.VALIDACAO === 'BIPADO') {
                 verificados++;
                 if (item['DATA SAIDA']) {
@@ -1053,14 +1194,16 @@ function populateIlhaSelect() {
                             ultimoCarregamento = dataCarregamento;
                             usuario = item['BIPADO SAIDA'] || '---';
                         }
-                    } catch {}
+                    } catch {
+                    }
                 }
             }
         }
         const pendentes = total - verificados;
         const percentual = total > 0 ? Math.round((verificados / total) * 100) : 0;
         const inicioFormatado = inicio ? formatarDataInicio(inicio.toISOString()) : '---';
-        const ultimoCarregamentoFormatado = ultimoCarregamento ? formatarDataInicio(ultimoCarregamento.toISOString()) : '---';        rotasConsolidadas.push({
+        const ultimoCarregamentoFormatado = ultimoCarregamento ? formatarDataInicio(ultimoCarregamento.toISOString()) : '---';
+        rotasConsolidadas.push({
             rota,
             inicio: inicioFormatado,
             ultimoCarregamento: ultimoCarregamentoFormatado,
@@ -1077,11 +1220,14 @@ function populateIlhaSelect() {
 }function renderDashboard() {
     const summaryContainer = dom.summaryContainer;
     const routesContainer = dom.dashboard;
-    if (!summaryContainer || !routesContainer) return;    const rotasConsolidadas = processDashboardData(state.cacheData);    const totalGeralPacotes = rotasConsolidadas.reduce((acc, r) => acc + r.total, 0);
+    if (!summaryContainer || !routesContainer) return;
+    const rotasConsolidadas = processDashboardData(state.cacheData);
+    const totalGeralPacotes = rotasConsolidadas.reduce((acc, r) => acc + r.total, 0);
     const totalGeralVerificados = rotasConsolidadas.reduce((acc, r) => acc + r.verificados, 0);
     const totalGeralPendentes = totalGeralPacotes - totalGeralVerificados;
     const percVerificados = totalGeralPacotes > 0 ? (totalGeralVerificados / totalGeralPacotes) * 100 : 0;
-    const percPendentes = totalGeralPacotes > 0 ? (totalGeralPendentes / totalGeralPacotes) * 100 : 0;    let resumoHtml = `
+    const percPendentes = totalGeralPacotes > 0 ? (totalGeralPendentes / totalGeralPacotes) * 100 : 0;
+    let resumoHtml = `
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div class="bg-white p-4 rounded-lg shadow border border-gray-200 text-center">
             <span class="block text-sm font-medium text-gray-500 uppercase">Carregamentos</span>
@@ -1099,15 +1245,21 @@ function populateIlhaSelect() {
             <span class="block text-sm text-gray-500">(${totalGeralPendentes} pendentes)</span>
         </div>
     </div>
-    `;    if (rotasConsolidadas.length === 0) {
+    `;
+    if (rotasConsolidadas.length === 0) {
         routesContainer.innerHTML = '<p class="text-gray-500">Nenhum registro encontrado para este período.</p>';
         summaryContainer.innerHTML = resumoHtml;
         return;
-    }    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
-    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;    let rotasHtml = '<div class="space-y-3">';    for (const rota of rotasConsolidadas) {
+    }
+    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
+    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;
+    let rotasHtml = '<div class="space-y-3">';
+    for (const rota of rotasConsolidadas) {
         const statusHtml = rota.concluida
             ? `<div class="flex items-center space-x-1">${concluidaIcon} <span class="text-green-600 font-medium">Concluída</span></div>`
-            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;        const circleColor = rota.percentual === 100 ? 'text-green-500' : 'text-auditoria-accent';        const progressCircle = `
+            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;
+        const circleColor = rota.percentual === 100 ? 'text-green-500' : 'text-auditoria-accent';
+        const progressCircle = `
             <div class="relative w-16 h-16">
                 <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
                     <path class="text-gray-200"
@@ -1133,10 +1285,12 @@ function populateIlhaSelect() {
             <div class="flex-shrink-0" style="min-width: 140px;">
                     <h5 class="text-xl font-bold text-gray-800">Rota ${rota.rota}</h5>
                     <span class="text-sm text-gray-500">Início: ${rota.inicio}</span>
-                </div>                <div class="flex-shrink-0" style="min-width: 150px;">
+                </div>
+                <div class="flex-shrink-0" style="min-width: 150px;">
                     <span class="text-sm font-medium text-gray-700">${rota.ultimoCarregamento}</span>
                     <span class="block text-xs text-gray-500">Ult. Carreg. (${rota.usuario})</span>
-                </div>                <div class="flex-shrink-0">
+                </div>
+                <div class="flex-shrink-0">
                     ${progressCircle}
                 </div>
                 <div class="flex-shrink-0 text-sm text-gray-700" style="min-width: 140px;">
@@ -1150,8 +1304,10 @@ function populateIlhaSelect() {
         </div>
         `;
     }
-    rotasHtml += '</div>';    summaryContainer.innerHTML = resumoHtml;
-    routesContainer.innerHTML = rotasHtml;    routesContainer.querySelectorAll('.rota-card').forEach(card => {
+    rotasHtml += '</div>';
+    summaryContainer.innerHTML = resumoHtml;
+    routesContainer.innerHTML = rotasHtml;
+    routesContainer.querySelectorAll('.rota-card').forEach(card => {
         card.addEventListener('dblclick', () => {
             const rota = card.getAttribute('data-rota');
             openRelatorioModal(rota);
@@ -1167,15 +1323,12 @@ function populateIlhaSelect() {
     const btn2 = document.getElementById('btn-iniciar-carregamento');
     const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
     const periodBlock = dom.periodBtn?.closest('.p-4');
-    if (!btn1 || !btn2 || !dashboardBlock) return;
-    let bar = document.getElementById('auditoria-controls-bar');
+    if (!btn1 || !btn2 || !dashboardBlock) return;    let bar = document.getElementById('auditoria-controls-bar');
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'auditoria-controls-bar';
-        bar.className = 'p-4 grid grid-cols-1 md:grid-cols-3 gap-4';
         dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
-    }
-    if (periodBlock && periodBlock.parentElement !== bar) {
+    }    bar.className = 'p-4 grid grid-cols-1 md:grid-cols-4 gap-4';    if (periodBlock && periodBlock.parentElement !== bar) {
         bar.appendChild(periodBlock);
         periodBlock.style.padding = '0';
         dom.periodBtn.style.width = '100%';
@@ -1183,39 +1336,53 @@ function populateIlhaSelect() {
         dom.periodBtn.style.minHeight = '82px';
     }
     if (btn1.parentElement !== bar) bar.appendChild(btn1);
-    if (btn2.parentElement !== bar) bar.appendChild(btn2);
+    if (btn2.parentElement !== bar) bar.appendChild(btn2);    if (!dom.btnImportarConsolidado) {
+        const btn3 = document.createElement('button');
+        btn3.id = 'btn-importar-consolidado';        btn3.className = 'px-4 py-3 text-lg w-full h-full flex flex-col items-center justify-center text-white font-semibold rounded-lg shadow-md';
+        btn3.style.backgroundColor = '#6d28d9';
+        btn3.style.minHeight = '82px';
+        btn3.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 mb-1"><path d="M12 1.5a.75.75 0 01.75.75V7.5h-1.5V2.25A.75.75 0 0112 1.5zM11.25 7.5v5.69l-1.72-1.72a.75.75 0 00-1.06 1.06l3 3a.75.75 0 001.06 0l3-3a.75.75 0 10-1.06-1.06l-1.72 1.72V7.5h3.75a3 3 0 013 3v9.75a3 3 0 01-3 3H5.25a3 3 0 01-3-3V10.5a3 3 0 013-3h3.75z" /></svg>
+            <span class="text-lg">Importar Consolidado</span>
+        `;
+        dom.btnImportarConsolidado = btn3;
+        bar.appendChild(btn3);
+    }
 }function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
     dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}
-function clearSepQrCanvas() {
+}function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
     state.lastPrintData = null;
-}
-function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
             console.warn('DOM do QR Code não encontrado, pulando geração.');
             return resolve();
         }
-        clearSepQrCanvas();
-        try {
+        clearSepQrCanvas();        let labelPrincipalFormatada = mangaLabel || dataForQr;
+        let labelRotaFormatada = ilha ? `Rota ${ilha}` : '';        if (ilha && mangaLabel) {
+            try {                const ilhaPrefix = ilha.split('_')[0];
+                const mangaParts = mangaLabel.split('_');
+                const mangaSuffix = mangaParts[mangaParts.length - 1];                labelPrincipalFormatada = `${ilhaPrefix}_${mangaSuffix}`;                const rotaOtimizada = ilhaPrefix.charAt(0).toUpperCase();
+                labelRotaFormatada = `ROTA ${rotaOtimizada}`;            } catch (e) {
+                console.error("Erro ao formatar labels do QR Code:", e);                labelPrincipalFormatada = mangaLabel;
+                labelRotaFormatada = ilha ? `Rota ${ilha}` : '';
+            }
+        }        try {
             const qr = qrcode(0, 'M');
             qr.addData(String(dataForQr));
             qr.make();
             const svgString = qr.createSvgTag(10, 10);
             const img = new Image();
             img.onload = () => {
-                dom.sepQrCanvas.appendChild(img);
-                const labelPrincipal = mangaLabel || dataForQr;
-                dom.sepQrTitle.innerHTML =
-                    `<div class="qr-num">${labelPrincipal}</div>` +
-                    (ilha ? `<div class="qr-rota">Rota ${ilha}</div>` : '');
-                dom.sepQrArea.style.display = 'block';
+                dom.sepQrCanvas.appendChild(img);                dom.sepQrTitle.innerHTML =
+                    `<div class="qr-num">${labelPrincipalFormatada}</div>` +
+                    (labelRotaFormatada ? `<div class="qr-rota">${labelRotaFormatada}</div>` : '');                dom.sepQrArea.style.display = 'block';
                 resolve();
             };
             img.onerror = (err) => {
@@ -1254,8 +1421,7 @@ function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     dom.relatorioModalClose?.addEventListener('click', () => {
         closeModal(dom.relatorioModal);
     });
-}
-function openRelatorioModal(rota) {
+}function openRelatorioModal(rota) {
     if (!dom.relatorioModal || !rota) return;
     const items = state.cacheData.filter(item => item.ROTA === rota);
     dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;
@@ -1303,8 +1469,12 @@ function openRelatorioModal(rota) {
         return;
     }
     const format = (iso) => {
-        try { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; }
-        catch (e) { return iso; }
+        try {
+            const [y, m, d] = iso.split('-');
+            return `${d}/${m}/${y}`;
+        } catch (e) {
+            return iso;
+        }
     };
     const start = format(state.period.start);
     const end = format(state.period.end);
@@ -1362,17 +1532,23 @@ function openRelatorioModal(rota) {
     const btnCancel = overlay.querySelector('#cdp-cancel');
     const btnApply = overlay.querySelector('#cdp-apply');
     const close = () => overlay.remove();
-    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.addEventListener('click', (ev) => {
+        if (ev.target === overlay) close();
+    });
     btnCancel.onclick = close;
     overlay.querySelector('#cdp-today').onclick = () => {
         const iso = toISO(getBrasiliaDate(true));
         [state.period.start, state.period.end] = [iso, iso];
-        updatePeriodLabel(); close(); fetchAndRenderDashboard();
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
     };
     overlay.querySelector('#cdp-yday').onclick = () => {
         const iso = toISO(yesterday);
         [state.period.start, state.period.end] = [iso, iso];
-        updatePeriodLabel(); close(); fetchAndRenderDashboard();
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
     };
     overlay.querySelector('#cdp-prevmo').onclick = () => {
         const s = toISO(prevStart);
@@ -1380,16 +1556,23 @@ function openRelatorioModal(rota) {
         const [cs, ce] = clampEndToToday(s, e);
         state.period.start = cs;
         state.period.end = ce;
-        updatePeriodLabel(); close(); fetchAndRenderDashboard();
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
     };
     btnApply.onclick = () => {
         let sVal = (elStart?.value || '').slice(0, 10);
         let eVal = (elEnd?.value || '').slice(0, 10);
-        if (!sVal || !eVal) { toast('Selecione as duas datas.', 'info'); return; }
+        if (!sVal || !eVal) {
+            toast('Selecione as duas datas.', 'info');
+            return;
+        }
         [sVal, eVal] = clampEndToToday(sVal, eVal);
         state.period.start = sVal;
         state.period.end = eVal;
-        updatePeriodLabel(); close(); fetchAndRenderDashboard();
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
     };
 }function injectAuditoriaStyles() {
     if (document.getElementById('auditoria-styles')) return;
@@ -1404,17 +1587,20 @@ function openRelatorioModal(rota) {
             --auditoria-muted: #6b7280;
         }
         .text-auditoria-accent { color: var(--auditoria-accent) !important; }
-        .text-auditoria-primary { color: var(--auditoria-primary) !important; }        #auditoria-summary-container .bg-white,
+        .text-auditoria-primary { color: var(--auditoria-primary) !important; }
+        #auditoria-summary-container .bg-white,
         .rota-card { border-radius: 14px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; }
         #auditoria-summary-container .text-blue-600 { color: var(--auditoria-primary) !important; }
         .rota-card h5 { color: var(--auditoria-primary) !important; }
-        .rota-card .text-gray-500, .rota-card .text-xs, #auditoria-summary-container .text-gray-500 { color: var(--auditoria-muted) !important; }        #auditoria-controls-bar button {
+        .rota-card .text-gray-500, .rota-card .text-xs, #auditoria-summary-container .text-gray-500 { color: var(--auditoria-muted) !important; }
+        #auditoria-controls-bar button {
             border-radius: 12px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; transition: all .2s ease;
         }
         #auditoria-controls-bar button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12) !important; }
         #btn-iniciar-separacao { background-color: var(--auditoria-primary) !important; color: white !important; }
         #btn-iniciar-carregamento { background-color: var(--auditoria-accent) !important; color: white !important; }
-        #auditoria-period-btn { background-color: #fff !important; color: var(--auditoria-primary) !important; font-weight: 600; }        .auditoria-main-container { display: flex; flex-direction: column; height: 100%; }
+        #auditoria-period-btn { background-color: #fff !important; color: var(--auditoria-primary) !important; font-weight: 600; }
+        #btn-importar-consolidado:hover { background-color: #5b21b6 !important; }        .auditoria-main-container { display: flex; flex-direction: column; height: 100%; }
         #auditoria-controls-bar { flex-shrink: 0; background: #f9fafb; position: sticky; top: 0; z-index: 10; }
         #auditoria-summary-container { flex-shrink: 0; padding: 0 16px; background: #f9fafb; position: sticky; top: 110px; z-index: 9; }
         #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }
@@ -1429,7 +1615,8 @@ function openRelatorioModal(rota) {
             parent.classList.add('auditoria-main-container');
             dom.summaryContainer = document.createElement('div');
             dom.summaryContainer.id = 'auditoria-summary-container';
-            parent.insertBefore(dom.summaryContainer, dashboardBlock);            dom.routesContainer = document.createElement('div');
+            parent.insertBefore(dom.summaryContainer, dashboardBlock);
+            dom.routesContainer = document.createElement('div');
             dom.routesContainer.id = 'auditoria-routes-container';
             parent.insertBefore(dom.routesContainer, dashboardBlock);
             dom.routesContainer.appendChild(dashboardBlock);
@@ -1444,30 +1631,48 @@ function openRelatorioModal(rota) {
     dom.sepQrArea = document.getElementById('sep-qr-area');
     dom.sepQrTitle = document.getElementById('sep-qr-title');
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
-    dom.sepPrintBtn = document.getElementById('sep-print-btn');    dom.modalCarregamento = document.getElementById('modal-carregamento');
+    dom.sepPrintBtn = document.getElementById('sep-print-btn');
+    dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
-    dom.carStatus = document.getElementById('car-status');    injectAuditoriaStyles();    const todayISO = getBrasiliaDate(false);
+    dom.carStatus = document.getElementById('car-status');    injectAuditoriaStyles();
+    const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
     updatePeriodLabel();
     createGlobalScannerModal();
     createRelatorioModal();
+    createImportarModal();
     injectScannerButtons();
     ensureDockSelect();
     ensureIlhaSelect();    if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4', 'text-xl');
         dom.btnSeparação.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnSeparação.querySelector('.text-xl');
-        if (span) { span.classList.remove('text-xl'); span.classList.add('text-lg'); }
+        if (span) {
+            span.classList.remove('text-xl');
+            span.classList.add('text-lg');
+        }
     }
     if (dom.btnCarregamento) {
         dom.btnCarregamento.classList.remove('px-6', 'py-4', 'text-xl');
         dom.btnCarregamento.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnCarregamento.querySelector('.text-xl');
-        if (span) { span.classList.remove('text-xl'); span.classList.add('text-lg'); }
-    }    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnSeparação?.addEventListener('click', () => {
+        if (span) {
+            span.classList.remove('text-xl');
+            span.classList.add('text-lg');
+        }
+    }    reorderControlsOverDashboard();    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnImportarConsolidado?.addEventListener('click', () => {        if (dom.importStatus) dom.importStatus.textContent = '';
+        if (dom.importTextarea) dom.importTextarea.value = '';
+        state.isImporting = false;
+        if (dom.importSubmitBtn) {
+            dom.importSubmitBtn.disabled = false;
+            dom.importSubmitBtn.textContent = 'Importar Dados';
+        }
+        openModal(dom.modalImportar);
+    });    dom.importCloseBtn?.addEventListener('click', () => closeModal(dom.modalImportar));
+    dom.importSubmitBtn?.addEventListener('click', handleImportarConsolidado);    dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) dom.sepUser.focus();
@@ -1481,19 +1686,24 @@ function openRelatorioModal(rota) {
         else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
-    });    dom.modalSepClose?.addEventListener('click', (ev) => {
-        ev.preventDefault(); ev.stopPropagation();
+    });
+    dom.modalSepClose?.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
         closeModal(dom.modalSeparação);
         resetSeparacaoModal();
     });
     dom.modalCarClose?.addEventListener('click', (ev) => {
-        ev.preventDefault(); ev.stopPropagation();
+        ev.preventDefault();
+        ev.stopPropagation();
         closeModal(dom.modalCarregamento);
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-    });    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
+    });
+    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
-    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener('click', async () => {
+    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
+    dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             if (state.lastPrintData) {
                 setSepStatus('Reimprimindo...');
@@ -1511,35 +1721,39 @@ function openRelatorioModal(rota) {
             console.error('Falha ao reimprimir etiqueta:', e);
             setSepStatus(`Erro ao reimprimir: ${e.message}`, {error: true});
         }
-    });    document.addEventListener('keydown', (e) => {
+    });
+    document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
-            if (dom._currentModal === dom.modalCarregamento && dom.carScan) { e.preventDefault(); dom.carScan.focus(); }
-            else if (dom._currentModal === dom.modalSeparação && dom.sepScan) { e.preventDefault(); dom.sepScan.focus(); }
+            if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
+                e.preventDefault();
+                dom.carScan.focus();
+            } else if (dom._currentModal === dom.modalSeparação && dom.sepScan) {
+                e.preventDefault();
+                dom.sepScan.focus();
+            }
         }
     });
     [dom.sepScan, dom.carScan].forEach(inp => {
         if (!inp) return;
         inp.addEventListener('paste', () => {
-            setTimeout(() => { inp.value = normalizeScanned(inp.value); }, 0);
+            setTimeout(() => {
+                inp.value = normalizeScanned(inp.value);
+            }, 0);
         });
-    });    reorderControlsOverDashboard();
-    fetchAndRenderDashboard();    fetch(FUNC_SEPARACAO_URL, {
-        method: 'POST',
-        headers: buildFunctionHeaders(),
-        body: JSON.stringify({action: 'preload'})
-    }).catch(err => {
-        console.warn('Falha ao pre-carregar o cache da planilha:', err.message);
-    });    installNetworkBanner();
+    });    fetchAndRenderDashboard();
+    installNetworkBanner();
     loadOutbox();    eventHandlers.onOnline = () => processOutbox(true);
     eventHandlers.onSepSuccess = (ev) => handleOutboxSepSuccess(ev);
     eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);    window.addEventListener('online', eventHandlers.onOnline);
     window.addEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
     window.addEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);    if (outbox.queue.length > 0) showNetBanner('Itens pendentes: tentando enviar…');
-    setTimeout(() => processOutbox(), 2000);    console.log('Módulo de Auditoria (Dashboard) inicializado [V26 - Outbox/Retry + Sticky/Sort/Align].');
+    setTimeout(() => processOutbox(), 2000);    console.log('Módulo de Auditoria (Dashboard) inicializado [V27 - Importador + Otimização].');
 }export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();    const styleTag = document.getElementById('auditoria-styles');
-    if (styleTag) styleTag.parentElement.removeChild(styleTag);    const dashboardBlock = dom.dashboard?.closest('.p-4');
+    if (styleTag) styleTag.parentElement.removeChild(styleTag);
+    const cdpStyle = document.getElementById('cdp-style');
+    if (cdpStyle) cdpStyle.parentElement.removeChild(cdpStyle);    const dashboardBlock = dom.dashboard?.closest('.p-4');
     if (dashboardBlock && dom.routesContainer && dom.summaryContainer) {
         const mainContainer = dom.routesContainer.parentElement;
         if (mainContainer) {
@@ -1548,23 +1762,41 @@ function openRelatorioModal(rota) {
             mainContainer.removeChild(dom.summaryContainer);
             mainContainer.classList.remove('auditoria-main-container');
         }
-    }    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
-    if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
+    }    const impModal = document.getElementById('modal-importar-consolidado');
+    if (impModal) impModal.parentElement.removeChild(impModal);    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
+    if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);
+    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);    if (dom.btnImportarConsolidado) dom.btnImportarConsolidado.parentElement.removeChild(dom.btnImportarConsolidado);    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
     if (eventHandlers.onSepSuccess) window.removeEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
-    if (eventHandlers.onCarSuccess) window.removeEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);    eventHandlers = { onOnline: null, onSepSuccess: null, onCarSuccess: null };    state.cacheData = [];
-    state.idPacoteMap?.clear();
-    state.globalScannerInstance = null;
-    state.currentScannerTarget = null;
-    state.lastPrintData = null;
-    state.period = {start: null, end: null};
+    if (eventHandlers.onCarSuccess) window.removeEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);    eventHandlers = {onOnline: null, onSepSuccess: null, onCarSuccess: null};    state = {
+        cacheData: [],
+        idPacoteMap: new Map(),
+        isSeparaçãoProcessing: false,
+        isCarregamentoProcessing: false,
+        selectedDock: null,
+        selectedIlha: null,
+        globalScannerInstance: null,
+        currentScannerTarget: null,
+        pendingDecodedText: null,
+        lastPrintData: null,
+        period: {start: null, end: null},
+        isImporting: false,
+    };
     dom = {};
     initOnce = false;
 }if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            try { init(); } catch (e) { console.error('[auditoria] init falhou:', e); }
+            try {
+                init();
+            } catch (e) {
+                console.error('[auditoria] init falhou:', e);
+            }
         });
     } else {
-        try { init(); } catch (e) { console.error('[auditoria] init falhou:', e); }
+        try {
+            init();
+        } catch (e) {
+            console.error('[auditoria] init falhou:', e);
+        }
     }
 }
