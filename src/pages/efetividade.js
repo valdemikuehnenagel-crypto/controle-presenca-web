@@ -3,6 +3,7 @@ import {getMatrizesPermitidas} from '../session.js';let ui;
 const state = {
     turnoAtual: 'GERAL',
     detailedResults: new Map(),
+    totalGeralDetailedResults: new Map(),
     period: {start: '', end: ''},
     allMatrizes: [],
     selectedMatriz: '',
@@ -118,20 +119,20 @@ const normalizeString = (str) => {
  .filter-bar.efetividade-filters { display:flex; justify-content:space-between; align-items:center; width:100%; }
  .efetividade-actions { display:flex; gap:8px; align-items:center; }
  #efet-matriz-filter, #efet-gerente-filter {
-   padding:8px 12px; padding-right:2.5em; border:1px solid #ddd; border-radius:20px;
-   background-color:#fff; color:#333; font-weight:600; font-size:12px; cursor:pointer;
-   -webkit-appearance:none; appearance:none;
-   background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-   background-repeat:no-repeat; background-position:right 0.7em top 50%; background-size:0.65em auto;
-   transition:background-color .2s;
+  padding:8px 12px; padding-right:2.5em; border:1px solid #ddd; border-radius:20px;
+  background-color:#fff; color:#333; font-weight:600; font-size:12px; cursor:pointer;
+  -webkit-appearance:none; appearance:none;
+  background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat:no-repeat; background-position:right 0.7em top 50%; background-size:0.65em auto;
+  transition:background-color .2s;
  }
  #efet-matriz-filter:hover, #efet-gerente-filter:hover { background-color:#f5f5f5; }
  #efet-period-btn { border-radius:20px !important; }
  .subtabs { flex-grow:1; display:flex; justify-content:center; }
  #efetividade-details-modal {
-   position:fixed; z-index:2000; top:50%; left:50%; transform:translate(-50%,-50%);
-   background:#fff; border:1px solid #e7ebf4; border-radius:12px; box-shadow:0 12px 28px rgba(0,0,0,.18);
-   padding:16px 18px 18px; width:min(720px,96vw); max-width:96vw; animation:efetividade-popin .12s ease-out;
+  position:fixed; z-index:2000; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:#fff; border:1px solid #e7ebf4; border-radius:12px; box-shadow:0 12px 28px rgba(0,0,0,.18);
+  padding:16px 18px 18px; width:min(720px,96vw); max-width:96vw; animation:efetividade-popin .12s ease-out;
  }
  @keyframes efetividade-popin { from { transform:translate(-50%,-50%) scale(.98); opacity:.0 } to { transform:translate(-50%,-50%) scale(1); opacity:1 } }
  #efetividade-details-modal .pop-title { font-size:14px; font-weight:800; color:#003369; margin:0 0 10px; text-align:center; }
@@ -150,9 +151,9 @@ const normalizeString = (str) => {
     style.textContent = css;
     document.head.appendChild(style);
 }function showDetailsModal(groupKey, date) {
-    ensureEfetividadeModalStyles();
-    const details = state.detailedResults.get(groupKey)?.get(date);
-    if (!details) return;
+    ensureEfetividadeModalStyles();    const details = (groupKey === 'TODAS')
+        ? state.totalGeralDetailedResults.get(date)
+        : state.detailedResults.get(groupKey)?.get(date);    if (!details) return;
     const oldModal = document.querySelector('.efetividade-modal-overlay');
     if (oldModal) oldModal.remove();
     const overlay = document.createElement('div');
@@ -179,9 +180,7 @@ const normalizeString = (str) => {
         </tbody>
       </table>`;
     }
-    const titlePrefix = state.turnoAtual === 'COORDENACAO' ? 'Pendentes de' : 'Pendentes em';
-    const modalTitle = `${titlePrefix} ${groupKey} - ${dateFormatted} (${dayOfWeek})`;
-    overlay.innerHTML = `
+    const titlePrefix = state.turnoAtual === 'COORDENACAO' ? 'Pendentes de' : 'Pendentes em';    const modalTitle = `${titlePrefix} ${groupKey === 'TODAS' ? 'TODAS AS OPERAÇÕES' : groupKey} - ${dateFormatted} (${dayOfWeek})`;    overlay.innerHTML = `
     <div id="efetividade-details-modal">
       <h3 class="pop-title">${modalTitle}</h3>
       <button class="pop-close" data-close-modal>×</button>
@@ -228,10 +227,12 @@ const normalizeString = (str) => {
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
     overlay.innerHTML = `
     <div class="container !h-auto !w-auto max-w-md" style="background:#fff;border-radius:12px;padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.18);">
-      <h3 style="font-weight:800;color:#003369;margin:0 0 10px;">Selecionar Período</h3>      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <h3 style="font-weight:800;color:#003369;margin:0 0 10px;">Selecionar Período</h3>
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button type="button" data-action="ontem" style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f9f9f9; font-size:13px; cursor:pointer;">Ontem</button>
         <button type="button" data-action="mes_anterior" style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f9f9f9; font-size:13px; cursor:pointer;">Mês Anterior</button>
-      </div>      <div class="grid grid-cols-2 gap-4 my-4">
+      </div>
+      <div class="grid grid-cols-2 gap-4 my-4">
         <div>
           <label for="modal-start-date" class="block mb-1 font-semibold text-sm">Início</label>
           <input type="date" id="modal-start-date" class="w-full p-2 border rounded-md" value="${state.period.start || ''}">
@@ -399,7 +400,8 @@ const normalizeString = (str) => {
     groupBy
 ) {
     const detailedResults = new Map();
-    const dsrHistoryMap = new Map();
+    const totalGeralDetailedResults = new Map();
+    const totalGeralResults = {};    const dsrHistoryMap = new Map();
     for (const log of dsrLogs) {
         const name = normalizeString(log.Name);
         if (!dsrHistoryMap.has(name)) dsrHistoryMap.set(name, []);
@@ -457,16 +459,39 @@ const normalizeString = (str) => {
     for (const p of preenchimentos) {
         if (!preenchidosPorData.has(p.Data)) preenchidosPorData.set(p.Data, new Set());
         preenchidosPorData.get(p.Data).add(normalizeString(p.Nome));
-    }
-    const groupKeys = [...new Set(colaboradores.map((c) => c[groupBy]).filter(Boolean))].sort();
+    }    const groupKeys = [...new Set(colaboradores.map((c) => c[groupBy]).filter(Boolean))].sort();
     const results = {};
-    const todayISO = _ymdLocal(new Date());
-    for (const key of groupKeys) {
+    const todayISO = _ymdLocal(new Date());    for (const date of dates) {
+        const nomesEmFerias = feriasPorDia.get(date) || new Set();
+        const nomesAfastados = afastadosPorDia.get(date) || new Set();        const totalElegiveis = colaboradores.reduce((acc, c) => {
+            const nomeN = normalizeString(c.Nome);
+            const adm = c['Data de admissão'];
+            if (!adm || adm > date) return acc;
+            if (nomesEmFerias.has(nomeN)) return acc;
+            if (nomesAfastados.has(nomeN)) return acc;
+            const historicalDSR = getDSRForDate(c, date, dsrHistoryMap);
+            const effectiveDSR = historicalDSR && String(historicalDSR).trim() ? historicalDSR : 'N/D';
+            const isDSR = normalizeString(effectiveDSR).includes(normalizeString(weekdayPT(date)));
+            if (!isDSR) acc.push({...c, DSR_do_dia: effectiveDSR});
+            return acc;
+        }, []);        const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
+        const totalPendentes = totalElegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));        totalGeralDetailedResults.set(date, {elegiveis: totalElegiveis, pendentes: totalPendentes});        let displayValue = null;
+        let statusClassKey = 'EMPTY';        if (date <= todayISO) {
+            if (totalElegiveis.length === 0) {
+                statusClassKey = 'N/A';
+            } else {
+                const preenchidos = totalElegiveis.length - totalPendentes.length;
+                displayValue = (preenchidos / totalElegiveis.length) * 100;                if (displayValue === 100) statusClassKey = 'OK';
+                else if (displayValue > 0) statusClassKey = 'PEN';
+                else statusClassKey = 'NOK';
+            }
+        }
+        totalGeralResults[date] = {value: displayValue, status: statusClassKey};
+    }    for (const key of groupKeys) {
         results[key] = {};
         detailedResults.set(key, new Map());
         const colaboradoresDoGrupo = colaboradores.filter((c) => c[groupBy] === key);
         for (const date of dates) {
-            let status = 'EMPTY';
             const nomesEmFerias = feriasPorDia.get(date) || new Set();
             const nomesAfastados = afastadosPorDia.get(date) || new Set();
             const elegiveis = colaboradoresDoGrupo.reduce((acc, c) => {
@@ -482,18 +507,21 @@ const normalizeString = (str) => {
                 return acc;
             }, []);
             const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
-            const pendentes = elegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));
-            detailedResults.get(key).set(date, {elegiveis, pendentes});
-            if (date <= todayISO) {
-                if (elegiveis.length === 0) status = 'N/A';
-                else if (pendentes.length === 0) status = 'OK';
-                else if (pendentes.length < elegiveis.length) status = 'PEN';
-                else status = 'NOK';
+            const pendentes = elegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));            detailedResults.get(key).set(date, {elegiveis, pendentes});            const totalElegiveis = elegiveis.length;
+            const totalPendentes = pendentes.length;            let displayValue = null;
+            let statusClassKey = 'EMPTY';            if (date <= todayISO) {
+                if (totalElegiveis === 0) {
+                    statusClassKey = 'N/A';
+                } else {
+                    const preenchidos = totalElegiveis - totalPendentes;
+                    displayValue = (preenchidos / totalElegiveis) * 100;                    if (displayValue === 100) statusClassKey = 'OK';
+                    else if (displayValue > 0) statusClassKey = 'PEN';
+                    else statusClassKey = 'NOK';
+                }
             }
-            results[key][date] = status;
+            results[key][date] = {value: displayValue, status: statusClassKey};
         }
-    }
-    return {groupKeys, results, detailedResults};
+    }    return {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults};
 }function getStatusClass(status) {
     switch (status) {
         case 'OK':
@@ -509,23 +537,43 @@ const normalizeString = (str) => {
         default:
             return '';
     }
-}function renderTable(groupKeys, dates, results, groupHeader) {
+}function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
     if (!ui?.resultContainer) return;
     const formattedDates = dates.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
-    const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;
-    const bodyHtml = groupKeys.map((key) => `
+    const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;    let totalRowHtml = '';
+    if (totalGeralResults) {
+        totalRowHtml = `
+            <tr class="total-geral-row" style="background-color: #f0f3f5; font-weight: bold; border-bottom: 2px solid #ccc;">
+            <td>TODAS AS OPERAÇÕES</td>
+            ${dates.map((date) => {
+            const data = totalGeralResults[date];
+            const status = data?.status || 'EMPTY';
+            const percentual = data?.value;
+            const statusClass = getStatusClass(status);            let statusText = '';
+            if (status === 'EMPTY') statusText = '';
+            else if (status === 'N/A') statusText = 'N/A';
+            else if (percentual !== null && percentual !== undefined) {
+                statusText = `${percentual.toFixed(0)}%`;
+            }            const title = (status === 'PEN' || status === 'NOK') ? 'Duplo clique para ver detalhes' : (status === 'OK' ? '100%' : status);            return `<td data-group-key="TODAS" data-date="${date}" class="${statusClass}" title="${title}">${statusText}</td>`;
+        }).join('')}
+            </tr>
+        `;
+    }    const bodyHtml = groupKeys.map((key) => `
     <tr>
       <td>${key}</td>
       ${dates.map((date) => {
-        const status = results[key]?.[date] || 'N/A';
-        const statusClass = getStatusClass(status);
-        const statusText = status === 'EMPTY' ? '' : status;
-        const title = (status === 'PEN' || status === 'NOK') ? 'Duplo clique para ver detalhes' : status;
+        const data = results[key]?.[date];
+        const status = data?.status || 'EMPTY';
+        const percentual = data?.value;
+        const statusClass = getStatusClass(status);        let statusText = '';
+        if (status === 'EMPTY') statusText = '';
+        else if (status === 'N/A') statusText = 'N/A';
+        else if (percentual !== null && percentual !== undefined) {
+            statusText = `${percentual.toFixed(0)}%`;
+        }        const title = (status === 'PEN' || status === 'NOK') ? 'Duplo clique para ver detalhes' : (status === 'OK' ? '100%' : status);
         return `<td data-group-key="${key}" data-date="${date}" class="${statusClass}" title="${title}">${statusText}</td>`;
     }).join('')}
-    </tr>`).join('');
-    ui.resultContainer.innerHTML = `<div class="table-container"><table class="main-table"><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table></div>`;
-    const table = ui.resultContainer.querySelector('.main-table');
+    </tr>`).join('');    ui.resultContainer.innerHTML = `<div class="table-container"><table class="main-table"><thead>${headerHtml}</thead><tbody>${totalRowHtml}${bodyHtml}</tbody></table></div>`;    const table = ui.resultContainer.querySelector('.main-table');
     if (table) {
         table.addEventListener('dblclick', (event) => {
             const cell = event.target.closest('td[data-group-key]');
@@ -568,32 +616,24 @@ const normalizeString = (str) => {
         } = await fetchData(startDate, endDate, state.turnoAtual || 'GERAL');
         if (myRun !== state._runId) return;
         const groupBy = isCoordView ? 'Gestor' : 'SVC';
-        const groupHeader = isCoordView ? 'Coordenador' : 'SVC';
-        const {groupKeys, results, detailedResults} = processEfetividade(
+        const groupHeader = isCoordView ? 'Coordenador' : 'SVC';        const {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults} = processEfetividade(
             colaboradores, preenchimentos, dates, ferias, dsrLogs, afastamentos, groupBy
         );
-        if (myRun !== state._runId) return;
-        state.detailedResults = detailedResults;
-        if (groupKeys.length > 0) {
+        if (myRun !== state._runId) return;        state.detailedResults = detailedResults;
+        state.totalGeralDetailedResults = totalGeralDetailedResults;        if (groupKeys.length > 0) {
             groupKeys.sort((keyA, keyB) => {
                 const statusesA = Object.values(results[keyA] || {});
-                const statusesB = Object.values(results[keyB] || {});
-                const okA = statusesA.filter(s => s === 'OK').length;
-                const okB = statusesB.filter(s => s === 'OK').length;
-                if (okA !== okB) return okB - okA;
-                const nokA = statusesA.filter(s => s === 'NOK').length;
-                const nokB = statusesB.filter(s => s === 'NOK').length;
-                if (nokA !== nokB) return nokA - nokB;
-                const penA = statusesA.filter(s => s === 'PEN').length;
-                const penB = statusesB.filter(s => s === 'PEN').length;
-                if (penA !== penB) return penA - penB;
-                return String(keyA || '').localeCompare(String(keyB || ''));
+                const statusesB = Object.values(results[keyB] || {});                const okA = statusesA.filter(s => s.status === 'OK').length;
+                const okB = statusesB.filter(s => s.status === 'OK').length;
+                if (okA !== okB) return okB - okA;                const nokA = statusesA.filter(s => s.status === 'NOK').length;
+                const nokB = statusesB.filter(s => s.status === 'NOK').length;
+                if (nokA !== nokB) return nokA - nokB;                const penA = statusesA.filter(s => s.status === 'PEN').length;
+                const penB = statusesB.filter(s => s.status === 'PEN').length;
+                if (penA !== penB) return penA - penB;                return String(keyA || '').localeCompare(String(keyB || ''));
             });
-        }
-        if (!groupKeys.length) {
+        }        if (!groupKeys.length) {
             ui.resultContainer.innerHTML = '<p class="p-4 text-center">Nenhum dado encontrado para a seleção atual.</p>';
-        } else {
-            renderTable(groupKeys, dates, results, groupHeader);
+        } else {            renderTable(groupKeys, dates, results, groupHeader, totalGeralResults);
         }
     } catch (error) {
         if (myRun !== state._runId) return;

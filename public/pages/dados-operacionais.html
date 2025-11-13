@@ -1,34 +1,25 @@
 <div class="page-container" id="dados-op-page">
+
+  <div id="dados-op-filters" class="dados-op-filters">
+    <select id="dados-op-filter-svc" class="dados-op-filter">
+      <option value="">SVC</option>
+    </select>
+    <select id="dados-op-filter-matriz" class="dados-op-filter">
+      <option value="">Matriz</option>
+    </select>
+    <select id="dados-op-filter-gerente" class="dados-op-filter">
+      <option value="">Gerentes</option>
+    </select>
+    <button id="dados-op-clear-filters" class="btn">
+      Limpar
+    </button>
+  </div>
+
   <div class="dados-op-header">
-
-
-    <div id="dados-op-filters" class="dados-op-filters">
-
-              <select id="dados-op-filter-svc" class="dados-op-filter">
-        <option value="">SVC</option>
-
-      </select>
-      <select id="dados-op-filter-matriz" class="dados-op-filter">
-        <option value="">Matriz</option>
-
-      </select>
-
-      <select id="dados-op-filter-gerente" class="dados-op-filter">
-        <option value="">Gerentes</option>
-
-      </select>
-
-      <button id="dados-op-clear-filters" class="btn">
-        Limpar
-      </button>
-    </div>
-
-
     <div id="dados-op-loader" class="loading-overlay">
       <div class="spinner"></div>
     </div>
-
-
     <div id="dados-op-result"></div>
   </div>
+
 </div>
