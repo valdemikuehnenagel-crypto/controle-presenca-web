@@ -1,15 +1,21 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
-import qrcode from 'qrcode-generator';import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import qrcode from 'qrcode-generator';
+import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
-const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);const SUPPORTED_FORMATS = [
+const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.QR_CODE,
     Html5QrcodeSupportedFormats.CODE_128,
     Html5QrcodeSupportedFormats.CODE_39,
     Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.UPC_A,
 ];
-const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
+const BRASILIA_TIMEZONE = 'America/Sao_Paulo';
+let state = {
     cacheData: [],
     idPacoteMap: new Map(),
     isSeparaçãoProcessing: false,
@@ -22,14 +28,15 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     lastPrintData: null,
     period: {start: null, end: null},
     isImporting: false,
-};let dom = {
+};
+let dom = {
     dashboard: null,
     summaryContainer: null,
     routesContainer: null,
     btnSeparação: null,
     btnCarregamento: null,
     periodBtn: null,
-    btnImportarConsolidado: null,    modalSeparação: null,
+    btnImportarConsolidado: null, modalSeparação: null,
     modalSepClose: null,
     sepUser: null,
     sepScan: null,
@@ -38,14 +45,14 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     sepQrTitle: null,
     sepQrCanvas: null,
     sepPrintBtn: null,
-    sepCamBtn: null,    modalCarregamento: null,
+    sepCamBtn: null, modalCarregamento: null,
     modalCarClose: null,
     carUser: null,
     carDockSelect: null,
     carIlhaSelect: null,
     carScan: null,
     carStatus: null,
-    carCamBtn: null,    scannerModal: null,
+    carCamBtn: null, scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
     scannerFeedbackOverlay: null,
@@ -53,24 +60,28 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     scannerConfirmOverlay: null,
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
-    scannerConfirmNoBtn: null,    relatorioModal: null,
+    scannerConfirmNoBtn: null, relatorioModal: null,
     relatorioModalClose: null,
     relatorioTitle: null,
-    relatorioBody: null,    modalImportar: null,
+    relatorioBody: null, modalImportar: null,
     importCloseBtn: null,
     importTextarea: null,
     importSubmitBtn: null,
-    importStatus: null,    netBanner: null,
+    importStatus: null, netBanner: null,
     netMsg: null,
     netForceBtn: null,
     netCloseBtn: null,
-};let eventHandlers = {
+};
+let eventHandlers = {
     onOnline: null,
     onSepSuccess: null,
     onCarSuccess: null,
-};const NET_TIMEOUT_MS = 8000;
+};
+const NET_TIMEOUT_MS = 8000;
 const OUTBOX_KEY = 'auditoriaOutboxV1';
-let outbox = {queue: [], sending: false};function createImportarModal() {
+let outbox = {queue: [], sending: false};
+
+function createImportarModal() {
     if (document.getElementById('modal-importar-consolidado')) return;
     const modal = document.createElement('div');
     modal.id = 'modal-importar-consolidado';
@@ -101,25 +112,33 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     dom.importTextarea = modal.querySelector('#importar-textarea');
     dom.importSubmitBtn = modal.querySelector('#importar-submit-btn');
     dom.importStatus = modal.querySelector('#importar-status');
-}async function handleImportarConsolidado() {
-    if (state.isImporting) return;    const rawText = dom.importTextarea.value;
+}
+
+async function handleImportarConsolidado() {
+    if (state.isImporting) return;
+    const rawText = dom.importTextarea.value;
     if (!rawText || !rawText.trim()) {
         dom.importStatus.textContent = "Área de texto vazia.";
         dom.importStatus.className = 'mt-2 text-sm font-medium text-red-600 h-6';
         return;
-    }    state.isImporting = true;
+    }
+    state.isImporting = true;
     dom.importSubmitBtn.disabled = true;
     dom.importSubmitBtn.textContent = 'Importando...';
     dom.importStatus.className = 'mt-2 text-sm font-medium text-blue-600 h-6';
-    dom.importStatus.textContent = "Preparando dados...";    const lines = rawText.trim().split('\n');
+    dom.importStatus.textContent = "Preparando dados...";
+    const lines = rawText.trim().split('\n');
     const rows = [];
-    let idx = 0;    for (const line of lines) {
+    let idx = 0;
+    for (const line of lines) {
         const trimmedLine = line.trim();
-        if (!trimmedLine) continue;        const parts = trimmedLine.split(/\s+/);
+        if (!trimmedLine) continue;
+        const parts = trimmedLine.split(/\s+/);
         if (parts.length >= 2 && parts[0].length >= 11) {
             const id = parts[0].trim();
             const rota = parts[1].trim();
-            const rotaOtimizada = rota.charAt(0).toUpperCase();            rows.push({
+            const rotaOtimizada = rota.charAt(0).toUpperCase();
+            rows.push({
                 "ID": id,
                 "Rota": rota,
                 "Rota Otimizada": rotaOtimizada
@@ -128,30 +147,40 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         } else {
             console.warn('Linha ignorada (formato inválido):', line);
         }
-    }    if (rows.length === 0) {
+    }
+    if (rows.length === 0) {
         dom.importStatus.textContent = "Nenhum dado válido encontrado para importar.";
         dom.importStatus.className = 'mt-2 text-sm font-medium text-red-600 h-6';
         state.isImporting = false;
         dom.importSubmitBtn.disabled = false;
         dom.importSubmitBtn.textContent = 'Importar Dados';
         return;
-    }    try {
-        dom.importStatus.textContent = `Encontrados ${rows.length} registros. Limpando tabela antiga...`;        const {error: deleteError} = await supabase
+    }
+    try {
+        dom.importStatus.textContent = `Encontrados ${rows.length} registros. Limpando tabela antiga...`;
+        const {error: deleteError} = await supabase
             .from('Consolidado SBA7')
             .delete()
-            .neq('ID', 'dummy-id-que-nunca-vai-existir');        if (deleteError) {
+            .neq('ID', 'dummy-id-que-nunca-vai-existir');
+        if (deleteError) {
             console.error('Erro ao limpar tabela:', deleteError);
             throw new Error(`Falha ao limpar tabela antiga: ${deleteError.message}`);
-        }        dom.importStatus.textContent = `Tabela limpa. Inserindo ${rows.length} novos registros...`;        const {error: insertError} = await supabase
+        }
+        dom.importStatus.textContent = `Tabela limpa. Inserindo ${rows.length} novos registros...`;
+        const {error: insertError} = await supabase
             .from('Consolidado SBA7')
-            .insert(rows);        if (insertError) {
+            .insert(rows);
+        if (insertError) {
             console.error('Erro ao inserir dados:', insertError);
             throw new Error(`Falha ao inserir novos dados: ${insertError.message}`);
-        }        dom.importStatus.textContent = `Sucesso! ${rows.length} registros importados.`;
+        }
+        dom.importStatus.textContent = `Sucesso! ${rows.length} registros importados.`;
         dom.importStatus.className = 'mt-2 text-sm font-medium text-green-600 h-6';
-        dom.importTextarea.value = '';        setTimeout(() => {
+        dom.importTextarea.value = '';
+        setTimeout(() => {
             closeModal(dom.modalImportar);
-        }, 2000);    } catch (err) {
+        }, 2000);
+    } catch (err) {
         console.error('Erro na importação:', err);
         dom.importStatus.textContent = `Erro: ${err.message}`;
         dom.importStatus.className = 'mt-2 text-sm font-medium text-red-600 h-6';
@@ -160,7 +189,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         dom.importSubmitBtn.disabled = false;
         dom.importSubmitBtn.textContent = 'Importar Dados';
     }
-}function loadOutbox() {
+}
+
+function loadOutbox() {
     try {
         const raw = localStorage.getItem(OUTBOX_KEY);
         outbox = raw ? JSON.parse(raw) : {queue: [], sending: false};
@@ -168,12 +199,16 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     } catch {
         outbox = {queue: [], sending: false};
     }
-}function saveOutbox() {
+}
+
+function saveOutbox() {
     try {
         localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
     } catch {
     }
-}function installNetworkBanner() {
+}
+
+function installNetworkBanner() {
     if (document.getElementById('net-banner')) return;
     const wrap = document.createElement('div');
     wrap.id = 'net-banner';
@@ -191,34 +226,50 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     dom.netCloseBtn = wrap.querySelector('#net-close');
     dom.netForceBtn.addEventListener('click', () => processOutbox(true));
     dom.netCloseBtn.addEventListener('click', () => hideNetBanner());
-}function showNetBanner(msg) {
+}
+
+function showNetBanner(msg) {
     if (!dom.netBanner) installNetworkBanner();
     if (dom.netMsg && msg) dom.netMsg.textContent = msg;
     dom.netBanner.classList.remove('hidden');
-}function updateNetBannerCount() {
+}
+
+function updateNetBannerCount() {
     const n = outbox.queue.length;
     showNetBanner(`Falha na conexão com a rede… Tentando registrar (${n} na fila)`);
-}function hideNetBannerSoon(okMsg = 'Tudo certo: itens enviados') {
+}
+
+function hideNetBannerSoon(okMsg = 'Tudo certo: itens enviados') {
     if (!dom.netBanner) return;
     if (dom.netMsg) dom.netMsg.textContent = okMsg;
     setTimeout(() => dom.netBanner.classList.add('hidden'), 1500);
-}function hideNetBanner() {
+}
+
+function hideNetBanner() {
     dom.netBanner?.classList.add('hidden');
-}function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
+}
+
+function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const merged = {...opt, signal: ctrl.signal};
     return fetch(url, merged).finally(() => clearTimeout(t));
-}function isNetworkLikeError(err) {
+}
+
+function isNetworkLikeError(err) {
     const s = String(err?.message || err || '').toLowerCase();
     return s.includes('network') || s.includes('failed to fetch') || s.includes('abort') || s.includes('timeout');
-}function enqueueTask(task) {
+}
+
+function enqueueTask(task) {
     loadOutbox();
     outbox.queue.push(task);
     saveOutbox();
     updateNetBannerCount();
     setTimeout(() => processOutbox(), 1200);
-}async function processOutbox(force = false) {
+}
+
+async function processOutbox(force = false) {
     loadOutbox();
     if (outbox.sending) return;
     if (!force && !navigator.onLine) {
@@ -270,7 +321,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         if (outbox.queue.length === 0) hideNetBannerSoon();
         else updateNetBannerCount();
     }
-}async function tryPostOrQueue(kind, url, body) {
+}
+
+async function tryPostOrQueue(kind, url, body) {
     try {
         const res = await fetchWithTimeout(url, {
             method: 'POST',
@@ -297,7 +350,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         }
         throw err;
     }
-}function handleOutboxSepSuccess(ev) {
+}
+
+function handleOutboxSepSuccess(ev) {
     const {json} = ev.detail || {};
     try {
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json || {};
@@ -322,7 +377,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     } catch (e) {
         console.error('[Outbox] pós-sucesso separação falhou:', e);
     }
-}function handleOutboxCarSuccess(ev) {
+}
+
+function handleOutboxCarSuccess(ev) {
     const {json} = ev.detail || {};
     try {
         const {updatedData, idempotent, message} = json || {};
@@ -346,7 +403,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     } catch (e) {
         console.error('[Outbox] pós-sucesso carregamento falhou:', e);
     }
-}function getBrasiliaDate(asDateObject = false) {
+}
+
+function getBrasiliaDate(asDateObject = false) {
     const date = new Date();
     const formatter = new Intl.DateTimeFormat('sv-SE', {
         timeZone: BRASILIA_TIMEZONE,
@@ -359,27 +418,37 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         return new Date(parts[0], parts[1] - 1, parts[2]);
     }
     return formatter.format(date);
-}function clampEndToToday(startStr, endStr) {
+}
+
+function clampEndToToday(startStr, endStr) {
     const todayISO = getBrasiliaDate(false);
     if (endStr > todayISO) endStr = todayISO;
     if (startStr > endStr) startStr = endStr;
     return [startStr, endStr];
-}function toast(message, type = 'info') {
+}
+
+function toast(message, type = 'info') {
     console.warn(`TOAST (${type}):`, message);
     alert(message);
-}function buildFunctionHeaders() {
+}
+
+function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}function buildSelectHeaders() {
+}
+
+function buildSelectHeaders() {
     return {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
         Range: '0-1000',
     };
-}function formatarDataHack(isoString, formatOptions) {
+}
+
+function formatarDataHack(isoString, formatOptions) {
     if (!isoString) return '---';
     try {
         let dt;
@@ -393,7 +462,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     } catch {
         return '---';
     }
-}function formatarDataHora(isoString) {
+}
+
+function formatarDataHora(isoString) {
     const options = {
         day: '2-digit',
         month: '2-digit',
@@ -403,7 +474,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         second: '2-digit'
     };
     return formatarDataHack(isoString, options);
-}function formatarDataInicio(isoString) {
+}
+
+function formatarDataInicio(isoString) {
     if (!isoString) return '---';
     const options = {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'};
     try {
@@ -411,13 +484,19 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     } catch {
         return '---';
     }
-}function waitForPaint() {
+}
+
+function waitForPaint() {
     return new Promise((r) => {
         requestAnimationFrame(() => requestAnimationFrame(r));
     });
-}function sleep(ms) {
+}
+
+function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
-}async function printCurrentQr() {
+}
+
+async function printCurrentQr() {
     if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
         setSepStatus("Primeiro gere um QR Code para imprimir.", {error: true});
         return;
@@ -427,12 +506,16 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     await waitForPaint();
     await sleep(400);
     window.print();
-}function extractElevenDigits(str) {
+}
+
+function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}function normalizeScanned(input) {
+}
+
+function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
     if (s.startsWith('{') && s.endsWith('}')) {
@@ -448,7 +531,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}function openModal(modal) {
+}
+
+function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
@@ -478,7 +563,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     modal.addEventListener('click', modal._bound.onOverlayClick, true);
     const first = modal.querySelector('input, button, textarea, [tabindex]:not([tabindex="-1"])');
     if (first) setTimeout(() => first.focus(), 50);
-}function closeModal(modal) {
+}
+
+function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add('hidden');
@@ -486,12 +573,16 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     if (modal._bound?.onKeyDown) document.removeEventListener('keydown', modal._bound.onKeyDown);
     if (modal._bound?.onOverlayClick) modal.removeEventListener('click', modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}function resetSeparacaoModal() {
+}
+
+function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
-}function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
+}
+
+function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
     if (!preserveDock) {
@@ -502,7 +593,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = '';
     if (dom.carScan) dom.carScan.value = '';
     setCarStatus('');
-}function showScannerFeedback(type, message, sticky = false) {
+}
+
+function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector('span');
     if (textEl) textEl.textContent = message;
@@ -516,7 +609,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         dom.scannerFeedbackCloseBtn.style.display = 'block';
         if (!sticky) setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1500);
     }
-}function showScannerConfirm(decodedText, onYes, onNo) {
+}
+
+function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -535,7 +630,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     };
     dom.scannerConfirmYesBtn.addEventListener('click', yesHandler);
     dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
-}function createGlobalScannerModal() {
+}
+
+function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'auditoria-scanner-modal';
@@ -607,7 +704,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             }
         }
     });
-}function injectScannerButtons() {
+}
+
+function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [
         {input: dom.sepScan, id: 'sep-cam-btn'},
@@ -628,7 +727,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     });
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
-}function startGlobalScanner(targetModal) {
+}
+
+function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -681,7 +782,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
-}function stopGlobalScanner() {
+}
+
+function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add('hidden');
         if (dom._currentModal) {
@@ -709,7 +812,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}async function onGlobalScanSuccess(decodedText) {
+}
+
+async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -736,18 +841,26 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             state.globalScannerInstance?.resume();
         }
     );
-}function onGlobalScanError(_) {
-}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
-    const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};    const response = await fetch(FUNC_SEPARACAO_URL, {
+}
+
+function onGlobalScanError(_) {
+}
+
+async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+    const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
+    const response = await fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
         headers: buildFunctionHeaders(),
         body: JSON.stringify(body),
     });
     const json = await response.json().catch(() => ({}));
-    if (!response.ok && !json?.isDuplicate) {        throw new Error(json?.error || 'Erro desconhecido');
+    if (!response.ok && !json?.isDuplicate) {
+        throw new Error(json?.error || 'Erro desconhecido');
     }
     return json;
-}async function handleSeparacaoFromScanner(idPacote) {
+}
+
+async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
     const usuarioEntrada = dom.sepUser?.value?.trim();
     if (!usuarioEntrada) {
@@ -756,23 +869,32 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         setSepStatus('Digite o nome do colaborador', {error: true});
         dom.sepUser?.focus();
         return;
-    }    state.isSeparaçãoProcessing = true;
-    const dataScan = new Date().toISOString();    try {
+    }
+    state.isSeparaçãoProcessing = true;
+    const dataScan = new Date().toISOString();
+    try {
         const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
-        const {queued, json} = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);        if (queued) {
+        const {queued, json} = await tryPostOrQueue('separacao', FUNC_SEPARACAO_URL, body);
+        if (queued) {
             showScannerFeedback('error', 'Falha na conexão com a rede… Tentando registrar', true);
             stopGlobalScanner();
             setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', {error: true});
             dom.sepScan.value = idPacote;
             dom.sepScan.focus();
             return;
-        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
-        if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);        if (isDuplicate) {
+        }
+        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
+        if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');
+        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        if (isDuplicate) {
             const friendly = message || 'PACOTE JÁ BIPADO. Reimpressão solicitada.';
-            showScannerFeedback('error', friendly, true);            stopGlobalScanner();
+            showScannerFeedback('error', friendly, true);
+            stopGlobalScanner();
             await sleep(50);
-            await printCurrentQr();            setSepStatus(friendly, {error: true});
+            await printCurrentQr();
+            setSepStatus(friendly, {error: true});
             dom.sepScan.value = idPacote;
             dom.sepScan.focus();
         } else {
@@ -782,9 +904,11 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
                 if (id) state.idPacoteMap.set(id, insertedData[0]);
                 renderDashboard();
             }
-            showScannerFeedback('success', `Sucesso! Manga ${numeracao} (Rota ${ilha})`);            stopGlobalScanner();
+            showScannerFeedback('success', `Sucesso! Manga ${numeracao} (Rota ${ilha})`);
+            stopGlobalScanner();
             await sleep(50);
-            await printCurrentQr();        }
+            await printCurrentQr();
+        }
     } catch (err) {
         console.error('Erro Separação (Scanner):', err);
         const friendly = `ERRO: ${err.message || err}`;
@@ -796,18 +920,24 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     } finally {
         state.isSeparaçãoProcessing = false;
     }
-}function handleSepUserKeydown(e) {
+}
+
+function handleSepUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}function parseBulkEntries(raw) {
+}
+
+function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map(s => s.trim())
         .filter(s => s.length > 0);
-}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}
+
+async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
     let ok = 0, fail = 0, dup = 0, queued = 0;
     state.isSeparaçãoProcessing = true;
@@ -826,7 +956,8 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
                 continue;
             }
             const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json || {};
-            if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');            const idPacoteParaQr = pacote || idPacote;
+            if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');
+            const idPacoteParaQr = pacote || idPacote;
             state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
             await generateQRCode(idPacoteParaQr, ilha, numeracao);
             await printCurrentQr();
@@ -860,7 +991,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}async function handleSeparaçãoSubmit(e) {
+}
+
+async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
     if (state.isSeparaçãoProcessing) return;
     e.preventDefault();
@@ -895,8 +1028,10 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         if (queued) {
             setSepStatus('Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', {error: true});
             return;
-        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
-        if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');        const idPacoteParaQr = pacote || idPacote;
+        }
+        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
+        if (!numeracao) throw new Error(json?.error || 'Resposta não contém numeração');
+        const idPacoteParaQr = pacote || idPacote;
         state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
         await generateQRCode(idPacoteParaQr, ilha, numeracao);
         await printCurrentQr();
@@ -923,14 +1058,20 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}function setCarStatus(message, {error = false} = {}) {
+}
+
+function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
     dom.carStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.carStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function formatDockLabel(n) {
+}
+
+function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, '0')}`;
-}function ensureDockSelect() {
+}
+
+function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById('car-dock-select');
     if (!dom.carDockSelect) {
@@ -970,7 +1111,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     dom.carDockSelect.addEventListener('change', () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}function ensureIlhaSelect() {
+}
+
+function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
     if (!dom.carIlhaSelect) {
@@ -995,7 +1138,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     dom.carIlhaSelect.addEventListener('change', () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}function populateIlhaSelect() {
+}
+
+function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
     rotas.sort();
@@ -1014,7 +1159,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
+}
+
+async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
     const body = {id_pacote: idPacoteScaneado, rota_selecionada: rotaSelecionada, usuario_saida: usuarioSaida, doca};
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
@@ -1031,7 +1178,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         throw new Error(msg);
     }
     return json || {};
-}function handleCarUserKeydown(e) {
+}
+
+function handleCarUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -1042,25 +1191,52 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             dom.carScan.focus();
         }
     }
-}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+}
+
+async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
     if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
+
     try {
         const body = {id_pacote: idPacoteScaneado, rota_selecionada: ilha, usuario_saida: usuarioSaida, doca};
         const {queued, json} = await tryPostOrQueue('carregamento', FUNC_CARREGAMENTO_URL, body);
+
         if (queued) {
             return {
                 success: false,
                 message: 'Falha na conexão com a rede… Tentando registrar (item na fila). Clique em "Forçar envio" ou aguarde.'
             };
         }
+
+        // ######################################################
+        // ### INÍCIO DA LÓGICA DE ALTERAÇÃO (FRONTEND) ###
+        // ######################################################
+
+        // Verifica se foi um sucesso de "Consolidado" (pacote solto, sem manga)
+        if (json?.consolidadoSuccess) {
+            // É um sucesso, mas não temos 'updatedData' para por no cache, o que está OK.
+            return {success: true, message: json.message || "Pacote validado com sucesso."};
+        }
+
+        // ####################################################
+        // ### FIM DA LÓGICA DE ALTERAÇÃO (FRONTEND) ###
+        // ####################################################
+
+        // Lógica antiga (sucesso de "Manga")
         const {updatedData, idempotent, message} = json || {};
         const updatedNumeracao = updatedData?.NUMERACAO;
-        if (!updatedNumeracao) throw new Error("Backend não retornou dados da manga atualizada.");
+
+        // (Melhoria) Se 'updatedData' não veio, joga o erro que o backend mandou.
+        if (!updatedNumeracao) {
+            throw new Error(json?.error || "Backend não retornou dados da manga atualizada.");
+        }
+
         let successMessage = `OK! ${updatedNumeracao} validada.`;
         if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já estava validada.`;
+
+        // Atualiza o cache local
         const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
         if (index > -1) {
             state.cacheData[index] = {...state.cacheData[index], ...updatedData};
@@ -1071,13 +1247,17 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             const id = extractElevenDigits(updatedData['ID PACOTE']);
             if (id) state.idPacoteMap.set(id, updatedData);
         }
+
         return {success: true, message: successMessage};
+
     } catch (err) {
         console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
         return {success: false, message: `Erro: ${msg}`};
     }
-}async function handleCarregamentoFromScanner(decodedText) {
+}
+
+async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
     const cleaned = normalizeScanned(decodedText);
     try {
@@ -1099,7 +1279,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     } finally {
         state.isCarregamentoProcessing = false;
     }
-}async function handleCarregamentoSubmit(e) {
+}
+
+async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -1134,7 +1316,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             dom.carScan.focus();
         }
     }
-}async function fetchDashboardData() {
+}
+
+async function fetchDashboardData() {
     if (!state.period.start || !state.period.end) {
         const todayISO = getBrasiliaDate(false);
         state.period.start = todayISO;
@@ -1162,7 +1346,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         console.error('Falha ao carregar placar:', err);
         if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
     }
-}function processDashboardData(data) {
+}
+
+function processDashboardData(data) {
     if (!data || data.length === 0) return [];
     const rotasMap = new Map();
     for (const item of data) {
@@ -1217,7 +1403,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     }
     rotasConsolidadas.sort((a, b) => a.percentual - b.percentual);
     return rotasConsolidadas;
-}function renderDashboard() {
+}
+
+function renderDashboard() {
     const summaryContainer = dom.summaryContainer;
     const routesContainer = dom.dashboard;
     if (!summaryContainer || !routesContainer) return;
@@ -1313,22 +1501,29 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             openRelatorioModal(rota);
         });
     });
-}async function fetchAndRenderDashboard() {
+}
+
+async function fetchAndRenderDashboard() {
     await fetchDashboardData();
     renderDashboard();
-}function reorderControlsOverDashboard() {
+}
+
+function reorderControlsOverDashboard() {
     const root = document.getElementById('tab-auditoria-mangas');
     if (!root) return;
     const btn1 = document.getElementById('btn-iniciar-separacao');
     const btn2 = document.getElementById('btn-iniciar-carregamento');
     const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
     const periodBlock = dom.periodBtn?.closest('.p-4');
-    if (!btn1 || !btn2 || !dashboardBlock) return;    let bar = document.getElementById('auditoria-controls-bar');
+    if (!btn1 || !btn2 || !dashboardBlock) return;
+    let bar = document.getElementById('auditoria-controls-bar');
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'auditoria-controls-bar';
         dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
-    }    bar.className = 'p-4 grid grid-cols-1 md:grid-cols-4 gap-4';    if (periodBlock && periodBlock.parentElement !== bar) {
+    }
+    bar.className = 'p-4 grid grid-cols-1 md:grid-cols-4 gap-4';
+    if (periodBlock && periodBlock.parentElement !== bar) {
         bar.appendChild(periodBlock);
         periodBlock.style.padding = '0';
         dom.periodBtn.style.width = '100%';
@@ -1336,9 +1531,11 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         dom.periodBtn.style.minHeight = '82px';
     }
     if (btn1.parentElement !== bar) bar.appendChild(btn1);
-    if (btn2.parentElement !== bar) bar.appendChild(btn2);    if (!dom.btnImportarConsolidado) {
+    if (btn2.parentElement !== bar) bar.appendChild(btn2);
+    if (!dom.btnImportarConsolidado) {
         const btn3 = document.createElement('button');
-        btn3.id = 'btn-importar-consolidado';        btn3.className = 'px-4 py-3 text-lg w-full h-full flex flex-col items-center justify-center text-white font-semibold rounded-lg shadow-md';
+        btn3.id = 'btn-importar-consolidado';
+        btn3.className = 'px-4 py-3 text-lg w-full h-full flex flex-col items-center justify-center text-white font-semibold rounded-lg shadow-md';
         btn3.style.backgroundColor = '#6d28d9';
         btn3.style.minHeight = '82px';
         btn3.innerHTML = `
@@ -1348,41 +1545,57 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         dom.btnImportarConsolidado = btn3;
         bar.appendChild(btn3);
     }
-}function setSepStatus(message, {error = false} = {}) {
+}
+
+function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
     dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function clearSepQrCanvas() {
+}
+
+function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
     state.lastPrintData = null;
-}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+}
+
+function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
             console.warn('DOM do QR Code não encontrado, pulando geração.');
             return resolve();
         }
-        clearSepQrCanvas();        let labelPrincipalFormatada = mangaLabel || dataForQr;
-        let labelRotaFormatada = ilha ? `Rota ${ilha}` : '';        if (ilha && mangaLabel) {
-            try {                const ilhaPrefix = ilha.split('_')[0];
+        clearSepQrCanvas();
+        let labelPrincipalFormatada = mangaLabel || dataForQr;
+        let labelRotaFormatada = ilha ? `Rota ${ilha}` : '';
+        if (ilha && mangaLabel) {
+            try {
+                const ilhaPrefix = ilha.split('_')[0];
                 const mangaParts = mangaLabel.split('_');
-                const mangaSuffix = mangaParts[mangaParts.length - 1];                labelPrincipalFormatada = `${ilhaPrefix}_${mangaSuffix}`;                const rotaOtimizada = ilhaPrefix.charAt(0).toUpperCase();
-                labelRotaFormatada = `ROTA ${rotaOtimizada}`;            } catch (e) {
-                console.error("Erro ao formatar labels do QR Code:", e);                labelPrincipalFormatada = mangaLabel;
+                const mangaSuffix = mangaParts[mangaParts.length - 1];
+                labelPrincipalFormatada = `${ilhaPrefix}_${mangaSuffix}`;
+                const rotaOtimizada = ilhaPrefix.charAt(0).toUpperCase();
+                labelRotaFormatada = `ROTA ${rotaOtimizada}`;
+            } catch (e) {
+                console.error("Erro ao formatar labels do QR Code:", e);
+                labelPrincipalFormatada = mangaLabel;
                 labelRotaFormatada = ilha ? `Rota ${ilha}` : '';
             }
-        }        try {
+        }
+        try {
             const qr = qrcode(0, 'M');
             qr.addData(String(dataForQr));
             qr.make();
             const svgString = qr.createSvgTag(10, 10);
             const img = new Image();
             img.onload = () => {
-                dom.sepQrCanvas.appendChild(img);                dom.sepQrTitle.innerHTML =
+                dom.sepQrCanvas.appendChild(img);
+                dom.sepQrTitle.innerHTML =
                     `<div class="qr-num">${labelPrincipalFormatada}</div>` +
-                    (labelRotaFormatada ? `<div class="qr-rota">${labelRotaFormatada}</div>` : '');                dom.sepQrArea.style.display = 'block';
+                    (labelRotaFormatada ? `<div class="qr-rota">${labelRotaFormatada}</div>` : '');
+                dom.sepQrArea.style.display = 'block';
                 resolve();
             };
             img.onerror = (err) => {
@@ -1397,7 +1610,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             reject(err);
         }
     });
-}function createRelatorioModal() {
+}
+
+function createRelatorioModal() {
     if (document.getElementById('modal-relatorio-rota')) return;
     const modal = document.createElement('div');
     modal.id = 'modal-relatorio-rota';
@@ -1421,7 +1636,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     dom.relatorioModalClose?.addEventListener('click', () => {
         closeModal(dom.relatorioModal);
     });
-}function openRelatorioModal(rota) {
+}
+
+function openRelatorioModal(rota) {
     if (!dom.relatorioModal || !rota) return;
     const items = state.cacheData.filter(item => item.ROTA === rota);
     dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;
@@ -1462,7 +1679,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     tableHtml += `</tbody></table>`;
     dom.relatorioBody.innerHTML = tableHtml;
     openModal(dom.relatorioModal);
-}function updatePeriodLabel() {
+}
+
+function updatePeriodLabel() {
     if (!dom.periodBtn) return;
     if (!state.period.start || !state.period.end) {
         dom.periodBtn.textContent = 'Selecionar Período';
@@ -1479,7 +1698,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     const start = format(state.period.start);
     const end = format(state.period.end);
     dom.periodBtn.textContent = (start === end) ? `Período: ${start}` : `Período: ${start} - ${end}`;
-}function openPeriodModal() {
+}
+
+function openPeriodModal() {
     const today = getBrasiliaDate(true);
     const pad2 = (n) => String(n).padStart(2, '0');
     const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -1574,7 +1795,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         close();
         fetchAndRenderDashboard();
     };
-}function injectAuditoriaStyles() {
+}
+
+function injectAuditoriaStyles() {
     if (document.getElementById('auditoria-styles')) return;
     const style = document.createElement('style');
     style.id = 'auditoria-styles';
@@ -1606,9 +1829,15 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }
     `;
     document.head.appendChild(style);
-}let initOnce = false;export function init() {
+}
+
+let initOnce = false;
+
+export function init() {
     if (initOnce) return;
-    initOnce = true;    dom.dashboard = document.getElementById('dashboard-stats');    const dashboardBlock = dom.dashboard?.closest('.p-4');
+    initOnce = true;
+    dom.dashboard = document.getElementById('dashboard-stats');
+    const dashboardBlock = dom.dashboard?.closest('.p-4');
     if (dashboardBlock) {
         const parent = dashboardBlock.parentElement;
         if (parent) {
@@ -1621,9 +1850,11 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             parent.insertBefore(dom.routesContainer, dashboardBlock);
             dom.routesContainer.appendChild(dashboardBlock);
         }
-    }    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
+    }
+    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
-    dom.periodBtn = document.getElementById('auditoria-period-btn');    dom.modalSeparação = document.getElementById('modal-separacao');
+    dom.periodBtn = document.getElementById('auditoria-period-btn');
+    dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
     dom.sepUser = document.getElementById('sep-user-name');
     dom.sepScan = document.getElementById('sep-scan-input');
@@ -1636,7 +1867,8 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
-    dom.carStatus = document.getElementById('car-status');    injectAuditoriaStyles();
+    dom.carStatus = document.getElementById('car-status');
+    injectAuditoriaStyles();
     const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
@@ -1646,7 +1878,8 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     createImportarModal();
     injectScannerButtons();
     ensureDockSelect();
-    ensureIlhaSelect();    if (dom.btnSeparação) {
+    ensureIlhaSelect();
+    if (dom.btnSeparação) {
         dom.btnSeparação.classList.remove('px-6', 'py-4', 'text-xl');
         dom.btnSeparação.classList.add('px-4', 'py-3', 'text-lg');
         const span = dom.btnSeparação.querySelector('.text-xl');
@@ -1663,7 +1896,11 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             span.classList.remove('text-xl');
             span.classList.add('text-lg');
         }
-    }    reorderControlsOverDashboard();    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnImportarConsolidado?.addEventListener('click', () => {        if (dom.importStatus) dom.importStatus.textContent = '';
+    }
+    reorderControlsOverDashboard();
+    dom.periodBtn?.addEventListener('click', openPeriodModal);
+    dom.btnImportarConsolidado?.addEventListener('click', () => {
+        if (dom.importStatus) dom.importStatus.textContent = '';
         if (dom.importTextarea) dom.importTextarea.value = '';
         state.isImporting = false;
         if (dom.importSubmitBtn) {
@@ -1671,8 +1908,10 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             dom.importSubmitBtn.textContent = 'Importar Dados';
         }
         openModal(dom.modalImportar);
-    });    dom.importCloseBtn?.addEventListener('click', () => closeModal(dom.modalImportar));
-    dom.importSubmitBtn?.addEventListener('click', handleImportarConsolidado);    dom.btnSeparação?.addEventListener('click', () => {
+    });
+    dom.importCloseBtn?.addEventListener('click', () => closeModal(dom.modalImportar));
+    dom.importSubmitBtn?.addEventListener('click', handleImportarConsolidado);
+    dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) dom.sepUser.focus();
@@ -1740,20 +1979,29 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
                 inp.value = normalizeScanned(inp.value);
             }, 0);
         });
-    });    fetchAndRenderDashboard();
+    });
+    fetchAndRenderDashboard();
     installNetworkBanner();
-    loadOutbox();    eventHandlers.onOnline = () => processOutbox(true);
+    loadOutbox();
+    eventHandlers.onOnline = () => processOutbox(true);
     eventHandlers.onSepSuccess = (ev) => handleOutboxSepSuccess(ev);
-    eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);    window.addEventListener('online', eventHandlers.onOnline);
+    eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);
+    window.addEventListener('online', eventHandlers.onOnline);
     window.addEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
-    window.addEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);    if (outbox.queue.length > 0) showNetBanner('Itens pendentes: tentando enviar…');
-    setTimeout(() => processOutbox(), 2000);    console.log('Módulo de Auditoria (Dashboard) inicializado [V27 - Importador + Otimização].');
-}export function destroy() {
+    window.addEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);
+    if (outbox.queue.length > 0) showNetBanner('Itens pendentes: tentando enviar…');
+    setTimeout(() => processOutbox(), 2000);
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V27 - Importador + Otimização].');
+}
+
+export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
-    if (state.globalScannerInstance) stopGlobalScanner();    const styleTag = document.getElementById('auditoria-styles');
+    if (state.globalScannerInstance) stopGlobalScanner();
+    const styleTag = document.getElementById('auditoria-styles');
     if (styleTag) styleTag.parentElement.removeChild(styleTag);
     const cdpStyle = document.getElementById('cdp-style');
-    if (cdpStyle) cdpStyle.parentElement.removeChild(cdpStyle);    const dashboardBlock = dom.dashboard?.closest('.p-4');
+    if (cdpStyle) cdpStyle.parentElement.removeChild(cdpStyle);
+    const dashboardBlock = dom.dashboard?.closest('.p-4');
     if (dashboardBlock && dom.routesContainer && dom.summaryContainer) {
         const mainContainer = dom.routesContainer.parentElement;
         if (mainContainer) {
@@ -1762,12 +2010,18 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             mainContainer.removeChild(dom.summaryContainer);
             mainContainer.classList.remove('auditoria-main-container');
         }
-    }    const impModal = document.getElementById('modal-importar-consolidado');
-    if (impModal) impModal.parentElement.removeChild(impModal);    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
+    }
+    const impModal = document.getElementById('modal-importar-consolidado');
+    if (impModal) impModal.parentElement.removeChild(impModal);
+    if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
     if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);
-    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);    if (dom.btnImportarConsolidado) dom.btnImportarConsolidado.parentElement.removeChild(dom.btnImportarConsolidado);    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
+    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);
+    if (dom.btnImportarConsolidado) dom.btnImportarConsolidado.parentElement.removeChild(dom.btnImportarConsolidado);
+    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
     if (eventHandlers.onSepSuccess) window.removeEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
-    if (eventHandlers.onCarSuccess) window.removeEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);    eventHandlers = {onOnline: null, onSepSuccess: null, onCarSuccess: null};    state = {
+    if (eventHandlers.onCarSuccess) window.removeEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);
+    eventHandlers = {onOnline: null, onSepSuccess: null, onCarSuccess: null};
+    state = {
         cacheData: [],
         idPacoteMap: new Map(),
         isSeparaçãoProcessing: false,
@@ -1783,7 +2037,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     };
     dom = {};
     initOnce = false;
-}if (typeof document !== 'undefined') {
+}
+
+if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             try {

@@ -1,4 +1,5 @@
 import {supabase} from '../supabaseClient.js';
+import { logAction } from '../logAction.js';
 import {getMatrizesPermitidas} from '../session.js';let state = {
     colaboradoresData: [],
     dadosFiltrados: [],

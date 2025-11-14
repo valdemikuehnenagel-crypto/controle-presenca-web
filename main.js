@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginMsg.classList.add('info');
         });
     }
-    const funcoes = ['ANALISTA', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];
+    const funcoes = ['ANALISTA', 'RH', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];
 
     function loadFuncoes() {
         if (!registerFuncao) return;
