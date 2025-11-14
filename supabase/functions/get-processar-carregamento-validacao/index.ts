@@ -75,17 +75,61 @@ serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        let orFilter: string;
-        if (normalizedPacoteId) {
-            orFilter = `or(NUMERACAO.eq.${scannedIdStr},"ID PACOTE".eq.${normalizedPacoteId})`;
-        } else {
-            orFilter = `NUMERACAO.eq.${scannedIdStr}`;
+        // ######################################################
+        // ### INÍCIO DA CORREÇÃO DE LÓGICA DE BUSCA ###
+        // ######################################################
+
+        // 1. Tenta "reconstruir" o ID completo se for uma etiqueta curta (ex: U5_5198)
+        let effectiveScannedId = scannedIdStr;
+        if (!normalizedPacoteId && scannedIdStr.includes('_') && rotaSelecionadaStr.includes('_')) {
+            try {
+                // ex: "U5_5198" -> "U5"
+                const scanPrefix = scannedIdStr.split('_')[0];
+                // ex: "U5_5198" -> "5198"
+                const scanSuffix = scannedIdStr.split('_')[scannedIdStr.split('_').length - 1];
+
+                // ex: "U5_PM1" -> "U5"
+                const rotaPrefix = rotaSelecionadaStr.split('_')[0];
+                // ex: "U5_PM1" -> "PM1"
+                const rotaMiddle = rotaSelecionadaStr.split('_').slice(1).join('_');
+
+                // Se "U5" === "U5" e "PM1" existe
+                if (scanPrefix === rotaPrefix && rotaMiddle) {
+                    effectiveScannedId = `${rotaPrefix}_${rotaMiddle}_${scanSuffix}`; // "U5_PM1_5198"
+                }
+            } catch (e) {
+                console.warn("Falha ao reconstruir NUMERACAO", (e as Error).message);
+            }
         }
+
+        // 2. Constrói um filtro de busca robusto
+        const orFilterParts = [];
+
+        // Adiciona a numeração reconstruída (ex: "U5_PM1_5198")
+        orFilterParts.push(`NUMERACAO.eq.${effectiveScannedId}`);
+
+        // Adiciona a numeração original escaneada (ex: "U5_5198"), caso a reconstrução falhe
+        if (effectiveScannedId !== scannedIdStr) {
+            orFilterParts.push(`NUMERACAO.eq.${scannedIdStr}`);
+        }
+
+        // Adiciona o ID de 11 dígitos (ex: "458...") se ele existir
+        if (normalizedPacoteId) {
+            orFilterParts.push(`"ID PACOTE".eq.${normalizedPacoteId}`);
+        }
+
+        // Filtro final: ex: or(NUMERACAO.eq.U5_PM1_5198,NUMERACAO.eq.U5_5198)
+        // ou ex: or(NUMERACAO.eq.458...,"ID PACOTE".eq.458...)
+        const orFilter = `or(${orFilterParts.join(',')})`;
+
+        // ######################################################
+        // ### FIM DA CORREÇÃO DE LÓGICA DE BUSCA ###
+        // ######################################################
 
         const {data: found, error: selErr} = await supabase
             .from("Carregamento")
             .select("*")
-            .or(orFilter)
+            .or(orFilter) // Usa o novo filtro robusto
             .limit(1);
 
         if (selErr) {
@@ -95,8 +139,11 @@ serve(async (req) => {
 
         if (!found || found.length === 0) {
             // NÃO ACHOU NA TABELA 'Carregamento'.
-            // VAMOS TENTAR ACHAR NO 'Consolidado SBA7' (Lógica do Pacote Solto)
 
+            // Se não achou, SÓ PODE ser um "pacote solto".
+            // Um "pacote solto" DEVE ser um ID de 11 dígitos.
+            // Se 'normalizedPacoteId' for nulo, significa que o scan (ex: "U5_5198")
+            // falhou na busca E também não é um pacote solto válido.
             if (!normalizedPacoteId) {
                 return new Response(
                     JSON.stringify({error: `Manga/Pacote ${scannedIdStr} não encontrado.`}),
@@ -104,10 +151,11 @@ serve(async (req) => {
                 );
             }
 
-            // *** MUDANÇA 1: Pedimos a Rota completa, não só a otimizada ***
+            // OK, é um pacote solto (ID de 11 dígitos). Vamos validar no 'Consolidado SBA7'
+
             const {data: consFound, error: consErr} = await supabase
                 .from("Consolidado SBA7")
-                .select(`"Rota", "Rota Otimizada"`) // <-- MUDANÇA AQUI
+                .select(`"Rota", "Rota Otimizada"`)
                 .eq("ID", normalizedPacoteId)
                 .limit(1);
 
@@ -123,15 +171,13 @@ serve(async (req) => {
                 );
             }
 
-            // Achou no Consolidado! Agora valida a rota.
             const consolidadoRecord = consFound[0];
             const consolidadoRotaOtimizada = String(consolidadoRecord["Rota Otimizada"] || '').trim().toUpperCase();
-            const consolidadoRotaCompleta = String(consolidadoRecord["Rota"] || '').trim().toUpperCase(); // <-- MUDANÇA AQUI
+            const consolidadoRotaCompleta = String(consolidadoRecord["Rota"] || '').trim().toUpperCase();
 
             const rotaSelecionadaOtimizada = rotaSelecionadaStr.charAt(0).toUpperCase();
 
             if (consolidadoRotaOtimizada !== rotaSelecionadaOtimizada) {
-                // Rota errada
                 return new Response(
                     JSON.stringify({
                         error: `Erro: Pacote ${normalizedPacoteId} pertence à Rota ${consolidadoRotaOtimizada}, não à Rota ${rotaSelecionadaOtimizada}.`
@@ -140,35 +186,32 @@ serve(async (req) => {
                 );
             }
 
-            // *** MUDANÇA 2: Em vez de retornar, VAMOS INSERIR ***
+            // Rota válida! VAMOS INSERIR
 
             const insertPayload = {
                 "ID PACOTE": normalizedPacoteId,
-                "DATA": dataSaidaBrasilia, // Data de "separação" (instantânea)
-                "DATA SAIDA": dataSaidaBrasilia, // Data de carregamento
-                "ROTA": consolidadoRotaCompleta, // A Rota completa (ex: H5_PM1)
-                "NUMERACAO": normalizedPacoteId, // Usamos o ID do pacote como "Numeração da Manga"
+                "DATA": dataSaidaBrasilia,
+                "DATA SAIDA": dataSaidaBrasilia,
+                "ROTA": consolidadoRotaCompleta,
+                "NUMERACAO": normalizedPacoteId, // Usamos o ID do pacote como "Numeração"
                 "QTD MANGA": 1,
-                "BIPADO ENTRADA": usuarioSaidaStr, // O mesmo usuário
+                "BIPADO ENTRADA": usuarioSaidaStr,
                 "BIPADO SAIDA": usuarioSaidaStr,
                 "VALIDACAO": "BIPADO",
                 "DOCA": docaStr,
             };
 
-            const { data: insertedRows, error: insertErr } = await supabase
+            const {data: insertedRows, error: insertErr} = await supabase
                 .from("Carregamento")
                 .insert(insertPayload)
-                .select(); // <-- Importante: retorna o que foi inserido
+                .select();
 
             if (insertErr) {
                 console.error("Erro ao inserir pacote solto:", insertErr);
 
-                // Lógica de Idempotência: Se o erro for "chave duplicada" (código 23505)
-                // significa que o pacote solto JÁ FOI INSERIDO. Apenas o validamos de novo.
+                // Idempotência: (chave duplicada)
                 if (insertErr.code === "23505") {
-
-                    // Vamos só dar um UPDATE na Doca e Data Saida (como o fluxo normal faria)
-                    const { data: updatedRows, error: updErr } = await supabase
+                    const {data: updatedRows, error: updErr} = await supabase
                         .from("Carregamento")
                         .update({
                             "BIPADO SAIDA": usuarioSaidaStr,
@@ -176,28 +219,26 @@ serve(async (req) => {
                             "VALIDACAO": "BIPADO",
                             "DOCA": docaStr,
                         })
-                        .eq("NUMERACAO", normalizedPacoteId) // A chave é a numeração (que é o ID do pacote)
+                        .eq("NUMERACAO", normalizedPacoteId)
                         .select();
 
                     if (updErr || !updatedRows || updatedRows.length === 0) {
-                         return new Response(
-                            JSON.stringify({ error: `Pacote ${normalizedPacoteId} já existe, mas falhou ao re-validar.` }),
-                            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 },
-                         );
+                        return new Response(
+                            JSON.stringify({error: `Pacote ${normalizedPacoteId} já existe, mas falhou ao re-validar.`}),
+                            {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 500},
+                        );
                     }
 
-                    // Retorna o registro atualizado como se fosse idempotente
                     return new Response(
                         JSON.stringify({
                             message: `Pacote ${normalizedPacoteId} já estava validado (idempotente).`,
                             updatedData: updatedRows[0],
-                            idempotent: true, // Avisa o frontend
+                            idempotent: true,
                         }),
-                        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+                        {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 200},
                     );
-                } // Fim do 'if' de erro 23505
+                }
 
-                // Outro tipo de erro de inserção
                 throw new Error(`Erro ao inserir pacote no carregamento: ${insertErr.message}`);
             }
 
@@ -209,7 +250,7 @@ serve(async (req) => {
             return new Response(
                 JSON.stringify({
                     message: `OK! Pacote ${normalizedPacoteId} validado e registrado.`,
-                    updatedData: insertedRows[0], // <-- Envia o dado novo para o frontend
+                    updatedData: insertedRows[0],
                 }),
                 {
                     headers: {...corsHeaders, "Content-Type": "application/json"},
@@ -218,7 +259,9 @@ serve(async (req) => {
             );
         }
 
-        // --- LÓGICA ANTIGA (se ACHOU na tabela 'Carregamento') ---
+        // --- ACHOU NA TABELA 'Carregamento' ---
+        // (Seja pelo QR, Numeração completa ou Numeração curta reconstruída)
+
         const record = found[0];
         const recordRota = String(record.ROTA || '').trim().toUpperCase();
         const recordNumeracao = String(record.NUMERACAO || '').trim();
