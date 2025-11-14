@@ -1,5 +1,6 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let state = {
+import {getMatrizesPermitidas} from '../session.js';
+import {logAction} from '../../logAction.js';let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
@@ -350,28 +351,37 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         Contrato: new Set(), Cargo: new Set(), Escala: new Set(), DSR: new Set(),
         Gestor: new Set(), MATRIZ: new Set(), SVC: new Set(), REGIAO: new Set(),
         'FOLGA ESPECIAL': new Set()
-    };    state.colaboradoresData.forEach((c) => {
+    };
+    state.colaboradoresData.forEach((c) => {
         Object.keys(filtros).forEach((key) => {
             const v = c[key];
             if (v !== undefined && v !== null && String(v) !== '') {
                 filtros[key].add(String(v));
             }
         });
-    });    filtrosSelect.forEach((selectEl) => {
+    });
+    filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
-        if (!key || !(key in filtros)) return;        const valorSalvo = selectEl.value;        const options = Array.from(filtros[key]).sort((a, b) =>
+        if (!key || !(key in filtros)) return;
+        const valorSalvo = selectEl.value;
+        const options = Array.from(filtros[key]).sort((a, b) =>
             a.localeCompare(b, 'pt-BR', {sensitivity: 'base'})
-        );        while (selectEl.options.length > 1) selectEl.remove(1);        options.forEach((option) => {
+        );
+        while (selectEl.options.length > 1) selectEl.remove(1);
+        options.forEach((option) => {
             const optionEl = document.createElement('option');
             optionEl.value = option;
             optionEl.textContent = option;
             selectEl.appendChild(optionEl);
-        });        if (key === 'Contrato') {
+        });
+        if (key === 'Contrato') {
             const optionEl = document.createElement('option');
             optionEl.value = 'Consultorias';
             optionEl.textContent = 'Consultorias';
             selectEl.appendChild(optionEl);
-        }        selectEl.value = valorSalvo;    });
+        }
+        selectEl.value = valorSalvo;
+    });
 }function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
@@ -803,7 +813,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return;
     }
     alert('Colaborador adicionado com sucesso!');
-    if (addForm) {
+    logAction(`Adicionou o colaborador: ${newColaborador.Nome} (Contrato: ${newColaborador.Contrato}, Cargo: ${newColaborador.Cargo}, SVC: ${newColaborador.SVC})`);    if (addForm) {
         addForm.reset();
         const dsrBtn = document.getElementById('addDSRBtn');
         if (dsrBtn) {
@@ -1085,6 +1095,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             .eq('Nome', nome);
         if (error) throw error;
         alert(`Fluxo de efetivação para "${nome}" foi salvo com status: ${payload.Efetivacao}!`);
+        logAction(`Alterou fluxo de efetivação para ${nome}: Status ${payload.Efetivacao}, Fluxo Nº ${payload.Fluxo || 'N/A'}`);
         closeFluxoEfetivacaoModal();
         hideEditModal();
         invalidateColaboradoresCache();
@@ -1215,8 +1226,18 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             'Fluxo': editOriginal.Fluxo,
             'Data Fluxo': editOriginal['Data Fluxo'],
             'Observacao Fluxo': editOriginal['Observacao Fluxo']
-        };
-        const dupMsg = await validateEditDuplicates(payload);
+        };        const changes = [];
+        if (payload.Nome !== editOriginal.Nome) changes.push(`Nome (de '${editOriginal.Nome}' para '${payload.Nome}')`);
+        if (payload.DSR !== editOriginal.DSR) changes.push(`DSR (de '${editOriginal.DSR || 'N/A'}' para '${payload.DSR || 'N/A'}')`);
+        if (payload.Cargo !== editOriginal.Cargo) changes.push(`Cargo (de '${editOriginal.Cargo}' para '${payload.Cargo}')`);
+        if (payload.Contrato !== editOriginal.Contrato) changes.push(`Contrato (de '${editOriginal.Contrato}' para '${payload.Contrato}')`);
+        if (payload.Gestor !== editOriginal.Gestor) changes.push(`Gestor (de '${editOriginal.Gestor || 'N/A'}' para '${payload.Gestor || 'N/A'}')`);
+        if (payload.Escala !== editOriginal.Escala) changes.push(`Escala`);
+        if (payload.LDAP !== editOriginal.LDAP) changes.push(`LDAP`);
+        if (payload['ID GROOT'] !== editOriginal['ID GROOT']) changes.push(`ID GROOT`);
+        if (payload.SVC !== editOriginal.SVC) changes.push(`SVC`);
+        if (payload['Data de admissão'] !== editOriginal['Data de admissão']) changes.push(`Data de Admissão`);
+        if (payload['Admissao KN'] !== editOriginal['Admissao KN']) changes.push(`Admissão KN`);        const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             alert(dupMsg);
             isSubmittingEdit = false;
@@ -1255,8 +1276,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             const recarregado = await fetchColabByNome(payload.Nome);
             if (recarregado) await fillEditForm(recarregado);
         } catch {
-        }
-        alert('Colaborador atualizado com sucesso em todas as tabelas!');
+        }        if (changes.length > 0) {
+            logAction(`Atualizou o colaborador ${editOriginal.Nome}: ${changes.join(', ')}.`);
+        }        alert('Colaborador atualizado com sucesso em todas as tabelas!');
         hideEditModal();
         document.dispatchEvent(new CustomEvent('colaborador-edited', {
             detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
@@ -1318,6 +1340,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             return;
         }
         alert('Colaborador afastado com sucesso!');
+        logAction(`Afastou o colaborador: ${colab.Nome} (Início: ${formatDateLocal(dataInicio)})`);
     } else if (currentStatus === 'AFAS') {
         const dataRetorno = await promptForDate("Selecione a data de RETORNO do colaborador:", hojeISO);
         if (!dataRetorno) return;
@@ -1358,6 +1381,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             return;
         }
         alert('Retorno do colaborador registrado com sucesso!');
+        logAction(`Registrou retorno de afastamento para: ${colab.Nome} (Retorno: ${formatDateLocal(dataRetorno)})`);
     } else {
         alert(`Ação não permitida para o status atual "${currentStatus}".`);
         return;
@@ -1454,6 +1478,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 const ok = await ensureColaboradorInativado(nome);
                 if (!ok) console.warn('Aviso: RPC executada, mas status do colaborador não verificado como "NÃO".');
                 alert('Colaborador desligado com sucesso (RPC)!');
+                logAction(`Desligou o colaborador: ${nome} (Motivo: ${motivo})`);
                 closeDesligarModal();
                 hideEditModal();
                 invalidateColaboradoresCache();
@@ -1489,6 +1514,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             await supabase.from('Colaboradores').update({Ativo: 'NÃO'}).eq('Nome', nome);
         }
         alert('Colaborador desligado (inativado) com sucesso!');
+        logAction(`Desligou o colaborador: ${nome} (Motivo: ${motivo})`);
         closeDesligarModal();
         hideEditModal();
         invalidateColaboradoresCache();
@@ -1643,6 +1669,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             alert(`Erro ao agendar férias: ${error?.message || error}`);
         } else {
             alert('Férias agendadas com sucesso!');
+            logAction(`Agendou férias para ${feriasColaborador.Nome} de ${formatDateLocal(dataInicio)} até ${formatDateLocal(dataFinal)}`);
             closeFeriasModal();
             await fetchColaboradores();
         }
@@ -1971,6 +1998,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             const {error} = await supabase.from('Colaboradores').delete().eq('Nome', editOriginal.Nome);
             if (error) throw error;
             alert('Colaborador excluído com sucesso!');
+            logAction(`EXCLUIU (PERMANENTEMENTE) o colaborador: ${editOriginal.Nome}`);
             document.dispatchEvent(new CustomEvent('colaborador-deleted', {detail: {nome: editOriginal.Nome}}));
             hideEditModal();
             invalidateColaboradoresCache();
