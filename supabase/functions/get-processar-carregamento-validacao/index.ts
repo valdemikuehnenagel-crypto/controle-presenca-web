@@ -79,48 +79,33 @@ serve(async (req) => {
         // ### INÍCIO DA CORREÇÃO DE LÓGICA DE BUSCA ###
         // ######################################################
 
-        // 1. Tenta "reconstruir" o ID completo se for uma etiqueta curta (ex: U5_5198)
-        let effectiveScannedId = scannedIdStr;
-        if (!normalizedPacoteId && scannedIdStr.includes('_') && rotaSelecionadaStr.includes('_')) {
-            try {
-                // ex: "U5_5198" -> "U5"
-                const scanPrefix = scannedIdStr.split('_')[0];
-                // ex: "U5_5198" -> "5198"
-                const scanSuffix = scannedIdStr.split('_')[scannedIdStr.split('_').length - 1];
-
-                // ex: "U5_PM1" -> "U5"
-                const rotaPrefix = rotaSelecionadaStr.split('_')[0];
-                // ex: "U5_PM1" -> "PM1"
-                const rotaMiddle = rotaSelecionadaStr.split('_').slice(1).join('_');
-
-                // Se "U5" === "U5" e "PM1" existe
-                if (scanPrefix === rotaPrefix && rotaMiddle) {
-                    effectiveScannedId = `${rotaPrefix}_${rotaMiddle}_${scanSuffix}`; // "U5_PM1_5198"
-                }
-            } catch (e) {
-                console.warn("Falha ao reconstruir NUMERACAO", (e as Error).message);
-            }
-        }
-
-        // 2. Constrói um filtro de busca robusto
         const orFilterParts = [];
 
-        // Adiciona a numeração reconstruída (ex: "U5_PM1_5198")
-        orFilterParts.push(`NUMERACAO.eq.${effectiveScannedId}`);
+        // 1. Adiciona o ID escaneado (para NUMERACAO completa ou "pacote solto")
+        orFilterParts.push(`NUMERACAO.eq.${scannedIdStr}`);
 
-        // Adiciona a numeração original escaneada (ex: "U5_5198"), caso a reconstrução falhe
-        if (effectiveScannedId !== scannedIdStr) {
-            orFilterParts.push(`NUMERACAO.eq.${scannedIdStr}`);
-        }
-
-        // Adiciona o ID de 11 dígitos (ex: "458...") se ele existir
+        // 2. Adiciona o ID de 11 dígitos (para QR Code ou "pacote solto")
         if (normalizedPacoteId) {
             orFilterParts.push(`"ID PACOTE".eq.${normalizedPacoteId}`);
         }
 
-        // Filtro final: ex: or(NUMERACAO.eq.U5_PM1_5198,NUMERACAO.eq.U5_5198)
-        // ou ex: or(NUMERACAO.eq.458...,"ID PACOTE".eq.458...)
-        const orFilter = `or(${orFilterParts.join(',')})`;
+        // 3. (A CORREÇÃO) Adiciona a busca por 'LIKE' se for uma etiqueta curta (ex: "D26_3242")
+        // Isso é para o caso de a NUMERACAO no DB ser "D26_PM1_3242"
+        if (!normalizedPacoteId && scannedIdStr.includes('_')) {
+            const parts = scannedIdStr.split('_');
+            if (parts.length >= 2) {
+                const scanPrefix = parts[0]; // "D26"
+                const scanSuffix = parts[parts.length - 1]; // "3242"
+
+                // Procura por "D26%3242"
+                const likePattern = `${scanPrefix}%${scanSuffix}`;
+                orFilterParts.push(`NUMERACAO.like.${likePattern}`);
+            }
+        }
+
+        // Remove duplicados (caso scannedIdStr seja igual a normalizedPacoteId, etc.)
+        const uniqueOrFilterParts = [...new Set(orFilterParts)];
+        const orFilter = `or(${uniqueOrFilterParts.join(',')})`;
 
         // ######################################################
         // ### FIM DA CORREÇÃO DE LÓGICA DE BUSCA ###
@@ -141,9 +126,7 @@ serve(async (req) => {
             // NÃO ACHOU NA TABELA 'Carregamento'.
 
             // Se não achou, SÓ PODE ser um "pacote solto".
-            // Um "pacote solto" DEVE ser um ID de 11 dígitos.
-            // Se 'normalizedPacoteId' for nulo, significa que o scan (ex: "U5_5198")
-            // falhou na busca E também não é um pacote solto válido.
+            // E um "pacote solto" DEVE ser um ID de 11 dígitos.
             if (!normalizedPacoteId) {
                 return new Response(
                     JSON.stringify({error: `Manga/Pacote ${scannedIdStr} não encontrado.`}),
@@ -175,6 +158,7 @@ serve(async (req) => {
             const consolidadoRotaOtimizada = String(consolidadoRecord["Rota Otimizada"] || '').trim().toUpperCase();
             const consolidadoRotaCompleta = String(consolidadoRecord["Rota"] || '').trim().toUpperCase();
 
+            // A Rota selecionada no modal (ex: "D") é a otimizada
             const rotaSelecionadaOtimizada = rotaSelecionadaStr.charAt(0).toUpperCase();
 
             if (consolidadoRotaOtimizada !== rotaSelecionadaOtimizada) {
@@ -192,7 +176,7 @@ serve(async (req) => {
                 "ID PACOTE": normalizedPacoteId,
                 "DATA": dataSaidaBrasilia,
                 "DATA SAIDA": dataSaidaBrasilia,
-                "ROTA": consolidadoRotaCompleta,
+                "ROTA": consolidadoRotaCompleta, // Salva a Rota *Completa* do consolidado
                 "NUMERACAO": normalizedPacoteId, // Usamos o ID do pacote como "Numeração"
                 "QTD MANGA": 1,
                 "BIPADO ENTRADA": usuarioSaidaStr,
@@ -260,16 +244,20 @@ serve(async (req) => {
         }
 
         // --- ACHOU NA TABELA 'Carregamento' ---
-        // (Seja pelo QR, Numeração completa ou Numeração curta reconstruída)
+        // (Seja pelo QR, Numeração completa ou Numeração curta com LIKE)
 
         const record = found[0];
         const recordRota = String(record.ROTA || '').trim().toUpperCase();
         const recordNumeracao = String(record.NUMERACAO || '').trim();
 
+        // VALIDAÇÃO DA ROTA:
+        // O select do modal (rotaSelecionadaStr) é a Rota Otimizada (ex: "D")
+        // O banco (recordRota) deve conter a Rota Otimizada (ex: "D")
+        // (Seu dado de exemplo {"ROTA":"D"} está correto)
         if (recordRota !== rotaSelecionadaStr) {
             return new Response(
                 JSON.stringify({
-                    error: `Erro: Manga/Pacote pertence à Rota ${recordRota}, não à Rota ${rotaSelecionadaStr}.`
+                    error: `Erro: Manga pertence à Rota ${recordRota}, não à Rota ${rotaSelecionadaStr}.`
                 }),
                 {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 400},
             );
