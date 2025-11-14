@@ -1210,33 +1210,22 @@ async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, i
             };
         }
 
-        // ######################################################
-        // ### INÍCIO DA LÓGICA DE ALTERAÇÃO (FRONTEND) ###
-        // ######################################################
+        // ### MUDANÇA: REMOVEMOS O 'if (json?.consolidadoSuccess)' ###
+        // A lógica agora é unificada! O backend sempre manda 'updatedData'.
 
-        // Verifica se foi um sucesso de "Consolidado" (pacote solto, sem manga)
-        if (json?.consolidadoSuccess) {
-            // É um sucesso, mas não temos 'updatedData' para por no cache, o que está OK.
-            return {success: true, message: json.message || "Pacote validado com sucesso."};
-        }
-
-        // ####################################################
-        // ### FIM DA LÓGICA DE ALTERAÇÃO (FRONTEND) ###
-        // ####################################################
-
-        // Lógica antiga (sucesso de "Manga")
         const {updatedData, idempotent, message} = json || {};
-        const updatedNumeracao = updatedData?.NUMERACAO;
 
-        // (Melhoria) Se 'updatedData' não veio, joga o erro que o backend mandou.
-        if (!updatedNumeracao) {
-            throw new Error(json?.error || "Backend não retornou dados da manga atualizada.");
+        // Se 'updatedData' não veio, joga o erro que o backend mandou.
+        // (Isso também pega o 'json?.error' do tryPostOrQueue)
+        if (!updatedData) {
+            throw new Error(json?.error || "Backend não retornou dados da manga/pacote.");
         }
 
-        let successMessage = `OK! ${updatedNumeracao} validada.`;
-        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já estava validada.`;
+        const updatedNumeracao = updatedData?.NUMERACAO;
+        let successMessage = message || `OK! ${updatedNumeracao} validado.`;
+        if (idempotent) successMessage = message || `Manga/Pacote ${updatedNumeracao} já estava validada.`;
 
-        // Atualiza o cache local
+        // Atualiza o cache local (funciona para mangas e pacotes soltos)
         const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
         if (index > -1) {
             state.cacheData[index] = {...state.cacheData[index], ...updatedData};

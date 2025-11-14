@@ -3,7 +3,6 @@
 import {serve} from "https://deno.land/std@0.177.0/http/server.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 
-// <-- Helper que você já tinha no frontend -->
 const extractElevenDigits = (str: unknown): string | null => {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
@@ -39,9 +38,8 @@ serve(async (req) => {
             throw new Error("Usuário de saída (usuario_saida) não fornecido.");
         }
 
-        // --- Normalizações ---
         const scannedIdStr = String(id_pacote).trim().toUpperCase();
-        const normalizedPacoteId = extractElevenDigits(scannedIdStr); // Tenta extrair 11 dígitos
+        const normalizedPacoteId = extractElevenDigits(scannedIdStr);
         const rotaSelecionadaStr = String(rota_selecionada).trim().toUpperCase();
         const usuarioSaidaStr = String(usuario_saida).trim();
 
@@ -77,15 +75,10 @@ serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // --- MUDANÇA CENTRAL: Lógica de Busca ---
-        // 1) Encontra o registro. O ID bipado pode ser a NUMERACAO ou o ID PACOTE.
-
         let orFilter: string;
         if (normalizedPacoteId) {
-            // Se for um ID numérico (ex: 458...), busca na "ID PACOTE" E "NUMERACAO"
             orFilter = `or(NUMERACAO.eq.${scannedIdStr},"ID PACOTE".eq.${normalizedPacoteId})`;
         } else {
-            // Se não for (ex: "L_4368"), só pode ser a "NUMERACAO"
             orFilter = `NUMERACAO.eq.${scannedIdStr}`;
         }
 
@@ -100,15 +93,10 @@ serve(async (req) => {
             throw new Error("Erro ao consultar banco de dados.");
         }
 
-        // ######################################################
-        // ### INÍCIO DA LÓGICA DE ALTERAÇÃO (WATERFALL) ###
-        // ######################################################
-
         if (!found || found.length === 0) {
             // NÃO ACHOU NA TABELA 'Carregamento'.
             // VAMOS TENTAR ACHAR NO 'Consolidado SBA7' (Lógica do Pacote Solto)
 
-            // Se o ID bipado não for um pacote de 11 dígitos, não há o que buscar no consolidado.
             if (!normalizedPacoteId) {
                 return new Response(
                     JSON.stringify({error: `Manga/Pacote ${scannedIdStr} não encontrado.`}),
@@ -116,10 +104,10 @@ serve(async (req) => {
                 );
             }
 
-            // Busca na tabela Consolidado SBA7
+            // *** MUDANÇA 1: Pedimos a Rota completa, não só a otimizada ***
             const {data: consFound, error: consErr} = await supabase
                 .from("Consolidado SBA7")
-                .select(`"Rota Otimizada"`) // Só precisamos da rota otimizada
+                .select(`"Rota", "Rota Otimizada"`) // <-- MUDANÇA AQUI
                 .eq("ID", normalizedPacoteId)
                 .limit(1);
 
@@ -129,7 +117,6 @@ serve(async (req) => {
             }
 
             if (!consFound || consFound.length === 0) {
-                // Não achou em NENHUMA das tabelas
                 return new Response(
                     JSON.stringify({error: `Pacote ${normalizedPacoteId} não encontrado em nenhuma base.`}),
                     {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 404},
@@ -139,8 +126,8 @@ serve(async (req) => {
             // Achou no Consolidado! Agora valida a rota.
             const consolidadoRecord = consFound[0];
             const consolidadoRotaOtimizada = String(consolidadoRecord["Rota Otimizada"] || '').trim().toUpperCase();
+            const consolidadoRotaCompleta = String(consolidadoRecord["Rota"] || '').trim().toUpperCase(); // <-- MUDANÇA AQUI
 
-            // A rota selecionada (ex: "H5_PM1") deve ser otimizada (primeira letra)
             const rotaSelecionadaOtimizada = rotaSelecionadaStr.charAt(0).toUpperCase();
 
             if (consolidadoRotaOtimizada !== rotaSelecionadaOtimizada) {
@@ -153,12 +140,76 @@ serve(async (req) => {
                 );
             }
 
-            // SUCESSO! Rota bateu com o consolidado.
-            // Retornamos um tipo de sucesso diferente, que o frontend vai precisar entender.
+            // *** MUDANÇA 2: Em vez de retornar, VAMOS INSERIR ***
+
+            const insertPayload = {
+                "ID PACOTE": normalizedPacoteId,
+                "DATA": dataSaidaBrasilia, // Data de "separação" (instantânea)
+                "DATA SAIDA": dataSaidaBrasilia, // Data de carregamento
+                "ROTA": consolidadoRotaCompleta, // A Rota completa (ex: H5_PM1)
+                "NUMERACAO": normalizedPacoteId, // Usamos o ID do pacote como "Numeração da Manga"
+                "QTD MANGA": 1,
+                "BIPADO ENTRADA": usuarioSaidaStr, // O mesmo usuário
+                "BIPADO SAIDA": usuarioSaidaStr,
+                "VALIDACAO": "BIPADO",
+                "DOCA": docaStr,
+            };
+
+            const { data: insertedRows, error: insertErr } = await supabase
+                .from("Carregamento")
+                .insert(insertPayload)
+                .select(); // <-- Importante: retorna o que foi inserido
+
+            if (insertErr) {
+                console.error("Erro ao inserir pacote solto:", insertErr);
+
+                // Lógica de Idempotência: Se o erro for "chave duplicada" (código 23505)
+                // significa que o pacote solto JÁ FOI INSERIDO. Apenas o validamos de novo.
+                if (insertErr.code === "23505") {
+
+                    // Vamos só dar um UPDATE na Doca e Data Saida (como o fluxo normal faria)
+                    const { data: updatedRows, error: updErr } = await supabase
+                        .from("Carregamento")
+                        .update({
+                            "BIPADO SAIDA": usuarioSaidaStr,
+                            "DATA SAIDA": dataSaidaBrasilia,
+                            "VALIDACAO": "BIPADO",
+                            "DOCA": docaStr,
+                        })
+                        .eq("NUMERACAO", normalizedPacoteId) // A chave é a numeração (que é o ID do pacote)
+                        .select();
+
+                    if (updErr || !updatedRows || updatedRows.length === 0) {
+                         return new Response(
+                            JSON.stringify({ error: `Pacote ${normalizedPacoteId} já existe, mas falhou ao re-validar.` }),
+                            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 },
+                         );
+                    }
+
+                    // Retorna o registro atualizado como se fosse idempotente
+                    return new Response(
+                        JSON.stringify({
+                            message: `Pacote ${normalizedPacoteId} já estava validado (idempotente).`,
+                            updatedData: updatedRows[0],
+                            idempotent: true, // Avisa o frontend
+                        }),
+                        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+                    );
+                } // Fim do 'if' de erro 23505
+
+                // Outro tipo de erro de inserção
+                throw new Error(`Erro ao inserir pacote no carregamento: ${insertErr.message}`);
+            }
+
+            if (!insertedRows || insertedRows.length === 0) {
+                throw new Error("Falha ao inserir pacote solto: nenhum dado retornado.");
+            }
+
+            // Retorna o SUCESSO da inserção
             return new Response(
                 JSON.stringify({
-                    consolidadoSuccess: true, // Flag para o frontend
-                    message: `OK! Pacote ${normalizedPacoteId} validado (Rota ${consolidadoRotaOtimizada}).`,
+                    message: `OK! Pacote ${normalizedPacoteId} validado e registrado.`,
+                    updatedData: insertedRows[0], // <-- Envia o dado novo para o frontend
                 }),
                 {
                     headers: {...corsHeaders, "Content-Type": "application/json"},
@@ -167,17 +218,11 @@ serve(async (req) => {
             );
         }
 
-        // ####################################################
-        // ### FIM DA LÓGICA DE ALTERAÇÃO (WATERFALL) ###
-        // ####################################################
-
         // --- LÓGICA ANTIGA (se ACHOU na tabela 'Carregamento') ---
-
         const record = found[0];
         const recordRota = String(record.ROTA || '').trim().toUpperCase();
         const recordNumeracao = String(record.NUMERACAO || '').trim();
 
-        // 2) Valida a Rota
         if (recordRota !== rotaSelecionadaStr) {
             return new Response(
                 JSON.stringify({
@@ -187,10 +232,8 @@ serve(async (req) => {
             );
         }
 
-        // 3) Verifica se já foi bipado (Idempotência)
         if (record.VALIDACAO === "BIPADO") {
             let updatedRecord = record;
-
             if (docaStr && record.DOCA !== docaStr) {
                 const {data: updIdem, error: updIdemErr} = await supabase
                     .from("Carregamento")
@@ -199,10 +242,7 @@ serve(async (req) => {
                     .select()
                     .limit(1);
 
-                if (updIdemErr) {
-                    console.error("Erro ao atualizar DOCA (idempotente):", updIdemErr);
-                    // Não é um erro fatal, apenas um aviso
-                }
+                if (updIdemErr) console.error("Erro ao atualizar DOCA (idempotente):", updIdemErr);
                 if (updIdem && updIdem.length > 0) updatedRecord = updIdem[0];
             }
 
@@ -216,7 +256,6 @@ serve(async (req) => {
             );
         }
 
-        // 4) Faz o UPDATE na manga correta
         const updatePayload: Record<string, unknown> = {
             "BIPADO SAIDA": usuarioSaidaStr,
             "DATA SAIDA": dataSaidaBrasilia,
@@ -240,7 +279,6 @@ serve(async (req) => {
             throw new Error(`Manga ${recordNumeracao} não pôde ser atualizada (nenhuma linha afetada).`);
         }
 
-        // 5) Retorna a linha atualizada
         return new Response(
             JSON.stringify({
                 message: "Manga validada com sucesso!",
