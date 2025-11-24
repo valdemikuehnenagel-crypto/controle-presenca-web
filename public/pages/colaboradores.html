@@ -41,8 +41,17 @@
                 <button id="limpar-filtros-btn">Limpar</button>
                 <button id="gerar-qr-btn">Gerar QR</button>
                 <button id="export-colaboradores-btn">Exportar</button>
-                <button id="add-colaborador-btn" class="btn-add">Adicionar</button>
-            </div>
+
+                <div class="dropdown-wrapper">
+                    <button id="add-colaborador-btn" class="btn-add dropdown-toggle">
+                        Adicionar Colaborador ▼
+                    </button>
+                    <div id="dropdownAdd" class="dropdown-menu hidden">
+                        <button type="button" id="btnAdicionarManual" class="dropdown-item">📝 Adicionar Manualmente</button>
+                        <button type="button" id="btnImportarRH" class="dropdown-item">📥 Importar do RH</button>
+                    </div>
+                </div>
+                </div>
         </div>
     </div>
 

@@ -1,4 +1,6 @@
 import {supabase} from '../supabaseClient.js';
+import {getMatrizesPermitidas} from '../session.js';
+import {logAction} from '../../logAction.js';
 
 const _cache = new Map();
 const _inflight = new Map();
@@ -31,10 +33,18 @@ async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
 function invalidateCache(keys = []) {
     if (!keys.length) {
         _cache.clear();
-        return;
+    } else {
+        keys.forEach(k => _cache.delete(k));
     }
-    keys.forEach(k => _cache.delete(k));
+
+
+    try {
+        localStorage.removeItem('knc:colaboradoresCache');
+    } catch (e) {
+        console.warn('Falha ao invalidar cache de colaboradores no localStorage', e);
+    }
 }
+
 
 async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
@@ -82,6 +92,18 @@ const state = {
         idade: new Set(),
         contrato: new Set(),
         contratoSvc: new Set(), auxPrazoSvc: new Set(),
+    },
+    isUserRH: false,
+    desligamentoModule: {
+        pendentes: [],
+        colaboradorAtual: null,
+        tbody: null,
+        modal: null,
+        form: null,
+        currentUser: null,
+        submitBtn: null,
+        cancelBtn: null,
+        refreshBtn: null
     }
 };
 const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -340,14 +362,46 @@ function populateFilters(allColabs, matrizesMap) {
 
 async function loadColabsCached() {
     const key = cacheKeyForColabs();
+
+
+    const now = Date.now();
+    try {
+        const cached = localStorage.getItem('knc:colaboradoresCache');
+        if (cached) {
+            const {timestamp, data} = JSON.parse(cached);
+            if ((now - timestamp) < CACHE_TTL_MS) {
+                console.log("Usando cache de colaboradores (localStorage) para efetivações.");
+                return data;
+            } else {
+                localStorage.removeItem('knc:colaboradoresCache');
+            }
+        }
+    } catch (e) {
+        console.warn('Falha ao ler cache de colaboradores do localStorage', e);
+        localStorage.removeItem('knc:colaboradoresCache');
+    }
+
+
     return fetchOnce(key, async () => {
         let query = supabase.from('Colaboradores').select('*');
         const data = await fetchAllWithPagination(query);
         const rows = Array.isArray(data) ? data.slice() : [];
         rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
+
+
+        try {
+            localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
+                timestamp: Date.now(),
+                data: rows
+            }));
+        } catch (e) {
+            console.warn('Falha ao salvar cache de colaboradores no localStorage', e);
+        }
+
         return rows;
     });
 }
+
 
 async function loadSpamData() {
     return fetchOnce('spamData', async () => {
@@ -453,7 +507,21 @@ async function refresh() {
             }
         }
         state.colabs = allRows.filter(c => {
-            if (norm(c?.Ativo || 'SIM') !== 'SIM') return false;
+            const isDesligamentoView = document.querySelector('#efet-desligamento.active');
+
+            if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
+                return false;
+            }
+
+            if (isDesligamentoView && c.StatusDesligamento === 'CONCLUIDO') {
+
+            } else if (isDesligamentoView && c.StatusDesligamento === 'RECUSADO' && norm(c?.Ativo) !== 'SIM') {
+                return false;
+            } else if (isDesligamentoView && c.StatusDesligamento === 'PENDENTE' && norm(c?.Ativo) !== 'SIM') {
+                return false;
+            }
+
+
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
@@ -464,10 +532,16 @@ async function refresh() {
             if (state.regiao && (String(c?.REGIAO || 'N/D') !== state.regiao)) return false;
             return true;
         });
+
         const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
         const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
         const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
         const visaoSpamHcAtiva = document.querySelector('#spam-hc-view.active');
+        const visaoDesligamentoAtiva = document.querySelector('#efet-desligamento.active');
+
+
+        const visaoControleVagas = document.querySelector('#efet-controle-vagas.active');
+
         if (visaoServiceAtiva) {
             ensureChartsCreatedService();
             updateChartsNow();
@@ -478,8 +552,13 @@ async function refresh() {
             updateEmEfetivacaoTable();
         } else if (visaoSpamHcAtiva) {
             await updateSpamCharts(matrizesMap, svcsDoGerente);
+        } else if (visaoDesligamentoAtiva && state.isUserRH) {
+            await desligamento_fetchPendentes();
+        } else if (visaoControleVagas) {
+
+            await fetchVagas();
         } else {
-            console.log("Gráficos não atualizados: nenhuma sub-aba ativa.");
+            console.log("Nenhuma sub-aba ativa ou permissão negada.");
         }
     } catch (e) {
         console.error('Efetivações (Índice) erro', e);
@@ -501,8 +580,14 @@ function wireSubtabs() {
     subButtons.forEach(btn => {
         btn.dataset.wired = '1';
         btn.addEventListener('click', () => {
-            const currentView = host.querySelector('.efet-view.active');
+
             const viewName = btn.dataset.view;
+            if (viewName === 'efet-desligamento' && !state.isUserRH) {
+                alert('Acesso restrito ao RH.');
+                return;
+            }
+
+            const currentView = host.querySelector('.efet-view.active');
             const nextView = host.querySelector(`#${viewName}`);
             if (currentView === nextView) return;
             subButtons.forEach(b => b.classList.remove('active'));
@@ -512,13 +597,13 @@ function wireSubtabs() {
                 nextView.classList.add('active');
             }
             if (scrollContainer) {
-                if (viewName === 'efet-em-efetivacao') {
+                if (viewName === 'efet-em-efetivacao' || viewName === 'efet-desligamento') {
                     scrollContainer.classList.add('travar-scroll-pagina');
                 } else {
                     scrollContainer.classList.remove('travar-scroll-pagina');
                 }
             }
-            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao' || viewName === 'spam-hc-view') {
+            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao' || viewName === 'spam-hc-view' || (viewName === 'efet-desligamento' && state.isUserRH)) {
                 refresh();
             }
             setResponsiveHeights();
@@ -879,7 +964,7 @@ function updateChartsNow() {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
     }
-    const baseColabs = applyInteractiveFilter(state.colabs);
+    const baseColabs = applyInteractiveFilter(state.colabs.filter(c => norm(c?.Ativo) === 'SIM'));
     const pal = palette();
     const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
     const colabsAuxiliares = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR');
@@ -1199,7 +1284,7 @@ function updateRegionalChartsNow() {
         console.warn("Tentando atualizar gráficos Regionais, mas eles não estão inicializados.");
         return;
     }
-    const baseColabs = applyInteractiveFilter(state.colabs);
+    const baseColabs = applyInteractiveFilter(state.colabs.filter(c => norm(c?.Ativo) === 'SIM'));
     const pal = palette();
     const colabsAuxiliares = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR');
     {
@@ -1493,7 +1578,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
     const [allSpamData] = await Promise.all([loadSpamData()]);
-    const colabsAtivos = state.colabs;
+    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
     const spamData = allSpamData.filter(r => {
         if (state.regiao && r.REGIAO !== state.regiao) return false;
         if (svcsDoGerente) if (!svcsDoGerente.has(r.SVC)) return false;
@@ -1672,27 +1757,649 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     }
 }
 
+
+function desligamento_getCurrentUser() {
+    try {
+        const userDataString = localStorage.getItem('userSession');
+        if (userDataString) {
+            const user = JSON.parse(userDataString);
+            return user?.Nome || 'Usuário RH Desconhecido';
+        }
+    } catch (e) {
+        console.error('Erro ao ler sessão do usuário:', e);
+    }
+    return 'Usuário RH Desconhecido';
+}
+
+
+async function desligamento_fetchPendentes() {
+    const tbody = state.desligamentoModule.tbody;
+    if (!tbody) {
+        console.warn("Tabela de desligamento (tbody) não encontrada. A sub-aba foi iniciada?");
+        return;
+    }
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4">Carregando...</td></tr>';
+
+    const matrizesPermitidas = getMatrizesPermitidas();
+
+    let queryPendentes = supabase
+        .from('Colaboradores')
+        .select('Nome, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
+        .in('StatusDesligamento', ['PENDENTE', 'RECUSADO'])
+        .eq('Ativo', 'SIM');
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    let queryConcluidos = supabase
+        .from('Colaboradores')
+        .select('Nome, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
+        .eq('StatusDesligamento', 'CONCLUIDO')
+        .eq('Ativo', 'NÃO')
+        .gte('DataDesligamentoSolicitada', sevenDaysAgo);
+
+    if (matrizesPermitidas) {
+        queryPendentes = queryPendentes.in('MATRIZ', matrizesPermitidas);
+        queryConcluidos = queryConcluidos.in('MATRIZ', matrizesPermitidas);
+    }
+
+    const [
+        {data: pendentes, error: pendentesError},
+        {data: concluidos, error: concluidosError}
+    ] = await Promise.all([
+        queryPendentes.order('DataDesligamentoSolicitada', {ascending: true}),
+        queryConcluidos.order('DataDesligamentoSolicitada', {ascending: false})
+    ]);
+
+    if (pendentesError || concluidosError) {
+        const error = pendentesError || concluidosError;
+        console.error('Erro ao buscar solicitações de desligamento:', error);
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
+        return;
+    }
+
+    state.desligamentoModule.pendentes = [...(pendentes || []), ...(concluidos || [])];
+    desligamento_renderTable();
+}
+
+
+function desligamento_renderTable() {
+    const tbody = state.desligamentoModule.tbody;
+    if (!tbody) return;
+
+    if (state.desligamentoModule.pendentes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4">Nenhuma solicitação pendente ou recente encontrada.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    state.desligamentoModule.pendentes.forEach(colab => {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-nome', colab.Nome);
+
+        let actionsHtml = '';
+        let statusClass = '';
+
+
+        const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
+
+        switch (colab.StatusDesligamento) {
+            case 'PENDENTE':
+                statusClass = 'row-pending';
+
+
+
+                const btnAprovarAction = isKN ? 'approve-direct-kn' : 'approve';
+                const btnLabel = isKN ? 'Desligar KN' : 'Aprovar';
+                const btnColor = isKN ? 'background-color: #4338ca;' : '';
+
+                actionsHtml = `
+                    <button data-action="${btnAprovarAction}" data-nome="${colab.Nome}" style="${btnColor}" class="btn-salvar text-xs !px-2 !py-1">${btnLabel}</button>
+                    <button data-action="reject" data-nome="${colab.Nome}" class="btn-cancelar text-xs !px-2 !py-1 ml-1">Recusar</button>
+                `;
+                break;
+            case 'CONCLUIDO':
+                statusClass = 'row-completed';
+
+                if (!isKN) {
+                    actionsHtml = `
+                        <button data-action="resend" data-nome="${colab.Nome}" class="btn-neutral text-xs !px-2 !py-1" title="Reenviar e-mail de desligamento">Reenviar E-mail</button>
+                    `;
+                } else {
+                    actionsHtml = `<span class="text-gray-500 text-xs font-semibold">Concluído (KN)</span>`;
+                }
+                break;
+            case 'RECUSADO':
+                statusClass = 'row-rejected';
+                actionsHtml = `<span class="text-red-600 font-semibold text-xs">Recusado</span>`;
+                break;
+            default:
+                actionsHtml = 'N/A';
+        }
+
+        if (statusClass) tr.classList.add(statusClass);
+
+        tr.innerHTML = `
+            <td data-label="Colaborador">${colab.Nome}</td>
+            <td data-label="Data Solicitada">${formatDateLocal(colab.DataDesligamentoSolicitada)}</td>
+            <td data-label="Solicitante">${colab.SolicitanteDesligamento || 'N/A'}</td>
+            <td data-label="Gestor Vinculado">${colab.Gestor || 'N/A'}</td>
+            <td data-label="Motivo">${colab.MotivoDesligamento || 'N/A'}</td>
+            <td data-label="Contrato">${colab.Contrato || 'N/A'}</td>
+            <td data-label="MATRIZ">${colab.MATRIZ || 'N/A'}</td>
+            <td data-label="Ações">${actionsHtml}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+
+function desligamento_handleTableClick(event) {
+    const target = event.target.closest('button');
+    if (!target) return;
+
+    const action = target.dataset.action;
+    const nome = target.dataset.nome;
+
+    state.desligamentoModule.colaboradorAtual = state.desligamentoModule.pendentes.find(c => c.Nome === nome);
+
+    if (!state.desligamentoModule.colaboradorAtual) {
+        alert('Erro: Colaborador não encontrado na lista de pendentes/recentes.');
+        return;
+    }
+
+    if (action === 'approve' || action === 'resend') {
+
+        desligamento_openApproveModal();
+    } else if (action === 'approve-direct-kn') {
+
+        desligamento_handleDirectKN();
+    } else if (action === 'reject') {
+        desligamento_handleReject();
+    }
+}
+
+
+
+
+async function desligamento_handleDirectKN() {
+    const mod = state.desligamentoModule;
+    const colab = mod.colaboradorAtual;
+
+    if (!colab) return;
+
+    const confirmMsg = `ATENÇÃO: Colaborador ${colab.Nome} possui contrato KN.\n\n` +
+        `O desligamento será processado IMEDIATAMENTE no banco de dados.\n` +
+        `Nenhum e-mail será enviado (fluxo interno).\n\n` +
+        `Deseja confirmar o desligamento?`;
+
+    if (!confirm(confirmMsg)) return;
+
+
+    const originalText = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`)?.textContent;
+    const btn = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`);
+    if (btn) {
+        btn.textContent = 'Processando...';
+        btn.disabled = true;
+    }
+
+    try {
+
+        const {data: colabCompleto, error: fetchError} = await supabase
+            .from('Colaboradores')
+            .select('*')
+            .eq('Nome', colab.Nome)
+            .single();
+
+        if (fetchError || !colabCompleto) {
+            throw new Error('Erro ao buscar dados do colaborador KN: ' + (fetchError?.message || 'Não encontrado'));
+        }
+
+
+        const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], colab.DataDesligamentoSolicitada);
+
+
+        const desligadoData = {
+            Nome: colab.Nome,
+            Contrato: colab.Contrato || null,
+            Cargo: colabCompleto.Cargo || null,
+            'Data de Admissão': colabCompleto['Data de admissão'] || null,
+            Gestor: colab.Gestor || null,
+            'Data de Desligamento': colab.DataDesligamentoSolicitada,
+            'Período Trabalhado': periodoTrabalhado,
+            Escala: colab.Escala || null,
+            SVC: colab.SVC || null,
+            MATRIZ: colab.MATRIZ || null,
+            Motivo: colab.MotivoDesligamento || null,
+            SolicitanteDesligamento: colab.SolicitanteDesligamento || null,
+            AprovadorDesligamento: mod.currentUser || 'RH (Sistema)'
+        };
+
+
+        const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
+            p_nome: colab.Nome,
+            p_payload_desligado: desligadoData
+        });
+
+        if (rpcError) {
+            throw new Error(`Erro RPC (KN): ${rpcError.message}`);
+        }
+
+
+        alert(`Colaborador KN (${colab.Nome}) desligado com sucesso!`);
+        logAction(`Aprovou desligamento KN (Direto): ${colab.Nome}`);
+        invalidateCache();
+        desligamento_fetchPendentes();
+
+    } catch (err) {
+        console.error(err);
+        alert('Falha ao desligar KN: ' + err.message);
+        if (btn) {
+            btn.textContent = originalText || 'Desligar KN';
+            btn.disabled = false;
+        }
+    }
+}
+
+
+function desligamento_openApproveModal() {
+    const mod = state.desligamentoModule;
+    if (!mod.modal || !mod.colaboradorAtual) return;
+
+    const colab = mod.colaboradorAtual;
+    const isResend = colab.StatusDesligamento === 'CONCLUIDO';
+
+    document.getElementById('approveNome').textContent = colab.Nome;
+    document.getElementById('approveData').textContent = formatDateLocal(colab.DataDesligamentoSolicitada);
+    document.getElementById('approveSolicitante').textContent = colab.SolicitanteDesligamento || 'N/A';
+    document.getElementById('approveGestor').textContent = colab.Gestor || 'N/A';
+    document.getElementById('approveSVC').textContent = colab.SVC || 'N/A';
+
+    const rhInput = document.getElementById('approveRH');
+    const emailInput = document.getElementById('approveEmails');
+    const submitBtn = mod.submitBtn;
+
+
+    if (isResend) {
+        submitBtn.textContent = 'Reenviar E-mail';
+        rhInput.value = mod.currentUser || '';
+        emailInput.value = '';
+        emailInput.focus();
+    } else {
+        submitBtn.textContent = 'Confirmar e Enviar E-mail';
+        if (rhInput) {
+            rhInput.value = mod.currentUser || '';
+        }
+        emailInput.value = '';
+    }
+
+    mod.modal.classList.remove('hidden');
+}
+
+
+function desligamento_closeApproveModal() {
+    const mod = state.desligamentoModule;
+    if (!mod.modal) return;
+    mod.modal.classList.add('hidden');
+    if (mod.form) mod.form.reset();
+    mod.colaboradorAtual = null;
+}
+
+
+async function desligamento_handleReject() {
+    const mod = state.desligamentoModule;
+    if (!mod.colaboradorAtual) return;
+
+    const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
+    const ok = confirm(`Tem certeza que deseja RECUSAR o desligamento de ${mod.colaboradorAtual.Nome}?`);
+    if (!ok) return;
+
+    const {error} = await supabase
+        .from('Colaboradores')
+        .update({
+            StatusDesligamento: 'RECUSADO',
+            DataDesligamentoSolicitada: null,
+            MotivoDesligamento: null,
+            SolicitanteDesligamento: null
+        })
+        .eq('Nome', mod.colaboradorAtual.Nome);
+
+    if (error) {
+        alert('Erro ao recusar solicitação: ' + error.message);
+        return;
+    }
+
+    alert('Solicitação recusada com sucesso. O colaborador permanece ativo.');
+    logAction(`Recusou o desligamento de: ${mod.colaboradorAtual.Nome}. Motivo: ${motivoRecusa || 'N/A'}`);
+
+    invalidateCache();
+    desligamento_fetchPendentes();
+}
+
+
+function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+    if (!dataAdmissao) return '0';
+    const inicio = new Date(dataAdmissao);
+    const fim = new Date(dataDesligamento);
+    if (isNaN(inicio.getTime())) return '0';
+    const inicioUTC = Date.UTC(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+    const fimUTC = Date.UTC(fim.getFullYear(), fim.getMonth(), fim.getDate());
+    const dias = Math.floor((fimUTC - inicioUTC) / (1000 * 60 * 60 * 24));
+    if (dias < 0) return 'Data inválida';
+    if (dias === 0) return '0';
+    if (dias <= 15) return `${dias} dia(s)`;
+    let meses = (fim.getFullYear() - inicio.getFullYear()) * 12;
+    meses -= inicio.getMonth();
+    meses += fim.getMonth();
+    const anos = Math.floor(meses / 12);
+    const mesesRestantes = meses % 12;
+    if (meses < 1) return 'Menos de 1 mês';
+    if (meses < 2) return '1 mês';
+    if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
+    return `${meses} mes(es)`;
+}
+
+
+async function desligamento_handleApproveSubmit(event) {
+    event.preventDefault();
+    const mod = state.desligamentoModule;
+    if (!mod.colaboradorAtual) return;
+
+    const submitBtn = mod.submitBtn;
+    submitBtn.disabled = true;
+
+    const colab = mod.colaboradorAtual;
+    const nomeRH = document.getElementById('approveRH').value.trim();
+    const emails = document.getElementById('approveEmails').value.trim();
+    const isResend = colab.StatusDesligamento === 'CONCLUIDO';
+
+    submitBtn.textContent = isResend ? 'Enviando E-mail...' : 'Processando...';
+
+    if (!nomeRH) {
+        alert('Por favor, preencha o campo "Aprovado por (RH)".');
+        submitBtn.disabled = false;
+        submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
+        return;
+    }
+
+    if (!emails) {
+        alert('Por favor, preencha os E-mails para notificar.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
+        return;
+    }
+
+    try {
+        let dataDesligamento = colab.DataDesligamentoSolicitada;
+        let solicitante = colab.SolicitanteDesligamento;
+        let gestor = colab.Gestor;
+        let svc = colab.SVC;
+        let matriz = colab.MATRIZ;
+        let motivo = colab.MotivoDesligamento;
+
+
+        if (isResend) {
+            const {data: colabCompleto, error: fetchError} = await supabase
+                .from('Desligados')
+                .select('*')
+                .eq('Nome', colab.Nome)
+                .single();
+
+            if (fetchError || !colabCompleto) {
+                throw fetchError || new Error('Não foi possível buscar dados do desligado para reenviar o e-mail.');
+            }
+
+            dataDesligamento = colabCompleto['Data de Desligamento'];
+            solicitante = colab.SolicitanteDesligamento;
+            gestor = colabCompleto.Gestor;
+            svc = colabCompleto.SVC;
+            matriz = colabCompleto.MATRIZ;
+            motivo = colabCompleto.Motivo;
+        }
+
+
+        if (!isResend) {
+            submitBtn.textContent = 'Aprovando no banco...';
+
+            const {data: colabCompleto, error: fetchError} = await supabase
+                .from('Colaboradores')
+                .select('*')
+                .eq('Nome', colab.Nome)
+                .single();
+            if (fetchError || !colabCompleto) {
+                throw fetchError || new Error('Não foi possível buscar dados completos do colaborador.');
+            }
+
+
+            const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamento);
+            const desligadoData = {
+                Nome: colab.Nome,
+                Contrato: colab.Contrato || null,
+                Cargo: colabCompleto.Cargo || null,
+                'Data de Admissão': colabCompleto['Data de admissão'] || null,
+                Gestor: colab.Gestor || null,
+                'Data de Desligamento': dataDesligamento,
+                'Período Trabalhado': periodoTrabalhado,
+                Escala: colab.Escala || null,
+                SVC: colab.SVC || null,
+                MATRIZ: colab.MATRIZ || null,
+                Motivo: colab.MotivoDesligamento || null,
+
+                SolicitanteDesligamento: colab.SolicitanteDesligamento || null,
+                AprovadorDesligamento: nomeRH
+            };
+
+
+            const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
+                p_nome: colab.Nome,
+                p_payload_desligado: desligadoData
+            });
+            if (rpcError) {
+                throw new Error(`Erro ao processar desligamento no banco: ${rpcError.message}`);
+            }
+
+            logAction(`Aprovou o desligamento de: ${colab.Nome} (Data: ${formatDateLocal(dataDesligamento)})`);
+            invalidateCache();
+        }
+
+
+        submitBtn.textContent = 'Enviando e-mail...';
+
+
+        const subject = `SOLICITAÇÃO DE DESLIGAMENTO - COLABORADOR: ${colab.Nome}`;
+        const body = `Olá, prezado(a)\n\nKNConecta solicita o desligamento do colaborador abaixo:\n
+COLABORADOR: ${colab.Nome}
+PARA A DATA: ${formatDateLocal(dataDesligamento)}
+MOTIVO: ${motivo || 'N/A'}
+SOLICITADO PELA GESTÃO: ${gestor || 'N/A'}
+APROVADO POR: ${nomeRH}
+MATRIZ: ${matriz || 'N/A'}
+
+--
+E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.
+`;
+
+
+        const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
+            body: JSON.stringify({
+                to: emails,
+                subject: subject,
+                body: body
+            })
+        });
+
+        if (emailError) {
+
+            let errorMessage = emailError.message;
+            try {
+                if (fnData) {
+                    const errorObj = typeof fnData === 'string' ? JSON.parse(fnData) : fnData;
+                    if (errorObj.error) errorMessage = errorObj.error;
+                }
+            } catch (e) {
+            }
+
+
+            alert(`Desligamento APROVADO no banco, mas FALHA AO ENVIAR E-MAIL AUTOMÁTICO: ${errorMessage}. Por favor, envie manualmente.`);
+        } else {
+            alert(isResend ? 'E-mail reenviado com sucesso!' : 'Desligamento aprovado e e-mail enviado com sucesso!');
+        }
+
+        if (isResend) {
+            logAction(`Reenviou e-mail de desligamento para: ${colab.Nome}`);
+        }
+
+        desligamento_closeApproveModal();
+        desligamento_fetchPendentes();
+
+    } catch (error) {
+        console.error('Erro no fluxo de aprovação/envio:', error);
+        alert('Falha no processo: ' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
+    }
+}
+
+
+function wireDesligamentoLogic() {
+    const mod = state.desligamentoModule;
+
+    mod.tbody = document.getElementById('desligamento-tbody');
+    mod.modal = document.getElementById('approveModal');
+    mod.form = document.getElementById('approveForm');
+    mod.submitBtn = document.getElementById('approveSubmitBtn');
+    mod.cancelBtn = document.getElementById('approveCancelBtn');
+
+
+    mod.refreshBtn = document.getElementById('refresh-desligamento-btn');
+
+    mod.currentUser = desligamento_getCurrentUser();
+
+    if (mod.tbody) {
+        mod.tbody.addEventListener('click', desligamento_handleTableClick);
+    }
+    if (mod.form) {
+        mod.form.addEventListener('submit', desligamento_handleApproveSubmit);
+    }
+    if (mod.cancelBtn) {
+        mod.cancelBtn.addEventListener('click', desligamento_closeApproveModal);
+    }
+    if (mod.refreshBtn) {
+        mod.refreshBtn.addEventListener('click', desligamento_fetchPendentes);
+    }
+
+
+    const rhInput = document.getElementById('approveRH');
+    if (rhInput) {
+        rhInput.addEventListener('input', () => {
+            rhInput.value = rhInput.value.toUpperCase();
+        });
+    }
+}
+
+
+function desligamento_destroy() {
+    const mod = state.desligamentoModule;
+    console.log('Destruindo módulo de Desligamento...');
+    if (mod.tbody) {
+        mod.tbody.removeEventListener('click', desligamento_handleTableClick);
+        mod.tbody.innerHTML = '';
+    }
+    if (mod.form) {
+        mod.form.removeEventListener('submit', desligamento_handleApproveSubmit);
+    }
+    if (mod.cancelBtn) {
+        mod.cancelBtn.removeEventListener('click', desligamento_closeApproveModal);
+    }
+    if (mod.refreshBtn) {
+        mod.refreshBtn.removeEventListener('click', desligamento_fetchPendentes);
+    }
+
+    mod.pendentes = [];
+    mod.colaboradorAtual = null;
+    mod.tbody = null;
+    mod.modal = null;
+    mod.form = null;
+}
+
+
+function checkUserRHStatus() {
+    try {
+        const userDataString = localStorage.getItem('userSession');
+        if (userDataString) {
+            const user = JSON.parse(userDataString);
+            const userType = (user?.Tipo || '').trim().toUpperCase();
+
+            const allowedTypes = ['RH', 'GERENTE', 'MASTER'];
+            state.isUserRH = allowedTypes.includes(userType);
+
+            console.log(`Usuário é ${userType}. Permissão de desligamento: ${state.isUserRH}`);
+
+        } else {
+
+            state.isUserRH = false;
+        }
+    } catch (e) {
+        console.warn('Erro ao verificar tipo de usuário (RH/Gerente/Master):', e);
+        state.isUserRH = false;
+    }
+}
+
+
 export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         console.warn('Host #hc-indice não encontrado.');
         return;
     }
+
+    checkUserRHStatus();
+
     if (!state.mounted) {
         ensureMounted();
         wireSubtabs();
+
+
+        if (state.isUserRH) {
+            wireDesligamentoLogic();
+        }
+        initControleVagas();
     }
-    const activeSubtabBtn = host.querySelector('.efet-subtab-btn.active') || host.querySelector('.efet-subtab-btn');
+
+
+    const desligamentoSubtab = document.querySelector('.efet-subtab-btn[data-view="efet-desligamento"]');
+    if (desligamentoSubtab) {
+        if (!state.isUserRH) {
+            desligamentoSubtab.style.display = 'none';
+        } else {
+            desligamentoSubtab.style.display = '';
+        }
+    }
+
+
+    const activeSubtabBtn = host.querySelector('.efet-subtab-btn.active') || host.querySelector('.efet-subtab-btn[data-view="efet-visao-service"]');
+
     if (activeSubtabBtn) {
         const viewName = activeSubtabBtn.dataset.view;
+
+
+        if (viewName === 'efet-desligamento' && !state.isUserRH) {
+            const defaultTab = host.querySelector('.efet-subtab-btn[data-view="efet-visao-service"]');
+            if (defaultTab) defaultTab.click();
+            return;
+        }
+
         const view = host.querySelector(`#${viewName}`);
         host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
         if (view) view.classList.add('active');
         activeSubtabBtn.classList.add('active');
         const scrollContainer = document.querySelector('.container');
         if (scrollContainer) {
-            if (viewName === 'efet-em-efetivacao') scrollContainer.classList.add('travar-scroll-pagina');
-            else scrollContainer.classList.remove('travar-scroll-pagina');
+            if (viewName === 'efet-em-efetivacao' || viewName === 'efet-desligamento') {
+                scrollContainer.classList.add('travar-scroll-pagina');
+            } else {
+                scrollContainer.classList.remove('travar-scroll-pagina');
+            }
         }
         await refresh();
     } else {
@@ -1709,6 +2416,12 @@ export function destroy() {
             _resizeObs = null;
         }
         window.removeEventListener('resize', setResponsiveHeights);
+
+
+        if (state.isUserRH) {
+            desligamento_destroy();
+        }
+
         state.charts = {
             idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null,
             auxPrazoSvc: null, idadeRegiao: null, generoRegiao: null, contratoRegiao: null,
@@ -1723,6 +2436,489 @@ export function destroy() {
         Object.values(state.interactive).forEach(set => set.clear());
         state.mounted = false;
         state.loading = false;
+        state.isUserRH = false;
         document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
     }
+
+
+}
+
+
+
+
+
+
+let vagasData = [];
+let matrizesData = [];
+let gestoresData = [];
+
+
+let vagasModal;
+let btnGerarVaga;
+let btnCancelarVaga;
+let formVagas;
+let tbodyVagas;
+
+let inputWcBc;
+let inputSla;
+let inputDataAprovacao;
+let inputPrazoRS;
+
+let selectFilial;
+let selectGestor;
+let inputSvc;
+
+let searchInput;
+let filterFilial;
+let filterStatus;
+let filterGestor;
+let filterRecrutadora;
+
+
+function initControleVagas() {
+    if (!document.getElementById('efet-controle-vagas')) return;
+
+
+    vagasModal = document.getElementById('vagasModal');
+    btnGerarVaga = document.getElementById('btn-gerar-vaga');
+    btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
+    formVagas = document.getElementById('formVagas');
+    tbodyVagas = document.getElementById('vagas-tbody');
+
+
+    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
+    inputSla = formVagas?.querySelector('[name="sla_acordada"]');
+    inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
+    inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
+
+
+    selectFilial = formVagas?.querySelector('[name="filial"]');
+    selectGestor = formVagas?.querySelector('[name="gestor"]');
+    inputSvc = formVagas?.querySelector('[name="svc"]');
+
+
+    searchInput = document.getElementById('vagas-search');
+    filterFilial = document.getElementById('filter-vagas-filial');
+    filterStatus = document.getElementById('filter-vagas-status');
+    filterGestor = document.getElementById('filter-vagas-gestor');
+    filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
+
+
+    fetchMatrizes();
+    fetchGestores();
+
+
+    if (btnGerarVaga) btnGerarVaga.addEventListener('click', () => openVagasModal());
+    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
+
+
+    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
+
+
+    if (selectFilial) {
+        selectFilial.addEventListener('change', (e) => {
+            const matrizSelecionada = e.target.value;
+            atualizarSVC(matrizSelecionada);
+            filtrarGestoresPorMatriz(matrizSelecionada);
+        });
+    }
+
+
+    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
+    if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
+    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
+
+
+    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
+    if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
+    if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
+    if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
+    if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
+
+
+    fetchVagas();
+}
+
+
+async function fetchMatrizes() {
+    const {data, error} = await supabase
+        .from('Matrizes')
+        .select('MATRIZ, SERVICE')
+        .order('MATRIZ', {ascending: true});
+
+    if (error) {
+        console.error('Erro ao buscar matrizes:', error);
+        return;
+    }
+    matrizesData = data || [];
+    populateFilialSelect();
+}
+
+
+async function fetchGestores() {
+
+    const {data, error} = await supabase
+        .from('Gestores')
+        .select('NOME, MATRIZ')
+        .order('NOME', {ascending: true});
+
+    if (error) {
+        console.error('Erro ao buscar gestores:', error);
+        return;
+    }
+    gestoresData = data || [];
+
+}
+
+
+function populateFilialSelect() {
+    if (!selectFilial) return;
+    selectFilial.innerHTML = '<option value="">- Selecione uma Matriz -</option>';
+    matrizesData.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.MATRIZ;
+        option.textContent = item.MATRIZ;
+        selectFilial.appendChild(option);
+    });
+}
+
+
+function atualizarSVC(nomeMatriz) {
+    if (!inputSvc) return;
+    if (!nomeMatriz) {
+        inputSvc.value = '';
+        return;
+    }
+    const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
+    inputSvc.value = encontrada ? (encontrada.SERVICE || '-') : '';
+}
+
+
+function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
+    if (!selectGestor) return;
+
+
+    selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
+
+    if (!nomeMatriz) return;
+
+
+
+    const gestoresFiltrados = gestoresData.filter(g =>
+        g.MATRIZ && g.MATRIZ.toUpperCase() === nomeMatriz.toUpperCase()
+    );
+
+    gestoresFiltrados.forEach(g => {
+        const option = document.createElement('option');
+        option.value = g.NOME;
+        option.textContent = g.NOME;
+        selectGestor.appendChild(option);
+    });
+
+
+    if (gestorPreSelecionado) {
+        selectGestor.value = gestorPreSelecionado;
+    }
+}
+
+
+function formatCargo(cargo) {
+    if (!cargo) return '-';
+    return cargo
+        .replace('OPERADOR DE EMPILHADEIRA', 'OP. EMPILHADEIRA')
+        .replace('OPERAÇÕES LOGÍSTICAS', 'OP. LOG.')
+        .replace('RECURSOS HUMANOS', 'RH')
+        .replace('MELHORIA CONTÍNUA', 'MELHORIA CONT.')
+        .replace('SEGURANÇA DO TRABALHO', 'SEG. TRAB.')
+        .replace('ADMINISTRATIVO', 'ADM.')
+        .replace('PLANEJAMENTO DE LOGÍSTICA', 'PLAN. LOG.');
+}
+
+function calcularSLA() {
+    const tipo = inputWcBc.value;
+    if (tipo === 'WC') inputSla.value = 17;
+    else if (tipo === 'BC') inputSla.value = 12;
+    else inputSla.value = 12;
+    calcularPrazoEntrega();
+}
+
+function calcularPrazoEntrega() {
+    const dataAprov = inputDataAprovacao.value;
+    const diasSla = parseInt(inputSla.value);
+    if (dataAprov && !isNaN(diasSla)) {
+        const data = new Date(dataAprov);
+        data.setDate(data.getDate() + diasSla + 1);
+        const yyyy = data.getFullYear();
+        const mm = String(data.getMonth() + 1).padStart(2, '0');
+        const dd = String(data.getDate()).padStart(2, '0');
+        inputPrazoRS.value = `${yyyy}-${mm}-${dd}`;
+    }
+}
+
+
+function openVagasModal(vagaData = null) {
+    if (!vagasModal) return;
+
+    vagasModal.classList.remove('hidden');
+    formVagas.reset();
+
+
+    formVagas.querySelectorAll('select').forEach(sel => {
+        if (sel.name !== 'filial') sel.value = "";
+    });
+    selectFilial.value = "";
+    selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
+    inputSvc.value = "";
+
+    if (document.getElementById('div-substituido')) {
+        document.getElementById('div-substituido').classList.add('hidden');
+    }
+
+
+    if (vagaData) {
+        document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
+        formVagas.dataset.mode = 'edit';
+        formVagas.dataset.id = vagaData.ID_Vaga;
+
+        const f = formVagas.elements;
+
+        if (f.status) f.status.value = vagaData.Status || '';
+        if (f.data_aprovacao) f.data_aprovacao.value = vagaData.DataAprovacao || '';
+        if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
+        if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
+        if (f.cargo) f.cargo.value = vagaData.Cargo || '';
+
+
+        if (f.filial) {
+            f.filial.value = vagaData.MATRIZ || '';
+            atualizarSVC(vagaData.MATRIZ);
+
+
+            filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
+        }
+
+        if (f.cc) f.cc.value = vagaData.CentroCusto || '';
+        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
+        if (f.setor) f.setor.value = vagaData.Setor || '';
+        if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
+        if (f.recrutadora) f.recrutadora.value = vagaData.Recrutadora || '';
+        if (f.vagas_wc_bc) f.vagas_wc_bc.value = vagaData.Vagas_WC_BC || '';
+
+
+
+        if (f.motivo_vaga) f.motivo_vaga.value = vagaData.Motivo || '';
+        if (f.pcd) f.pcd.value = vagaData.PCD || 'NÃO';
+        if (f.colaborador_substituido) f.colaborador_substituido.value = vagaData.ColaboradorSubstituido || '';
+        if (f.fonte_recrutamento) f.fonte_recrutamento.value = vagaData.FonteRecrutamento || '';
+        if (f.empresa_contrato) f.empresa_contrato.value = vagaData.EmpresaContratante || '';
+        if (f.hora_entrada) f.hora_entrada.value = vagaData.HoraEntrada || '';
+        if (f.hora_saida) f.hora_saida.value = vagaData.HoraSaida || '';
+        if (f.dias_semana) f.dias_semana.value = vagaData.DiasSemana || '';
+        if (f.jornada_tipo) f.jornada_tipo.value = vagaData.JornadaTipo || '';
+        if (f.candidato_aprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado || '';
+        if (f.cpf_candidato) f.cpf_candidato.value = vagaData.CPFCandidato || '';
+        if (f.qtd_entrevistados) f.qtd_entrevistados.value = vagaData.QtdEntrevistados || 0;
+        if (f.qtd_encaminhados) f.qtd_encaminhados.value = vagaData.QtdEncaminhados || 0;
+        if (f.qtd_finalistas) f.qtd_finalistas.value = vagaData.QtdFinalistas || 0;
+        if (f.sla_acordada) f.sla_acordada.value = vagaData.SLA_Acordada || '';
+        if (f.prazo_entrega_rs) f.prazo_entrega_rs.value = vagaData.PrazoEntregaRS || '';
+        if (f.data_encaminhado_admissao) f.data_encaminhado_admissao.value = vagaData.DataEncaminhadoAdmissao || '';
+        if (f.data_admissao_real) f.data_admissao_real.value = vagaData.DataAdmissaoReal || '';
+
+        toggleSubstituicao(vagaData.Motivo);
+
+    } else {
+
+        document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
+        formVagas.dataset.mode = 'create';
+        delete formVagas.dataset.id;
+    }
+}
+
+function closeVagasModal() {
+    if (vagasModal) vagasModal.classList.add('hidden');
+}
+
+window.toggleSubstituicao = function (val) {
+    const div = document.getElementById('div-substituido');
+    if (div) {
+        if (val === 'SUBSTITUIÇÃO') div.classList.remove('hidden');
+        else div.classList.add('hidden');
+    }
+}
+
+
+async function fetchVagas() {
+    if (!tbodyVagas) return;
+    tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando vagas...</td></tr>';
+
+    const {data, error} = await supabase
+        .from('Vagas')
+        .select('*')
+        .order('ID_Vaga', {ascending: false});
+
+    if (error) {
+        console.error('Erro ao buscar vagas:', error);
+        tbodyVagas.innerHTML = `<tr><td colspan="12" class="text-center text-red-500 p-4">Erro: ${error.message}</td></tr>`;
+        return;
+    }
+    vagasData = data || [];
+    populateFilterOptions();
+    filtrarVagas();
+}
+
+async function handleVagaSubmit(e) {
+    e.preventDefault();
+    const formData = new FormData(formVagas);
+    const raw = Object.fromEntries(formData.entries());
+    const mode = formVagas.dataset.mode;
+    const id = formVagas.dataset.id;
+
+    const payload = {
+        Status: raw.status,
+        DataAprovacao: raw.data_aprovacao || null,
+        DataInicioDesejado: raw.data_inicio_desejado || null,
+        FluxoSmart: raw.fluxo_smart ? parseInt(raw.fluxo_smart) : null,
+        Cargo: raw.cargo,
+        MATRIZ: raw.filial,
+        CentroCusto: raw.cc,
+        Cliente: raw.cliente,
+        Setor: raw.setor,
+        TipoContrato: raw.tipo_contrato,
+        Recrutadora: raw.recrutadora,
+        Vagas_WC_BC: raw.vagas_wc_bc,
+        Gestor: raw.gestor,
+        Motivo: raw.motivo_vaga,
+        PCD: raw.pcd,
+        ColaboradorSubstituido: raw.colaborador_substituido || null,
+        FonteRecrutamento: raw.fonte_recrutamento,
+        EmpresaContratante: raw.empresa_contrato,
+        HoraEntrada: raw.hora_entrada || null,
+        HoraSaida: raw.hora_saida || null,
+        DiasSemana: raw.dias_semana,
+        JornadaTipo: raw.jornada_tipo,
+        CandidatoAprovado: raw.candidato_aprovado,
+        CPFCandidato: raw.cpf_candidato,
+        QtdEntrevistados: raw.qtd_entrevistados || 0,
+        QtdEncaminhados: raw.qtd_encaminhados || 0,
+        QtdFinalistas: raw.qtd_finalistas || 0,
+        SLA_Acordada: raw.sla_acordada ? parseInt(raw.sla_acordada) : null,
+        PrazoEntregaRS: raw.prazo_entrega_rs || null,
+        DataEncaminhadoAdmissao: raw.data_encaminhado_admissao || null,
+        DataAdmissaoReal: raw.data_admissao_real || null
+    };
+
+    const btn = formVagas.querySelector('.btn-salvar');
+    const txt = btn.textContent;
+    btn.textContent = 'Salvando...';
+    btn.disabled = true;
+
+    let error;
+
+    if (mode === 'edit' && id) {
+        const res = await supabase.from('Vagas').update(payload).eq('ID_Vaga', id);
+        error = res.error;
+    } else {
+        const res = await supabase.from('Vagas').insert([payload]);
+        error = res.error;
+    }
+
+    if (error) {
+        alert('Erro: ' + error.message);
+        btn.textContent = txt;
+        btn.disabled = false;
+        return;
+    }
+
+    alert(mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada!');
+    btn.textContent = txt;
+    btn.disabled = false;
+    closeVagasModal();
+    fetchVagas();
+}
+
+function populateFilterOptions() {
+    const matrizes = [...new Set(vagasData.map(v => v.MATRIZ).filter(Boolean))].sort();
+    const gestores = [...new Set(vagasData.map(v => v.Gestor).filter(Boolean))].sort();
+    const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();
+
+    const populate = (el, list, label) => {
+        if (!el) return;
+        const valorAtual = el.value;
+        el.innerHTML = `<option value="">${label}</option>`;
+        list.forEach(i => el.insertAdjacentHTML('beforeend', `<option value="${i}">${i}</option>`));
+        if (list.includes(valorAtual) || valorAtual === "") el.value = valorAtual;
+    };
+
+    populate(filterFilial, matrizes, 'Todas as Filiais');
+    populate(filterGestor, gestores, 'Todos Gestores');
+    populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');
+}
+
+function filtrarVagas() {
+    const termo = searchInput.value.toLowerCase();
+    const fFilial = filterFilial.value;
+    const fStatus = filterStatus.value;
+    const fGestor = filterGestor.value;
+    const fRecrut = filterRecrutadora.value;
+
+    const filtrados = vagasData.filter(vaga => {
+        const txt = (
+            (vaga.CandidatoAprovado || '') +
+            (vaga.CPFCandidato || '') +
+            (vaga.FluxoSmart || '') +
+            (vaga.ID_Vaga || '') +
+            (vaga.MATRIZ || '')
+        ).toLowerCase();
+
+        return txt.includes(termo) &&
+            (!fFilial || vaga.MATRIZ === fFilial) &&
+            (!fStatus || vaga.Status === fStatus) &&
+            (!fGestor || vaga.Gestor === fGestor) &&
+            (!fRecrut || vaga.Recrutadora === fRecrut);
+    });
+
+    renderVagasTable(filtrados);
+}
+
+function renderVagasTable(lista) {
+    if (!tbodyVagas) return;
+    tbodyVagas.innerHTML = '';
+
+    if (lista.length === 0) {
+        tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Nenhum registro encontrado.</td></tr>';
+        return;
+    }
+
+    lista.forEach(vaga => {
+        const tr = document.createElement('tr');
+        let badgeClass = 'badge-default';
+        const st = (vaga.Status || '').trim().toUpperCase();
+
+        if (st === 'ABERTA') badgeClass = 'badge-aberta';
+        else if (st === 'EM ADMISSÃO') badgeClass = 'badge-admissao';
+        else if (st === 'FECHADA') badgeClass = 'badge-fechada';
+        else if (st === 'CANCELADA') badgeClass = 'badge-cancelada';
+
+        tr.innerHTML = `
+             <td style="font-weight:bold; color:#555;">#${vaga.ID_Vaga}</td>
+             <td><span class="status-badge ${badgeClass}">${vaga.Status}</span></td>
+             <td>${formatDateLocal(vaga.DataAprovacao)}</td>
+             <td>${formatDateLocal(vaga.DataInicioDesejado)}</td>
+             <td style="font-weight:bold; color:#059669;">${vaga.CandidatoAprovado || '-'}</td>
+             <td title="${vaga.Cargo}">${formatCargo(vaga.Cargo)}</td>
+             <td>${vaga.Recrutadora || '-'}</td>
+             <td>${vaga.MATRIZ || '-'}</td> <td>${vaga.Gestor || '-'}</td>
+             <td>${vaga.EmpresaContratante || '-'}</td>
+             <td style="color:#d97706; font-weight:600;">${formatDateLocal(vaga.PrazoEntregaRS)}</td>
+             <td>
+                 <button class="btn-edit-vaga btn-neutral text-xs !px-2 !py-1" title="Editar">
+                     ✏️
+                 </button>
+             </td>
+         `;
+        const editBtn = tr.querySelector('.btn-edit-vaga');
+        editBtn.addEventListener('click', () => openVagasModal(vaga));
+        tbodyVagas.appendChild(tr);
+    });
 }

@@ -1,0 +1,62 @@
+<div classid="desligamento-container" class="container-column">
+    <header class="page-header">
+        <h2 class="page-title">Solicitações de Desligamento Pendentes</h2>
+        <div class="header-actions">
+            <button id="refresh-desligamento-btn" class="btn-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="table-wrapper flex-grow">
+        <table class="table-sticky-header">
+            <thead>
+                <tr>
+                    <th>Nome do Colaborador</th>
+                    <th>Data Solicitada</th>
+                    <th>Solicitante</th>
+                    <th>Gestor Vinculado</th>
+                    <th>Motivo</th>
+                    <th>Contrato</th>
+                    <th>MATRIZ</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="desligamento-tbody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="approveModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="container !h-auto !w-auto max-w-2xl">
+        <h3>Confirmar Desligamento e Notificar</h3>
+        <form id="approveForm">
+            <div class="form-group full-width" style="background: #f0f6ff; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
+                <p><strong>Colaborador:</strong> <span id="approveNome"></span></p>
+                <p><strong>Data Desligamento:</strong> <span id="approveData"></span></p>
+                <p><strong>Solicitado por:</strong> <span id="approveSolicitante"></span></p>
+                <p><strong>Gestor:</strong> <span id="approveGestor"></span></p>
+                <p><strong>SVC:</strong> <span id="approveSVC"></span></p>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns: 1fr;">
+                <div class="form-group">
+                    <label for="approveRH">Aprovado por (RH)</label>
+                    <input type="text" id="approveRH" required placeholder="Seu nome" />
+                </div>
+                <div class="form-group">
+                    <label for="approveEmails">E-mails para notificar (separados por vírgula)</label>
+                    <textarea id="approveEmails" rows="3" placeholder="email1@exemplo.com, email2@exemplo.com"></textarea>
+                </div>
+            </div>
+
+            <div class="form-actions" style="justify-content:flex-end;">
+                <button type="button" id="approveCancelBtn" class="btn-cancelar">Cancelar</button>
+                <button type="submit" class="btn-salvar" style="background-color: #D81D1D; color: #fff;">Confirmar e Enviar E-mail</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,6 +1,8 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {logAction} from '../../logAction.js';let state = {
+import {logAction} from '../../logAction.js';
+
+let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
@@ -44,13 +46,463 @@ let feriasColaborador = null;
 let isSubmittingFerias = false;
 let isSubmittingEdit = false;
 let dsrModal, dsrCheckboxesContainer, dsrOkBtn, dsrCancelarBtn;
+
+
+let dropdownAdd, btnAdicionarManual, btnImportarRH;
+let modalListaRH, tbodyCandidatosRH, fecharModalRH;
 let currentDsrInputTarget = null;
-const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];function invalidateColaboradoresCache() {
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
+
+function invalidateColaboradoresCache() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
+
+    try {
+        localStorage.removeItem('knc:colaboradoresCache');
+    } catch (e) {
+        console.warn('Falha ao invalidar cache compartilhado', e);
+    }
     console.log("Cache de colaboradores e férias invalidado.");
-}function checkUserAdminStatus() {
+}
+
+
+function mapearDadosRhParaFormulario(candidato) {
+
+    let contratoFormatado = (candidato.EmpresaContratante || '').toUpperCase();
+    if (contratoFormatado.includes('AST')) contratoFormatado = 'AST';
+    else if (contratoFormatado.includes('ADECCO')) contratoFormatado = 'ADECCO';
+    else if (contratoFormatado.includes('LUANDRE')) contratoFormatado = 'LUANDRE';
+    else if (contratoFormatado.includes('POLLY')) contratoFormatado = 'POLLY';
+    else if (contratoFormatado.includes('TSI')) contratoFormatado = 'TSI';
+    else if (contratoFormatado.includes('GNX')) contratoFormatado = 'GNX';
+
+
+    let cargoFormatado = (candidato.Cargo || '').toUpperCase();
+    if (cargoFormatado.includes('AUXILIAR')) cargoFormatado = 'AUXILIAR';
+    else if (cargoFormatado.includes('ASSISTENTE')) cargoFormatado = 'ASSISTENTE';
+    else if (cargoFormatado.includes('LÍDER') || cargoFormatado.includes('LIDER')) cargoFormatado = 'LIDER';
+
+    return {
+        Nome: candidato.CandidatoAprovado,
+        CPF: candidato.CPFCandidato,
+        Cargo: cargoFormatado,
+        Contrato: contratoFormatado,
+        MATRIZ: candidato.MATRIZ,
+        DataInicio: candidato.DataInicioDesejado
+    };
+}
+
+// --- VARIÁVEIS GLOBAIS DO MÓDULO RH ---
+let rhState = {
+    dadosBrutos: [],      // Todos os dados vindos do banco
+    modoVisualizacao: 'ATUAIS', // 'ATUAIS' (<= Hoje) ou 'FUTURAS' (> Hoje)
+    filtros: {
+        termo: '',
+        matriz: '',
+        cargo: ''
+    }
+};
+
+async function fetchCandidatosAprovados() {
+    if (!tbodyCandidatosRH) return;
+    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
+
+    try {
+        const matrizesPermitidas = getMatrizesPermitidas();
+
+        // Busca campos necessários, incluindo GESTOR
+        let query = supabase
+            .from('Vagas')
+            .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataEncaminhadoAdmissao, DataAprovacao')
+            .eq('Status', 'EM ADMISSÃO');
+
+        if (matrizesPermitidas !== null) {
+            query = query.in('MATRIZ', matrizesPermitidas);
+        }
+
+        const {data, error} = await query.order('DataInicioDesejado', {ascending: true});
+
+        if (error) throw error;
+
+        // Salva no estado local
+        rhState.dadosBrutos = data || [];
+
+        // Inicializa os listeners dos filtros (apenas uma vez)
+        setupRhFilters();
+
+        // Popula os selects de filtro com base nos dados carregados
+        populateRhFilterOptions();
+
+        // Aplica filtros iniciais e renderiza
+        aplicarFiltrosRh();
+
+    } catch (err) {
+        console.error('Erro RH:', err);
+        tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar.</td></tr>';
+    }
+}
+
+// --- 2. CONFIGURAÇÃO DOS LISTENERS (Filtros e Botões) ---
+function setupRhFilters() {
+    const inputSearch = document.getElementById('filterRhSearch');
+    const selectMatriz = document.getElementById('filterRhMatriz');
+    const selectCargo = document.getElementById('filterRhCargo');
+    const btnToggle = document.getElementById('btnToggleFutureDates');
+
+    // Remove listeners antigos para evitar duplicação (cloneNode trick)
+    if (btnToggle) {
+        const newBtn = btnToggle.cloneNode(true);
+        btnToggle.parentNode.replaceChild(newBtn, btnToggle);
+        newBtn.addEventListener('click', toggleRhDateMode);
+    }
+
+    // Listeners de input
+    if (inputSearch) inputSearch.oninput = (e) => {
+        rhState.filtros.termo = e.target.value.toUpperCase();
+        aplicarFiltrosRh();
+    };
+    if (selectMatriz) selectMatriz.onchange = (e) => {
+        rhState.filtros.matriz = e.target.value;
+        aplicarFiltrosRh();
+    };
+    if (selectCargo) selectCargo.onchange = (e) => {
+        rhState.filtros.cargo = e.target.value;
+        aplicarFiltrosRh();
+    };
+}
+
+function populateRhFilterOptions() {
+    const selMatriz = document.getElementById('filterRhMatriz');
+    const selCargo = document.getElementById('filterRhCargo');
+    if (!selMatriz || !selCargo) return;
+
+    // Extrai valores únicos
+    const matrizes = [...new Set(rhState.dadosBrutos.map(i => i.MATRIZ).filter(Boolean))].sort();
+    const cargos = [...new Set(rhState.dadosBrutos.map(i => i.Cargo).filter(Boolean))].sort();
+
+    // Popula Matriz
+    selMatriz.innerHTML = '<option value="">Todas</option>';
+    matrizes.forEach(m => selMatriz.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
+
+    // Popula Cargo (Abreviado no select também para ficar bonito)
+    selCargo.innerHTML = '<option value="">Todos</option>';
+    cargos.forEach(c => selCargo.insertAdjacentHTML('beforeend', `<option value="${c}">${formatCargoShort(c)}</option>`));
+}
+
+// --- 4. ALTERNA ENTRE VAGAS ATUAIS E FUTURAS ---
+function toggleRhDateMode() {
+    rhState.modoVisualizacao = (rhState.modoVisualizacao === 'ATUAIS') ? 'FUTURAS' : 'ATUAIS';
+    aplicarFiltrosRh();
+}
+
+// --- 5. LÓGICA DE FILTRAGEM CENTRAL ---
+function aplicarFiltrosRh() {
+    const hoje = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const lblMode = document.getElementById('lblDateMode');
+    const badge = document.getElementById('countRhBadges');
+    const btn = document.getElementById('btnToggleFutureDates');
+
+    // Filtra os dados
+    const filtrados = rhState.dadosBrutos.filter(item => {
+        // 1. Filtro de Data
+        const dataInicio = item.DataInicioDesejado || '1900-01-01';
+        const isFuture = dataInicio > hoje;
+
+        if (rhState.modoVisualizacao === 'ATUAIS' && isFuture) return false;
+        if (rhState.modoVisualizacao === 'FUTURAS' && !isFuture) return false;
+
+        // 2. Filtro de Texto (Nome ou CPF)
+        const termo = rhState.filtros.termo;
+        if (termo) {
+            const textoBusca = ((item.CandidatoAprovado || '') + ' ' + (item.CPFCandidato || '')).toUpperCase();
+            if (!textoBusca.includes(termo)) return false;
+        }
+
+        // 3. Selects
+        if (rhState.filtros.matriz && item.MATRIZ !== rhState.filtros.matriz) return false;
+        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;
+
+        return true;
+    });
+
+    // Atualiza UI do botão
+    if (rhState.modoVisualizacao === 'ATUAIS') {
+        lblMode.textContent = '📅 Vencidas / Hoje';
+        btn.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
+        btn.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
+    } else {
+        lblMode.textContent = '🚀 Vagas Futuras';
+        btn.classList.remove('bg-blue-100', 'text-blue-800', 'border-blue-300');
+        btn.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
+    }
+
+    if (badge) badge.textContent = filtrados.length;
+
+    renderTabelaRH(filtrados);
+}
+
+// --- 6. HELPER: ABREVIAÇÃO DE CARGOS ---
+function formatCargoShort(cargo) {
+    if (!cargo) return '';
+    let s = cargo.toUpperCase();
+    s = s.replace('AUXILIAR DE OPERAÇÕES LOGÍSTICAS', 'Aux. Op. Log.');
+    s = s.replace('AUXILIAR DE OPERAÇÕES', 'Aux. Op.');
+    s = s.replace('LÍDER DE OPERAÇÕES LOGÍSTICAS', 'Líder Op. Log.');
+    s = s.replace('LIDER DE OPERAÇÕES LOGÍSTICAS', 'Líder Op. Log.');
+    s = s.replace('COORDENADOR DE OPERAÇÕES', 'Coord. Op.');
+    s = s.replace('SUPERVISOR DE OPERAÇÕES', 'Sup. Op.');
+    s = s.replace('ASSISTENTE ADMINISTRATIVO', 'Assist. Adm.');
+    s = s.replace('OPERADOR DE EMPILHADEIRA', 'Op. Empilhadeira');
+    s = s.replace('CONFERENTE', 'Conferente');
+    return s; // Retorna original se não tiver regra
+}
+
+// 3. Renderiza a tabela no Modal (COM SLA AJUSTADO, NOSHOW E DESISTÊNCIA)
+function renderTabelaRH(lista) {
+    tbodyCandidatosRH.innerHTML = '';
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    lista.forEach(cand => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group";
+
+        const dtInicio = cand.DataInicioDesejado ? formatDateLocal(cand.DataInicioDesejado) : '-';
+        const cpf = cand.CPFCandidato || '-';
+        const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;
+
+        // --- NOVO CÁLCULO DO SLA ---
+        // Prioridade: DataInicioDesejado -> DataAdmissaoReal
+        const dataRefStr = cand.DataInicioDesejado || cand.DataAdmissaoReal;
+        let slaHtml = '<span class="text-gray-300">-</span>';
+
+        if (dataRefStr) {
+            const dataRef = new Date(dataRefStr);
+            dataRef.setHours(0, 0, 0, 0); // Zera hora para comparar apenas datas
+
+            // Diferença: Hoje - Data de Início
+            // Se positivo: Já passou da data (Atrasado para cadastrar/Ingressar)
+            // Se negativo: Ainda vai acontecer (Futuro)
+            const diffTime = hoje - dataRef;
+            const slaDias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            let slaClass = "";
+            let slaTexto = "";
+
+            if (slaDias > 0) {
+                // Data já passou (Atenção!)
+                if (slaDias > 3) slaClass = "bg-red-50 text-red-700 border-red-200";
+                else slaClass = "bg-yellow-50 text-yellow-700 border-yellow-200";
+                slaTexto = `+${slaDias}d`; // Ex: +5 dias (passaram 5 dias do início)
+            } else if (slaDias === 0) {
+                // É hoje
+                slaClass = "bg-blue-50 text-blue-700 border-blue-200";
+                slaTexto = "HOJE";
+            } else {
+                // Futuro
+                slaClass = "bg-green-50 text-green-700 border-green-200";
+                slaTexto = `${slaDias}d`; // Ex: -5d (faltam 5 dias)
+            }
+
+            slaHtml = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${slaClass}">${slaTexto}</span>`;
+        }
+
+        tr.innerHTML = `
+            <td class="p-2 font-bold text-[#003369] leading-tight">
+                ${cand.CandidatoAprovado || 'Sem Nome'}
+            </td>
+            <td class="p-2 text-gray-500 text-[11px]">
+                ${cpf}
+            </td>
+            <td class="p-2 text-gray-700 font-medium text-[11px]" title="${cand.Cargo}">
+                ${cargoCurto}
+            </td>
+            <td class="p-2 text-gray-600 text-[11px]">
+                ${cand.MATRIZ || ''}
+            </td>
+            <td class="p-2 text-gray-600 text-[11px]">
+                ${cand.Gestor || '-'}
+            </td>
+            <td class="p-2 text-gray-700 text-center font-semibold text-[11px]">
+                ${dtInicio}
+            </td>
+            <td class="p-2 text-center">
+                ${slaHtml}
+            </td>
+            <td class="p-2 text-center">
+                <div class="flex items-center justify-center gap-1">
+                    <button class="btn-noshow bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-800 hover:border-purple-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
+                            title="Registrar não comparecimento">
+                        NoShow
+                    </button>
+                    
+                    <button class="btn-desistencia bg-white border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
+                            title="Cancelar vaga por desistência">
+                        Desistência
+                    </button>
+                </div>
+            </td>
+        `;
+
+        // Evento de Importar (Duplo Clique na Linha)
+        tr.addEventListener('dblclick', (e) => {
+            // Evita disparar se clicar nos botões
+            if (e.target.closest('button')) return;
+            selecionarCandidatoImportacao(cand);
+        });
+
+        // Evento Botão Desistência
+        const btnDesistencia = tr.querySelector('.btn-desistencia');
+        btnDesistencia.addEventListener('click', (e) => {
+            e.stopPropagation();
+            confirmarDesistenciaVaga(cand);
+        });
+
+        // Evento Botão NoShow
+        const btnNoShow = tr.querySelector('.btn-noshow');
+        btnNoShow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            confirmarNoShowVaga(cand);
+        });
+
+        tbodyCandidatosRH.appendChild(tr);
+    });
+}
+
+// --- FUNÇÃO EXISTENTE (ATUALIZADA): Confirmar Desistência ---
+async function confirmarDesistenciaVaga(vaga) {
+    const nome = vaga.CandidatoAprovado || 'Candidato';
+    const confirmacao = confirm(`Confirmar DESISTÊNCIA de:\n\n${nome}?\n\nA vaga será cancelada.`);
+
+    if (!confirmacao) return;
+
+    // Feedback visual
+    if (tbodyCandidatosRH) tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Processando...</td></tr>';
+
+    try {
+        const {error} = await supabase
+            .from('Vagas')
+            .update({
+                Status: 'CANCELADA',
+                Motivo: 'DESISTENCIA DO CANDIDATO (Via Importação RH)'
+            })
+            .eq('ID_Vaga', vaga.ID_Vaga);
+
+        if (error) throw error;
+
+        alert('Desistência registrada com sucesso.');
+        logAction(`Registrou desistência do candidato: ${nome} (Vaga #${vaga.ID_Vaga})`);
+
+        await fetchCandidatosAprovados();
+        if (typeof checkPendingImports === 'function') checkPendingImports();
+
+    } catch (err) {
+        console.error('Erro ao cancelar vaga:', err);
+        alert('Erro ao registrar desistência: ' + err.message);
+        fetchCandidatosAprovados();
+    }
+}
+
+// --- NOVA FUNÇÃO: Confirmar NoShow ---
+async function confirmarNoShowVaga(vaga) {
+    const nome = vaga.CandidatoAprovado || 'Candidato';
+    const confirmacao = confirm(`Confirmar NO SHOW (Não Comparecimento) de:\n\n${nome}?\n\nA vaga será cancelada com motivo 'NO SHOW'.`);
+
+    if (!confirmacao) return;
+
+    if (tbodyCandidatosRH) tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Processando NoShow...</td></tr>';
+
+    try {
+        const {error} = await supabase
+            .from('Vagas')
+            .update({
+                Status: 'CANCELADA',
+                Motivo: 'NO SHOW (Colaborador não compareceu)'
+            })
+            .eq('ID_Vaga', vaga.ID_Vaga);
+
+        if (error) throw error;
+
+        alert('No Show registrado com sucesso.');
+        logAction(`Registrou NO SHOW do candidato: ${nome} (Vaga #${vaga.ID_Vaga})`);
+
+        await fetchCandidatosAprovados();
+        if (typeof checkPendingImports === 'function') checkPendingImports();
+
+    } catch (err) {
+        console.error('Erro ao registrar No Show:', err);
+        alert('Erro ao registrar No Show: ' + err.message);
+        fetchCandidatosAprovados();
+    }
+}
+
+
+async function selecionarCandidatoImportacao(candidatoRaw) {
+    const dadosMapeados = mapearDadosRhParaFormulario(candidatoRaw);
+
+
+    modalListaRH.classList.add('hidden');
+
+
+    await prepararFormularioAdicao();
+
+
+    document.dispatchEvent(new CustomEvent('open-add-modal'));
+
+
+    setTimeout(() => {
+        preencherFormularioAdicao(dadosMapeados);
+    }, 100);
+}
+
+
+async function prepararFormularioAdicao() {
+    await loadGestoresParaFormulario();
+    loadSVCsParaFormulario();
+    await populateContratoSelect(document.getElementById('addContrato'));
+    populateGestorSelect(null);
+    attachUppercaseHandlers();
+}
+
+
+function preencherFormularioAdicao(dados) {
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+    };
+
+
+    if (Object.keys(dados).length === 0) {
+        if (addForm) addForm.reset();
+        return;
+    }
+
+    setVal('addNome', dados.Nome);
+    setVal('addCPF', dados.CPF);
+    setVal('addCargo', dados.Cargo);
+    setVal('addContrato', dados.Contrato);
+    setVal('addMatriz', dados.MATRIZ);
+
+    if (dados.DataInicio) {
+        setVal('addDataAdmissao', dados.DataInicio);
+    }
+
+
+    if (dados.MATRIZ && state.matrizesData) {
+        const matrizItem = state.matrizesData.find(m => m.MATRIZ === dados.MATRIZ);
+        if (matrizItem && matrizItem.SERVICE) {
+            setVal('addSVC', matrizItem.SERVICE);
+
+            populateGestorSelect(matrizItem.SERVICE);
+        }
+    }
+}
+
+
+function checkUserAdminStatus() {
+
     const sessionString = localStorage.getItem('userSession');
     if (!sessionString) {
         console.warn('Sessão do usuário não encontrada. Permissões de admin não concedidas.');
@@ -70,7 +522,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
     }
-}function promptForDate(title, defaultDate) {
+}
+
+function promptForDate(title, defaultDate) {
+
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';
@@ -113,7 +568,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             if (e.target === overlay) close(null);
         };
     });
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
+
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -132,32 +590,56 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return allData;
-}function ymdToday() {
+}
+
+function ymdToday() {
+
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}function isFutureYMD(yyyyMmDd) {
+}
+
+function isFutureYMD(yyyyMmDd) {
+
     if (!yyyyMmDd) return false;
     return yyyyMmDd > ymdToday();
-}function normalizeCPF(raw) {
+}
+
+function normalizeCPF(raw) {
+
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
-}function toUpperNoTrim(str) {
+}
+
+function toUpperNoTrim(str) {
+
     return typeof str === 'string' ? str.toUpperCase() : str;
-}function toUpperTrim(str) {
+}
+
+function toUpperTrim(str) {
+
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}function nullIfEmpty(v) {
+}
+
+function nullIfEmpty(v) {
+
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s === '' ? null : s;
-}function numberOrNull(v) {
+}
+
+function numberOrNull(v) {
+
     const s = nullIfEmpty(v);
     if (s === null) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
-}function toStartOfDay(dateish) {
+}
+
+function toStartOfDay(dateish) {
+
     if (!dateish) return NaN;
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
@@ -169,11 +651,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}function formatDateLocal(iso) {
+}
+
+function formatDateLocal(iso) {
+
     if (!iso) return '';
-    const [y, m, d] = String(iso).split('-');
+    const [y, m, d] = String(iso).split('T')[0].split('-');
     return `${d}/${m}/${y}`;
-}function attachUppercaseHandlers() {
+}
+
+function attachUppercaseHandlers() {
+
     if (!addForm || addForm.dataset.upperBound === '1') return;
     addForm.dataset.upperBound = '1';
     const uppercaseOnInput = (el) => {
@@ -198,7 +686,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}async function populateContratoSelect(selectElement) {
+}
+
+async function populateContratoSelect(selectElement) {
+
     if (!selectElement) return;
     const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
@@ -212,7 +703,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
-}function attachUpperHandlersTo(form) {
+}
+
+function attachUpperHandlersTo(form) {
+
     if (!form || form.dataset.upperBound === '1') return;
     form.dataset.upperBound = '1';
     const textInputs = form.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="tel"], input:not([type]), textarea');
@@ -235,7 +729,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     form.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+}
+
+function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -267,7 +764,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
-}function toUpperObject(obj) {
+}
+
+function toUpperObject(obj) {
+
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
@@ -299,7 +799,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return out;
-}function renderTable(dataToRender) {
+}
+
+function renderTable(dataToRender) {
+
     if (!colaboradoresTbody) return;
     colaboradoresTbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
@@ -308,7 +811,18 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
+
+
+        if (colaborador.StatusDesligamento === 'PENDENTE') {
+            return `${nomeBase} ⚠️ (Desligamento Pendente)`;
+        }
+        if (colaborador.StatusDesligamento === 'RECUSADO') {
+            return `${nomeBase} ❌ (Desligamento Recusado)`;
+        }
+
+
         if (colaborador.Ativo === 'AFAS') return `${nomeBase} (Afastado)`;
+
         const diasRest = state?.feriasAtivasMap?.get?.(nomeBase);
         if (diasRest != null && !isNaN(diasRest)) {
             if (diasRest === 0) return `${nomeBase} 🏖️ (Termina hoje)`;
@@ -320,6 +834,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colaborador.Nome || '');
+
+
+        if (colaborador.StatusDesligamento === 'PENDENTE') {
+            tr.classList.add('row-pending');
+        } else if (colaborador.StatusDesligamento === 'RECUSADO') {
+            tr.classList.add('row-rejected');
+        }
+
+
         const nomeCelula = formatarNomeColaborador(colaborador);
         const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);
         const admissaoKN = formatDateLocal(colaborador['Admissao KN']);
@@ -339,13 +862,19 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         `;
         colaboradoresTbody.appendChild(tr);
     });
-}function updateDisplay() {
+}
+
+function updateDisplay() {
+
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
     renderTable(dataSlice);
     if (mostrarMenosBtn) mostrarMenosBtn.classList.toggle('hidden', itensVisiveis <= ITENS_POR_PAGINA);
     if (mostrarMaisBtn) mostrarMaisBtn.classList.toggle('hidden', itensVisiveis >= state.dadosFiltrados.length);
     if (contadorVisiveisEl) contadorVisiveisEl.textContent = `${dataSlice.length} de ${state.dadosFiltrados.length} colaboradores visíveis`;
-}function populateFilters() {
+}
+
+function populateFilters() {
+
     if (!filtrosSelect) return;
     const filtros = {
         Contrato: new Set(), Cargo: new Set(), Escala: new Set(), DSR: new Set(),
@@ -382,7 +911,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
         selectEl.value = valorSalvo;
     });
-}function applyFiltersAndSearch() {
+}
+
+function applyFiltersAndSearch() {
+
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
@@ -416,7 +948,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
     updateDisplay();
-}function repopulateFilterOptionsCascade() {
+}
+
+function repopulateFilterOptionsCascade() {
+
     if (!filtrosSelect || !filtrosSelect.length) return;
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
@@ -474,7 +1009,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             selectEl.selectedIndex = 0;
         }
     });
-}function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+}
+
+function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
     state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
@@ -483,16 +1021,138 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (bySvc) return toUpperTrim(bySvc);
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
-}async function fetchColaboradores() {
+}
+
+
+async function checkPendingImports() {
+
+    const matrizesPermitidas = getMatrizesPermitidas();
+
+
+    let query = supabase
+        .from('Vagas')
+        .select('CandidatoAprovado, MATRIZ')
+        .eq('Status', 'EM ADMISSÃO');
+
+    if (matrizesPermitidas !== null) {
+        query = query.in('MATRIZ', matrizesPermitidas);
+    }
+
+    const {data: vagasCandidatos, error} = await query;
+
+    if (error || !vagasCandidatos || vagasCandidatos.length === 0) {
+        hidePendingImportAlert();
+        return;
+    }
+
+
+    const nomesCadastrados = new Set(
+        state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
+    );
+
+
+    const pendentes = vagasCandidatos.filter(vaga => {
+        const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
+        return nomeCandidato && !nomesCadastrados.has(nomeCandidato);
+    });
+
+
+    if (pendentes.length > 0) {
+        showPendingImportAlert(pendentes.length);
+    } else {
+        hidePendingImportAlert();
+    }
+}
+
+function showPendingImportAlert(count) {
+    let alertDiv = document.getElementById('pending-import-alert');
+
+    // Se não existir, cria o elemento
+    if (!alertDiv) {
+        alertDiv = document.createElement('div');
+        alertDiv.id = 'pending-import-alert';
+
+        // Tenta encontrar o wrapper do botão Adicionar
+        const addBtnWrapper = document.getElementById('dropdownAdd')?.parentNode || document.getElementById('add-colaborador-btn')?.parentNode;
+
+        if (addBtnWrapper) {
+            // Insere logo DEPOIS do botão de adicionar
+            addBtnWrapper.parentNode.insertBefore(alertDiv, addBtnWrapper.nextSibling);
+        } else {
+            // Fallback
+            const container = document.querySelector('.table-wrapper') || document.getElementById('colaboradores-tbody')?.closest('.container');
+            if (container && container.parentNode) {
+                container.parentNode.insertBefore(alertDiv, container);
+            }
+        }
+    }
+
+    // --- ATUALIZAÇÃO DO TEXTO ---
+    const plural = count > 1 ? 'novas vagas pendentes' : 'nova vaga pendente';
+
+    alertDiv.innerHTML = `
+        <div class="alert-content">
+            <span style="font-size: 14px;">⚠️</span>
+            <span>Você tem <strong>${count} ${plural}</strong> de importação! Clique em <b>Adicionar</b> e depois <b>Importar do RH</b>.</span>
+        </div>
+    `;
+    // Removi o botão "Importar Agora" daqui já que o texto instrui a usar o menu principal,
+    // mas se quiser manter o atalho rápido, me avise.
+
+    alertDiv.classList.remove('hidden');
+}
+
+function hidePendingImportAlert() {
+    const alertDiv = document.getElementById('pending-import-alert');
+    if (alertDiv) {
+        alertDiv.classList.add('hidden');
+    }
+}
+
+
+async function fetchColaboradores() {
     const now = Date.now();
+
+
+    try {
+        const cached = localStorage.getItem('knc:colaboradoresCache');
+        if (cached) {
+            const {timestamp, data, ferias} = JSON.parse(cached);
+
+            if ((now - timestamp) < CACHE_DURATION_MS) {
+                console.log("Usando cache de colaboradores (localStorage).");
+                cachedColaboradores = data;
+                cachedFeriasStatus = new Map(ferias);
+                lastFetchTimestamp = timestamp;
+
+                state.colaboradoresData = cachedColaboradores;
+                state.feriasAtivasMap = cachedFeriasStatus;
+
+                populateFilters();
+                applyFiltersAndSearch();
+
+
+                checkPendingImports();
+
+                return;
+            } else {
+                console.log("Cache do localStorage expirado.");
+                localStorage.removeItem('knc:colaboradoresCache');
+            }
+        }
+    } catch (e) {
+        console.warn('Falha ao ler cache de colaboradores do localStorage', e);
+        localStorage.removeItem('knc:colaboradoresCache');
+    }
+
+
     if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
-        console.log("Usando cache de colaboradores.");
+        console.log("Usando cache de colaboradores (memória).");
         state.colaboradoresData = cachedColaboradores;
+
         if (cachedFeriasStatus) {
             state.feriasAtivasMap = cachedFeriasStatus;
-            console.log("Usando cache de status de férias.");
         } else {
-            console.log("Cache de colaboradores OK, mas buscando status de férias...");
             try {
                 const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
                 state.feriasAtivasMap = new Map();
@@ -507,15 +1167,21 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                     cachedFeriasStatus = state.feriasAtivasMap;
                 }
             } catch (e) {
-                console.warn('Erro ao buscar status de férias (no reuso do cache):', e);
                 state.feriasAtivasMap = new Map();
                 cachedFeriasStatus = null;
             }
         }
+
         populateFilters();
         applyFiltersAndSearch();
+
+
+        checkPendingImports();
+
         return;
     }
+
+
     console.log("Buscando dados frescos do banco (Colaboradores e Férias)...");
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando...</td></tr>';
@@ -532,6 +1198,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
         const data = await fetchAllWithPagination(query);
         state.colaboradoresData = data || [];
+
         const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
         if (nomes.length > 0) {
@@ -543,21 +1210,41 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 state.feriasAtivasMap.set(f.Nome, Number.isFinite(dias) ? dias : null);
             });
         }
+
+
         cachedColaboradores = state.colaboradoresData;
         cachedFeriasStatus = state.feriasAtivasMap;
         lastFetchTimestamp = Date.now();
+
+        try {
+            localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
+                timestamp: lastFetchTimestamp,
+                data: cachedColaboradores,
+                ferias: Array.from(cachedFeriasStatus.entries())
+            }));
+        } catch (e) {
+            console.warn('Falha ao salvar cache no localStorage', e);
+        }
+
         populateFilters();
         applyFiltersAndSearch();
+
+
+        checkPendingImports();
+
     } catch (error) {
         console.error('Erro ao carregar colaboradores/férias:', error);
         if (colaboradoresTbody) {
             colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4 text-red-500">Erro ao carregar dados.</td></tr>';
         }
         cachedColaboradores = null;
-        cachedFeriasStatus = null;
         lastFetchTimestamp = 0;
     }
-}async function gerarJanelaDeQRCodes() {
+}
+
+
+async function gerarJanelaDeQRCodes() {
+
     if (state.selectedNames.size === 0) {
         alert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.');
         return;
@@ -644,7 +1331,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
-}async function loadSVCsParaFormulario() {
+}
+
+async function loadSVCsParaFormulario() {
+
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
     if (state.matrizesData.length > 0 && svcSelect.options.length > 1) {
@@ -676,7 +1366,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         svcSelect.appendChild(opt);
     });
-}async function loadGestoresParaFormulario() {
+}
+
+async function loadGestoresParaFormulario() {
+
     if (state.gestoresData.length > 0) return;
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
@@ -685,7 +1378,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return;
     }
     state.gestoresData = data || [];
-}function populateGestorSelect(selectedSvc) {
+}
+
+function populateGestorSelect(selectedSvc) {
+
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -714,7 +1410,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-}function isDSRValida(dsrStr) {
+}
+
+function isDSRValida(dsrStr) {
+
     const raw = (dsrStr || '').toUpperCase().trim();
     if (!raw) return false;
     const dias = raw.split(',').map(d => d.trim()).filter(Boolean);
@@ -722,7 +1421,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
     permitidos.add('SABADO');
     return dias.every(d => permitidos.has(d));
-}async function handleAddSubmit(event) {
+}
+
+async function handleAddSubmit(event) {
+
     event.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         alert('Ação não permitida. Você está em modo de visualização.');
@@ -805,7 +1507,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         'Total Presença': 0,
         'Total Faltas': 0,
         'Total Atestados': 0,
-        'Total Suspensões': 0
+        'Total Suspensões': 0,
+        StatusDesligamento: 'ATIVO'
     });
     const {error} = await supabase.from('Colaboradores').insert([newColaborador]);
     if (error) {
@@ -813,7 +1516,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return;
     }
     alert('Colaborador adicionado com sucesso!');
-    logAction(`Adicionou o colaborador: ${newColaborador.Nome} (Contrato: ${newColaborador.Contrato}, Cargo: ${newColaborador.Cargo}, SVC: ${newColaborador.SVC})`);    if (addForm) {
+    logAction(`Adicionou o colaborador: ${newColaborador.Nome} (Contrato: ${newColaborador.Contrato}, Cargo: ${newColaborador.Cargo}, SVC: ${newColaborador.SVC})`);
+    if (addForm) {
         addForm.reset();
         const dsrBtn = document.getElementById('addDSRBtn');
         if (dsrBtn) {
@@ -829,7 +1533,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}async function loadServiceMatrizForEdit() {
+}
+
+async function loadServiceMatrizForEdit() {
+
     if (!editSVC) return;
     if (state.matrizesData.length > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
@@ -859,17 +1566,27 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         editSVC.appendChild(opt);
     });
-}async function fetchColabByNome(nome) {
+}
+
+async function fetchColabByNome(nome) {
+
     const {data, error} = await supabase.from('Colaboradores').select('*').eq('Nome', nome).maybeSingle();
     if (error) throw error;
     return data;
-}function showEditModal() {
+}
+
+function showEditModal() {
     editModal?.classList.remove('hidden');
-}function hideEditModal() {
+}
+
+function hideEditModal() {
     editModal?.classList.add('hidden');
     editOriginal = null;
     editForm?.reset();
-}async function fillEditForm(colab) {
+}
+
+async function fillEditForm(colab) {
+
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
@@ -954,10 +1671,34 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             editEfetivarKnBtn.disabled = false;
         }
     }
+
+
+    if (editDesligarBtn) {
+        if (colab.StatusDesligamento === 'PENDENTE') {
+            editDesligarBtn.textContent = 'Desligamento Pendente';
+            editDesligarBtn.disabled = true;
+            editDesligarBtn.style.display = 'inline-block';
+        } else if (colab.StatusDesligamento === 'RECUSADO') {
+            editDesligarBtn.textContent = 'Solicitar Desligamento';
+            editDesligarBtn.disabled = false;
+            editDesligarBtn.style.display = 'inline-block';
+        } else if (colab.Ativo === 'SIM') {
+            editDesligarBtn.textContent = 'Desligar';
+            editDesligarBtn.disabled = false;
+            editDesligarBtn.style.display = 'inline-block';
+        } else {
+            editDesligarBtn.style.display = 'none';
+        }
+    }
+
+
     if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
-}function openFluxoEfetivacaoModal() {
+}
+
+function openFluxoEfetivacaoModal() {
+
     if (!editOriginal || !fluxoEfetivacaoModal) {
         console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
@@ -1017,12 +1758,18 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
     }
     fluxoEfetivacaoModal.classList.remove('hidden');
-}function closeFluxoEfetivacaoModal() {
+}
+
+function closeFluxoEfetivacaoModal() {
+
     if (fluxoEfetivacaoModal) {
         fluxoEfetivacaoModal.classList.add('hidden');
         fluxoEfetivacaoForm.reset();
     }
-}async function handleFluxoSubmit(action) {
+}
+
+async function handleFluxoSubmit(action) {
+
     if (!fluxoNumeroEl || !fluxoDataAberturaEl || !fluxoObservacaoEl || !fluxoAdmissaoKnEl || !fluxoGerarBtn || !fluxoFinalizarBtn || !fluxoCancelarBtn) {
         alert('Erro crítico: Elementos do formulário de fluxo não foram encontrados. Verifique os IDs no HTML e no JS (função wireFluxoEfetivacao).');
         return;
@@ -1108,7 +1855,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = false;
         if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;
     }
-}async function validateEditDuplicates(payload) {
+}
+
+async function validateEditDuplicates(payload) {
+
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
         const {count, error} = await supabase.from('Colaboradores').select('Nome', {
             count: 'exact',
@@ -1126,7 +1876,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if ((count || 0) > 0) return 'Já existe um colaborador com esse CPF.';
     }
     return null;
-}async function updateColaboradorSmart(nomeAnterior, payload) {
+}
+
+async function updateColaboradorSmart(nomeAnterior, payload) {
+
     if (payload.Nome && payload.Nome !== nomeAnterior) {
         const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
             nome_antigo: nomeAnterior,
@@ -1158,7 +1911,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .update(payload)
         .eq('Nome', nomeAnterior);
     if (upErr) throw upErr;
-}async function onEditSubmit(e) {
+}
+
+async function onEditSubmit(e) {
+
     e.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         alert('Ação não permitida. Você está em modo de visualização.');
@@ -1226,7 +1982,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             'Fluxo': editOriginal.Fluxo,
             'Data Fluxo': editOriginal['Data Fluxo'],
             'Observacao Fluxo': editOriginal['Observacao Fluxo']
-        };        const changes = [];
+        };
+        const changes = [];
         if (payload.Nome !== editOriginal.Nome) changes.push(`Nome (de '${editOriginal.Nome}' para '${payload.Nome}')`);
         if (payload.DSR !== editOriginal.DSR) changes.push(`DSR (de '${editOriginal.DSR || 'N/A'}' para '${payload.DSR || 'N/A'}')`);
         if (payload.Cargo !== editOriginal.Cargo) changes.push(`Cargo (de '${editOriginal.Cargo}' para '${payload.Cargo}')`);
@@ -1237,7 +1994,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (payload['ID GROOT'] !== editOriginal['ID GROOT']) changes.push(`ID GROOT`);
         if (payload.SVC !== editOriginal.SVC) changes.push(`SVC`);
         if (payload['Data de admissão'] !== editOriginal['Data de admissão']) changes.push(`Data de Admissão`);
-        if (payload['Admissao KN'] !== editOriginal['Admissao KN']) changes.push(`Admissão KN`);        const dupMsg = await validateEditDuplicates(payload);
+        if (payload['Admissao KN'] !== editOriginal['Admissao KN']) changes.push(`Admissão KN`);
+        const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             alert(dupMsg);
             isSubmittingEdit = false;
@@ -1276,9 +2034,11 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             const recarregado = await fetchColabByNome(payload.Nome);
             if (recarregado) await fillEditForm(recarregado);
         } catch {
-        }        if (changes.length > 0) {
+        }
+        if (changes.length > 0) {
             logAction(`Atualizou o colaborador ${editOriginal.Nome}: ${changes.join(', ')}.`);
-        }        alert('Colaborador atualizado com sucesso em todas as tabelas!');
+        }
+        alert('Colaborador atualizado com sucesso em todas as tabelas!');
         hideEditModal();
         document.dispatchEvent(new CustomEvent('colaborador-edited', {
             detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
@@ -1293,7 +2053,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             editSalvarBtn.textContent = 'Salvar Alterações';
         }
     }
-}async function onAfastarClick() {
+}
+
+async function onAfastarClick() {
+
     if (!editOriginal || !editOriginal.Nome) {
         alert('Erro: Colaborador não identificado.');
         return;
@@ -1389,7 +2152,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+}
+
+function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -1409,7 +2175,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}function openDesligarModalFromColab(colab) {
+}
+
+function openDesligarModalFromColab(colab) {
+
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
     const hoje = new Date();
@@ -1418,11 +2187,19 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     desligarDataEl.value = iso;
     desligarMotivoEl.selectedIndex = 0;
     desligarModal.classList.remove('hidden');
-}function closeDesligarModal() {
+}
+
+function closeDesligarModal() {
+
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function ensureColaboradorInativado(nome, tentativas = 4, delayMs = 200) {
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function ensureColaboradorInativado(nome, tentativas = 4, delayMs = 200) {
+
     for (let i = 0; i < tentativas; i++) {
         const {data, error} = await supabase
             .from('Colaboradores')
@@ -1435,95 +2212,84 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         await sleep(delayMs);
     }
     return false;
-}async function onDesligarSubmit(e) {
+}
+
+
+async function onDesligarSubmit(e) {
+
     e.preventDefault();
     if (!desligarColaborador) {
         alert('Erro: colaborador não carregado.');
         return;
     }
+    if (document.body.classList.contains('user-level-visitante')) {
+        alert('Ação não permitida. Você está em modo de visualização.');
+        return;
+    }
+
     const nome = desligarColaborador.Nome;
     const dataDesligamento = (desligarDataEl?.value || '').trim();
     const motivo = (desligarMotivoEl?.value || '').trim();
+
     if (!dataDesligamento) {
-        alert('Informe a data de desligamento.');
+        alert('Informe a data de desligamento.html.');
         return;
     }
     if (!motivo) {
         alert('Selecione o motivo.');
         return;
     }
-    const periodoTrabalhado = calcularPeriodoTrabalhado(desligarColaborador['Data de admissão'], dataDesligamento);
-    const desligadoData = {
-        Nome: nome,
-        Contrato: desligarColaborador.Contrato || null,
-        Cargo: desligarColaborador.Cargo || null,
-        'Data de Admissão': desligarColaborador['Data de admissão'] || null,
-        Gestor: desligarColaborador.Gestor || null,
-        'Data de Desligamento': dataDesligamento,
-        'Período Trabalhado': periodoTrabalhado,
-        Escala: desligarColaborador.Escala || null,
-        SVC: desligarColaborador.SVC || null,
-        MATRIZ: desligarColaborador.MATRIZ || null,
-        Motivo: motivo || null
-    };
+
+
+    let solicitante = 'Gestor Desconhecido';
     try {
-        try {
-            const {error: rpcErr} = await supabase.rpc('desligar_colaborador_atomic', {
-                p_nome: nome,
-                p_data_desligamento: dataDesligamento,
-                p_motivo: motivo,
-                p_payload_json: desligadoData
-            });
-            if (!rpcErr) {
-                const ok = await ensureColaboradorInativado(nome);
-                if (!ok) console.warn('Aviso: RPC executada, mas status do colaborador não verificado como "NÃO".');
-                alert('Colaborador desligado com sucesso (RPC)!');
-                logAction(`Desligou o colaborador: ${nome} (Motivo: ${motivo})`);
-                closeDesligarModal();
-                hideEditModal();
-                invalidateColaboradoresCache();
-                await fetchColaboradores();
-                return;
-            }
-            if (rpcErr.message && !/function .* does not exist/i.test(rpcErr.message)) {
-                throw rpcErr;
-            }
-        } catch (rpcFalha) {
-            console.info('RPC indisponível, aplicando fallback 2-passos:', rpcFalha?.message || rpcFalha);
+        const userSession = localStorage.getItem('userSession');
+        if (userSession) {
+            solicitante = JSON.parse(userSession)?.Nome || solicitante;
         }
-        const {count: jaExiste, error: checkErr} = await supabase
-            .from('Desligados')
-            .select('Nome', {count: 'exact', head: true})
-            .eq('Nome', nome);
-        if (checkErr) throw checkErr;
-        if ((jaExiste || 0) === 0) {
-            const {error: insertError} = await supabase.from('Desligados').insert([desligadoData]);
-            if (insertError) {
-                if (!/duplicate key|unique constraint/i.test(insertError.message || '')) {
-                    throw insertError;
-                }
-            }
-        }
-        const {error: updateError} = await supabase
+    } catch (e) {
+        console.warn('Não foi possível ler o nome do solicitante da sessão.');
+    }
+
+    const ok = confirm(`Tem certeza que deseja ENVIAR A SOLICITAÇÃO de desligamento para "${nome}" na data ${formatDateLocal(dataDesligamento)}?`);
+    if (!ok) return;
+
+    try {
+        const {error} = await supabase
             .from('Colaboradores')
-            .update({Ativo: 'NÃO'})
+            .update({
+                Ativo: 'SIM',
+                StatusDesligamento: 'PENDENTE',
+                DataDesligamentoSolicitada: dataDesligamento,
+                MotivoDesligamento: motivo,
+                SolicitanteDesligamento: solicitante
+            })
             .eq('Nome', nome);
-        if (updateError) throw updateError;
-        const inativado = await ensureColaboradorInativado(nome);
-        if (!inativado) {
-            await supabase.from('Colaboradores').update({Ativo: 'NÃO'}).eq('Nome', nome);
+
+        if (error) {
+            throw error;
         }
-        alert('Colaborador desligado (inativado) com sucesso!');
-        logAction(`Desligou o colaborador: ${nome} (Motivo: ${motivo})`);
+
+        alert('Solicitação de desligamento.html enviada para aprovação do RH!');
+
+        logAction(`Enviou solicitação de desligamento para: ${nome} (Data: ${formatDateLocal(dataDesligamento)}, Motivo: ${motivo})`);
+
         closeDesligarModal();
         hideEditModal();
+
+
         invalidateColaboradoresCache();
         await fetchColaboradores();
+
     } catch (err) {
-        console.error('Erro no fluxo de desligamento:', err);
-        alert(`Erro ao desligar colaborador: ${err.message || err}`);
+        console.error('Erro ao enviar solicitação de desligamento.html:', err);
+        alert(`Erro ao enviar solicitação: ${err.message || err}`);
     }
-}async function getNonFinalizedFerias(nome) {
+}
+
+
+async function getNonFinalizedFerias(nome) {
+
     const {data, error} = await supabase
         .from('Ferias')
         .select('Numero, Status, "Data Final"')
@@ -1533,7 +2299,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .limit(1);
     if (error) return {error};
     return {data: (data && data.length > 0) ? data[0] : null};
-}async function agendarFerias(info) {
+}
+
+async function agendarFerias(info) {
+
     const {colaborador, dataInicio, dataFinal} = info;
     const {data: feriasPendentes, error: feriasCheckError} = await getNonFinalizedFerias(colaborador.Nome);
     if (feriasCheckError) {
@@ -1577,7 +2346,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     invalidateColaboradoresCache();
     await updateAllVacationStatuses();
     return {success: true};
-}async function updateAllVacationStatuses() {
+}
+
+async function updateAllVacationStatuses() {
+
     const {data: feriasList, error} = await supabase.from('Ferias').select('*').order('Numero', {ascending: true});
     if (error || !feriasList) return;
     const today = toStartOfDay(new Date());
@@ -1617,7 +2389,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (needsColabUpdate) {
         invalidateColaboradoresCache();
     }
-}function openFeriasModalFromColab(colab) {
+}
+
+function openFeriasModalFromColab(colab) {
+
     feriasColaborador = colab;
     if (!feriasModal) return;
     if (feriasNomeEl) feriasNomeEl.value = colab?.Nome || '';
@@ -1627,12 +2402,18 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (feriasInicioEl && !feriasInicioEl.value) feriasInicioEl.value = iso;
     if (feriasFinalEl && !feriasFinalEl.value) feriasFinalEl.value = iso;
     feriasModal.classList.remove('hidden');
-}function closeFeriasModal() {
+}
+
+function closeFeriasModal() {
+
     if (!feriasModal) return;
     feriasModal.classList.add('hidden');
     feriasColaborador = null;
     feriasForm?.reset();
-}async function onFeriasSubmit(e) {
+}
+
+async function onFeriasSubmit(e) {
+
     e.preventDefault();
     if (isSubmittingFerias) return;
     try {
@@ -1681,7 +2462,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             submitButton.textContent = 'Confirmar';
         }
     }
-}const HIST = {
+}
+
+const HIST = {
     nome: null, ano: new Date().getFullYear(), marks: new Map(), dsrDates: new Set(),
     initialized: false, els: {modal: null, title: null, yearSel: null, months: null, fecharBtn: null,}
 };
@@ -1711,7 +2494,10 @@ const firstWeekdayIndex = (year, month0) => {
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';function ensureHistoricoDomRefs() {
+const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';
+
+function ensureHistoricoDomRefs() {
+
     if (HIST.initialized) return;
     HIST.els.modal = document.getElementById('historicoModal');
     HIST.els.title = document.getElementById('hist-title');
@@ -1746,10 +2532,16 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         }
     });
     HIST.initialized = true;
-}function putHistoricoTitle() {
+}
+
+function putHistoricoTitle() {
+
     if (!HIST.els.title) return;
     HIST.els.title.textContent = HIST.nome ? `Histórico – ${HIST.nome}` : 'Histórico';
-}function renderHistoricoCalendar() {
+}
+
+function renderHistoricoCalendar() {
+
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
     monthsEl.innerHTML = '';
@@ -1797,7 +2589,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
-}async function computeDsrDatesForYear(nome, ano) {
+}
+
+async function computeDsrDatesForYear(nome, ano) {
+
     try {
         const {data: colab, error} = await supabase.from('Colaboradores').select('DSR').eq('Nome', nome).maybeSingle();
         if (error) throw error;
@@ -1831,7 +2626,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         console.error('computeDsrDatesForYear error:', e);
         return new Set();
     }
-}async function loadHistoricoIntoModal() {
+}
+
+async function loadHistoricoIntoModal() {
+
     if (!HIST.nome) return;
     if (HIST.els.months) {
         HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
@@ -1867,7 +2665,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#e55353;">Erro ao carregar histórico.</div>';
         }
     }
-}async function openHistorico(nome) {
+}
+
+async function openHistorico(nome) {
+
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
         alert('Não foi possível abrir o histórico (elementos do modal não encontrados).');
@@ -1882,7 +2683,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     putHistoricoTitle();
     await loadHistoricoIntoModal();
     HIST.els.modal.classList.remove('hidden');
-}function wireDsrModal() {
+}
+
+function wireDsrModal() {
+
     dsrModal = document.getElementById('dsrModal');
     if (!dsrModal || dsrModal.dataset.wired === '1') return;
     dsrModal.dataset.wired = '1';
@@ -1921,7 +2725,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         dsrModal.classList.add('hidden');
         currentDsrInputTarget = null;
     });
-}function openDsrModal(targetInput) {
+}
+
+function openDsrModal(targetInput) {
+
     if (!dsrModal) return;
     currentDsrInputTarget = targetInput;
     const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -1930,7 +2737,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         checkbox.checked = currentValueSet.has(checkbox.value);
     });
     dsrModal.classList.remove('hidden');
-}function wireEdit() {
+}
+
+function wireEdit() {
+
     editModal = document.getElementById('editModal');
     if (!editModal || editModal.dataset.wired === '1') return;
     editModal.dataset.wired = '1';
@@ -2050,7 +2860,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             alert('Erro ao carregar colaborador para edição.');
         }
     });
-}function wireDesligar() {
+}
+
+function wireDesligar() {
+
     desligarModal = document.getElementById('desligarModal');
     if (!desligarModal || desligarModal.dataset.wired === '1') return;
     desligarModal.dataset.wired = '1';
@@ -2061,7 +2874,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     desligarCancelarBtn = document.getElementById('desligarCancelarBtn');
     desligarCancelarBtn?.addEventListener('click', closeDesligarModal);
     desligarForm?.addEventListener('submit', onDesligarSubmit);
-}function wireFerias() {
+}
+
+function wireFerias() {
+
     feriasModal = document.getElementById('feriasModal') || null;
     if (!feriasModal || feriasModal.dataset.wired === '1') return;
     feriasModal.dataset.wired = '1';
@@ -2072,7 +2888,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     feriasCancelarBtn = document.getElementById('feriasCancelarBtn') || document.getElementById('cancelarBtn') || null;
     feriasCancelarBtn?.addEventListener('click', closeFeriasModal);
     feriasForm?.addEventListener('submit', onFeriasSubmit);
-}async function ensureXLSX() {
+}
+
+async function ensureXLSX() {
+
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -2081,7 +2900,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}function mapColabToExportRow(c) {
+}
+
+function mapColabToExportRow(c) {
+
     const fmt = (v) => v == null ? '' : v;
     const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
     return {
@@ -2110,7 +2932,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         'Total Atestados': c['Total Atestados'] ?? '',
         'Total Suspensões': c['Total Suspensões'] ?? ''
     };
-}async function exportColaboradoresXLSX(useFiltered) {
+}
+
+async function exportColaboradoresXLSX(useFiltered) {
+
     const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
     if (!data || data.length === 0) {
         alert('Não há dados para exportar.');
@@ -2162,7 +2987,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
     window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
-}function wireFluxoEfetivacao() {
+}
+
+function wireFluxoEfetivacao() {
+
     fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');
     if (!fluxoEfetivacaoModal) {
         console.warn("Modal de fluxo de efetivação (id='fluxoEfetivacaoModal') não encontrado. A funcionalidade não será ativada.");
@@ -2194,7 +3022,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             closeFluxoEfetivacaoModal();
         }
     });
-}function wireTabelaColaboradoresEventos() {
+}
+
+function wireTabelaColaboradoresEventos() {
+
     if (!colaboradoresTbody) return;
     if (colaboradoresTbody.dataset.wired === '1') return;
     colaboradoresTbody.dataset.wired = '1';
@@ -2241,7 +3072,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}export function init() {
+}
+
+export function init() {
+
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
@@ -2252,8 +3086,20 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     mostrarMenosBtn = document.getElementById('mostrar-menos-btn');
     contadorVisiveisEl = document.getElementById('contador-visiveis');
     addForm = document.getElementById('addForm');
+
+
+    dropdownAdd = document.getElementById('dropdownAdd');
+    btnAdicionarManual = document.getElementById('btnAdicionarManual');
+    btnImportarRH = document.getElementById('btnImportarRH');
+
+    modalListaRH = document.getElementById('modalListaRH');
+    tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
+    fecharModalRH = document.getElementById('fecharModalRH');
+
     checkUserAdminStatus();
     fetchColaboradores();
+
+
     if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
     if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
@@ -2265,6 +3111,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
         });
     }
+
     if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
@@ -2278,6 +3125,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             applyFiltersAndSearch();
         });
     }
+
+
     if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
@@ -2290,17 +3139,60 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             updateDisplay();
         });
     }
+
+
     if (addColaboradorBtn) {
-        addColaboradorBtn.addEventListener('click', async () => {
+
+
+        addColaboradorBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
-            await loadGestoresParaFormulario();
-            loadSVCsParaFormulario();
-            await populateContratoSelect(document.getElementById('addContrato'));
-            populateGestorSelect(null);
-            attachUppercaseHandlers();
-            document.dispatchEvent(new CustomEvent('open-add-modal'));
+
+            if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
     }
+
+
+    document.addEventListener('click', (event) => {
+
+        if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
+            dropdownAdd.classList.add('hidden');
+        }
+    });
+
+
+    if (btnAdicionarManual) {
+        btnAdicionarManual.addEventListener('click', async () => {
+            dropdownAdd.classList.add('hidden');
+
+            await prepararFormularioAdicao();
+            document.dispatchEvent(new CustomEvent('open-add-modal'));
+            preencherFormularioAdicao({});
+        });
+    }
+
+
+    if (btnImportarRH) {
+        btnImportarRH.addEventListener('click', () => {
+            dropdownAdd.classList.add('hidden');
+            modalListaRH.classList.remove('hidden');
+            fetchCandidatosAprovados();
+        });
+    }
+
+
+    if (fecharModalRH) {
+        fecharModalRH.addEventListener('click', () => {
+            modalListaRH.classList.add('hidden');
+        });
+    }
+
+
+    window.addEventListener('click', (e) => {
+        if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
+    });
+
+
     if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
@@ -2319,6 +3211,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
         }
     }
+
+
     if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
@@ -2342,6 +3236,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             }
         });
     }
+
+
     const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
@@ -2368,12 +3264,17 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
     }
+
+
     wireEdit();
     wireDesligar();
     wireFerias();
     wireFluxoEfetivacao();
     wireDsrModal();
-}export function destroy() {
+}
+
+export function destroy() {
+
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;

@@ -101,8 +101,8 @@
         <form id="editUserForm">
             <div class="form-grid">
                 <div class="form-group"><label for="editUserNome">Nome Completo</label><input type="text"
-                                                                                             id="editUserNome"
-                                                                                             required/></div>
+                                                                                              id="editUserNome"
+                                                                                              required/></div>
                 <div class="form-group"><label for="editUserUsuario">Usuário (Login)</label><input type="text"
                                                                                                    id="editUserUsuario"
                                                                                                    required/></div>
@@ -155,7 +155,7 @@
         <form id="gestorForm">
             <div class="form-grid" style="grid-template-columns: 1fr;">
                 <div class="form-group"><label for="gestorNome">Nome Completo</label><input type="text" id="gestorNome"
-                                                                                             required/></div>
+                                                                                            required/></div>
                 <div class="form-group"><label>Selecione as Matrizes</label>
                     <div id="gestorMatrizesCheckbox" class="checkbox-container"><span>Carregando matrizes...</span>
                     </div>
@@ -781,6 +781,62 @@
         </form>
     </div>
 </div>
+
+<div id="modalListaRH" class="hidden diarist-modal"> <div class="modal-card">
+
+        <h3>
+            <span>Candidatos Aprovados (RH)</span>
+            <button id="fecharModalRH" style="background:none; border:none; cursor:pointer; font-size:20px; color:#999;">&times;</button>
+        </h3>
+
+        <div id="rh-toolbar">
+            <div style="flex: 1; min-width: 200px;">
+                <label>Buscar (Nome ou CPF)</label>
+                <input type="text" id="filterRhSearch" placeholder="DIGITE PARA BUSCAR...">
+            </div>
+            <div style="width: 140px;">
+                <label>Matriz</label>
+                <select id="filterRhMatriz"></select>
+            </div>
+            <div style="width: 140px;">
+                <label>Cargo</label>
+                <select id="filterRhCargo"></select>
+            </div>
+            <div>
+                <button id="btnToggleFutureDates">
+                    <span id="lblDateMode">📅 Vencidas/Hoje</span>
+                    <span id="countRhBadges">0</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="rh-table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome Completo</th>
+                        <th>CPF</th>
+                        <th>Cargo (Vaga)</th>
+                        <th>Matriz</th>
+                        <th>Gestor</th>
+                        <th>Início</th>
+                        <th>SLA</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyCandidatosRH">
+                    </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top: 10px; font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px;">
+            <span style="color:#02B1EE; font-size: 16px;">ℹ️</span>
+            Dê <strong>dois cliques</strong> sobre o candidato para importar os dados para a ficha de cadastro.
+        </div>
+
+    </div>
+</div>
+
 <div id="dsrModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="container !h-auto !w-auto max-w-lg">
         <h3>Selecione os Dias de DSR</h3>
