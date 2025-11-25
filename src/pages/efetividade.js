@@ -1,9 +1,5 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';
-
-let ui;
-let contractChartInstance = null; // Variável para guardar a instância do gráfico
-
+import {getMatrizesPermitidas} from '../session.js';let ui;
 const state = {
     turnoAtual: 'GERAL',
     detailedResults: new Map(),
@@ -18,32 +14,15 @@ const state = {
     _handlers: null,
     _runId: 0,
 };
-
 const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
-};
-
-function _ymdLocal(dateObj) {
+};function _ymdLocal(dateObj) {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}
-
-// --- FUNÇÕES AUXILIARES DE CARREGAMENTO DE LIBS ---
-async function ensureChartJs() {
-    if (typeof Chart !== 'undefined') return;
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
-
-async function copyTableToClipboard(tableElement) {
+}async function copyTableToClipboard(tableElement) {
     if (!tableElement) {
         console.warn('Função copyTableToClipboard chamada sem um elemento de tabela.');
         return;
@@ -68,9 +47,7 @@ async function copyTableToClipboard(tableElement) {
         console.error('Falha ao copiar tabela: ', err);
         alert('FALHA AO COPIAR TEXTO:\n\nErro: ' + err.message);
     }
-}
-
-async function exportModalAsPNG(fileName) {
+}async function exportModalAsPNG(fileName) {
     const modalContent = document.getElementById('efetividade-details-modal');
     if (!modalContent) return;
     const exportButton = document.getElementById('export-png-btn');
@@ -106,9 +83,7 @@ async function exportModalAsPNG(fileName) {
             scrollableContent.style.border = originalStyles.border || '';
         }
     }
-}
-
-async function copyTableAsImage() {
+}async function copyTableAsImage() {
     const resultContainer = document.getElementById('efet-result');
     if (!resultContainer) return;
     const tableElement = resultContainer.querySelector('.main-table');
@@ -138,9 +113,7 @@ async function copyTableAsImage() {
     } finally {
         showLoading(false);
     }
-}
-
-function ensureEfetividadeModalStyles() {
+}function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
     const css = `
  .filter-bar.efetividade-filters { display:flex; justify-content:space-between; align-items:center; width:100%; }
@@ -172,22 +145,15 @@ function ensureEfetividadeModalStyles() {
  #efetividade-details-modal .pop-actions { margin-top:16px; display:flex; justify-content:flex-end; border-top:1px solid #f1f3f8; padding-top:12px; }
  #efetividade-details-modal .btn-export { background-color:#003369; color:#fff; padding:8px 16px; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:background-color .2s; }
  #efetividade-details-modal .btn-export:hover { background-color:#002244; }
- .chart-container-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
- .chart-box { width: 300px; height: 320px; background: #fff; border: 1px solid #e7ebf4; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; align-items: center; }
- .chart-title { font-size: 14px; font-weight: 700; color: #003369; margin-bottom: 10px; text-align: center; }
  `.trim();
     const style = document.createElement('style');
     style.id = 'efetividade-details-modal-style';
     style.textContent = css;
     document.head.appendChild(style);
-}
-
-function showDetailsModal(groupKey, date) {
-    ensureEfetividadeModalStyles();
-    const details = (groupKey === 'TODAS')
+}function showDetailsModal(groupKey, date) {
+    ensureEfetividadeModalStyles();    const details = (groupKey === 'TODAS')
         ? state.totalGeralDetailedResults.get(date)
-        : state.detailedResults.get(groupKey)?.get(date);
-    if (!details) return;
+        : state.detailedResults.get(groupKey)?.get(date);    if (!details) return;
     const oldModal = document.querySelector('.efetividade-modal-overlay');
     if (oldModal) oldModal.remove();
     const overlay = document.createElement('div');
@@ -214,9 +180,7 @@ function showDetailsModal(groupKey, date) {
         </tbody>
       </table>`;
     }
-    const titlePrefix = state.turnoAtual === 'COORDENACAO' ? 'Pendentes de' : 'Pendentes em';
-    const modalTitle = `${titlePrefix} ${groupKey === 'TODAS' ? 'TODAS AS OPERAÇÕES' : groupKey} - ${dateFormatted} (${dayOfWeek})`;
-    overlay.innerHTML = `
+    const titlePrefix = state.turnoAtual === 'COORDENACAO' ? 'Pendentes de' : 'Pendentes em';    const modalTitle = `${titlePrefix} ${groupKey === 'TODAS' ? 'TODAS AS OPERAÇÕES' : groupKey} - ${dateFormatted} (${dayOfWeek})`;    overlay.innerHTML = `
     <div id="efetividade-details-modal">
       <h3 class="pop-title">${modalTitle}</h3>
       <button class="pop-close" data-close-modal>×</button>
@@ -241,19 +205,13 @@ function showDetailsModal(groupKey, date) {
         const fileName = `pendentes_${groupKey.replace(/\s+/g, '_')}_${date.replace(/-/g, '')}`;
         exportModalAsPNG(fileName);
     });
-}
-
-function showLoading(on = true) {
+}function showLoading(on = true) {
     if (ui?.loader) ui.loader.style.display = on ? 'flex' : 'none';
-}
-
-function weekdayPT(iso) {
+}function weekdayPT(iso) {
     const d = new Date(iso + 'T00:00:00');
     const dias = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
     return dias[d.getDay()];
-}
-
-function listDates(startISO, endISO) {
+}function listDates(startISO, endISO) {
     const [y1, m1, d1] = startISO.split('-').map(Number);
     const [y2, m2, d2] = endISO.split('-').map(Number);
     let start = new Date(y1, m1 - 1, d1);
@@ -262,13 +220,9 @@ function listDates(startISO, endISO) {
     const out = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(_ymdLocal(d));
     return out;
-}
-
-function updatePeriodLabel() {
+}function updatePeriodLabel() {
     if (ui?.periodBtn) ui.periodBtn.textContent = 'Selecionar Período';
-}
-
-function openPeriodModal() {
+}function openPeriodModal() {
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
     overlay.innerHTML = `
@@ -325,15 +279,11 @@ function openPeriodModal() {
             endInput.value = _ymdLocal(ultimoDiaMesAnterior);
         }
     });
-}
-
-function chunkArray(arr, size) {
+}function chunkArray(arr, size) {
     const chunks = [];
     for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
     return chunks;
-}
-
-async function fetchAllPages(query) {
+}async function fetchAllPages(query) {
     const pageSize = 1000;
     let allData = [];
     let page = 0;
@@ -350,9 +300,7 @@ async function fetchAllPages(query) {
         if (data && data.length < pageSize) keep = false;
     }
     return allData;
-}
-
-async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
+}async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
     if (!names || names.length === 0) return [];
     const chunks = chunkArray(names, chunkSize);
     const results = await Promise.all(chunks.map(async (subset, idx) => {
@@ -382,23 +330,17 @@ async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
         }
     }
     return merged;
-}
-
-function endOfLocalDayISO(dateYMD) {
+}function endOfLocalDayISO(dateYMD) {
     return new Date(`${dateYMD}T23:59:59-03:00`);
-}
-
-async function fetchData(startDate, endDate, turno) {
+}async function fetchData(startDate, endDate, turno) {
     const matrizesPermitidas = getMatrizesPermitidas();
     const [y, m, d] = endDate.split('-').map(Number);
     const endDateObj = new Date(y, m - 1, d);
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endISONextDay = _ymdLocal(endDateObj);
-
-    // ATUALIZADO: Inclui Contrato e Cargo na busca
     let colabQuery = supabase
         .from('Colaboradores')
-        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor, Contrato, Cargo')
+        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor')
         .eq('Ativo', 'SIM')
         .order('Nome', {ascending: true});
     if (matrizesPermitidas && matrizesPermitidas.length) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
@@ -448,9 +390,7 @@ async function fetchData(startDate, endDate, turno) {
         fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
     ]);
     return {colaboradores: filteredColaboradores, preenchimentos, ferias, dsrLogs, afastamentos};
-}
-
-function processEfetividade(
+}function processEfetividade(
     colaboradores,
     preenchimentos,
     dates,
@@ -461,8 +401,7 @@ function processEfetividade(
 ) {
     const detailedResults = new Map();
     const totalGeralDetailedResults = new Map();
-    const totalGeralResults = {};
-    const dsrHistoryMap = new Map();
+    const totalGeralResults = {};    const dsrHistoryMap = new Map();
     for (const log of dsrLogs) {
         const name = normalizeString(log.Name);
         if (!dsrHistoryMap.has(name)) dsrHistoryMap.set(name, []);
@@ -470,8 +409,7 @@ function processEfetividade(
     }
     for (const history of dsrHistoryMap.values()) {
         history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-    }
-    function getDSRForDate(colaborador, dateYMD, historyMap) {
+    }    function getDSRForDate(colaborador, dateYMD, historyMap) {
         const name = normalizeString(colaborador.Nome);
         const history = historyMap.get(name);
         const fallbackCadastro = (colaborador.DSR && String(colaborador.DSR).trim()) || null;
@@ -493,8 +431,7 @@ function processEfetividade(
         const first = history[0];
         if (first?.DsrAnterior && String(first.DsrAnterior).trim()) return first.DsrAnterior;
         return fallbackCadastro;
-    }
-    const feriasPorDia = new Map();
+    }    const feriasPorDia = new Map();
     for (const r of ferias) {
         if (r.Nome && r['Data Inicio'] && r['Data Final']) {
             for (const dia of listDates(r['Data Inicio'], r['Data Final'])) {
@@ -522,14 +459,11 @@ function processEfetividade(
     for (const p of preenchimentos) {
         if (!preenchidosPorData.has(p.Data)) preenchidosPorData.set(p.Data, new Set());
         preenchidosPorData.get(p.Data).add(normalizeString(p.Nome));
-    }
-    const groupKeys = [...new Set(colaboradores.map((c) => c[groupBy]).filter(Boolean))].sort();
+    }    const groupKeys = [...new Set(colaboradores.map((c) => c[groupBy]).filter(Boolean))].sort();
     const results = {};
-    const todayISO = _ymdLocal(new Date());
-    for (const date of dates) {
+    const todayISO = _ymdLocal(new Date());    for (const date of dates) {
         const nomesEmFerias = feriasPorDia.get(date) || new Set();
-        const nomesAfastados = afastadosPorDia.get(date) || new Set();
-        const totalElegiveis = colaboradores.reduce((acc, c) => {
+        const nomesAfastados = afastadosPorDia.get(date) || new Set();        const totalElegiveis = colaboradores.reduce((acc, c) => {
             const nomeN = normalizeString(c.Nome);
             const adm = c['Data de admissão'];
             if (!adm || adm > date) return acc;
@@ -540,26 +474,20 @@ function processEfetividade(
             const isDSR = normalizeString(effectiveDSR).includes(normalizeString(weekdayPT(date)));
             if (!isDSR) acc.push({...c, DSR_do_dia: effectiveDSR});
             return acc;
-        }, []);
-        const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
-        const totalPendentes = totalElegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));
-        totalGeralDetailedResults.set(date, {elegiveis: totalElegiveis, pendentes: totalPendentes});
-        let displayValue = null;
-        let statusClassKey = 'EMPTY';
-        if (date <= todayISO) {
+        }, []);        const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
+        const totalPendentes = totalElegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));        totalGeralDetailedResults.set(date, {elegiveis: totalElegiveis, pendentes: totalPendentes});        let displayValue = null;
+        let statusClassKey = 'EMPTY';        if (date <= todayISO) {
             if (totalElegiveis.length === 0) {
                 statusClassKey = 'N/A';
             } else {
                 const preenchidos = totalElegiveis.length - totalPendentes.length;
-                displayValue = (preenchidos / totalElegiveis.length) * 100;
-                if (displayValue === 100) statusClassKey = 'OK';
+                displayValue = (preenchidos / totalElegiveis.length) * 100;                if (displayValue === 100) statusClassKey = 'OK';
                 else if (displayValue > 0) statusClassKey = 'PEN';
                 else statusClassKey = 'NOK';
             }
         }
         totalGeralResults[date] = {value: displayValue, status: statusClassKey};
-    }
-    for (const key of groupKeys) {
+    }    for (const key of groupKeys) {
         results[key] = {};
         detailedResults.set(key, new Map());
         const colaboradoresDoGrupo = colaboradores.filter((c) => c[groupBy] === key);
@@ -579,30 +507,22 @@ function processEfetividade(
                 return acc;
             }, []);
             const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
-            const pendentes = elegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));
-            detailedResults.get(key).set(date, {elegiveis, pendentes});
-            const totalElegiveis = elegiveis.length;
-            const totalPendentes = pendentes.length;
-            let displayValue = null;
-            let statusClassKey = 'EMPTY';
-            if (date <= todayISO) {
+            const pendentes = elegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));            detailedResults.get(key).set(date, {elegiveis, pendentes});            const totalElegiveis = elegiveis.length;
+            const totalPendentes = pendentes.length;            let displayValue = null;
+            let statusClassKey = 'EMPTY';            if (date <= todayISO) {
                 if (totalElegiveis === 0) {
                     statusClassKey = 'N/A';
                 } else {
                     const preenchidos = totalElegiveis - totalPendentes;
-                    displayValue = (preenchidos / totalElegiveis) * 100;
-                    if (displayValue === 100) statusClassKey = 'OK';
+                    displayValue = (preenchidos / totalElegiveis) * 100;                    if (displayValue === 100) statusClassKey = 'OK';
                     else if (displayValue > 0) statusClassKey = 'PEN';
                     else statusClassKey = 'NOK';
                 }
             }
             results[key][date] = {value: displayValue, status: statusClassKey};
         }
-    }
-    return {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults};
-}
-
-function getStatusClass(status) {
+    }    return {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults};
+}function getStatusClass(status) {
     switch (status) {
         case 'OK':
             return 'status-ok';
@@ -617,109 +537,10 @@ function getStatusClass(status) {
         default:
             return '';
     }
-}
-
-// --- FUNÇÃO DE RENDERIZAÇÃO DO GRÁFICO DE CONTRATOS ---
-function renderContractChart(colaboradores) {
-    // Filtra e conta: Diferente de KN e que tenha 'AUXILIAR' no cargo
-    const stats = {};
-    let totalConsultoria = 0;
-
-    colaboradores.forEach(c => {
-        const contrato = (c.Contrato || 'OUTROS').toUpperCase().trim();
-        const cargo = (c.Cargo || '').toUpperCase().trim();
-
-        // Lógica: Diferente de KN e Cargo contendo Auxiliar (conforme solicitado)
-        if (contrato !== 'KN' && cargo.includes('AUXILIAR')) {
-            stats[contrato] = (stats[contrato] || 0) + 1;
-            totalConsultoria++;
-        }
-    });
-
-    // Se não tiver dados, não renderiza
-    if (totalConsultoria === 0) return '';
-
-    // Prepara dados para o Chart.js
-    const labels = Object.keys(stats);
-    const dataValues = labels.map(label => {
-        const count = stats[label];
-        const percentage = ((count / totalConsultoria) * 100).toFixed(1);
-        return percentage;
-    });
-
-    // Configuração de cores (Azuis/Cinzas combinando com KN)
-    const backgroundColors = [
-        '#003369', // Azul escuro
-        '#02B1EE', // Azul claro
-        '#778ca3', // Cinza azulado
-        '#4b6584', // Azul acinzentado escuro
-        '#a5b1c2'  // Cinza claro
-    ];
-
-    // Gera o HTML do container do gráfico
-    const chartHtml = `
-    <div class="chart-container-wrapper">
-        <div class="chart-box">
-            <h4 class="chart-title">Distribuição Consultorias (Auxiliar)</h4>
-            <canvas id="contractChartCanvas"></canvas>
-        </div>
-    </div>
-    `;
-
-    // Retorna o HTML e uma função para inicializar o gráfico após inserção no DOM
-    return {
-        html: chartHtml,
-        initChart: () => {
-            const ctx = document.getElementById('contractChartCanvas')?.getContext('2d');
-            if (!ctx) return;
-
-            if (contractChartInstance) {
-                contractChartInstance.destroy();
-            }
-
-            contractChartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels.map((l, i) => `${l} (${dataValues[i]}%)`),
-                    datasets: [{
-                        data: Object.values(stats), // Usar contagem absoluta para o gráfico ficar proporcional
-                        backgroundColor: backgroundColors.slice(0, labels.length),
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                boxWidth: 12,
-                                font: { size: 11 }
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.label || '';
-                                    const value = context.raw || 0;
-                                    const percentage = ((value / totalConsultoria) * 100).toFixed(1);
-                                    return ` ${value} HC (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    };
-}
-
-function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults, chartData) {
+}function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
     if (!ui?.resultContainer) return;
     const formattedDates = dates.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
-    const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;
-    let totalRowHtml = '';
+    const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;    let totalRowHtml = '';
     if (totalGeralResults) {
         totalRowHtml = `
             <tr class="total-geral-row" style="background-color: #f0f3f5; font-weight: bold; border-bottom: 2px solid #ccc;">
@@ -728,53 +549,31 @@ function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults, 
             const data = totalGeralResults[date];
             const status = data?.status || 'EMPTY';
             const percentual = data?.value;
-            const statusClass = getStatusClass(status);
-            let statusText = '';
+            const statusClass = getStatusClass(status);            let statusText = '';
             if (status === 'EMPTY') statusText = '';
             else if (status === 'N/A') statusText = 'N/A';
             else if (percentual !== null && percentual !== undefined) {
                 statusText = `${percentual.toFixed(0)}%`;
-            }
-            const title = (status === 'PEN' || status === 'NOK') ? 'Duplo clique para ver detalhes' : (status === 'OK' ? '100%' : status);
-            return `<td data-group-key="TODAS" data-date="${date}" class="${statusClass}" title="${title}">${statusText}</td>`;
+            }            const title = (status === 'PEN' || status === 'NOK') ? 'Duplo clique para ver detalhes' : (status === 'OK' ? '100%' : status);            return `<td data-group-key="TODAS" data-date="${date}" class="${statusClass}" title="${title}">${statusText}</td>`;
         }).join('')}
             </tr>
         `;
-    }
-    const bodyHtml = groupKeys.map((key) => `
+    }    const bodyHtml = groupKeys.map((key) => `
     <tr>
       <td>${key}</td>
       ${dates.map((date) => {
         const data = results[key]?.[date];
         const status = data?.status || 'EMPTY';
         const percentual = data?.value;
-        const statusClass = getStatusClass(status);
-        let statusText = '';
+        const statusClass = getStatusClass(status);        let statusText = '';
         if (status === 'EMPTY') statusText = '';
         else if (status === 'N/A') statusText = 'N/A';
         else if (percentual !== null && percentual !== undefined) {
             statusText = `${percentual.toFixed(0)}%`;
-        }
-        const title = (status === 'PEN' || status === 'NOK') ? 'Duplo clique para ver detalhes' : (status === 'OK' ? '100%' : status);
+        }        const title = (status === 'PEN' || status === 'NOK') ? 'Duplo clique para ver detalhes' : (status === 'OK' ? '100%' : status);
         return `<td data-group-key="${key}" data-date="${date}" class="${statusClass}" title="${title}">${statusText}</td>`;
     }).join('')}
-    </tr>`).join('');
-
-    // Monta HTML final: Gráfico (se existir) + Tabela
-    let finalHtml = '';
-    if (chartData && chartData.html) {
-        finalHtml += chartData.html;
-    }
-    finalHtml += `<div class="table-container"><table class="main-table"><thead>${headerHtml}</thead><tbody>${totalRowHtml}${bodyHtml}</tbody></table></div>`;
-
-    ui.resultContainer.innerHTML = finalHtml;
-
-    // Inicializa o gráfico se necessário
-    if (chartData && chartData.initChart) {
-        chartData.initChart();
-    }
-
-    const table = ui.resultContainer.querySelector('.main-table');
+    </tr>`).join('');    ui.resultContainer.innerHTML = `<div class="table-container"><table class="main-table"><thead>${headerHtml}</thead><tbody>${totalRowHtml}${bodyHtml}</tbody></table></div>`;    const table = ui.resultContainer.querySelector('.main-table');
     if (table) {
         table.addEventListener('dblclick', (event) => {
             const cell = event.target.closest('td[data-group-key]');
@@ -782,9 +581,7 @@ function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults, 
             showDetailsModal(cell.dataset.groupKey, cell.dataset.date);
         });
     }
-}
-
-async function generateReport() {
+}async function generateReport() {
     const myRun = (state._runId = (state._runId || 0) + 1);
     const startDate = state.period.start;
     const endDate = state.period.end;
@@ -819,35 +616,24 @@ async function generateReport() {
         } = await fetchData(startDate, endDate, state.turnoAtual || 'GERAL');
         if (myRun !== state._runId) return;
         const groupBy = isCoordView ? 'Gestor' : 'SVC';
-        const groupHeader = isCoordView ? 'Coordenador' : 'SVC';
-        const {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults} = processEfetividade(
+        const groupHeader = isCoordView ? 'Coordenador' : 'SVC';        const {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults} = processEfetividade(
             colaboradores, preenchimentos, dates, ferias, dsrLogs, afastamentos, groupBy
         );
-        if (myRun !== state._runId) return;
-        state.detailedResults = detailedResults;
-        state.totalGeralDetailedResults = totalGeralDetailedResults;
-        if (groupKeys.length > 0) {
+        if (myRun !== state._runId) return;        state.detailedResults = detailedResults;
+        state.totalGeralDetailedResults = totalGeralDetailedResults;        if (groupKeys.length > 0) {
             groupKeys.sort((keyA, keyB) => {
                 const statusesA = Object.values(results[keyA] || {});
-                const statusesB = Object.values(results[keyB] || {});
-                const okA = statusesA.filter(s => s.status === 'OK').length;
+                const statusesB = Object.values(results[keyB] || {});                const okA = statusesA.filter(s => s.status === 'OK').length;
                 const okB = statusesB.filter(s => s.status === 'OK').length;
-                if (okA !== okB) return okB - okA;
-                const nokA = statusesA.filter(s => s.status === 'NOK').length;
+                if (okA !== okB) return okB - okA;                const nokA = statusesA.filter(s => s.status === 'NOK').length;
                 const nokB = statusesB.filter(s => s.status === 'NOK').length;
-                if (nokA !== nokB) return nokA - nokB;
-                const penA = statusesA.filter(s => s.status === 'PEN').length;
+                if (nokA !== nokB) return nokA - nokB;                const penA = statusesA.filter(s => s.status === 'PEN').length;
                 const penB = statusesB.filter(s => s.status === 'PEN').length;
-                if (penA !== penB) return penA - penB;
-                return String(keyA || '').localeCompare(String(keyB || ''));
+                if (penA !== penB) return penA - penB;                return String(keyA || '').localeCompare(String(keyB || ''));
             });
-        }
-        if (!groupKeys.length) {
+        }        if (!groupKeys.length) {
             ui.resultContainer.innerHTML = '<p class="p-4 text-center">Nenhum dado encontrado para a seleção atual.</p>';
-        } else {
-            // Gera dados do gráfico
-            const chartData = renderContractChart(colaboradores);
-            renderTable(groupKeys, dates, results, groupHeader, totalGeralResults, chartData);
+        } else {            renderTable(groupKeys, dates, results, groupHeader, totalGeralResults);
         }
     } catch (error) {
         if (myRun !== state._runId) return;
@@ -857,9 +643,7 @@ async function generateReport() {
         if (myRun !== state._runId) return;
         showLoading(false);
     }
-}
-
-async function fetchFilterData() {
+}async function fetchFilterData() {
     try {
         const {data: colabMatrizes, error: colabError} = await supabase
             .from('Colaboradores')
@@ -885,9 +669,7 @@ async function fetchFilterData() {
         state.allMatrizes = [];
         state.allGerentes = [];
     }
-}
-
-function populateMatrizFilter() {
+}function populateMatrizFilter() {
     if (!ui?.matrizFilterSelect) return;
     while (ui.matrizFilterSelect.options.length > 1) ui.matrizFilterSelect.remove(1);
     state.allMatrizes.forEach((matriz) => {
@@ -896,9 +678,7 @@ function populateMatrizFilter() {
         option.textContent = matriz;
         ui.matrizFilterSelect.appendChild(option);
     });
-}
-
-function populateGerenteFilter() {
+}function populateGerenteFilter() {
     if (!ui?.gerenteFilterSelect) {
         console.warn('Elemento #efet-gerente-filter não encontrado.');
         return;
@@ -910,15 +690,9 @@ function populateGerenteFilter() {
         option.textContent = gerente;
         ui.gerenteFilterSelect.appendChild(option);
     });
-}
-
-export async function init() {
+}export async function init() {
     if (state._inited) return;
     state._inited = true;
-
-    // Carrega Chart.js dinamicamente
-    await ensureChartJs();
-
     ui = {
         periodBtn: document.getElementById('efet-period-btn'),
         matrizFilterSelect: document.getElementById('efet-matriz-filter'),
@@ -1033,9 +807,7 @@ export async function init() {
     populateGerenteFilter();
     updatePeriodLabel();
     generateReport();
-}
-
-export function destroy() {
+}export function destroy() {
     state._runId = (state._runId || 0) + 1;
     try {
         ui?.periodBtn?.removeEventListener('click', state._handlers?.onPeriodClick);
@@ -1049,9 +821,4 @@ export function destroy() {
     state._handlers = null;
     state._inited = false;
     document.querySelector('.efetividade-modal-overlay')?.remove();
-
-    if (contractChartInstance) {
-        contractChartInstance.destroy();
-        contractChartInstance = null;
-    }
 }
