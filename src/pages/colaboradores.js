@@ -90,23 +90,33 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
 };async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
-    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';    try {
-        const matrizesPermitidas = getMatrizesPermitidas();        let queryVagas = supabase
+    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
+    try {
+        const matrizesPermitidas = getMatrizesPermitidas();
+        let queryVagas = supabase
             .from('Vagas')
             .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataEncaminhadoAdmissao, DataAprovacao')
-            .eq('Status', 'EM ADMISSÃO');        if (matrizesPermitidas !== null) {
+            .eq('Status', 'EM ADMISSÃO');
+        if (matrizesPermitidas !== null) {
             queryVagas = queryVagas.in('MATRIZ', matrizesPermitidas);
-        }        const queryColabs = supabase
+        }
+        const queryColabs = supabase
             .from('Colaboradores')
             .select('Nome')
-            .eq('Ativo', 'SIM');        const [resVagas, resColabs] = await Promise.all([
+            .eq('Ativo', 'SIM');
+        const [resVagas, resColabs] = await Promise.all([
             queryVagas.order('DataInicioDesejado', {ascending: true}),
             queryColabs
-        ]);        if (resVagas.error) throw resVagas.error;        rhState.dadosBrutos = resVagas.data || [];        rhState.nomesExistentes = new Set(
+        ]);
+        if (resVagas.error) throw resVagas.error;
+        rhState.dadosBrutos = resVagas.data || [];
+        rhState.nomesExistentes = new Set(
             (resColabs.data || []).map(c => (c.Nome || '').toUpperCase().trim())
-        );        setupRhFilters();
+        );
+        setupRhFilters();
         populateRhFilterOptions();
-        aplicarFiltrosRh();    } catch (err) {
+        aplicarFiltrosRh();
+    } catch (err) {
         console.error('Erro RH:', err);
         tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar.</td></tr>';
     }
@@ -114,26 +124,40 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const inputSearch = document.getElementById('filterRhSearch');
     const selectMatriz = document.getElementById('filterRhMatriz');
     const selectCargo = document.getElementById('filterRhCargo');
-    let btnToggleDate = document.getElementById('btnToggleFutureDates');    if (btnToggleDate) {        const newBtnDate = btnToggleDate.cloneNode(true);
+    let btnToggleDate = document.getElementById('btnToggleFutureDates');
+    if (btnToggleDate) {
+        const newBtnDate = btnToggleDate.cloneNode(true);
         btnToggleDate.parentNode.replaceChild(newBtnDate, btnToggleDate);
-        btnToggleDate = newBtnDate;        btnToggleDate.addEventListener('click', toggleRhDateMode);        let wrapper = btnToggleDate.parentNode.querySelector('.rh-buttons-wrapper');        if (!wrapper) {            wrapper = document.createElement('div');
-            wrapper.className = 'rh-buttons-wrapper';            wrapper.style.display = 'flex';
+        btnToggleDate = newBtnDate;
+        btnToggleDate.addEventListener('click', toggleRhDateMode);
+        let wrapper = btnToggleDate.parentNode.querySelector('.rh-buttons-wrapper');
+        if (!wrapper) {
+            wrapper = document.createElement('div');
+            wrapper.className = 'rh-buttons-wrapper';
+            wrapper.style.display = 'flex';
             wrapper.style.flexDirection = 'row';
             wrapper.style.gap = '8px';
             wrapper.style.alignItems = 'center';
-            wrapper.style.justifyContent = 'flex-end';            btnToggleDate.parentNode.insertBefore(wrapper, btnToggleDate);
+            wrapper.style.justifyContent = 'flex-end';
+            btnToggleDate.parentNode.insertBefore(wrapper, btnToggleDate);
             wrapper.appendChild(btnToggleDate);
-        }        let btnParaFechar = document.getElementById('btnToggleParaFechar');        if (!btnParaFechar) {
+        }
+        let btnParaFechar = document.getElementById('btnToggleParaFechar');
+        if (!btnParaFechar) {
             btnParaFechar = document.createElement('button');
             btnParaFechar.id = 'btnToggleParaFechar';
             btnParaFechar.className = "px-3 py-1 rounded-full border text-xs font-bold transition-colors bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200";
-            btnParaFechar.innerHTML = "🔒 Vagas p/ Fechar";            wrapper.appendChild(btnParaFechar);
-        }        const newBtnFechar = btnParaFechar.cloneNode(true);
-        btnParaFechar.parentNode.replaceChild(newBtnFechar, btnParaFechar);        newBtnFechar.addEventListener('click', () => {
+            btnParaFechar.innerHTML = "🔒 Vagas p/ Fechar";
+            wrapper.appendChild(btnParaFechar);
+        }
+        const newBtnFechar = btnParaFechar.cloneNode(true);
+        btnParaFechar.parentNode.replaceChild(newBtnFechar, btnParaFechar);
+        newBtnFechar.addEventListener('click', () => {
             rhState.somenteParaFechar = !rhState.somenteParaFechar;
             aplicarFiltrosRh();
         });
-    }    if (inputSearch) inputSearch.oninput = (e) => {
+    }
+    if (inputSearch) inputSearch.oninput = (e) => {
         rhState.filtros.termo = e.target.value.toUpperCase();
         aplicarFiltrosRh();
     };
@@ -148,21 +172,26 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
 }function populateRhFilterOptions() {
     const selMatriz = document.getElementById('filterRhMatriz');
     const selCargo = document.getElementById('filterRhCargo');
-    if (!selMatriz || !selCargo) return;    const valMatriz = selMatriz.value;
-    const valCargo = selCargo.value;    const matrizes = [...new Set(rhState.dadosBrutos.map(i => i.MATRIZ).filter(Boolean))].sort();
-    const cargos = [...new Set(rhState.dadosBrutos.map(i => i.Cargo).filter(Boolean))].sort();    selMatriz.innerHTML = '<option value="">Todas</option>';
+    if (!selMatriz || !selCargo) return;
+    const valMatriz = selMatriz.value;
+    const valCargo = selCargo.value;
+    const matrizes = [...new Set(rhState.dadosBrutos.map(i => i.MATRIZ).filter(Boolean))].sort();
+    const cargos = [...new Set(rhState.dadosBrutos.map(i => i.Cargo).filter(Boolean))].sort();
+    selMatriz.innerHTML = '<option value="">Todas</option>';
     matrizes.forEach(m => {
         const opt = document.createElement('option');
         opt.value = m;
         opt.textContent = m;
         selMatriz.appendChild(opt);
-    });    selCargo.innerHTML = '<option value="">Todos</option>';
+    });
+    selCargo.innerHTML = '<option value="">Todos</option>';
     cargos.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c;
         opt.textContent = typeof formatCargoShort === 'function' ? formatCargoShort(c) : c;
         selCargo.appendChild(opt);
-    });    if (matrizes.includes(valMatriz)) selMatriz.value = valMatriz;
+    });
+    if (matrizes.includes(valMatriz)) selMatriz.value = valMatriz;
     if (cargos.includes(valCargo)) selCargo.value = valCargo;
 }function toggleRhDateMode() {
     rhState.modoVisualizacao = (rhState.modoVisualizacao === 'ATUAIS') ? 'FUTURAS' : 'ATUAIS';
@@ -170,20 +199,29 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
 }function aplicarFiltrosRh() {
     const hoje = new Date().toISOString().split('T')[0];
     const lblMode = document.getElementById('lblDateMode');
-    const badge = document.getElementById('countRhBadges');    const btnDate = document.getElementById('btnToggleFutureDates');
-    const btnFechar = document.getElementById('btnToggleParaFechar');    const filtrados = rhState.dadosBrutos.filter(item => {
+    const badge = document.getElementById('countRhBadges');
+    const btnDate = document.getElementById('btnToggleFutureDates');
+    const btnFechar = document.getElementById('btnToggleParaFechar');
+    const filtrados = rhState.dadosBrutos.filter(item => {
         const dataInicio = item.DataInicioDesejado || '1900-01-01';
-        const isFuture = dataInicio > hoje;        if (rhState.modoVisualizacao === 'ATUAIS' && isFuture) return false;
-        if (rhState.modoVisualizacao === 'FUTURAS' && !isFuture) return false;        if (rhState.somenteParaFechar) {
-            const nomeNorm = (item.CandidatoAprovado || '').toUpperCase().trim();            if (!rhState.nomesExistentes.has(nomeNorm)) return false;
-        }        const termo = (rhState.filtros.termo || '').toUpperCase().trim();
+        const isFuture = dataInicio > hoje;
+        if (rhState.modoVisualizacao === 'ATUAIS' && isFuture) return false;
+        if (rhState.modoVisualizacao === 'FUTURAS' && !isFuture) return false;
+        if (rhState.somenteParaFechar) {
+            const nomeNorm = (item.CandidatoAprovado || '').toUpperCase().trim();
+            if (!rhState.nomesExistentes.has(nomeNorm)) return false;
+        }
+        const termo = (rhState.filtros.termo || '').toUpperCase().trim();
         if (termo) {
             const nomeC = (item.CandidatoAprovado || '').toUpperCase();
             const cpfC = (item.CPFCandidato || '').toUpperCase();
             if (!nomeC.includes(termo) && !cpfC.includes(termo)) return false;
-        }        if (rhState.filtros.matriz && item.MATRIZ !== rhState.filtros.matriz) return false;
-        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;        return true;
-    });    if (rhState.modoVisualizacao === 'ATUAIS') {
+        }
+        if (rhState.filtros.matriz && item.MATRIZ !== rhState.filtros.matriz) return false;
+        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;
+        return true;
+    });
+    if (rhState.modoVisualizacao === 'ATUAIS') {
         if (lblMode) lblMode.textContent = '📅 Vencidas / Hoje';
         if (btnDate) {
             btnDate.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
@@ -195,15 +233,19 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             btnDate.classList.remove('bg-blue-100', 'text-blue-800', 'border-blue-300');
             btnDate.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
         }
-    }    if (btnFechar) {
-        if (rhState.somenteParaFechar) {            btnFechar.classList.remove('bg-gray-100', 'text-gray-500', 'border-gray-300');
+    }
+    if (btnFechar) {
+        if (rhState.somenteParaFechar) {
+            btnFechar.classList.remove('bg-gray-100', 'text-gray-500', 'border-gray-300');
             btnFechar.classList.add('bg-purple-100', 'text-purple-800', 'border-purple-300');
             btnFechar.innerHTML = "🔒 Mostrando Vagas p/ Fechar (X)";
-        } else {            btnFechar.classList.remove('bg-purple-100', 'text-purple-800', 'border-purple-300');
+        } else {
+            btnFechar.classList.remove('bg-purple-100', 'text-purple-800', 'border-purple-300');
             btnFechar.classList.add('bg-gray-100', 'text-gray-500', 'border-gray-300');
             btnFechar.innerHTML = "🔒 Vagas p/ Fechar";
         }
-    }    if (badge) badge.textContent = filtrados.length;
+    }
+    if (badge) badge.textContent = filtrados.length;
     renderTabelaRH(filtrados);
 }function formatCargoShort(cargo) {
     if (!cargo) return '';
@@ -257,29 +299,31 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const hoje = new Date();
     const diaHoje = hoje.getDate();
     const trintaDiasAtras = new Date();
-    trintaDiasAtras.setDate(diaHoje - 30);
-    const startISO = trintaDiasAtras.toISOString().split('T')[0];
-    const endISO = hoje.toISOString().split('T')[0];
-    const {data: registros, error} = await supabase
+    trintaDiasAtras.setDate(diaHoje - 30);    let dataLimite = new Date();
+    dataLimite.setDate(dataLimite.getDate() - 1);     if (colab.DataDesligamentoSolicitada) {        const partesData = colab.DataDesligamentoSolicitada.split('-');
+        if (partesData.length === 3) {
+            const dtDesligamento = new Date(colab.DataDesligamentoSolicitada);            dtDesligamento.setHours(23, 59, 59, 999);            if (dtDesligamento < dataLimite) {
+                dataLimite = dtDesligamento;
+            }
+        }
+    }    if (dataLimite < trintaDiasAtras) {
+        return false;
+    }    const startISO = trintaDiasAtras.toISOString().split('T')[0];
+    const endISO = dataLimite.toISOString().split('T')[0];    const {data: registros, error} = await supabase
         .from('ControleDiario')
         .select('Data')
         .eq('Nome', colab.Nome)
         .gte('Data', startISO)
-        .lte('Data', endISO);
-    if (error) {
+        .lte('Data', endISO);    if (error) {
         console.error('Erro ao verificar pendências:', error);
         return false;
-    }
-    const datasPreenchidas = new Set(registros.map(r => r.Data));
-    const {data: ferias} = await supabase.from('Ferias')
+    }    const datasPreenchidas = new Set(registros.map(r => r.Data));    const {data: ferias} = await supabase.from('Ferias')
         .select('"Data Inicio", "Data Final"')
         .eq('Nome', colab.Nome)
-        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);
-    const {data: afastamentos} = await supabase.from('Afastamentos')
+        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);    const {data: afastamentos} = await supabase.from('Afastamentos')
         .select('"DATA INICIO", "DATA RETORNO"')
         .eq('NOME', colab.Nome)
-        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO}, "DATA RETORNO".is.null`);
-    const isAusenciaLegitima = (dateStr) => {
+        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO}, "DATA RETORNO".is.null`);    const isAusenciaLegitima = (dateStr) => {
         if (ferias) {
             for (const f of ferias) {
                 if (dateStr >= f['Data Inicio'] && dateStr <= f['Data Final']) return true;
@@ -292,49 +336,47 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }
         }
         return false;
-    };
-    const cursor = new Date(trintaDiasAtras);
-    const ontem = new Date();
-    ontem.setDate(ontem.getDate() - 1);
-    const ontemISO = ontem.toISOString().split('T')[0];
-    if (colab['Data de admissão']) {
-        const dtAdm = new Date(colab['Data de admissão']);
-        if (dtAdm > cursor) cursor.setTime(dtAdm.getTime());
-    }
-    const dsrString = (colab.DSR || '').toUpperCase();
-    while (cursor <= ontem) {
+    };    const cursor = new Date(trintaDiasAtras);    const limiteComparacao = new Date(dataLimite);
+    limiteComparacao.setHours(0, 0, 0, 0);     if (colab['Data de admissão']) {
+        const dtAdm = new Date(colab['Data de admissão']);        const cursorZerado = new Date(cursor);
+        cursorZerado.setHours(0, 0, 0, 0);
+        dtAdm.setHours(0, 0, 0, 0);        if (dtAdm > cursorZerado) {
+            cursor.setTime(dtAdm.getTime());
+        }
+    }    const dsrString = (colab.DSR || '').toUpperCase();    while (cursor <= limiteComparacao) {
         const diaISO = cursor.toISOString().split('T')[0];
-        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];
-        if (diaISO > ontemISO) break;
-        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
+        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];        if (diaISO > endISO) break;        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
             cursor.setDate(cursor.getDate() + 1);
             continue;
-        }
-        if (isAusenciaLegitima(diaISO)) {
+        }        if (isAusenciaLegitima(diaISO)) {
             cursor.setDate(cursor.getDate() + 1);
             continue;
-        }
-        if (!datasPreenchidas.has(diaISO)) {
+        }        if (!datasPreenchidas.has(diaISO)) {
             console.log(`Pendência encontrada para ${colab.Nome} no dia ${diaISO}`);
             return true;
-        }
-        cursor.setDate(cursor.getDate() + 1);
-    }
-    return false;
+        }        cursor.setDate(cursor.getDate() + 1);
+    }    return false;
 }function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);    lista.forEach(cand => {
+    hoje.setHours(0, 0, 0, 0);
+    lista.forEach(cand => {
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group";        const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim();
-        const jaExiste = rhState.nomesExistentes && rhState.nomesExistentes.has(nomeNormalizado);        const nomeClass = jaExiste ? 'text-green-600 font-extrabold' : 'text-[#003369] font-bold';
-        const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔</span>' : '';        const btnFecharStyle = jaExiste
+        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group";
+        const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim();
+        const jaExiste = rhState.nomesExistentes && rhState.nomesExistentes.has(nomeNormalizado);
+        const nomeClass = jaExiste ? 'text-green-600 font-extrabold' : 'text-[#003369] font-bold';
+        const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔</span>' : '';
+        const btnFecharStyle = jaExiste
             ? 'background-color: #dcfce7; color: #166534; border: 1px solid #86efac; cursor: pointer;'
-            : 'background-color: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; cursor: not-allowed; opacity: 0.7;';        const btnFecharTitle = jaExiste
+            : 'background-color: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; cursor: not-allowed; opacity: 0.7;';
+        const btnFecharTitle = jaExiste
             ? "Colaborador já cadastrado! Clique para fechar a vaga."
-            : "Ação bloqueada: Colaborador ainda não consta na base ativa.";        const dtInicio = cand.DataInicioDesejado ? formatDateLocal(cand.DataInicioDesejado) : '-';
+            : "Ação bloqueada: Colaborador ainda não consta na base ativa.";
+        const dtInicio = cand.DataInicioDesejado ? formatDateLocal(cand.DataInicioDesejado) : '-';
         const cpf = cand.CPFCandidato || '-';
-        const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;        const dataRefStr = cand.DataInicioDesejado || cand.DataAdmissaoReal;
+        const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;
+        const dataRefStr = cand.DataInicioDesejado || cand.DataAdmissaoReal;
         let slaHtml = '<span class="text-gray-300">-</span>';
         if (dataRefStr) {
             const dataRef = new Date(dataRefStr);
@@ -355,7 +397,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 slaTexto = `${slaDias}d`;
             }
             slaHtml = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${slaClass}">${slaTexto}</span>`;
-        }        tr.innerHTML = `
+        }
+        tr.innerHTML = `
             <td class="p-2 ${nomeClass} leading-tight">
                 ${cand.CandidatoAprovado || 'Sem Nome'}${iconCheck}
             </td>
@@ -394,25 +437,33 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                     </button>
                 </div>
             </td>
-        `;        tr.addEventListener('dblclick', (e) => {
+        `;
+        tr.addEventListener('dblclick', (e) => {
             if (e.target.closest('button')) return;
             if (jaExiste) {
-                if(!confirm('Este colaborador já consta na base. Deseja importar novamente (pode gerar duplicidade)?')) return;
+                if (!confirm('Este colaborador já consta na base. Deseja importar novamente (pode gerar duplicidade)?')) return;
             }
             selecionarCandidatoImportacao(cand);
-        });        const btnFechar = tr.querySelector('.btn-fechar-vaga');
+        });
+        const btnFechar = tr.querySelector('.btn-fechar-vaga');
         btnFechar.addEventListener('click', (e) => {
-            e.stopPropagation();            if (!jaExiste) {                return;
-            }            fecharVagaImportacao(cand);
-        });        const btnDesistencia = tr.querySelector('.btn-desistencia');
+            e.stopPropagation();
+            if (!jaExiste) {
+                return;
+            }
+            fecharVagaImportacao(cand);
+        });
+        const btnDesistencia = tr.querySelector('.btn-desistencia');
         btnDesistencia.addEventListener('click', (e) => {
             e.stopPropagation();
             confirmarDesistenciaVaga(cand);
-        });        const btnNoShow = tr.querySelector('.btn-noshow');
+        });
+        const btnNoShow = tr.querySelector('.btn-noshow');
         btnNoShow.addEventListener('click', (e) => {
             e.stopPropagation();
             confirmarNoShowVaga(cand);
-        });        tbodyCandidatosRH.appendChild(tr);
+        });
+        tbodyCandidatosRH.appendChild(tr);
     });
 }async function fecharVagaImportacao(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
@@ -420,14 +471,22 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         `Deseja marcar a vaga de <b>${nome}</b> como <span style="color:green">FECHADA</span>?<br><br>Isso removerá o candidato desta lista de importação.`,
         'Fechar Vaga',
         'success'
-    );    if (!confirmacao) return;    if (tbodyCandidatosRH) tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Atualizando status...</td></tr>';    try {
+    );
+    if (!confirmacao) return;
+    if (tbodyCandidatosRH) tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Atualizando status...</td></tr>';
+    try {
         const {error} = await supabase
             .from('Vagas')
             .update({
                 Status: 'FECHADA'
             })
-            .eq('ID_Vaga', vaga.ID_Vaga);        if (error) throw error;        await window.customAlert('Vaga fechada com sucesso!', 'Sucesso');
-        logAction(`Fechou vaga (via Importação RH): ${nome} (Vaga #${vaga.ID_Vaga})`);        await fetchCandidatosAprovados();        if (typeof checkPendingImports === 'function') checkPendingImports();    } catch (err) {
+            .eq('ID_Vaga', vaga.ID_Vaga);
+        if (error) throw error;
+        await window.customAlert('Vaga fechada com sucesso!', 'Sucesso');
+        logAction(`Fechou vaga (via Importação RH): ${nome} (Vaga #${vaga.ID_Vaga})`);
+        await fetchCandidatosAprovados();
+        if (typeof checkPendingImports === 'function') checkPendingImports();
+    } catch (err) {
         console.error('Erro ao fechar vaga:', err);
         await window.customAlert('Erro ao fechar vaga: ' + err.message, 'Erro');
         fetchCandidatosAprovados();
