@@ -112,7 +112,7 @@ const state = {
         spamHcEvolucaoRegiao: null,
         spamHcGerente: null,
         spamHcVsAux: null,
-        spamContractDonut: null // NOVO CHART
+        spamContractDonut: null
     },
     matriz: '',
     gerencia: '',
@@ -881,6 +881,7 @@ function ensureChartsCreatedService() {
     if (!state.charts.dsr) {
         const canvas = document.getElementById('ind-dsr-pie');
         if (canvas) {
+
             const baseSize = Math.max(13, Math.min(15, Math.round((canvas?.parentElement?.clientWidth || 600) / 45)));
             const options = {
                 layout: {padding: 6},
@@ -923,6 +924,12 @@ function ensureChartsCreatedService() {
     if (!state.charts.auxPrazoSvc) {
         const auxPrazoSvcId = document.getElementById('ind-aux-30-60-90-svc-bar') ? 'ind-aux-30-60-90-svc-bar' : 'ind-contrato-90d-svc-bar';
         state.charts.auxPrazoSvc = createStackedBar(auxPrazoSvcId, (chart, element) => toggleFilter('auxPrazoSvc', chart, element), 'y');
+    }
+
+
+    if (!state.charts.consultoriaSvc) {
+
+        state.charts.consultoriaSvc = createStackedBar('ind-consultoria-svc-bar', null, 'y');
     }
 }
 
@@ -985,10 +992,16 @@ function updateChartsNow() {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
     }
+
+
     const baseColabs = applyInteractiveFilter(state.colabs.filter(c => norm(c?.Ativo) === 'SIM'));
     const pal = palette();
     const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
+
+
     const colabsAuxiliares = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR');
+
+
     {
         const {labels, groups} = splitByTurno(colabsAuxiliares);
         const counts = groups.map(g => {
@@ -1015,6 +1028,8 @@ function updateChartsNow() {
             state.charts.idade.update('none');
         }
     }
+
+
     {
         const {labels, groups} = splitByTurno(colabsAuxiliares);
         const cats = ['Masculino', 'Feminino', 'Outros', 'N/D'];
@@ -1044,6 +1059,8 @@ function updateChartsNow() {
             state.charts.genero.update('none');
         }
     }
+
+
     {
         const labels = DOW_LABELS.slice();
         const counts = new Map(labels.map(k => [k, 0]));
@@ -1064,6 +1081,8 @@ function updateChartsNow() {
             state.charts.dsr.update();
         }
     }
+
+
     {
         const {labels, groups} = splitByTurno(colabsAuxiliares);
         const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
@@ -1109,6 +1128,8 @@ function updateChartsNow() {
             ch.update();
         }
     }
+
+
     {
         const bySvc = new Map();
         colabsAuxiliares.forEach(c => {
@@ -1213,6 +1234,8 @@ function updateChartsNow() {
             ch.update();
         }
     }
+
+
     {
         const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
         const bySvc = new Map();
@@ -1294,6 +1317,76 @@ function updateChartsNow() {
             }));
             applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
             ch.data.labels = lbls;
+            ch.data.datasets = datasets;
+            ch.update();
+        }
+    }
+
+
+    {
+
+        const colabsConsultoria = colabsAuxiliares.filter(c => !norm(c.Contrato).includes('KN'));
+
+        const bySvc = new Map();
+        const allContracts = new Set();
+
+        colabsConsultoria.forEach(c => {
+            const k = mapSvcLabel(c?.SVC);
+            const contrato = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
+
+            if (!bySvc.has(k)) bySvc.set(k, new Map());
+            const svcMap = bySvc.get(k);
+            svcMap.set(contrato, (svcMap.get(contrato) || 0) + 1);
+
+            allContracts.add(contrato);
+        });
+
+        const contractTypes = Array.from(allContracts).sort();
+        const svcs = Array.from(bySvc.keys()).sort();
+
+
+        const globalCounts = new Map();
+        colabsConsultoria.forEach(c => {
+            const contrato = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
+            globalCounts.set(contrato, (globalCounts.get(contrato) || 0) + 1);
+        });
+        const totalGlobal = colabsConsultoria.length || 1;
+
+
+        const datasets = contractTypes.map((ctype, i) => {
+            const dataPct = [];
+            const dataRaw = [];
+
+            svcs.forEach(svc => {
+                const svcMap = bySvc.get(svc);
+                const count = svcMap.get(ctype) || 0;
+                const totalSvc = Array.from(svcMap.values()).reduce((a, b) => a + b, 0) || 1;
+
+                dataPct.push((count * 100) / totalSvc);
+                dataRaw.push(count);
+            });
+
+
+            const countGeral = globalCounts.get(ctype) || 0;
+            dataPct.push((countGeral * 100) / totalGlobal);
+            dataRaw.push(countGeral);
+
+            return {
+                label: ctype,
+                data: dataPct,
+                backgroundColor: pal[i % pal.length],
+                _rawCounts: dataRaw,
+                borderWidth: 0
+            };
+        });
+
+        svcs.push('GERAL');
+
+        const ch = state.charts.consultoriaSvc;
+        if (ch) {
+            setDynamicChartHeight(ch, svcs);
+            applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
+            ch.data.labels = svcs;
             ch.data.datasets = datasets;
             ch.update();
         }
@@ -1594,7 +1687,7 @@ function ensureChartsCreatedSpam() {
         }
     }
 
-    // *** NOVO GRÁFICO DONUT DE CONTRATOS ***
+
     if (!state.charts.spamContractDonut) {
         const canvas = document.getElementById('spam-chart-contrato-donut');
         if (canvas) {
@@ -1637,16 +1730,22 @@ function ensureChartsCreatedSpam() {
 async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
+
+
     const [allSpamData] = await Promise.all([loadSpamData()]);
     const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
+
+
     const spamData = allSpamData.filter(r => {
         if (state.regiao && r.REGIAO !== state.regiao) return false;
         if (svcsDoGerente) if (!svcsDoGerente.has(r.SVC)) return false;
         return true;
     });
+
     const pal = palette();
     const allMonths = [...spamData].sort(sortMesAno);
     const latestMonth = allMonths.pop();
+
     if (!latestMonth) {
         console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
@@ -1658,10 +1757,13 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         return;
     }
+
     const {MÊS: mesAtual, ANO: anoAtual} = latestMonth;
     const mesAtualLabel = `${mesAtual.slice(0, 3)}/${anoAtual}`;
     const previousMonth = allMonths.filter(m => m.ANO < anoAtual || (m.ANO === anoAtual && m.mesOrder < latestMonth.mesOrder)).pop();
     const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;
+
+
     if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
@@ -1685,6 +1787,9 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
             return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
+
+
+
         let maxHcParaEscala = 0;
         datasets.forEach(ds => {
             const max = ds.data.length > 0 ? Math.max(...ds.data) : 0;
@@ -1695,6 +1800,8 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
             if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
         }
+
+
         const datasetAtual = datasets.find(d => d.label === mesAtualLabel);
         if (datasetAtual && mesAnteriorLabel) {
             const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
@@ -1704,27 +1811,21 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                     const anterior = datasetAnterior.data[idx] || 0;
                     return atual - anterior;
                 });
-                const totalAnterior = datasetAnterior.data.reduce((a, b) => a + b, 0);
-                const totalAtual = datasetAtual.data.reduce((a, b) => a + b, 0);
-                const deltaGeral = totalAtual - totalAnterior;
-                labels.push('GERAL');
-                datasets.forEach(ds => {
-                    const total = ds.data.reduce((a, b) => a + b, 0);
-                    ds.data.push(total);
-                });
-                datasetAtual._deltas.push(deltaGeral);
             } else {
                 datasetAtual._deltas = labels.map(() => 0);
             }
         } else if (datasetAtual) {
             datasetAtual._deltas = labels.map(() => 0);
         }
+
         chart.data._mesAtualLabel = mesAtualLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
     }
+
+
     if (state.charts.spamHcEvolucaoRegiao) {
         const dadosPorRegiaoMes = new Map();
         const mesesSet = new Set();
@@ -1756,6 +1857,8 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         chart.data.datasets = datasets;
         chart.update();
     }
+
+
     if (state.charts.spamHcGerente) {
         const spamMesAtual = spamData.filter(r => r.MÊS === mesAtual && r.ANO === anoAtual);
         const hcPorGerente = new Map();
@@ -1766,15 +1869,26 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             hcPorGerente.set(gerente, totalAnterior + r.HC_Total);
         });
         const dataSorted = [...hcPorGerente.entries()].sort((a, b) => a[1] - b[1]);
+
+
+        const labels = dataSorted.map(d => d[0]);
         const dataValues = dataSorted.map(d => d[1]);
+
+        const totalGeral = dataValues.reduce((acc, val) => acc + val, 0);
+        labels.push('GERAL');
+        dataValues.push(totalGeral);
+
         const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;
         const chart = state.charts.spamHcGerente;
         if (chart.options.scales.x) chart.options.scales.x.max = maxHc * 1.25;
-        chart.data.labels = dataSorted.map(d => d[0]);
+
+        chart.data.labels = labels;
         chart.data.datasets = [{label: `HC Total (${mesAtualLabel})`, data: dataValues, backgroundColor: pal[1]}];
-        setDynamicChartHeight(chart, dataSorted.map(d => d[0]));
+        setDynamicChartHeight(chart, labels);
         chart.update();
     }
+
+
     if (state.charts.spamHcVsAux) {
         const auxPorSvc = new Map();
         colabsAtivos.forEach(c => {
@@ -1792,16 +1906,16 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
         const labels = [...allSvcs].sort();
+
         const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
         const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
-        const totalSpam = dataHcTotalSpam.reduce((a, b) => a + b, 0);
-        const totalReal = dataAuxAtivoReal.reduce((a, b) => a + b, 0);
-        dataHcTotalSpam.push(totalSpam);
-        dataAuxAtivoReal.push(totalReal);
-        labels.push('GERAL');
-        const maxSpamSemGeral = dataHcTotalSpam.length > 1 ? Math.max(...dataHcTotalSpam.slice(0, -1)) : (dataHcTotalSpam[0] || 0);
-        const maxRealSemGeral = dataAuxAtivoReal.length > 1 ? Math.max(...dataAuxAtivoReal.slice(0, -1)) : (dataAuxAtivoReal[0] || 0);
-        const maxHcParaEscala = Math.max(maxSpamSemGeral, maxRealSemGeral);
+
+
+
+        const maxSpam = dataHcTotalSpam.length > 0 ? Math.max(...dataHcTotalSpam) : 0;
+        const maxReal = dataAuxAtivoReal.length > 0 ? Math.max(...dataAuxAtivoReal) : 0;
+        const maxHcParaEscala = Math.max(maxSpam, maxReal);
+
         const chart = state.charts.spamHcVsAux;
         if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
@@ -1816,33 +1930,85 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         chart.update();
     }
 
-    // *** ATUALIZAÇÃO DO GRÁFICO DE ROSCA (DONUT) ***
+
+    if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
+        if (state.charts.spamContractDonut) {
+            state.charts.spamContractDonut.destroy();
+        }
+        state.charts.spamContractDonut = createStackedBar('spam-chart-contrato-donut', null, 'x');
+    }
+
     if (state.charts.spamContractDonut) {
-        const counts = new Map();
-        // Filtra: Ativo="SIM", Cargo="AUXILIAR", Contrato!=="KN"
         const targetColabs = colabsAtivos.filter(c => {
             const contrato = norm(c.Contrato || 'OUTROS');
             const cargo = norm(c.Cargo || '');
-            // Filtro especifico pedido: Auxiliar e não KN
             return cargo.includes('AUXILIAR') && !contrato.includes('KN');
         });
 
+        const dataMap = new Map();
+        const globalCounts = new Map();
+        const allContracts = new Set();
+
         targetColabs.forEach(c => {
-            const k = c.Contrato ? c.Contrato.toUpperCase().trim() : 'OUTROS';
-            counts.set(k, (counts.get(k) || 0) + 1);
+            const reg = c.REGIAO || 'N/D';
+            const cont = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
+
+            if (!dataMap.has(reg)) dataMap.set(reg, new Map());
+            const regMap = dataMap.get(reg);
+
+            regMap.set(cont, (regMap.get(cont) || 0) + 1);
+
+
+            globalCounts.set(cont, (globalCounts.get(cont) || 0) + 1);
+
+            allContracts.add(cont);
         });
 
-        const labels = Array.from(counts.keys()).sort();
-        const rawArr = labels.map(l => counts.get(l));
-        const totalMarks = rawArr.reduce((a, b) => a + b, 0) || 1;
-        const pctArr = rawArr.map(v => (v * 100) / totalMarks);
+        const labels = Array.from(dataMap.keys()).sort();
+
+        labels.push('GERAL');
+
+        const contractTypes = Array.from(allContracts).sort();
+
+        const datasets = contractTypes.map((ctype, i) => {
+            const dataPct = [];
+            const dataRaw = [];
+
+            labels.forEach(reg => {
+                let count = 0;
+                let totalReg = 0;
+
+                if (reg === 'GERAL') {
+
+                    count = globalCounts.get(ctype) || 0;
+                    totalReg = Array.from(globalCounts.values()).reduce((a, b) => a + b, 0) || 1;
+                } else {
+
+                    const regMap = dataMap.get(reg);
+                    if (regMap) {
+                        count = regMap.get(ctype) || 0;
+                        totalReg = Array.from(regMap.values()).reduce((a, b) => a + b, 0) || 1;
+                    }
+                }
+
+                const pct = (count * 100) / totalReg;
+                dataPct.push(pct);
+                dataRaw.push(count);
+            });
+
+            return {
+                label: ctype,
+                data: dataPct,
+                backgroundColor: pal[i % pal.length],
+                _rawCounts: dataRaw,
+                borderWidth: 0
+            };
+        });
+
+        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
 
         state.charts.spamContractDonut.data.labels = labels;
-        state.charts.spamContractDonut.data.datasets = [{
-            data: pctArr,
-            backgroundColor: pal.slice(0, labels.length), // Usa a paleta de cores padrão
-            _rawCounts: rawArr
-        }];
+        state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
     }
 }
@@ -1866,11 +2032,11 @@ async function desligamento_fetchPendentes() {
         console.warn("Tabela de desligamento (tbody) não encontrada. A sub-aba foi iniciada?");
         return;
     }
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Carregando...</td></tr>'; // Aumentei colspan para 9 por causa da nova coluna
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Carregando...</td></tr>';
 
     const matrizesPermitidas = getMatrizesPermitidas();
 
-    // Adicionei 'Smartoff' no select
+
     let queryPendentes = supabase
         .from('Colaboradores')
         .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
@@ -1879,7 +2045,7 @@ async function desligamento_fetchPendentes() {
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Adicionei 'Smartoff' no select
+
     let queryConcluidos = supabase
         .from('Colaboradores')
         .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
@@ -1962,7 +2128,7 @@ function desligamento_renderTable() {
 
         if (statusClass) tr.classList.add(statusClass);
 
-        // Formatando Smartoff (se vazio, mostra traço)
+
         const smartoffDisplay = colab.Smartoff ? `<span class="font-mono font-bold text-blue-700">${colab.Smartoff}</span>` : '-';
 
         tr.innerHTML = `
@@ -2018,7 +2184,7 @@ async function desligamento_handleDirectKN() {
     const ok = await window.customConfirm(confirmMsg, 'Confirmação de Desligamento Direto', 'danger');
     if (!ok) return;
 
-    // Feedback visual simples
+
     const originalText = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`)?.textContent;
     const btn = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`);
     if (btn) {
@@ -2152,11 +2318,11 @@ async function desligamento_handleReject() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
 
-    // Nota: O prompt nativo ainda é necessário se você quiser input de texto simples,
-    // a menos que criemos um customPrompt. Por enquanto mantemos o prompt nativo para o motivo,
-    // mas usamos o customConfirm para a confirmação final.
+
+
+
     const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
-    if (motivoRecusa === null) return; // Cancelou o prompt
+    if (motivoRecusa === null) return;
 
     const ok = await window.customConfirm(
         `Tem certeza que deseja <b>RECUSAR</b> o desligamento de <b>${mod.colaboradorAtual.Nome}</b>?`,
@@ -2504,7 +2670,7 @@ export function destroy() {
 
         state.charts = {
             idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null,
-            auxPrazoSvc: null, idadeRegiao: null, generoRegiao: null, contratoRegiao: null,
+            auxPrazoSvc: null, consultoriaSvc: null, idadeRegiao: null, generoRegiao: null, contratoRegiao: null,
             auxPrazoRegiao: null, spamHcEvolucaoSvc: null, spamHcEvolucaoRegiao: null,
             spamHcGerente: null, spamHcVsAux: null
         };

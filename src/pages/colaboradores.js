@@ -265,25 +265,25 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]';
         overlay.innerHTML = `
-        <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full p-6 animate-scaleIn">
-            <div class="flex items-center gap-3 mb-4 text-amber-600">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <h3 class="text-xl font-bold text-[#003369]">Atenção ao Desligamento</h3>
-            </div>            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 text-sm text-gray-700 leading-relaxed">
-                <p class="font-bold mb-2">As solicitações de desligamento devem ser enviadas com 48 horas úteis de antecedência.</p>
-                <p class="mb-2">Antes de finalizar, revise os dados de ponto para evitar descontos indevidos na rescisão.</p>
-                <p>Sempre que possível, priorize a realização de desligamentos voluntários entre <span class="font-bold">segunda e quinta-feira</span>.</p>
-            </div>            <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
-                <button id="avisoCancelBtn" class="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
-                    Cancelar
-                </button>
-                <button id="avisoContinueBtn" class="px-4 py-2 bg-[#003369] text-white rounded-md font-semibold hover:bg-[#002244] shadow-md transition-colors">
-                    Continuar
-                </button>
-            </div>
-        </div>`;
+            <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full p-6 animate-scaleIn">
+                <div class="flex items-center gap-3 mb-4 text-amber-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h3 class="text-xl font-bold text-[#003369]">Atenção ao Desligamento</h3>
+                </div>            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 text-sm text-gray-700 leading-relaxed">
+                    <p class="font-bold mb-2">As solicitações de desligamento devem ser enviadas com 48 horas úteis de antecedência.</p>
+                    <p class="mb-2">Antes de finalizar, revise os dados de ponto para evitar descontos indevidos na rescisão.</p>
+                    <p>Sempre que possível, priorize a realização de desligamentos voluntários entre <span class="font-bold">segunda e quinta-feira</span>.</p>
+                </div>            <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                    <button id="avisoCancelBtn" class="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
+                        Cancelar
+                    </button>
+                    <button id="avisoContinueBtn" class="px-4 py-2 bg-[#003369] text-white rounded-md font-semibold hover:bg-[#002244] shadow-md transition-colors">
+                        Continuar
+                    </button>
+                </div>
+            </div>`;
         document.body.appendChild(overlay);
         const close = (result) => {
             overlay.remove();
@@ -295,35 +295,46 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             if (e.target === overlay) close(false);
         });
     });
-}async function verificarPendencias(colab) {
+}async function verificarPendencias(colab, dataDesligamentoStr) {
+    const pendencias = [];
     const hoje = new Date();
     const diaHoje = hoje.getDate();
     const trintaDiasAtras = new Date();
-    trintaDiasAtras.setDate(diaHoje - 30);    let dataLimite = new Date();
-    dataLimite.setDate(dataLimite.getDate() - 1);     if (colab.DataDesligamentoSolicitada) {        const partesData = colab.DataDesligamentoSolicitada.split('-');
-        if (partesData.length === 3) {
-            const dtDesligamento = new Date(colab.DataDesligamentoSolicitada);            dtDesligamento.setHours(23, 59, 59, 999);            if (dtDesligamento < dataLimite) {
+    trintaDiasAtras.setDate(diaHoje - 30);
+    let dataLimite = new Date();
+    dataLimite.setDate(dataLimite.getDate() - 1);
+    if (dataDesligamentoStr) {
+        const partes = dataDesligamentoStr.split('-');
+        if (partes.length === 3) {
+            const dtDesligamento = new Date(partes[0], partes[1] - 1, partes[2]);
+            if (dtDesligamento < dataLimite) {
                 dataLimite = dtDesligamento;
             }
         }
-    }    if (dataLimite < trintaDiasAtras) {
-        return false;
-    }    const startISO = trintaDiasAtras.toISOString().split('T')[0];
-    const endISO = dataLimite.toISOString().split('T')[0];    const {data: registros, error} = await supabase
+    }
+    if (dataLimite < trintaDiasAtras) return [];
+    const startISO = trintaDiasAtras.toISOString().split('T')[0];
+    const endISO = dataLimite.toISOString().split('T')[0];
+    const {data: registros, error} = await supabase
         .from('ControleDiario')
         .select('Data')
         .eq('Nome', colab.Nome)
         .gte('Data', startISO)
-        .lte('Data', endISO);    if (error) {
+        .lte('Data', endISO);
+    if (error) {
         console.error('Erro ao verificar pendências:', error);
-        return false;
-    }    const datasPreenchidas = new Set(registros.map(r => r.Data));    const {data: ferias} = await supabase.from('Ferias')
+        return [];
+    }
+    const datasPreenchidas = new Set((registros || []).map(r => r.Data));
+    const {data: ferias} = await supabase.from('Ferias')
         .select('"Data Inicio", "Data Final"')
         .eq('Nome', colab.Nome)
-        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);    const {data: afastamentos} = await supabase.from('Afastamentos')
+        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);
+    const {data: afastamentos} = await supabase.from('Afastamentos')
         .select('"DATA INICIO", "DATA RETORNO"')
         .eq('NOME', colab.Nome)
-        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO}, "DATA RETORNO".is.null`);    const isAusenciaLegitima = (dateStr) => {
+        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO}, "DATA RETORNO".is.null`);
+    const isAusenciaLegitima = (dateStr) => {
         if (ferias) {
             for (const f of ferias) {
                 if (dateStr >= f['Data Inicio'] && dateStr <= f['Data Final']) return true;
@@ -336,26 +347,39 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }
         }
         return false;
-    };    const cursor = new Date(trintaDiasAtras);    const limiteComparacao = new Date(dataLimite);
-    limiteComparacao.setHours(0, 0, 0, 0);     if (colab['Data de admissão']) {
-        const dtAdm = new Date(colab['Data de admissão']);        const cursorZerado = new Date(cursor);
+    };
+    const cursor = new Date(trintaDiasAtras);
+    const limiteComparacao = new Date(dataLimite);
+    limiteComparacao.setHours(0, 0, 0, 0);
+    if (colab['Data de admissão']) {
+        const partesAdm = colab['Data de admissão'].split('-');
+        const dtAdm = new Date(partesAdm[0], partesAdm[1] - 1, partesAdm[2]);
+        const cursorZerado = new Date(cursor);
         cursorZerado.setHours(0, 0, 0, 0);
-        dtAdm.setHours(0, 0, 0, 0);        if (dtAdm > cursorZerado) {
+        if (dtAdm > cursorZerado) {
             cursor.setTime(dtAdm.getTime());
         }
-    }    const dsrString = (colab.DSR || '').toUpperCase();    while (cursor <= limiteComparacao) {
-        const diaISO = cursor.toISOString().split('T')[0];
-        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];        if (diaISO > endISO) break;        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
-            cursor.setDate(cursor.getDate() + 1);
-            continue;
-        }        if (isAusenciaLegitima(diaISO)) {
-            cursor.setDate(cursor.getDate() + 1);
-            continue;
-        }        if (!datasPreenchidas.has(diaISO)) {
-            console.log(`Pendência encontrada para ${colab.Nome} no dia ${diaISO}`);
-            return true;
-        }        cursor.setDate(cursor.getDate() + 1);
-    }    return false;
+    }
+    const dsrString = (colab.DSR || '').toUpperCase();
+    while (cursor <= limiteComparacao) {
+        const y = cursor.getFullYear();
+        const m = String(cursor.getMonth() + 1).padStart(2, '0');
+        const d = String(cursor.getDate()).padStart(2, '0');
+        const diaISO = `${y}-${m}-${d}`;
+        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];
+        let cobrar = true;
+        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
+            cobrar = false;
+        }
+        if (cobrar && isAusenciaLegitima(diaISO)) {
+            cobrar = false;
+        }
+        if (cobrar && !datasPreenchidas.has(diaISO)) {
+            pendencias.push(formatDateLocal(diaISO));
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return pendencias;
 }function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
@@ -399,45 +423,45 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             slaHtml = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${slaClass}">${slaTexto}</span>`;
         }
         tr.innerHTML = `
-            <td class="p-2 ${nomeClass} leading-tight">
-                ${cand.CandidatoAprovado || 'Sem Nome'}${iconCheck}
-            </td>
-            <td class="p-2 text-gray-500 text-[11px]">
-                ${cpf}
-            </td>
-            <td class="p-2 text-gray-700 font-medium text-[11px]" title="${cand.Cargo}">
-                ${cargoCurto}
-            </td>
-            <td class="p-2 text-gray-600 text-[11px]">
-                ${cand.MATRIZ || ''}
-            </td>
-            <td class="p-2 text-gray-600 text-[11px]">
-                ${cand.Gestor || '-'}
-            </td>
-            <td class="p-2 text-gray-700 text-center font-semibold text-[11px]">
-                ${dtInicio}
-            </td>
-            <td class="p-2 text-center">
-                ${slaHtml}
-            </td>
-            <td class="p-2 text-center">
-                <div class="flex items-center justify-center gap-1">
-                    <button class="btn-fechar-vaga text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
-                            style="${btnFecharStyle}"
-                            title="${btnFecharTitle}">
-                        Fechar Vaga
-                    </button>
-                    <button class="btn-noshow bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-800 hover:border-purple-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
-                            title="Registrar não comparecimento">
-                        NoShow
-                    </button>
-                    <button class="btn-desistencia bg-white border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
-                            title="Cancelar vaga por desistência">
-                        Desist.
-                    </button>
-                </div>
-            </td>
-        `;
+                <td class="p-2 ${nomeClass} leading-tight">
+                    ${cand.CandidatoAprovado || 'Sem Nome'}${iconCheck}
+                </td>
+                <td class="p-2 text-gray-500 text-[11px]">
+                    ${cpf}
+                </td>
+                <td class="p-2 text-gray-700 font-medium text-[11px]" title="${cand.Cargo}">
+                    ${cargoCurto}
+                </td>
+                <td class="p-2 text-gray-600 text-[11px]">
+                    ${cand.MATRIZ || ''}
+                </td>
+                <td class="p-2 text-gray-600 text-[11px]">
+                    ${cand.Gestor || '-'}
+                </td>
+                <td class="p-2 text-gray-700 text-center font-semibold text-[11px]">
+                    ${dtInicio}
+                </td>
+                <td class="p-2 text-center">
+                    ${slaHtml}
+                </td>
+                <td class="p-2 text-center">
+                    <div class="flex items-center justify-center gap-1">
+                        <button class="btn-fechar-vaga text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
+                                style="${btnFecharStyle}"
+                                title="${btnFecharTitle}">
+                            Fechar Vaga
+                        </button>
+                        <button class="btn-noshow bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-800 hover:border-purple-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
+                                title="Registrar não comparecimento">
+                            NoShow
+                        </button>
+                        <button class="btn-desistencia bg-white border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
+                                title="Cancelar vaga por desistência">
+                            Desist.
+                        </button>
+                    </div>
+                </td>
+            `;
         tr.addEventListener('dblclick', (e) => {
             if (e.target.closest('button')) return;
             if (jaExiste) {
@@ -826,12 +850,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     return out;
 }function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
-    colaboradoresTbody.innerHTML = '';
-    if (!dataToRender || dataToRender.length === 0) {
+    colaboradoresTbody.innerHTML = '';    if (!dataToRender || dataToRender.length === 0) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Nenhum colaborador encontrado.</td></tr>';
         return;
-    }
-    const formatarNomeColaborador = (colaborador) => {
+    }    const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
         if (colaborador.StatusDesligamento === 'PENDENTE') {
             return `${nomeBase} ⚠️ (Desligamento Pendente)`;
@@ -847,32 +869,38 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             return `${nomeBase} 🏖️ (Faltam ${diasRest} ${sufixo})`;
         }
         return nomeBase;
-    };
-    dataToRender.forEach((colaborador) => {
+    };    dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
-        tr.setAttribute('data-nome', colaborador.Nome || '');
-        if (colaborador.StatusDesligamento === 'PENDENTE') {
+        tr.setAttribute('data-nome', colaborador.Nome || '');        if (colaborador.StatusDesligamento === 'PENDENTE') {
             tr.classList.add('row-pending');
         } else if (colaborador.StatusDesligamento === 'RECUSADO') {
             tr.classList.add('row-rejected');
-        }
-        const nomeCelula = formatarNomeColaborador(colaborador);
+        }        tr.addEventListener('dblclick', (e) => {
+            e.stopPropagation();            if (document.body.classList.contains('user-level-visitante')) return;            const sel = window.getSelection();
+            if (sel && sel.toString().length > 0) {
+                try { sel.removeAllRanges(); } catch {}
+            }            const nomeParaEditar = colaborador.Nome;
+            if (nomeParaEditar) {
+                document.dispatchEvent(
+                    new CustomEvent('open-edit-modal', { detail: { nome: nomeParaEditar } })
+                );
+            }
+        });        const nomeCelula = formatarNomeColaborador(colaborador);
         const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);
-        const admissaoKN = formatDateLocal(colaborador['Admissao KN']);
-        tr.innerHTML = `
-            <td class="nome-col">${nomeCelula}</td>
-            <td>${colaborador.DSR || ''}</td>
-            <td>${colaborador.Escala || ''}</td>
-            <td>${colaborador.Contrato || ''}</td>
-            <td>${colaborador.Cargo || ''}</td>
-            <td>${colaborador['ID GROOT'] || ''}</td>
-            <td>${colaborador.LDAP || ''}</td>
-            <td>${colaborador.SVC || ''}</td>
-            <td>${colaborador.REGIAO || ''}</td>
-            <td>${admissaoOriginal}</td>
-            <td>${admissaoKN}</td>
-            <td>${colaborador['FOLGA ESPECIAL'] || ''}</td>
-        `;
+        const admissaoKN = formatDateLocal(colaborador['Admissao KN']);        tr.innerHTML = `
+                <td class="nome-col">${nomeCelula}</td>
+                <td>${colaborador.DSR || ''}</td>
+                <td>${colaborador.Escala || ''}</td>
+                <td>${colaborador.Contrato || ''}</td>
+                <td>${colaborador.Cargo || ''}</td>
+                <td>${colaborador['ID GROOT'] || ''}</td>
+                <td>${colaborador.LDAP || ''}</td>
+                <td>${colaborador.SVC || ''}</td>
+                <td>${colaborador.REGIAO || ''}</td>
+                <td>${admissaoOriginal}</td>
+                <td>${admissaoKN}</td>
+                <td>${colaborador['FOLGA ESPECIAL'] || ''}</td>
+            `;
         colaboradoresTbody.appendChild(tr);
     });
 }function updateDisplay() {
@@ -1062,11 +1090,11 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const plural = count > 1 ? 'novas vagas pendentes' : 'nova vaga pendente';
     alertDiv.innerHTML = `
-        <div class="alert-content">
-            <span style="font-size: 14px;">⚠️</span>
-            <span>Você tem <strong>${count} ${plural}</strong> de importação! Clique em <b>Adicionar</b> e depois <b>Importar do RH</b>.</span>
-        </div>
-    `;
+            <div class="alert-content">
+                <span style="font-size: 14px;">⚠️</span>
+                <span>Você tem <strong>${count} ${plural}</strong> de importação! Clique em <b>Adicionar</b> e depois <b>Importar do RH</b>.</span>
+            </div>
+        `;
     alertDiv.classList.remove('hidden');
 }function hidePendingImportAlert() {
     const alertDiv = document.getElementById('pending-import-alert');
@@ -1208,23 +1236,23 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const urlImagemCard = imageData.publicUrl;
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
-        <html>
-        <head>
-            <title>QR Codes - Colaboradores</title>
-            <script src="https://cdn.jsdelivr.net/npm/davidshimjs-qrcodejs@0.0.2/qrcode.min.js"><\/script>
-            <style>
-                body { font-family: sans-serif; }
-                .pagina { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; page-break-after: always; }
-                .card-item { position: relative; width: 240px; height: 345px; background-image: url('${urlImagemCard}'); background-size: 100% 100%; background-repeat: no-repeat; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                .qr-code-area { position: absolute; top: 75px; left: 20px; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; }
-                .info-area { position: absolute; bottom: 1px; left: 0; width: 100%; height: 60px; padding: 0 3px; box-sizing: border-box; color: black; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-                .info-area .nome { display: block; font-size: 11px; line-height: 1.2; margin-bottom: 4px; }
-                .info-area .id { display: block; font-size: 15px; }
-                @media print { @page { size: A4; margin: 1cm; } body { margin: 0; } .pagina:last-of-type { page-break-after: auto; } }
-            </style>
-        </head>
-        <body>
-    `);
+            <html>
+            <head>
+                <title>QR Codes - Colaboradores</title>
+                <script src="https://cdn.jsdelivr.net/npm/davidshimjs-qrcodejs@0.0.2/qrcode.min.js"><\/script>
+                <style>
+                    body { font-family: sans-serif; }
+                    .pagina { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; page-break-after: always; }
+                    .card-item { position: relative; width: 240px; height: 345px; background-image: url('${urlImagemCard}'); background-size: 100% 100%; background-repeat: no-repeat; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .qr-code-area { position: absolute; top: 75px; left: 20px; width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; }
+                    .info-area { position: absolute; bottom: 1px; left: 0; width: 100%; height: 60px; padding: 0 3px; box-sizing: border-box; color: black; font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+                    .info-area .nome { display: block; font-size: 11px; line-height: 1.2; margin-bottom: 4px; }
+                    .info-area .id { display: block; font-size: 15px; }
+                    @media print { @page { size: A4; margin: 1cm; } body { margin: 0; } .pagina:last-of-type { page-break-after: auto; } }
+                </style>
+            </head>
+            <body>
+        `);
     let htmlContent = '';
     const ITENS_POR_PAGINA_QR = 9;
     for (let i = 0; i < colaboradoresParaQR.length; i++) {
@@ -1235,34 +1263,34 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         const colaborador = colaboradoresParaQR[i];
         const idFormatado = String(colaborador['ID GROOT']).padStart(11, '0');
         htmlContent += `
-            <div class="card-item">
-                <div class="qr-code-area">
-                    <div id="qrcode-${i}"></div>
+                <div class="card-item">
+                    <div class="qr-code-area">
+                        <div id="qrcode-${i}"></div>
+                    </div>
+                    <div class="info-area">
+                        <span class="nome">${colaborador.Nome}</span>
+                        <span class="id">ID: ${idFormatado}</span>
+                    </div>
                 </div>
-                <div class="info-area">
-                    <span class="nome">${colaborador.Nome}</span>
-                    <span class="id">ID: ${idFormatado}</span>
-                </div>
-            </div>
-        `;
+            `;
     }
     htmlContent += '</div>';
     printWindow.document.write(htmlContent);
     printWindow.document.write(`
-        <script>
-            const dados = ${JSON.stringify(colaboradoresParaQR)};
-            window.onload = function() {
-                for (let i = 0; i < dados.length; i++) {
-                    const colaborador = dados[i];
-                    const qrElement = document.getElementById('qrcode-' + i);
-                    if (qrElement) {
-                        const idParaQRCode = String(colaborador['ID GROOT']).padStart(11, '0');
-                        new QRCode(qrElement, { text: idParaQRCode, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.H });
+            <script>
+                const dados = ${JSON.stringify(colaboradoresParaQR)};
+                window.onload = function() {
+                    for (let i = 0; i < dados.length; i++) {
+                        const colaborador = dados[i];
+                        const qrElement = document.getElementById('qrcode-' + i);
+                        if (qrElement) {
+                            const idParaQRCode = String(colaborador['ID GROOT']).padStart(11, '0');
+                            new QRCode(qrElement, { text: idParaQRCode, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.H });
+                        }
                     }
-                }
-            };
-        <\/script>
-    `);
+                };
+            <\/script>
+        `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
 }async function loadSVCsParaFormulario() {
@@ -2121,6 +2149,31 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         await window.customAlert('Selecione o motivo.', 'Campo Obrigatório');
         return;
     }
+    const btnSubmit = desligarConfirmarBtn;
+    const txtOriginal = btnSubmit.textContent;
+    btnSubmit.textContent = 'Verificando pendências...';
+    btnSubmit.disabled = true;
+    let listaPendencias = [];
+    try {
+        const colabAtualizado = await fetchColabByNome(nome);
+        if (colabAtualizado) {
+            listaPendencias = await verificarPendencias(colabAtualizado, dataDesligamento);
+        }
+    } catch (err) {
+        console.error("Erro verificando pendencias:", err);
+    } finally {
+        btnSubmit.textContent = txtOriginal;
+        btnSubmit.disabled = false;
+    }
+    if (listaPendencias.length > 0) {
+        const listaExibicao = listaPendencias.slice(0, 10).join('<br>');
+        const mais = listaPendencias.length > 10 ? `<br>...e mais ${listaPendencias.length - 10} dias.` : '';
+        await window.customAlert(
+            `Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário e ajuste antes de desliga-lo.<br><br><b>Datas pendentes:</b><br>${listaExibicao}${mais}`,
+            'Pendências Encontradas'
+        );
+        return;
+    }
     let solicitante = 'Gestor Desconhecido';
     try {
         const userSession = localStorage.getItem('userSession');
@@ -2659,28 +2712,6 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         if (!editOriginal) return;
         const continuar = await showAvisoDesligamento();
         if (!continuar) return;
-        const btnTextoOriginal = editDesligarBtn.textContent;
-        editDesligarBtn.textContent = 'Verificando...';
-        editDesligarBtn.disabled = true;
-        let temPendencia = false;
-        try {
-            const colabAtualizado = await fetchColabByNome(editOriginal.Nome);
-            if (colabAtualizado) {
-                temPendencia = await verificarPendencias(colabAtualizado);
-            }
-        } catch (e) {
-            console.error("Erro verificação pendencia", e);
-        } finally {
-            editDesligarBtn.textContent = btnTextoOriginal;
-            editDesligarBtn.disabled = false;
-        }
-        if (temPendencia) {
-            await window.customAlert(
-                'Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário e ajuste antes de desliga-lo.',
-                'Pendências Encontradas'
-            );
-            return;
-        }
         const colab = await fetchColabByNome(editOriginal.Nome);
         if (!colab) {
             await window.customAlert('Colaborador não encontrado.', 'Erro');
@@ -2760,35 +2791,6 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}function mapColabToExportRow(c) {
-    const fmt = (v) => v == null ? '' : v;
-    const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
-    return {
-        'Nome': fmt(c.Nome),
-        'DSR': fmt(c.DSR),
-        'Escala': fmt(c.Escala),
-        'Contrato': fmt(c.Contrato),
-        'Cargo': fmt(c.Cargo),
-        'ID GROOT': c['ID GROOT'] ?? '',
-        'LDAP': fmt(c.LDAP),
-        'SVC': fmt(c.SVC),
-        'REGIAO': fmt(c.REGIAO),
-        'Data de admissão': fmtDate(c['Data de admissão']),
-        'Admissao KN': fmtDate(c['Admissao KN']),
-        'FOLGA ESPECIAL': fmt(c['FOLGA ESPECIAL']),
-        'CPF': fmt(c.CPF),
-        'Data de nascimento': fmtDate(c['Data de nascimento']),
-        'Gênero': fmt(c.Genero),
-        'MATRIZ': fmt(c.MATRIZ),
-        'Ativo': fmt(c.Ativo),
-        'Férias': fmt(c.Ferias), 'Status Efetivação': fmt(c.Efetivacao),
-        'Fluxo Efetivação': fmt(c.Fluxo),
-        'Data Fluxo': fmtDate(c['Data Fluxo']),
-        'Obs Fluxo': fmt(c['Observacao Fluxo']), 'Total Presença': c['Total Presença'] ?? '',
-        'Total Faltas': c['Total Faltas'] ?? '',
-        'Total Atestados': c['Total Atestados'] ?? '',
-        'Total Suspensões': c['Total Suspensões'] ?? ''
-    };
 }async function exportColaboradoresXLSX(useFiltered) {
     const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
     if (!data || data.length === 0) {
