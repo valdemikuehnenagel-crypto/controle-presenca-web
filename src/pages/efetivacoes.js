@@ -12,6 +12,40 @@ function cacheKeyForColabs() {
     return `colabs:ALL`;
 }
 
+function desligamento_getCurrentUserEmail() {
+    try {
+        const userDataString = localStorage.getItem('userSession');
+        if (userDataString) {
+            const user = JSON.parse(userDataString);
+            return user?.Usuario || '';
+        }
+    } catch (e) {
+        console.error('Erro ao ler e-mail do usuário:', e);
+    }
+    return '';
+}
+
+async function desligamento_fetchEmailsSugestao(contrato) {
+    const emailsSugestao = new Set();
+    const myEmail = desligamento_getCurrentUserEmail();
+    if (myEmail) {
+        emailsSugestao.add(myEmail.toLowerCase());
+    }
+    if (contrato && contrato.toUpperCase() !== 'KN') {
+        const {data, error} = await supabase
+            .from('Consultoria')
+            .select('EMAIL')
+            .eq('CONTRATO', contrato);
+
+        if (!error && data) {
+            data.forEach(row => {
+                if (row.EMAIL) emailsSugestao.add(row.EMAIL.toLowerCase());
+            });
+        }
+    }
+    return Array.from(emailsSugestao).join(', ');
+}
+
 async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
@@ -36,15 +70,12 @@ function invalidateCache(keys = []) {
     } else {
         keys.forEach(k => _cache.delete(k));
     }
-
-
     try {
         localStorage.removeItem('knc:colaboradoresCache');
     } catch (e) {
         console.warn('Falha ao invalidar cache de colaboradores no localStorage', e);
     }
 }
-
 
 async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
@@ -81,6 +112,7 @@ const state = {
         spamHcEvolucaoRegiao: null,
         spamHcGerente: null,
         spamHcVsAux: null,
+        spamContractDonut: null // NOVO CHART
     },
     matriz: '',
     gerencia: '',
@@ -362,8 +394,6 @@ function populateFilters(allColabs, matrizesMap) {
 
 async function loadColabsCached() {
     const key = cacheKeyForColabs();
-
-
     const now = Date.now();
     try {
         const cached = localStorage.getItem('knc:colaboradoresCache');
@@ -380,15 +410,11 @@ async function loadColabsCached() {
         console.warn('Falha ao ler cache de colaboradores do localStorage', e);
         localStorage.removeItem('knc:colaboradoresCache');
     }
-
-
     return fetchOnce(key, async () => {
         let query = supabase.from('Colaboradores').select('*');
         const data = await fetchAllWithPagination(query);
         const rows = Array.isArray(data) ? data.slice() : [];
         rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
-
-
         try {
             localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
                 timestamp: Date.now(),
@@ -401,7 +427,6 @@ async function loadColabsCached() {
         return rows;
     });
 }
-
 
 async function loadSpamData() {
     return fetchOnce('spamData', async () => {
@@ -520,8 +545,6 @@ async function refresh() {
             } else if (isDesligamentoView && c.StatusDesligamento === 'PENDENTE' && norm(c?.Ativo) !== 'SIM') {
                 return false;
             }
-
-
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
@@ -538,8 +561,6 @@ async function refresh() {
         const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
         const visaoSpamHcAtiva = document.querySelector('#spam-hc-view.active');
         const visaoDesligamentoAtiva = document.querySelector('#efet-desligamento.active');
-
-
         const visaoControleVagas = document.querySelector('#efet-controle-vagas.active');
 
         if (visaoServiceAtiva) {
@@ -1572,6 +1593,45 @@ function ensureChartsCreatedSpam() {
             state.charts.spamHcVsAux = chart;
         }
     }
+
+    // *** NOVO GRÁFICO DONUT DE CONTRATOS ***
+    if (!state.charts.spamContractDonut) {
+        const canvas = document.getElementById('spam-chart-contrato-donut');
+        if (canvas) {
+            const baseSize = Math.max(13, Math.min(15, Math.round((canvas?.parentElement?.clientWidth || 600) / 45)));
+            const options = {
+                layout: {padding: 6},
+                animation: {duration: 800, easing: 'easeOutQuart'},
+                plugins: {
+                    legend: baseLegendConfig('bottom', true),
+                    datalabels: {
+                        display: true,
+                        formatter: (v) => `${Math.round(+v)}%`,
+                        color: (ctx) => bestLabel(Array.isArray(ctx.dataset.backgroundColor) ? ctx.dataset.backgroundColor[ctx.dataIndex] : ctx.dataset.backgroundColor),
+                        font: {size: Math.max(MIN_LABEL_FONT_PX, baseSize), weight: 'bold'},
+                        anchor: 'center',
+                        align: 'center',
+                        clamp: true
+                    },
+                    tooltip: {
+                        displayColors: false,
+                        callbacks: {
+                            label: (ctx) => `${ctx.label || ''}: ${Math.round(ctx.parsed ?? 0)}% (${(ctx.dataset._rawCounts || [])[ctx.dataIndex] ?? 0})`
+                        }
+                    }
+                },
+                cutout: '40%'
+            };
+            const chart = new Chart(canvas.getContext('2d'), {
+                type: 'doughnut',
+                data: {labels: [], datasets: [{data: [], backgroundColor: palette()}]},
+                options,
+                plugins: [ChartDataLabels]
+            });
+            forceLegendBottom(chart);
+            state.charts.spamContractDonut = chart;
+        }
+    }
 }
 
 async function updateSpamCharts(matrizesMap, svcsDoGerente) {
@@ -1755,8 +1815,37 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         ];
         chart.update();
     }
-}
 
+    // *** ATUALIZAÇÃO DO GRÁFICO DE ROSCA (DONUT) ***
+    if (state.charts.spamContractDonut) {
+        const counts = new Map();
+        // Filtra: Ativo="SIM", Cargo="AUXILIAR", Contrato!=="KN"
+        const targetColabs = colabsAtivos.filter(c => {
+            const contrato = norm(c.Contrato || 'OUTROS');
+            const cargo = norm(c.Cargo || '');
+            // Filtro especifico pedido: Auxiliar e não KN
+            return cargo.includes('AUXILIAR') && !contrato.includes('KN');
+        });
+
+        targetColabs.forEach(c => {
+            const k = c.Contrato ? c.Contrato.toUpperCase().trim() : 'OUTROS';
+            counts.set(k, (counts.get(k) || 0) + 1);
+        });
+
+        const labels = Array.from(counts.keys()).sort();
+        const rawArr = labels.map(l => counts.get(l));
+        const totalMarks = rawArr.reduce((a, b) => a + b, 0) || 1;
+        const pctArr = rawArr.map(v => (v * 100) / totalMarks);
+
+        state.charts.spamContractDonut.data.labels = labels;
+        state.charts.spamContractDonut.data.datasets = [{
+            data: pctArr,
+            backgroundColor: pal.slice(0, labels.length), // Usa a paleta de cores padrão
+            _rawCounts: rawArr
+        }];
+        state.charts.spamContractDonut.update();
+    }
+}
 
 function desligamento_getCurrentUser() {
     try {
@@ -1771,28 +1860,29 @@ function desligamento_getCurrentUser() {
     return 'Usuário RH Desconhecido';
 }
 
-
 async function desligamento_fetchPendentes() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) {
         console.warn("Tabela de desligamento (tbody) não encontrada. A sub-aba foi iniciada?");
         return;
     }
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4">Carregando...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Carregando...</td></tr>'; // Aumentei colspan para 9 por causa da nova coluna
 
     const matrizesPermitidas = getMatrizesPermitidas();
 
+    // Adicionei 'Smartoff' no select
     let queryPendentes = supabase
         .from('Colaboradores')
-        .select('Nome, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
+        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
         .in('StatusDesligamento', ['PENDENTE', 'RECUSADO'])
         .eq('Ativo', 'SIM');
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Adicionei 'Smartoff' no select
     let queryConcluidos = supabase
         .from('Colaboradores')
-        .select('Nome, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
+        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
         .eq('StatusDesligamento', 'CONCLUIDO')
         .eq('Ativo', 'NÃO')
         .gte('DataDesligamentoSolicitada', sevenDaysAgo);
@@ -1813,7 +1903,7 @@ async function desligamento_fetchPendentes() {
     if (pendentesError || concluidosError) {
         const error = pendentesError || concluidosError;
         console.error('Erro ao buscar solicitações de desligamento:', error);
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
         return;
     }
 
@@ -1821,13 +1911,12 @@ async function desligamento_fetchPendentes() {
     desligamento_renderTable();
 }
 
-
 function desligamento_renderTable() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
 
     if (state.desligamentoModule.pendentes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4">Nenhuma solicitação pendente ou recente encontrada.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Nenhuma solicitação pendente ou recente encontrada.</td></tr>';
         return;
     }
 
@@ -1839,15 +1928,11 @@ function desligamento_renderTable() {
         let actionsHtml = '';
         let statusClass = '';
 
-
         const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
 
         switch (colab.StatusDesligamento) {
             case 'PENDENTE':
                 statusClass = 'row-pending';
-
-
-
                 const btnAprovarAction = isKN ? 'approve-direct-kn' : 'approve';
                 const btnLabel = isKN ? 'Desligar KN' : 'Aprovar';
                 const btnColor = isKN ? 'background-color: #4338ca;' : '';
@@ -1859,7 +1944,6 @@ function desligamento_renderTable() {
                 break;
             case 'CONCLUIDO':
                 statusClass = 'row-completed';
-
                 if (!isKN) {
                     actionsHtml = `
                         <button data-action="resend" data-nome="${colab.Nome}" class="btn-neutral text-xs !px-2 !py-1" title="Reenviar e-mail de desligamento">Reenviar E-mail</button>
@@ -1878,9 +1962,12 @@ function desligamento_renderTable() {
 
         if (statusClass) tr.classList.add(statusClass);
 
+        // Formatando Smartoff (se vazio, mostra traço)
+        const smartoffDisplay = colab.Smartoff ? `<span class="font-mono font-bold text-blue-700">${colab.Smartoff}</span>` : '-';
+
         tr.innerHTML = `
             <td data-label="Colaborador">${colab.Nome}</td>
-            <td data-label="Data Solicitada">${formatDateLocal(colab.DataDesligamentoSolicitada)}</td>
+            <td data-label="Smartoff">${smartoffDisplay}</td> <td data-label="Data Solicitada">${formatDateLocal(colab.DataDesligamentoSolicitada)}</td>
             <td data-label="Solicitante">${colab.SolicitanteDesligamento || 'N/A'}</td>
             <td data-label="Gestor Vinculado">${colab.Gestor || 'N/A'}</td>
             <td data-label="Motivo">${colab.MotivoDesligamento || 'N/A'}</td>
@@ -1891,7 +1978,6 @@ function desligamento_renderTable() {
         tbody.appendChild(tr);
     });
 }
-
 
 function desligamento_handleTableClick(event) {
     const target = event.target.closest('button');
@@ -1918,23 +2004,21 @@ function desligamento_handleTableClick(event) {
     }
 }
 
-
-
-
 async function desligamento_handleDirectKN() {
     const mod = state.desligamentoModule;
     const colab = mod.colaboradorAtual;
 
     if (!colab) return;
 
-    const confirmMsg = `ATENÇÃO: Colaborador ${colab.Nome} possui contrato KN.\n\n` +
-        `O desligamento será processado IMEDIATAMENTE no banco de dados.\n` +
-        `Nenhum e-mail será enviado (fluxo interno).\n\n` +
+    const confirmMsg = `ATENÇÃO: Colaborador <b>${colab.Nome}</b> possui contrato KN.<br><br>` +
+        `O desligamento será processado <b>IMEDIATAMENTE</b> no banco de dados.<br>` +
+        `Nenhum e-mail será enviado (fluxo interno).<br><br>` +
         `Deseja confirmar o desligamento?`;
 
-    if (!confirm(confirmMsg)) return;
+    const ok = await window.customConfirm(confirmMsg, 'Confirmação de Desligamento Direto', 'danger');
+    if (!ok) return;
 
-
+    // Feedback visual simples
     const originalText = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`)?.textContent;
     const btn = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`);
     if (btn) {
@@ -1943,7 +2027,6 @@ async function desligamento_handleDirectKN() {
     }
 
     try {
-
         const {data: colabCompleto, error: fetchError} = await supabase
             .from('Colaboradores')
             .select('*')
@@ -1954,9 +2037,7 @@ async function desligamento_handleDirectKN() {
             throw new Error('Erro ao buscar dados do colaborador KN: ' + (fetchError?.message || 'Não encontrado'));
         }
 
-
         const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], colab.DataDesligamentoSolicitada);
-
 
         const desligadoData = {
             Nome: colab.Nome,
@@ -1974,7 +2055,6 @@ async function desligamento_handleDirectKN() {
             AprovadorDesligamento: mod.currentUser || 'RH (Sistema)'
         };
 
-
         const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
             p_nome: colab.Nome,
             p_payload_desligado: desligadoData
@@ -1984,15 +2064,14 @@ async function desligamento_handleDirectKN() {
             throw new Error(`Erro RPC (KN): ${rpcError.message}`);
         }
 
-
-        alert(`Colaborador KN (${colab.Nome}) desligado com sucesso!`);
+        await window.customAlert(`Colaborador KN (${colab.Nome}) desligado com sucesso!`, 'Sucesso');
         logAction(`Aprovou desligamento KN (Direto): ${colab.Nome}`);
         invalidateCache();
         desligamento_fetchPendentes();
 
     } catch (err) {
         console.error(err);
-        alert('Falha ao desligar KN: ' + err.message);
+        await window.customAlert('Falha ao desligar KN: ' + err.message, 'Erro');
         if (btn) {
             btn.textContent = originalText || 'Desligar KN';
             btn.disabled = false;
@@ -2000,14 +2079,12 @@ async function desligamento_handleDirectKN() {
     }
 }
 
-
-function desligamento_openApproveModal() {
+async function desligamento_openApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal || !mod.colaboradorAtual) return;
 
     const colab = mod.colaboradorAtual;
     const isResend = colab.StatusDesligamento === 'CONCLUIDO';
-
     document.getElementById('approveNome').textContent = colab.Nome;
     document.getElementById('approveData').textContent = formatDateLocal(colab.DataDesligamentoSolicitada);
     document.getElementById('approveSolicitante').textContent = colab.SolicitanteDesligamento || 'N/A';
@@ -2016,25 +2093,52 @@ function desligamento_openApproveModal() {
 
     const rhInput = document.getElementById('approveRH');
     const emailInput = document.getElementById('approveEmails');
+    const bodyInput = document.getElementById('approveBody');
     const submitBtn = mod.submitBtn;
+    if (!isResend && rhInput) {
+        rhInput.value = mod.currentUser || '';
+    }
+    if (isResend && rhInput && !rhInput.value) {
+        rhInput.value = mod.currentUser || '';
+    }
+    const nomeAprovador = rhInput.value || mod.currentUser || 'RH';
+    const templateBody = `Olá, prezado(a)
 
+KNConecta solicita o desligamento do colaborador abaixo:
 
+COLABORADOR: ${colab.Nome}
+PARA A DATA: ${formatDateLocal(colab.DataDesligamentoSolicitada)}
+MOTIVO: ${colab.MotivoDesligamento || 'N/A'}
+SOLICITADO PELA GESTÃO: ${colab.Gestor || 'N/A'}
+APROVADO POR: ${nomeAprovador}
+MATRIZ: ${colab.MATRIZ || 'N/A'}
+
+--
+E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;
+    bodyInput.value = templateBody;
     if (isResend) {
         submitBtn.textContent = 'Reenviar E-mail';
-        rhInput.value = mod.currentUser || '';
-        emailInput.value = '';
-        emailInput.focus();
     } else {
         submitBtn.textContent = 'Confirmar e Enviar E-mail';
-        if (rhInput) {
-            rhInput.value = mod.currentUser || '';
-        }
+    }
+    emailInput.value = 'Carregando e-mails sugeridos...';
+    emailInput.disabled = true;
+
+    try {
+
+        const emailsAuto = await desligamento_fetchEmailsSugestao(colab.Contrato);
+        emailInput.value = emailsAuto;
+    } catch (error) {
+        console.error("Erro ao carregar e-mails:", error);
         emailInput.value = '';
+    } finally {
+        emailInput.disabled = false;
+
+        if (isResend) emailInput.focus();
     }
 
     mod.modal.classList.remove('hidden');
 }
-
 
 function desligamento_closeApproveModal() {
     const mod = state.desligamentoModule;
@@ -2044,13 +2148,21 @@ function desligamento_closeApproveModal() {
     mod.colaboradorAtual = null;
 }
 
-
 async function desligamento_handleReject() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
 
+    // Nota: O prompt nativo ainda é necessário se você quiser input de texto simples,
+    // a menos que criemos um customPrompt. Por enquanto mantemos o prompt nativo para o motivo,
+    // mas usamos o customConfirm para a confirmação final.
     const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
-    const ok = confirm(`Tem certeza que deseja RECUSAR o desligamento de ${mod.colaboradorAtual.Nome}?`);
+    if (motivoRecusa === null) return; // Cancelou o prompt
+
+    const ok = await window.customConfirm(
+        `Tem certeza que deseja <b>RECUSAR</b> o desligamento de <b>${mod.colaboradorAtual.Nome}</b>?`,
+        'Confirmar Recusa',
+        'warning'
+    );
     if (!ok) return;
 
     const {error} = await supabase
@@ -2064,17 +2176,16 @@ async function desligamento_handleReject() {
         .eq('Nome', mod.colaboradorAtual.Nome);
 
     if (error) {
-        alert('Erro ao recusar solicitação: ' + error.message);
+        await window.customAlert('Erro ao recusar solicitação: ' + error.message, 'Erro');
         return;
     }
 
-    alert('Solicitação recusada com sucesso. O colaborador permanece ativo.');
+    await window.customAlert('Solicitação recusada com sucesso. O colaborador permanece ativo.', 'Sucesso');
     logAction(`Recusou o desligamento de: ${mod.colaboradorAtual.Nome}. Motivo: ${motivoRecusa || 'N/A'}`);
 
     invalidateCache();
     desligamento_fetchPendentes();
 }
-
 
 function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
@@ -2098,7 +2209,6 @@ function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) 
     return `${meses} mes(es)`;
 }
 
-
 async function desligamento_handleApproveSubmit(event) {
     event.preventDefault();
     const mod = state.desligamentoModule;
@@ -2110,19 +2220,27 @@ async function desligamento_handleApproveSubmit(event) {
     const colab = mod.colaboradorAtual;
     const nomeRH = document.getElementById('approveRH').value.trim();
     const emails = document.getElementById('approveEmails').value.trim();
+    const emailBodyContent = document.getElementById('approveBody').value;
+
     const isResend = colab.StatusDesligamento === 'CONCLUIDO';
 
     submitBtn.textContent = isResend ? 'Enviando E-mail...' : 'Processando...';
 
     if (!nomeRH) {
-        alert('Por favor, preencha o campo "Aprovado por (RH)".');
+        await window.customAlert('Por favor, preencha o campo "Aprovado por (RH)".', 'Campo Obrigatório');
         submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
         return;
     }
 
     if (!emails) {
-        alert('Por favor, preencha os E-mails para notificar.');
+        await window.customAlert('Por favor, preencha os E-mails para notificar.', 'Campo Obrigatório');
+        submitBtn.disabled = false;
+        submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
+        return;
+    }
+    if (!emailBodyContent) {
+        await window.customAlert('O corpo do e-mail não pode estar vazio.', 'Campo Obrigatório');
         submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
         return;
@@ -2135,7 +2253,6 @@ async function desligamento_handleApproveSubmit(event) {
         let svc = colab.SVC;
         let matriz = colab.MATRIZ;
         let motivo = colab.MotivoDesligamento;
-
 
         if (isResend) {
             const {data: colabCompleto, error: fetchError} = await supabase
@@ -2156,7 +2273,6 @@ async function desligamento_handleApproveSubmit(event) {
             motivo = colabCompleto.Motivo;
         }
 
-
         if (!isResend) {
             submitBtn.textContent = 'Aprovando no banco...';
 
@@ -2168,7 +2284,6 @@ async function desligamento_handleApproveSubmit(event) {
             if (fetchError || !colabCompleto) {
                 throw fetchError || new Error('Não foi possível buscar dados completos do colaborador.');
             }
-
 
             const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamento);
             const desligadoData = {
@@ -2183,11 +2298,9 @@ async function desligamento_handleApproveSubmit(event) {
                 SVC: colab.SVC || null,
                 MATRIZ: colab.MATRIZ || null,
                 Motivo: colab.MotivoDesligamento || null,
-
                 SolicitanteDesligamento: colab.SolicitanteDesligamento || null,
                 AprovadorDesligamento: nomeRH
             };
-
 
             const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
                 p_nome: colab.Nome,
@@ -2201,23 +2314,10 @@ async function desligamento_handleApproveSubmit(event) {
             invalidateCache();
         }
 
-
         submitBtn.textContent = 'Enviando e-mail...';
 
-
         const subject = `SOLICITAÇÃO DE DESLIGAMENTO - COLABORADOR: ${colab.Nome}`;
-        const body = `Olá, prezado(a)\n\nKNConecta solicita o desligamento do colaborador abaixo:\n
-COLABORADOR: ${colab.Nome}
-PARA A DATA: ${formatDateLocal(dataDesligamento)}
-MOTIVO: ${motivo || 'N/A'}
-SOLICITADO PELA GESTÃO: ${gestor || 'N/A'}
-APROVADO POR: ${nomeRH}
-MATRIZ: ${matriz || 'N/A'}
-
---
-E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.
-`;
-
+        const body = emailBodyContent;
 
         const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
             body: JSON.stringify({
@@ -2228,7 +2328,6 @@ E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o 
         });
 
         if (emailError) {
-
             let errorMessage = emailError.message;
             try {
                 if (fnData) {
@@ -2238,10 +2337,9 @@ E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o 
             } catch (e) {
             }
 
-
-            alert(`Desligamento APROVADO no banco, mas FALHA AO ENVIAR E-MAIL AUTOMÁTICO: ${errorMessage}. Por favor, envie manualmente.`);
+            await window.customAlert(`Desligamento APROVADO no banco, mas FALHA AO ENVIAR E-MAIL AUTOMÁTICO: ${errorMessage}. Por favor, envie manualmente.`, 'Alerta de Envio');
         } else {
-            alert(isResend ? 'E-mail reenviado com sucesso!' : 'Desligamento aprovado e e-mail enviado com sucesso!');
+            await window.customAlert(isResend ? 'E-mail reenviado com sucesso!' : 'Desligamento aprovado e e-mail enviado com sucesso!', 'Sucesso');
         }
 
         if (isResend) {
@@ -2253,13 +2351,12 @@ E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o 
 
     } catch (error) {
         console.error('Erro no fluxo de aprovação/envio:', error);
-        alert('Falha no processo: ' + error.message);
+        await window.customAlert('Falha no processo: ' + error.message, 'Erro Crítico');
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
     }
 }
-
 
 function wireDesligamentoLogic() {
     const mod = state.desligamentoModule;
@@ -2269,8 +2366,6 @@ function wireDesligamentoLogic() {
     mod.form = document.getElementById('approveForm');
     mod.submitBtn = document.getElementById('approveSubmitBtn');
     mod.cancelBtn = document.getElementById('approveCancelBtn');
-
-
     mod.refreshBtn = document.getElementById('refresh-desligamento-btn');
 
     mod.currentUser = desligamento_getCurrentUser();
@@ -2287,8 +2382,6 @@ function wireDesligamentoLogic() {
     if (mod.refreshBtn) {
         mod.refreshBtn.addEventListener('click', desligamento_fetchPendentes);
     }
-
-
     const rhInput = document.getElementById('approveRH');
     if (rhInput) {
         rhInput.addEventListener('input', () => {
@@ -2296,7 +2389,6 @@ function wireDesligamentoLogic() {
         });
     }
 }
-
 
 function desligamento_destroy() {
     const mod = state.desligamentoModule;
@@ -2322,7 +2414,6 @@ function desligamento_destroy() {
     mod.form = null;
 }
 
-
 function checkUserRHStatus() {
     try {
         const userDataString = localStorage.getItem('userSession');
@@ -2345,7 +2436,6 @@ function checkUserRHStatus() {
     }
 }
 
-
 export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
@@ -2358,15 +2448,11 @@ export async function init() {
     if (!state.mounted) {
         ensureMounted();
         wireSubtabs();
-
-
         if (state.isUserRH) {
             wireDesligamentoLogic();
         }
         initControleVagas();
     }
-
-
     const desligamentoSubtab = document.querySelector('.efet-subtab-btn[data-view="efet-desligamento"]');
     if (desligamentoSubtab) {
         if (!state.isUserRH) {
@@ -2375,14 +2461,10 @@ export async function init() {
             desligamentoSubtab.style.display = '';
         }
     }
-
-
     const activeSubtabBtn = host.querySelector('.efet-subtab-btn.active') || host.querySelector('.efet-subtab-btn[data-view="efet-visao-service"]');
 
     if (activeSubtabBtn) {
         const viewName = activeSubtabBtn.dataset.view;
-
-
         if (viewName === 'efet-desligamento' && !state.isUserRH) {
             const defaultTab = host.querySelector('.efet-subtab-btn[data-view="efet-visao-service"]');
             if (defaultTab) defaultTab.click();
@@ -2416,8 +2498,6 @@ export function destroy() {
             _resizeObs = null;
         }
         window.removeEventListener('resize', setResponsiveHeights);
-
-
         if (state.isUserRH) {
             desligamento_destroy();
         }
@@ -2439,20 +2519,11 @@ export function destroy() {
         state.isUserRH = false;
         document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
     }
-
-
 }
-
-
-
-
-
 
 let vagasData = [];
 let matrizesData = [];
 let gestoresData = [];
-
-
 let vagasModal;
 let btnGerarVaga;
 let btnCancelarVaga;
@@ -2474,47 +2545,30 @@ let filterStatus;
 let filterGestor;
 let filterRecrutadora;
 
-
 function initControleVagas() {
     if (!document.getElementById('efet-controle-vagas')) return;
-
-
     vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     formVagas = document.getElementById('formVagas');
     tbodyVagas = document.getElementById('vagas-tbody');
-
-
     inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
     inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
-
-
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
-
-
     searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
     filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
-
-
     fetchMatrizes();
     fetchGestores();
-
-
     if (btnGerarVaga) btnGerarVaga.addEventListener('click', () => openVagasModal());
     if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
-
-
     if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
-
-
     if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
@@ -2522,23 +2576,16 @@ function initControleVagas() {
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
     }
-
-
     if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
     if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
-
-
     if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
-
-
     fetchVagas();
 }
-
 
 async function fetchMatrizes() {
     const {data, error} = await supabase
@@ -2553,7 +2600,6 @@ async function fetchMatrizes() {
     matrizesData = data || [];
     populateFilialSelect();
 }
-
 
 async function fetchGestores() {
 
@@ -2570,7 +2616,6 @@ async function fetchGestores() {
 
 }
 
-
 function populateFilialSelect() {
     if (!selectFilial) return;
     selectFilial.innerHTML = '<option value="">- Selecione uma Matriz -</option>';
@@ -2582,7 +2627,6 @@ function populateFilialSelect() {
     });
 }
 
-
 function atualizarSVC(nomeMatriz) {
     if (!inputSvc) return;
     if (!nomeMatriz) {
@@ -2593,17 +2637,11 @@ function atualizarSVC(nomeMatriz) {
     inputSvc.value = encontrada ? (encontrada.SERVICE || '-') : '';
 }
 
-
 function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (!selectGestor) return;
-
-
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
 
     if (!nomeMatriz) return;
-
-
-
     const gestoresFiltrados = gestoresData.filter(g =>
         g.MATRIZ && g.MATRIZ.toUpperCase() === nomeMatriz.toUpperCase()
     );
@@ -2614,13 +2652,10 @@ function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
         option.textContent = g.NOME;
         selectGestor.appendChild(option);
     });
-
-
     if (gestorPreSelecionado) {
         selectGestor.value = gestorPreSelecionado;
     }
 }
-
 
 function formatCargo(cargo) {
     if (!cargo) return '-';
@@ -2655,14 +2690,11 @@ function calcularPrazoEntrega() {
     }
 }
 
-
 function openVagasModal(vagaData = null) {
     if (!vagasModal) return;
 
     vagasModal.classList.remove('hidden');
     formVagas.reset();
-
-
     formVagas.querySelectorAll('select').forEach(sel => {
         if (sel.name !== 'filial') sel.value = "";
     });
@@ -2673,8 +2705,6 @@ function openVagasModal(vagaData = null) {
     if (document.getElementById('div-substituido')) {
         document.getElementById('div-substituido').classList.add('hidden');
     }
-
-
     if (vagaData) {
         document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
         formVagas.dataset.mode = 'edit';
@@ -2687,13 +2717,9 @@ function openVagasModal(vagaData = null) {
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
         if (f.cargo) f.cargo.value = vagaData.Cargo || '';
-
-
         if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
-
-
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
         }
 
@@ -2703,9 +2729,6 @@ function openVagasModal(vagaData = null) {
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
         if (f.recrutadora) f.recrutadora.value = vagaData.Recrutadora || '';
         if (f.vagas_wc_bc) f.vagas_wc_bc.value = vagaData.Vagas_WC_BC || '';
-
-
-
         if (f.motivo_vaga) f.motivo_vaga.value = vagaData.Motivo || '';
         if (f.pcd) f.pcd.value = vagaData.PCD || 'NÃO';
         if (f.colaborador_substituido) f.colaborador_substituido.value = vagaData.ColaboradorSubstituido || '';
@@ -2746,7 +2769,6 @@ window.toggleSubstituicao = function (val) {
         else div.classList.add('hidden');
     }
 }
-
 
 async function fetchVagas() {
     if (!tbodyVagas) return;

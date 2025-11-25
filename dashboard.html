@@ -413,27 +413,28 @@
     </div>
 </div>
 
-<div id="desligarModal"
-     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+<div id="desligarModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="container !h-auto !w-auto max-w-2xl">
         <h3>Desligar Colaborador</h3>
         <form id="desligarForm">
             <div class="form-grid">
+
                 <div class="form-group">
                     <label>Colaborador</label>
-                    <input id="desligarNome" type="text" readonly/>
+                    <input id="desligarNome" type="text" readonly style="background-color: #f3f4f6; cursor: not-allowed;"/>
                 </div>
+
                 <div class="form-group">
                     <label for="desligarData">Data de Desligamento</label>
                     <input id="desligarData" type="date" required/>
                 </div>
+
                 <div class="form-group">
                     <label for="desligarMotivo">Motivo</label>
                     <select id="desligarMotivo" required>
                         <option value="" disabled selected>Selecione...</option>
                         <option value="Abandono de emprego">Abandono de emprego</option>
-                        <option value="Ato de indisciplina ou insubordinação">Ato de indisciplina ou insubordinação
-                        </option>
+                        <option value="Ato de indisciplina ou insubordinação">Ato de indisciplina ou insubordinação</option>
                         <option value="Ausência não justificada">Ausência não justificada</option>
                         <option value="Corte de gastos">Corte de gastos</option>
                         <option value="Inadequação à cultura da empresa">Inadequação à cultura da empresa</option>
@@ -444,8 +445,17 @@
                         <option value="Substituição de colaborador">Substituição de colaborador</option>
                     </select>
                 </div>
+
+                <div id="desligarSmartoffContainer" class="form-group hidden">
+                    <label for="desligarSmartoff" style="color: #b91c1c; font-weight: 700;">
+                        Número Smart (Obrigatório)
+                    </label>
+                    <input id="desligarSmartoff" type="text" placeholder="Digite o número do chamado..." style="border-color: #b91c1c;" />
+                </div>
+
             </div>
-            <div class="form-actions" style="justify-content:flex-end;">
+
+            <div class="form-actions" style="justify-content:flex-end; margin-top: 16px;">
                 <button type="button" id="desligarCancelarBtn" class="btn-cancelar">Cancelar</button>
                 <button type="submit" class="btn-salvar">Confirmar Desligamento</button>
             </div>
@@ -888,6 +898,30 @@
         <div class="form-actions">
             <button id="dsrCancelarBtn" type="button" class="btn-cancelar">Cancelar</button>
             <button id="dsrOkBtn" type="button" class="btn-salvar">OK</button>
+        </div>
+    </div>
+</div>
+
+<div id="kn-global-dialog" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99999]">
+    <div class="bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-200 overflow-hidden transform transition-all scale-100">
+
+        <div class="p-4 border-b border-gray-100 flex items-center gap-3 bg-gray-50">
+            <div id="kn-dialog-icon-container">
+                </div>
+            <h3 id="kn-dialog-title" class="text-lg font-bold text-[#003369] m-0">Aviso</h3>
+        </div>
+
+        <div class="p-6">
+            <p id="kn-dialog-message" class="text-gray-700 text-sm font-medium leading-relaxed"></p>
+        </div>
+
+        <div class="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+            <button id="kn-dialog-btn-cancel" class="hidden px-4 py-2 rounded border border-gray-300 text-gray-700 font-semibold hover:bg-gray-200 transition-colors text-xs uppercase">
+                Cancelar
+            </button>
+            <button id="kn-dialog-btn-confirm" class="px-6 py-2 rounded text-white font-bold shadow-md transition-all text-xs uppercase bg-[#003369] hover:bg-[#02B1EE]">
+                OK
+            </button>
         </div>
     </div>
 </div>

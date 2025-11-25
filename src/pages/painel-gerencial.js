@@ -74,7 +74,8 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
     const aprovacoes = [...new Set(state.loginsData.map(u => u.Aprovacao).filter(Boolean))].sort();
     const tipos = [...new Set(state.loginsData.map(u => u.Tipo).filter(Boolean))].sort();
     const matrizes = [...new Set(state.matrizesData.map(m => m.MATRIZ).filter(Boolean))].sort();
-    const svcs = [...new Set(state.matrizesData.map(m => m.SERVICE).filter(Boolean))].sort();    aprovacoes.forEach(v => filterAprovacao.add(new Option(v, v)));
+    const svcs = [...new Set(state.matrizesData.map(m => m.SERVICE).filter(Boolean))].sort();
+    aprovacoes.forEach(v => filterAprovacao.add(new Option(v, v)));
     tipos.forEach(v => filterTipo.add(new Option(v, v)));
     matrizes.forEach(v => filterMatriz.add(new Option(v, v)));
     svcs.forEach(v => filterSvc.add(new Option(v, v)));
@@ -82,32 +83,41 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
     const filtroA = filterAprovacao?.value || '';
     const filtroT = filterTipo?.value || '';
     const filtroM = filterMatriz?.value || '';
-    const filtroS = filterSvc?.value || '';    let filtered = state.loginsData.filter(user => {
+    const filtroS = filterSvc?.value || '';
+    let filtered = state.loginsData.filter(user => {
         if (filtroA && user.Aprovacao !== filtroA) return false;
-        if (filtroT && user.Tipo !== filtroT) return false;        const userMatrizes = (user.Matriz || '').split(',').map(m => m.trim());
-        if (filtroM && user.Matriz !== 'TODOS' && !userMatrizes.includes(filtroM)) return false;        if (filtroS) {
-            if (user.Matriz === 'TODOS') {            } else {
+        if (filtroT && user.Tipo !== filtroT) return false;
+        const userMatrizes = (user.Matriz || '').split(',').map(m => m.trim());
+        if (filtroM && user.Matriz !== 'TODOS' && !userMatrizes.includes(filtroM)) return false;
+        if (filtroS) {
+            if (user.Matriz === 'TODOS') {
+            } else {
                 const userSvcs = new Set(userMatrizes.map(m => state.svcMap.get(m)).filter(Boolean));
                 if (!userSvcs.has(filtroS)) return false;
             }
         }
         return true;
-    });    filtered.sort((a, b) => {
+    });
+    filtered.sort((a, b) => {
         const aPend = a.Aprovacao === 'PENDENTE';
         const bPend = b.Aprovacao === 'PENDENTE';
         if (aPend && !bPend) return -1;
         if (!aPend && bPend) return 1;
         return (a.Nome || '').localeCompare(b.Nome || '', 'pt-BR');
-    });    renderTable(filtered);
+    });
+    renderTable(filtered);
 }function renderTable(logins) {
     const tbody = document.getElementById('relatorio-logins-tbody');
-    if (!tbody) return;    if (!Array.isArray(logins) || !logins.length) {
+    if (!tbody) return;
+    if (!Array.isArray(logins) || !logins.length) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Nenhum usuário encontrado com os filtros aplicados.</td></tr>`;
         return;
-    }    tbody.innerHTML = logins.map(row => {
+    }
+    tbody.innerHTML = logins.map(row => {
         const aprovacaoStatus = row.Aprovacao === 'SIM'
             ? '<span class="status-ativo">Ativo</span>'
-            : `<span class="status-pendente">${row.Aprovacao || 'Pendente'}</span>`;        let svc = 'N/D';
+            : `<span class="status-pendente">${row.Aprovacao || 'Pendente'}</span>`;
+        let svc = 'N/D';
         const matrizDoUsuario = row.Matriz;
         if (matrizDoUsuario === 'TODOS') {
             svc = 'TODOS';
@@ -115,7 +125,8 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
             const matrizesArray = matrizDoUsuario.split(',').map(m => m.trim());
             const svcs = matrizesArray.map(m => state.svcMap.get(m)).filter(Boolean);
             svc = [...new Set(svcs)].join(', ') || 'N/D';
-        }        const matrizDisplay = matrizDoUsuario || 'N/D';
+        }
+        const matrizDisplay = matrizDoUsuario || 'N/D';
         return `
       <tr class="cursor-pointer hover:bg-gray-100" data-usuario="${row.Usuario}">
         <td>${row.Nome || 'N/D'}</td>
@@ -125,7 +136,8 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
         <td>${svc}</td>
       </tr>
     `;
-    }).join('');    tbody.querySelectorAll('tr').forEach(tr => {
+    }).join('');
+    tbody.querySelectorAll('tr').forEach(tr => {
         const fn = () => {
             const usuario = tr.dataset.usuario;
             if (usuario) openEditUserModal(usuario);
@@ -136,15 +148,20 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
 }async function loadAndDisplayData() {
     const tbody = document.getElementById('relatorio-logins-tbody');
     if (!tbody) return;
-    if (!_isAdmin) {        renderAcessoBloqueado('tab-painel-gerencial', null);
+    if (!_isAdmin) {
+        renderAcessoBloqueado('tab-painel-gerencial', null);
         return;
-    }    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Carregando relatório...</td></tr>`;    try {
+    }
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Carregando relatório...</td></tr>`;
+    try {
         const [logins, matrizesCache] = await Promise.all([
             getCachedLogins(),
             getCachedMatrizes(),
-        ]);        state.loginsData = logins;
+        ]);
+        state.loginsData = logins;
         state.matrizesData = matrizesCache.list;
-        state.svcMap = matrizesCache.map;        populateFilters();
+        state.svcMap = matrizesCache.map;
+        populateFilters();
         applyFilters();
     } catch (error) {
         console.error('Erro ao buscar dados para o relatório:', error);
@@ -152,42 +169,49 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
     }
 }async function handleRegistrarMatriz(e) {
     e.preventDefault();
-    if (!_isAdmin) return;    const service = document.getElementById('matrizService')?.value?.trim()?.toUpperCase();
+    if (!_isAdmin) return;
+    const service = document.getElementById('matrizService')?.value?.trim()?.toUpperCase();
     const matriz = document.getElementById('matrizNome')?.value?.trim()?.toUpperCase();
     if (!service || !matriz) {
-        alert('Por favor, preencha todos os campos.');
+        await window.customAlert('Por favor, preencha todos os campos.', 'Campos Obrigatórios');
         return;
-    }    const {error} = await supabase.from('Matrizes').insert([{SERVICE: service, MATRIZ: matriz}]);
+    }
+    const {error} = await supabase.from('Matrizes').insert([{SERVICE: service, MATRIZ: matriz}]);
     if (error) {
         console.error('Erro ao registrar matriz:', error);
-        alert(`Erro ao salvar: ${error.message}`);
+        await window.customAlert(`Erro ao salvar: ${error.message}`, 'Erro');
         return;
-    }    alert('Matriz/Service registrada com sucesso!');
+    }
+    await window.customAlert('Matriz/Service registrada com sucesso!', 'Sucesso');
     matrizForm.reset();
     matrizModal.classList.add('hidden');
     window.dispatchEvent(new CustomEvent('matriz-saved'));
 }async function handleRegistrarGestor(e) {
     e.preventDefault();
-    if (!_isAdmin) return;    const nome = gestorNomeInput.value.trim().toUpperCase();
+    if (!_isAdmin) return;
+    const nome = gestorNomeInput.value.trim().toUpperCase();
     const matrizesSelecionadas = Array.from(gestorMatrizesCheckboxContainer.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
     if (!nome || matrizesSelecionadas.length === 0) {
-        alert('Preencha o nome e selecione pelo menos uma matriz.');
+        await window.customAlert('Preencha o nome e selecione pelo menos uma matriz.', 'Atenção');
         return;
-    }    const servicesVinculados = state.matrizesData
+    }
+    const servicesVinculados = state.matrizesData
         .filter(item => matrizesSelecionadas.includes(item.MATRIZ))
         .map(item => item.SERVICE);
     const servicesUnicos = [...new Set(servicesVinculados)];
     const matrizParaSalvar = matrizesSelecionadas.join(', ');
-    const svcParaSalvar = servicesUnicos.join(', ');    const {error} = await supabase.from('Gestores').insert([{
+    const svcParaSalvar = servicesUnicos.join(', ');
+    const {error} = await supabase.from('Gestores').insert([{
         NOME: nome,
         MATRIZ: matrizParaSalvar,
         SVC: svcParaSalvar
     }]);
     if (error) {
         console.error('Erro ao registrar gestor:', error);
-        alert(`Erro ao salvar: ${error.message}`);
+        await window.customAlert(`Erro ao salvar: ${error.message}`, 'Erro');
         return;
-    }    alert('Gestor registrado com sucesso!');
+    }
+    await window.customAlert('Gestor registrado com sucesso!', 'Sucesso');
     gestorForm.reset();
     gestorModal.classList.add('hidden');
     window.dispatchEvent(new CustomEvent('gestor-saved'));
@@ -195,42 +219,51 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
     e.preventDefault();
     if (!_isAdmin) return;
     if (!state.usuarioEmEdicao) {
-        alert('Erro: Nenhum usuário selecionado para edição.');
+        await window.customAlert('Erro: Nenhum usuário selecionado para edição.', 'Erro');
         return;
-    }    const matrizesSelecionadas = Array.from(document.querySelectorAll('#editUserMatrizesCheckbox input:checked')).map(cb => cb.value);
-    const matrizParaSalvar = (matrizesSelecionadas.length === 1 && matrizesSelecionadas[0] === 'TODOS') ? 'TODOS' : matrizesSelecionadas.join(', ');    const payload = {
+    }
+    const matrizesSelecionadas = Array.from(document.querySelectorAll('#editUserMatrizesCheckbox input:checked')).map(cb => cb.value);
+    const matrizParaSalvar = (matrizesSelecionadas.length === 1 && matrizesSelecionadas[0] === 'TODOS') ? 'TODOS' : matrizesSelecionadas.join(', ');
+    const payload = {
         Nome: document.getElementById('editUserNome').value,
         Usuario: document.getElementById('editUserUsuario').value,
         Aprovacao: document.getElementById('editUserAprovacao').value,
         Tipo: document.getElementById('editUserTipo').value,
         Matriz: matrizParaSalvar,
-    };    const pin = document.getElementById('editUserPin').value;
+    };
+    const pin = document.getElementById('editUserPin').value;
     if (pin) {
         if (pin.length !== 6 || !/^\d+$/.test(pin)) {
-            alert('O PIN deve conter exatamente 6 dígitos numéricos.');
+            await window.customAlert('O PIN deve conter exatamente 6 dígitos numéricos.', 'PIN Inválido');
             return;
         }
         payload.PIN = pin;
-    }    const {error} = await supabase.from('Logins').update(payload).eq('Usuario', state.usuarioEmEdicao.Usuario);
+    }
+    const {error} = await supabase.from('Logins').update(payload).eq('Usuario', state.usuarioEmEdicao.Usuario);
     if (error) {
-        alert(`Erro ao atualizar usuário: ${error.message}`);
+        await window.customAlert(`Erro ao atualizar usuário: ${error.message}`, 'Erro');
         console.error(error);
         return;
-    }    alert('Usuário atualizado com sucesso!');
+    }
+    await window.customAlert('Usuário atualizado com sucesso!', 'Sucesso');
     editUserModal.classList.add('hidden');
     window.dispatchEvent(new CustomEvent('login-updated', {detail: {usuario: payload.Usuario}}));
 }async function handleDeleteUser() {
     if (!_isAdmin) return;
     if (!state.usuarioEmEdicao) {
-        alert('Erro: Nenhum usuário selecionado.');
+        await window.customAlert('Erro: Nenhum usuário selecionado.', 'Erro');
         return;
     }
-    const ok = confirm(`Tem certeza que deseja EXCLUIR o usuário "${state.usuarioEmEdicao.Nome}" (${state.usuarioEmEdicao.Usuario})? Esta ação não pode ser desfeita.`);
-    if (!ok) return;    const {error} = await supabase.from('Logins').delete().eq('Usuario', state.usuarioEmEdicao.Usuario);
+    const ok = await window.customConfirm(
+        `Tem certeza que deseja <b>EXCLUIR</b> o usuário "<b>${state.usuarioEmEdicao.Nome}</b>" (${state.usuarioEmEdicao.Usuario})?<br>Esta ação não pode ser desfeita.`,
+        'Confirmar Exclusão',
+        'danger'
+    );    if (!ok) return;    const {error} = await supabase.from('Logins').delete().eq('Usuario', state.usuarioEmEdicao.Usuario);
     if (error) {
-        alert(`Erro ao excluir usuário: ${error.message}`);
+        await window.customAlert(`Erro ao excluir usuário: ${error.message}`, 'Erro');
         return;
-    }    alert('Usuário excluído com sucesso!');
+    }
+    await window.customAlert('Usuário excluído com sucesso!', 'Sucesso');
     editUserModal.classList.add('hidden');
     window.dispatchEvent(new CustomEvent('login-deleted', {detail: {usuario: state.usuarioEmEdicao.Usuario}}));
 }async function openEditUserModal(usuarioId) {
@@ -240,16 +273,18 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
         console.warn(`Usuário ${usuarioId} não encontrado no cache. Buscando no banco.`);
         const {data, error} = await supabase.from('Logins').select('*').eq('Usuario', usuarioId).single();
         if (error || !data) {
-            alert('Não foi possível carregar os dados do usuário.');
+            await window.customAlert('Não foi possível carregar os dados do usuário.', 'Erro');
             console.error(error);
             return;
         }
         userData = data;
-    }    state.usuarioEmEdicao = userData;
+    }
+    state.usuarioEmEdicao = userData;
     document.getElementById('editUserNome').value = userData.Nome || '';
     document.getElementById('editUserUsuario').value = userData.Usuario || '';
     document.getElementById('editUserAprovacao').value = userData.Aprovacao || 'PENDENTE';
-    document.getElementById('editUserPin').value = '';    const tipoSelect = document.getElementById('editUserTipo');
+    document.getElementById('editUserPin').value = '';
+    const tipoSelect = document.getElementById('editUserTipo');
     if (tipoSelect) {
         let tipoDoBanco = (userData.Tipo || '').toUpperCase();
         if (tipoDoBanco.endsWith('A')) {
@@ -261,21 +296,28 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
             console.warn(`Tipo "${tipoDoBanco}" não encontrado nas opções do select.`);
             tipoSelect.value = '';
         }
-    }    const container = document.getElementById('editUserMatrizesCheckbox');
+    }
+    const container = document.getElementById('editUserMatrizesCheckbox');
     let userMatrizes = [];
-    if (typeof userData.Matriz === 'string' && userData.Matriz) userMatrizes = userData.Matriz.split(',').map(m => m.trim());    const nomesMatrizesUnicas = [...new Set(state.matrizesData.map(item => item.MATRIZ))];
-    if (!nomesMatrizesUnicas.includes('TODOS')) nomesMatrizesUnicas.unshift('TODOS');    container.innerHTML = nomesMatrizesUnicas.map(m => {
+    if (typeof userData.Matriz === 'string' && userData.Matriz) userMatrizes = userData.Matriz.split(',').map(m => m.trim());
+    const nomesMatrizesUnicas = [...new Set(state.matrizesData.map(item => item.MATRIZ))];
+    if (!nomesMatrizesUnicas.includes('TODOS')) nomesMatrizesUnicas.unshift('TODOS');
+    container.innerHTML = nomesMatrizesUnicas.map(m => {
         const checked = userMatrizes.includes(m) ? 'checked' : '';
         return `<label class="checkbox-label"><input type="checkbox" value="${m}" ${checked}> ${m}</label>`;
-    }).join('');    editUserModal.classList.remove('hidden');
+    }).join('');
+    editUserModal.classList.remove('hidden');
 }function preencherCheckboxesMatrizes() {
     const container = document.getElementById('gestorMatrizesCheckbox');
-    const nomesMatrizesUnicas = [...new Set(state.matrizesData.map(item => item.MATRIZ))];    if (nomesMatrizesUnicas.length === 0) {
+    const nomesMatrizesUnicas = [...new Set(state.matrizesData.map(item => item.MATRIZ))];
+    if (nomesMatrizesUnicas.length === 0) {
         container.innerHTML = '<span>Nenhuma matriz encontrada. Registre uma primeiro.</span>';
         return;
-    }    container.innerHTML = nomesMatrizesUnicas.map(matriz => `
+    }
+    container.innerHTML = nomesMatrizesUnicas.map(matriz => `
     <label class="checkbox-label"><input type="checkbox" name="matriz" value="${matriz}"> ${matriz}</label>
-  `).join('');    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+  `).join('');
+    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         const fn = () => atualizarServicesVinculados();
         cb.addEventListener('change', fn);
         _listeners.push(() => cb.removeEventListener('change', fn));
@@ -283,19 +325,26 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
 }function atualizarServicesVinculados() {
     const container = document.getElementById('gestorMatrizesCheckbox');
     const display = document.getElementById('gestorServicesVinculados');
-    const matrizesSelecionadas = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);    if (matrizesSelecionadas.length === 0) {
+    const matrizesSelecionadas = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    if (matrizesSelecionadas.length === 0) {
         display.innerHTML = '<span>Selecione uma matriz para ver os services.</span>';
         return;
-    }    const servicesVinculados = state.matrizesData
+    }
+    const servicesVinculados = state.matrizesData
         .filter(item => matrizesSelecionadas.includes(item.MATRIZ))
         .map(item => item.SERVICE);
     const servicesUnicos = [...new Set(servicesVinculados)];
     display.innerHTML = servicesUnicos.map(s => `<span class="service-tag">${s}</span>`).join('');
 }export async function init() {
-    if (_mounted) return;    _isAdmin = gateIsAdmin();
+    if (_mounted) return;
+    _isAdmin = gateIsAdmin();
     if (!_isAdmin) {
-        console.warn(`Painel Gerencial: Acesso bloqueado. Nível detectado: [${(getUsuarioDaSessao()?.Nivel || 'Nenhum')}]`);        renderAcessoBloqueado('tab-painel-gerencial', null);        return;
-    }    console.log('Painel Gerencial: Acesso de Administrador concedido.');    registrarMatrizBtn = document.getElementById('btnAbrirModalMatriz');
+        console.warn(`Painel Gerencial: Acesso bloqueado. Nível detectado: [${(getUsuarioDaSessao()?.Nivel || 'Nenhum')}]`);
+        renderAcessoBloqueado('tab-painel-gerencial', null);
+        return;
+    }
+    console.log('Painel Gerencial: Acesso de Administrador concedido.');
+    registrarMatrizBtn = document.getElementById('btnAbrirModalMatriz');
     registrarGestorBtn = document.getElementById('btnAbrirModalGestor');
     matrizModal = document.getElementById('matrizModal');
     matrizForm = document.getElementById('matrizForm');
@@ -311,19 +360,24 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
     filterTipo = document.getElementById('filter-tipo');
     filterMatriz = document.getElementById('filter-matriz');
     filterSvc = document.getElementById('filter-svc');
-    limparFiltrosBtn = document.getElementById('limpar-filtros-gerencial');    if (!registrarMatrizBtn || !registrarGestorBtn || !matrizModal || !matrizForm || !gestorModal || !gestorForm || !editUserModal || !editUserForm || !btnExcluirUsuario || !filterAprovacao || !filterTipo || !filterMatriz || !filterSvc || !limparFiltrosBtn) {
-        console.error('Painel Gerencial: Elementos essenciais do DOM não encontrados APÓS verificação de acesso. Verifique os IDs no HTML da página.');        const container = document.getElementById('tab-painel-gerencial');        if (container) {
+    limparFiltrosBtn = document.getElementById('limpar-filtros-gerencial');
+    if (!registrarMatrizBtn || !registrarGestorBtn || !matrizModal || !matrizForm || !gestorModal || !gestorForm || !editUserModal || !editUserForm || !btnExcluirUsuario || !filterAprovacao || !filterTipo || !filterMatriz || !filterSvc || !limparFiltrosBtn) {
+        console.error('Painel Gerencial: Elementos essenciais do DOM não encontrados APÓS verificação de acesso. Verifique os IDs no HTML da página.');
+        const container = document.getElementById('tab-painel-gerencial');
+        if (container) {
             container.innerHTML = `<div class="erro-setup" style="padding: 2rem; text-align: center;"><p style="color: #dc3545;">Erro crítico: Falha ao inicializar a interface do Painel Gerencial (elementos não encontrados). Contate o suporte.</p></div>`;
         }
         return;
-    }    {
+    }
+    {
         const fn = () => {
             matrizForm.reset();
             matrizModal.classList.remove('hidden');
         };
         registrarMatrizBtn.addEventListener('click', fn);
         _listeners.push(() => registrarMatrizBtn.removeEventListener('click', fn));
-    }    {
+    }
+    {
         const fn = async () => {
             try {
                 await getCachedMatrizes();
@@ -333,37 +387,45 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
                 gestorModal.classList.remove('hidden');
             } catch (error) {
                 console.error('Erro ao preparar modal de gestor:', error);
-                alert('Não foi possível carregar os dados necessários para abrir o modal de gestor.');
+                await window.customAlert('Não foi possível carregar os dados necessários para abrir o modal de gestor.', 'Erro');
             }
         };
         registrarGestorBtn.addEventListener('click', fn);
         _listeners.push(() => registrarGestorBtn.removeEventListener('click', fn));
-    }    matrizForm.addEventListener('submit', handleRegistrarMatriz);
-    _listeners.push(() => matrizForm.removeEventListener('submit', handleRegistrarMatriz));    gestorForm.addEventListener('submit', handleRegistrarGestor);
-    _listeners.push(() => gestorForm.removeEventListener('submit', handleRegistrarGestor));    editUserForm.addEventListener('submit', handleEditUserSubmit);
-    _listeners.push(() => editUserForm.removeEventListener('submit', handleEditUserSubmit));    btnExcluirUsuario.addEventListener('click', handleDeleteUser);
-    _listeners.push(() => btnExcluirUsuario.removeEventListener('click', handleDeleteUser));    document.querySelectorAll('[data-close-modal]').forEach(btn => {
+    }
+    matrizForm.addEventListener('submit', handleRegistrarMatriz);
+    _listeners.push(() => matrizForm.removeEventListener('submit', handleRegistrarMatriz));
+    gestorForm.addEventListener('submit', handleRegistrarGestor);
+    _listeners.push(() => gestorForm.removeEventListener('submit', handleRegistrarGestor));
+    editUserForm.addEventListener('submit', handleEditUserSubmit);
+    _listeners.push(() => editUserForm.removeEventListener('submit', handleEditUserSubmit));
+    btnExcluirUsuario.addEventListener('click', handleDeleteUser);
+    _listeners.push(() => btnExcluirUsuario.removeEventListener('click', handleDeleteUser));
+    document.querySelectorAll('[data-close-modal]').forEach(btn => {
         const fn = () => {
             const id = btn.getAttribute('data-close-modal');
             document.getElementById(id)?.classList.add('hidden');
         };
         btn.addEventListener('click', fn);
         _listeners.push(() => btn.removeEventListener('click', fn));
-    });    filterAprovacao.addEventListener('change', applyFilters);
+    });
+    filterAprovacao.addEventListener('change', applyFilters);
     _listeners.push(() => filterAprovacao.removeEventListener('change', applyFilters));
     filterTipo.addEventListener('change', applyFilters);
     _listeners.push(() => filterTipo.removeEventListener('change', applyFilters));
     filterMatriz.addEventListener('change', applyFilters);
     _listeners.push(() => filterMatriz.removeEventListener('change', applyFilters));
     filterSvc.addEventListener('change', applyFilters);
-    _listeners.push(() => filterSvc.removeEventListener('change', applyFilters));    limparFiltrosBtn.addEventListener('click', () => {
+    _listeners.push(() => filterSvc.removeEventListener('change', applyFilters));
+    limparFiltrosBtn.addEventListener('click', () => {
         filterAprovacao.value = '';
         filterTipo.value = '';
         filterMatriz.value = '';
         filterSvc.value = '';
         applyFilters();
     });
-    _listeners.push(() => limparFiltrosBtn.replaceWith(limparFiltrosBtn.cloneNode(true)));    const events = ['matriz-saved', 'login-updated', 'login-deleted', 'gestor-saved'];
+    _listeners.push(() => limparFiltrosBtn.replaceWith(limparFiltrosBtn.cloneNode(true)));
+    const events = ['matriz-saved', 'login-updated', 'login-deleted', 'gestor-saved'];
     events.forEach(name => {
         const fn = () => {
             if (name === 'matriz-saved') invalidateCache('matrizes');
@@ -372,7 +434,8 @@ let filterAprovacao, filterTipo, filterMatriz, filterSvc, limparFiltrosBtn;funct
         };
         window.addEventListener(name, fn);
         _listeners.push(() => window.removeEventListener(name, fn));
-    });    _mounted = true;
+    });
+    _mounted = true;
     await loadAndDisplayData();
 }export function destroy() {
     try {

@@ -1,8 +1,6 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {logAction} from '../../logAction.js';
-
-let state = {
+import {logAction} from '../../logAction.js';let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
@@ -39,36 +37,28 @@ let fluxoEfetivacaoModal, fluxoEfetivacaoForm, fluxoEfetivacaoNomeEl,
     fluxoGerarBtn, fluxoFinalizarBtn, fluxoCancelarBtn, fluxoSairBtn;
 let editInputs = {};
 let editOriginal = null;
-let desligarModal, desligarForm, desligarNomeEl, desligarDataEl, desligarMotivoEl, desligarCancelarBtn;
+let desligarModal, desligarForm, desligarNomeEl, desligarDataEl, desligarMotivoEl, desligarSmartoffEl,
+    desligarSmartoffContainer, desligarCancelarBtn, desligarConfirmarBtn;
 let desligarColaborador = null;
 let feriasModal, feriasForm, feriasNomeEl, feriasInicioEl, feriasFinalEl, feriasCancelarBtn;
 let feriasColaborador = null;
 let isSubmittingFerias = false;
 let isSubmittingEdit = false;
 let dsrModal, dsrCheckboxesContainer, dsrOkBtn, dsrCancelarBtn;
-
-
 let dropdownAdd, btnAdicionarManual, btnImportarRH;
 let modalListaRH, tbodyCandidatosRH, fecharModalRH;
 let currentDsrInputTarget = null;
-const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
-
-function invalidateColaboradoresCache() {
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];function invalidateColaboradoresCache() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
-
     try {
         localStorage.removeItem('knc:colaboradoresCache');
     } catch (e) {
         console.warn('Falha ao invalidar cache compartilhado', e);
     }
     console.log("Cache de colaboradores e férias invalidado.");
-}
-
-
-function mapearDadosRhParaFormulario(candidato) {
-
+}function mapearDadosRhParaFormulario(candidato) {
     let contratoFormatado = (candidato.EmpresaContratante || '').toUpperCase();
     if (contratoFormatado.includes('AST')) contratoFormatado = 'AST';
     else if (contratoFormatado.includes('ADECCO')) contratoFormatado = 'ADECCO';
@@ -76,13 +66,10 @@ function mapearDadosRhParaFormulario(candidato) {
     else if (contratoFormatado.includes('POLLY')) contratoFormatado = 'POLLY';
     else if (contratoFormatado.includes('TSI')) contratoFormatado = 'TSI';
     else if (contratoFormatado.includes('GNX')) contratoFormatado = 'GNX';
-
-
     let cargoFormatado = (candidato.Cargo || '').toUpperCase();
     if (cargoFormatado.includes('AUXILIAR')) cargoFormatado = 'AUXILIAR';
     else if (cargoFormatado.includes('ASSISTENTE')) cargoFormatado = 'ASSISTENTE';
     else if (cargoFormatado.includes('LÍDER') || cargoFormatado.includes('LIDER')) cargoFormatado = 'LIDER';
-
     return {
         Nome: candidato.CandidatoAprovado,
         CPF: candidato.CPFCandidato,
@@ -91,74 +78,62 @@ function mapearDadosRhParaFormulario(candidato) {
         MATRIZ: candidato.MATRIZ,
         DataInicio: candidato.DataInicioDesejado
     };
-}
-
-// --- VARIÁVEIS GLOBAIS DO MÓDULO RH ---
-let rhState = {
-    dadosBrutos: [],      // Todos os dados vindos do banco
-    modoVisualizacao: 'ATUAIS', // 'ATUAIS' (<= Hoje) ou 'FUTURAS' (> Hoje)
+}let rhState = {
+    dadosBrutos: [],
+    nomesExistentes: new Set(),
+    modoVisualizacao: 'ATUAIS',
+    somenteParaFechar: false,
     filtros: {
         termo: '',
         matriz: '',
         cargo: ''
     }
-};
-
-async function fetchCandidatosAprovados() {
+};async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
-    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
-
-    try {
-        const matrizesPermitidas = getMatrizesPermitidas();
-
-        // Busca campos necessários, incluindo GESTOR
-        let query = supabase
+    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';    try {
+        const matrizesPermitidas = getMatrizesPermitidas();        let queryVagas = supabase
             .from('Vagas')
             .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataEncaminhadoAdmissao, DataAprovacao')
-            .eq('Status', 'EM ADMISSÃO');
-
-        if (matrizesPermitidas !== null) {
-            query = query.in('MATRIZ', matrizesPermitidas);
-        }
-
-        const {data, error} = await query.order('DataInicioDesejado', {ascending: true});
-
-        if (error) throw error;
-
-        // Salva no estado local
-        rhState.dadosBrutos = data || [];
-
-        // Inicializa os listeners dos filtros (apenas uma vez)
-        setupRhFilters();
-
-        // Popula os selects de filtro com base nos dados carregados
+            .eq('Status', 'EM ADMISSÃO');        if (matrizesPermitidas !== null) {
+            queryVagas = queryVagas.in('MATRIZ', matrizesPermitidas);
+        }        const queryColabs = supabase
+            .from('Colaboradores')
+            .select('Nome')
+            .eq('Ativo', 'SIM');        const [resVagas, resColabs] = await Promise.all([
+            queryVagas.order('DataInicioDesejado', {ascending: true}),
+            queryColabs
+        ]);        if (resVagas.error) throw resVagas.error;        rhState.dadosBrutos = resVagas.data || [];        rhState.nomesExistentes = new Set(
+            (resColabs.data || []).map(c => (c.Nome || '').toUpperCase().trim())
+        );        setupRhFilters();
         populateRhFilterOptions();
-
-        // Aplica filtros iniciais e renderiza
-        aplicarFiltrosRh();
-
-    } catch (err) {
+        aplicarFiltrosRh();    } catch (err) {
         console.error('Erro RH:', err);
         tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar.</td></tr>';
     }
-}
-
-// --- 2. CONFIGURAÇÃO DOS LISTENERS (Filtros e Botões) ---
-function setupRhFilters() {
+}function setupRhFilters() {
     const inputSearch = document.getElementById('filterRhSearch');
     const selectMatriz = document.getElementById('filterRhMatriz');
     const selectCargo = document.getElementById('filterRhCargo');
-    const btnToggle = document.getElementById('btnToggleFutureDates');
-
-    // Remove listeners antigos para evitar duplicação (cloneNode trick)
-    if (btnToggle) {
-        const newBtn = btnToggle.cloneNode(true);
-        btnToggle.parentNode.replaceChild(newBtn, btnToggle);
-        newBtn.addEventListener('click', toggleRhDateMode);
-    }
-
-    // Listeners de input
-    if (inputSearch) inputSearch.oninput = (e) => {
+    let btnToggleDate = document.getElementById('btnToggleFutureDates');    if (btnToggleDate) {        const newBtnDate = btnToggleDate.cloneNode(true);
+        btnToggleDate.parentNode.replaceChild(newBtnDate, btnToggleDate);
+        btnToggleDate = newBtnDate;        btnToggleDate.addEventListener('click', toggleRhDateMode);        let wrapper = btnToggleDate.parentNode.querySelector('.rh-buttons-wrapper');        if (!wrapper) {            wrapper = document.createElement('div');
+            wrapper.className = 'rh-buttons-wrapper';            wrapper.style.display = 'flex';
+            wrapper.style.flexDirection = 'row';
+            wrapper.style.gap = '8px';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.justifyContent = 'flex-end';            btnToggleDate.parentNode.insertBefore(wrapper, btnToggleDate);
+            wrapper.appendChild(btnToggleDate);
+        }        let btnParaFechar = document.getElementById('btnToggleParaFechar');        if (!btnParaFechar) {
+            btnParaFechar = document.createElement('button');
+            btnParaFechar.id = 'btnToggleParaFechar';
+            btnParaFechar.className = "px-3 py-1 rounded-full border text-xs font-bold transition-colors bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200";
+            btnParaFechar.innerHTML = "🔒 Vagas p/ Fechar";            wrapper.appendChild(btnParaFechar);
+        }        const newBtnFechar = btnParaFechar.cloneNode(true);
+        btnParaFechar.parentNode.replaceChild(newBtnFechar, btnParaFechar);        newBtnFechar.addEventListener('click', () => {
+            rhState.somenteParaFechar = !rhState.somenteParaFechar;
+            aplicarFiltrosRh();
+        });
+    }    if (inputSearch) inputSearch.oninput = (e) => {
         rhState.filtros.termo = e.target.value.toUpperCase();
         aplicarFiltrosRh();
     };
@@ -170,80 +145,67 @@ function setupRhFilters() {
         rhState.filtros.cargo = e.target.value;
         aplicarFiltrosRh();
     };
-}
-
-function populateRhFilterOptions() {
+}function populateRhFilterOptions() {
     const selMatriz = document.getElementById('filterRhMatriz');
     const selCargo = document.getElementById('filterRhCargo');
-    if (!selMatriz || !selCargo) return;
-
-    // Extrai valores únicos
-    const matrizes = [...new Set(rhState.dadosBrutos.map(i => i.MATRIZ).filter(Boolean))].sort();
-    const cargos = [...new Set(rhState.dadosBrutos.map(i => i.Cargo).filter(Boolean))].sort();
-
-    // Popula Matriz
-    selMatriz.innerHTML = '<option value="">Todas</option>';
-    matrizes.forEach(m => selMatriz.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
-
-    // Popula Cargo (Abreviado no select também para ficar bonito)
-    selCargo.innerHTML = '<option value="">Todos</option>';
-    cargos.forEach(c => selCargo.insertAdjacentHTML('beforeend', `<option value="${c}">${formatCargoShort(c)}</option>`));
-}
-
-// --- 4. ALTERNA ENTRE VAGAS ATUAIS E FUTURAS ---
-function toggleRhDateMode() {
+    if (!selMatriz || !selCargo) return;    const valMatriz = selMatriz.value;
+    const valCargo = selCargo.value;    const matrizes = [...new Set(rhState.dadosBrutos.map(i => i.MATRIZ).filter(Boolean))].sort();
+    const cargos = [...new Set(rhState.dadosBrutos.map(i => i.Cargo).filter(Boolean))].sort();    selMatriz.innerHTML = '<option value="">Todas</option>';
+    matrizes.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        selMatriz.appendChild(opt);
+    });    selCargo.innerHTML = '<option value="">Todos</option>';
+    cargos.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = typeof formatCargoShort === 'function' ? formatCargoShort(c) : c;
+        selCargo.appendChild(opt);
+    });    if (matrizes.includes(valMatriz)) selMatriz.value = valMatriz;
+    if (cargos.includes(valCargo)) selCargo.value = valCargo;
+}function toggleRhDateMode() {
     rhState.modoVisualizacao = (rhState.modoVisualizacao === 'ATUAIS') ? 'FUTURAS' : 'ATUAIS';
     aplicarFiltrosRh();
-}
-
-// --- 5. LÓGICA DE FILTRAGEM CENTRAL ---
-function aplicarFiltrosRh() {
-    const hoje = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+}function aplicarFiltrosRh() {
+    const hoje = new Date().toISOString().split('T')[0];
     const lblMode = document.getElementById('lblDateMode');
-    const badge = document.getElementById('countRhBadges');
-    const btn = document.getElementById('btnToggleFutureDates');
-
-    // Filtra os dados
-    const filtrados = rhState.dadosBrutos.filter(item => {
-        // 1. Filtro de Data
+    const badge = document.getElementById('countRhBadges');    const btnDate = document.getElementById('btnToggleFutureDates');
+    const btnFechar = document.getElementById('btnToggleParaFechar');    const filtrados = rhState.dadosBrutos.filter(item => {
         const dataInicio = item.DataInicioDesejado || '1900-01-01';
-        const isFuture = dataInicio > hoje;
-
-        if (rhState.modoVisualizacao === 'ATUAIS' && isFuture) return false;
-        if (rhState.modoVisualizacao === 'FUTURAS' && !isFuture) return false;
-
-        // 2. Filtro de Texto (Nome ou CPF)
-        const termo = rhState.filtros.termo;
+        const isFuture = dataInicio > hoje;        if (rhState.modoVisualizacao === 'ATUAIS' && isFuture) return false;
+        if (rhState.modoVisualizacao === 'FUTURAS' && !isFuture) return false;        if (rhState.somenteParaFechar) {
+            const nomeNorm = (item.CandidatoAprovado || '').toUpperCase().trim();            if (!rhState.nomesExistentes.has(nomeNorm)) return false;
+        }        const termo = (rhState.filtros.termo || '').toUpperCase().trim();
         if (termo) {
-            const textoBusca = ((item.CandidatoAprovado || '') + ' ' + (item.CPFCandidato || '')).toUpperCase();
-            if (!textoBusca.includes(termo)) return false;
+            const nomeC = (item.CandidatoAprovado || '').toUpperCase();
+            const cpfC = (item.CPFCandidato || '').toUpperCase();
+            if (!nomeC.includes(termo) && !cpfC.includes(termo)) return false;
+        }        if (rhState.filtros.matriz && item.MATRIZ !== rhState.filtros.matriz) return false;
+        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;        return true;
+    });    if (rhState.modoVisualizacao === 'ATUAIS') {
+        if (lblMode) lblMode.textContent = '📅 Vencidas / Hoje';
+        if (btnDate) {
+            btnDate.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
+            btnDate.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
         }
-
-        // 3. Selects
-        if (rhState.filtros.matriz && item.MATRIZ !== rhState.filtros.matriz) return false;
-        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;
-
-        return true;
-    });
-
-    // Atualiza UI do botão
-    if (rhState.modoVisualizacao === 'ATUAIS') {
-        lblMode.textContent = '📅 Vencidas / Hoje';
-        btn.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
-        btn.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
     } else {
-        lblMode.textContent = '🚀 Vagas Futuras';
-        btn.classList.remove('bg-blue-100', 'text-blue-800', 'border-blue-300');
-        btn.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
-    }
-
-    if (badge) badge.textContent = filtrados.length;
-
+        if (lblMode) lblMode.textContent = '🚀 Vagas Futuras';
+        if (btnDate) {
+            btnDate.classList.remove('bg-blue-100', 'text-blue-800', 'border-blue-300');
+            btnDate.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
+        }
+    }    if (btnFechar) {
+        if (rhState.somenteParaFechar) {            btnFechar.classList.remove('bg-gray-100', 'text-gray-500', 'border-gray-300');
+            btnFechar.classList.add('bg-purple-100', 'text-purple-800', 'border-purple-300');
+            btnFechar.innerHTML = "🔒 Mostrando Vagas p/ Fechar (X)";
+        } else {            btnFechar.classList.remove('bg-purple-100', 'text-purple-800', 'border-purple-300');
+            btnFechar.classList.add('bg-gray-100', 'text-gray-500', 'border-gray-300');
+            btnFechar.innerHTML = "🔒 Vagas p/ Fechar";
+        }
+    }    if (badge) badge.textContent = filtrados.length;
     renderTabelaRH(filtrados);
-}
-
-// --- 6. HELPER: ABREVIAÇÃO DE CARGOS ---
-function formatCargoShort(cargo) {
+}function formatCargoShort(cargo) {
     if (!cargo) return '';
     let s = cargo.toUpperCase();
     s = s.replace('AUXILIAR DE OPERAÇÕES LOGÍSTICAS', 'Aux. Op. Log.');
@@ -255,63 +217,147 @@ function formatCargoShort(cargo) {
     s = s.replace('ASSISTENTE ADMINISTRATIVO', 'Assist. Adm.');
     s = s.replace('OPERADOR DE EMPILHADEIRA', 'Op. Empilhadeira');
     s = s.replace('CONFERENTE', 'Conferente');
-    return s; // Retorna original se não tiver regra
-}
-
-// 3. Renderiza a tabela no Modal (COM SLA AJUSTADO, NOSHOW E DESISTÊNCIA)
-function renderTabelaRH(lista) {
-    tbodyCandidatosRH.innerHTML = '';
-
+    return s;
+}async function showAvisoDesligamento() {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]';
+        overlay.innerHTML = `
+        <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full p-6 animate-scaleIn">
+            <div class="flex items-center gap-3 mb-4 text-amber-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <h3 class="text-xl font-bold text-[#003369]">Atenção ao Desligamento</h3>
+            </div>            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 text-sm text-gray-700 leading-relaxed">
+                <p class="font-bold mb-2">As solicitações de desligamento devem ser enviadas com 48 horas úteis de antecedência.</p>
+                <p class="mb-2">Antes de finalizar, revise os dados de ponto para evitar descontos indevidos na rescisão.</p>
+                <p>Sempre que possível, priorize a realização de desligamentos voluntários entre <span class="font-bold">segunda e quinta-feira</span>.</p>
+            </div>            <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                <button id="avisoCancelBtn" class="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 font-semibold hover:bg-gray-50 transition-colors">
+                    Cancelar
+                </button>
+                <button id="avisoContinueBtn" class="px-4 py-2 bg-[#003369] text-white rounded-md font-semibold hover:bg-[#002244] shadow-md transition-colors">
+                    Continuar
+                </button>
+            </div>
+        </div>`;
+        document.body.appendChild(overlay);
+        const close = (result) => {
+            overlay.remove();
+            resolve(result);
+        };
+        overlay.querySelector('#avisoCancelBtn').addEventListener('click', () => close(false));
+        overlay.querySelector('#avisoContinueBtn').addEventListener('click', () => close(true));
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close(false);
+        });
+    });
+}async function verificarPendencias(colab) {
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    lista.forEach(cand => {
+    const diaHoje = hoje.getDate();
+    const trintaDiasAtras = new Date();
+    trintaDiasAtras.setDate(diaHoje - 30);
+    const startISO = trintaDiasAtras.toISOString().split('T')[0];
+    const endISO = hoje.toISOString().split('T')[0];
+    const {data: registros, error} = await supabase
+        .from('ControleDiario')
+        .select('Data')
+        .eq('Nome', colab.Nome)
+        .gte('Data', startISO)
+        .lte('Data', endISO);
+    if (error) {
+        console.error('Erro ao verificar pendências:', error);
+        return false;
+    }
+    const datasPreenchidas = new Set(registros.map(r => r.Data));
+    const {data: ferias} = await supabase.from('Ferias')
+        .select('"Data Inicio", "Data Final"')
+        .eq('Nome', colab.Nome)
+        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);
+    const {data: afastamentos} = await supabase.from('Afastamentos')
+        .select('"DATA INICIO", "DATA RETORNO"')
+        .eq('NOME', colab.Nome)
+        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO}, "DATA RETORNO".is.null`);
+    const isAusenciaLegitima = (dateStr) => {
+        if (ferias) {
+            for (const f of ferias) {
+                if (dateStr >= f['Data Inicio'] && dateStr <= f['Data Final']) return true;
+            }
+        }
+        if (afastamentos) {
+            for (const a of afastamentos) {
+                const dtRetorno = a['DATA RETORNO'] || '2099-12-31';
+                if (dateStr >= a['DATA INICIO'] && dateStr < dtRetorno) return true;
+            }
+        }
+        return false;
+    };
+    const cursor = new Date(trintaDiasAtras);
+    const ontem = new Date();
+    ontem.setDate(ontem.getDate() - 1);
+    const ontemISO = ontem.toISOString().split('T')[0];
+    if (colab['Data de admissão']) {
+        const dtAdm = new Date(colab['Data de admissão']);
+        if (dtAdm > cursor) cursor.setTime(dtAdm.getTime());
+    }
+    const dsrString = (colab.DSR || '').toUpperCase();
+    while (cursor <= ontem) {
+        const diaISO = cursor.toISOString().split('T')[0];
+        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];
+        if (diaISO > ontemISO) break;
+        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
+            cursor.setDate(cursor.getDate() + 1);
+            continue;
+        }
+        if (isAusenciaLegitima(diaISO)) {
+            cursor.setDate(cursor.getDate() + 1);
+            continue;
+        }
+        if (!datasPreenchidas.has(diaISO)) {
+            console.log(`Pendência encontrada para ${colab.Nome} no dia ${diaISO}`);
+            return true;
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return false;
+}function renderTabelaRH(lista) {
+    tbodyCandidatosRH.innerHTML = '';
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);    lista.forEach(cand => {
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group";
-
-        const dtInicio = cand.DataInicioDesejado ? formatDateLocal(cand.DataInicioDesejado) : '-';
+        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group";        const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim();
+        const jaExiste = rhState.nomesExistentes && rhState.nomesExistentes.has(nomeNormalizado);        const nomeClass = jaExiste ? 'text-green-600 font-extrabold' : 'text-[#003369] font-bold';
+        const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔</span>' : '';        const btnFecharStyle = jaExiste
+            ? 'background-color: #dcfce7; color: #166534; border: 1px solid #86efac; cursor: pointer;'
+            : 'background-color: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; cursor: not-allowed; opacity: 0.7;';        const btnFecharTitle = jaExiste
+            ? "Colaborador já cadastrado! Clique para fechar a vaga."
+            : "Ação bloqueada: Colaborador ainda não consta na base ativa.";        const dtInicio = cand.DataInicioDesejado ? formatDateLocal(cand.DataInicioDesejado) : '-';
         const cpf = cand.CPFCandidato || '-';
-        const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;
-
-        // --- NOVO CÁLCULO DO SLA ---
-        // Prioridade: DataInicioDesejado -> DataAdmissaoReal
-        const dataRefStr = cand.DataInicioDesejado || cand.DataAdmissaoReal;
+        const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;        const dataRefStr = cand.DataInicioDesejado || cand.DataAdmissaoReal;
         let slaHtml = '<span class="text-gray-300">-</span>';
-
         if (dataRefStr) {
             const dataRef = new Date(dataRefStr);
-            dataRef.setHours(0, 0, 0, 0); // Zera hora para comparar apenas datas
-
-            // Diferença: Hoje - Data de Início
-            // Se positivo: Já passou da data (Atrasado para cadastrar/Ingressar)
-            // Se negativo: Ainda vai acontecer (Futuro)
+            dataRef.setHours(0, 0, 0, 0);
             const diffTime = hoje - dataRef;
             const slaDias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
             let slaClass = "";
             let slaTexto = "";
-
             if (slaDias > 0) {
-                // Data já passou (Atenção!)
                 if (slaDias > 3) slaClass = "bg-red-50 text-red-700 border-red-200";
                 else slaClass = "bg-yellow-50 text-yellow-700 border-yellow-200";
-                slaTexto = `+${slaDias}d`; // Ex: +5 dias (passaram 5 dias do início)
+                slaTexto = `+${slaDias}d`;
             } else if (slaDias === 0) {
-                // É hoje
                 slaClass = "bg-blue-50 text-blue-700 border-blue-200";
                 slaTexto = "HOJE";
             } else {
-                // Futuro
                 slaClass = "bg-green-50 text-green-700 border-green-200";
-                slaTexto = `${slaDias}d`; // Ex: -5d (faltam 5 dias)
+                slaTexto = `${slaDias}d`;
             }
-
             slaHtml = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${slaClass}">${slaTexto}</span>`;
-        }
-
-        tr.innerHTML = `
-            <td class="p-2 font-bold text-[#003369] leading-tight">
-                ${cand.CandidatoAprovado || 'Sem Nome'}
+        }        tr.innerHTML = `
+            <td class="p-2 ${nomeClass} leading-tight">
+                ${cand.CandidatoAprovado || 'Sem Nome'}${iconCheck}
             </td>
             <td class="p-2 text-gray-500 text-[11px]">
                 ${cpf}
@@ -333,54 +379,64 @@ function renderTabelaRH(lista) {
             </td>
             <td class="p-2 text-center">
                 <div class="flex items-center justify-center gap-1">
+                    <button class="btn-fechar-vaga text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
+                            style="${btnFecharStyle}"
+                            title="${btnFecharTitle}">
+                        Fechar Vaga
+                    </button>
                     <button class="btn-noshow bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-800 hover:border-purple-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
                             title="Registrar não comparecimento">
                         NoShow
                     </button>
-                    
                     <button class="btn-desistencia bg-white border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-[10px] font-bold px-2 py-1 rounded transition-all shadow-sm"
                             title="Cancelar vaga por desistência">
-                        Desistência
+                        Desist.
                     </button>
                 </div>
             </td>
-        `;
-
-        // Evento de Importar (Duplo Clique na Linha)
-        tr.addEventListener('dblclick', (e) => {
-            // Evita disparar se clicar nos botões
+        `;        tr.addEventListener('dblclick', (e) => {
             if (e.target.closest('button')) return;
+            if (jaExiste) {
+                if(!confirm('Este colaborador já consta na base. Deseja importar novamente (pode gerar duplicidade)?')) return;
+            }
             selecionarCandidatoImportacao(cand);
-        });
-
-        // Evento Botão Desistência
-        const btnDesistencia = tr.querySelector('.btn-desistencia');
+        });        const btnFechar = tr.querySelector('.btn-fechar-vaga');
+        btnFechar.addEventListener('click', (e) => {
+            e.stopPropagation();            if (!jaExiste) {                return;
+            }            fecharVagaImportacao(cand);
+        });        const btnDesistencia = tr.querySelector('.btn-desistencia');
         btnDesistencia.addEventListener('click', (e) => {
             e.stopPropagation();
             confirmarDesistenciaVaga(cand);
-        });
-
-        // Evento Botão NoShow
-        const btnNoShow = tr.querySelector('.btn-noshow');
+        });        const btnNoShow = tr.querySelector('.btn-noshow');
         btnNoShow.addEventListener('click', (e) => {
             e.stopPropagation();
             confirmarNoShowVaga(cand);
-        });
-
-        tbodyCandidatosRH.appendChild(tr);
+        });        tbodyCandidatosRH.appendChild(tr);
     });
-}
-
-// --- FUNÇÃO EXISTENTE (ATUALIZADA): Confirmar Desistência ---
-async function confirmarDesistenciaVaga(vaga) {
+}async function fecharVagaImportacao(vaga) {
+    const nome = vaga.CandidatoAprovado || 'Candidato';
+    const confirmacao = await window.customConfirm(
+        `Deseja marcar a vaga de <b>${nome}</b> como <span style="color:green">FECHADA</span>?<br><br>Isso removerá o candidato desta lista de importação.`,
+        'Fechar Vaga',
+        'success'
+    );    if (!confirmacao) return;    if (tbodyCandidatosRH) tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Atualizando status...</td></tr>';    try {
+        const {error} = await supabase
+            .from('Vagas')
+            .update({
+                Status: 'FECHADA'
+            })
+            .eq('ID_Vaga', vaga.ID_Vaga);        if (error) throw error;        await window.customAlert('Vaga fechada com sucesso!', 'Sucesso');
+        logAction(`Fechou vaga (via Importação RH): ${nome} (Vaga #${vaga.ID_Vaga})`);        await fetchCandidatosAprovados();        if (typeof checkPendingImports === 'function') checkPendingImports();    } catch (err) {
+        console.error('Erro ao fechar vaga:', err);
+        await window.customAlert('Erro ao fechar vaga: ' + err.message, 'Erro');
+        fetchCandidatosAprovados();
+    }
+}async function confirmarDesistenciaVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar DESISTÊNCIA de:\n\n${nome}?\n\nA vaga será cancelada.`);
-
     if (!confirmacao) return;
-
-    // Feedback visual
     if (tbodyCandidatosRH) tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Processando...</td></tr>';
-
     try {
         const {error} = await supabase
             .from('Vagas')
@@ -389,31 +445,21 @@ async function confirmarDesistenciaVaga(vaga) {
                 Motivo: 'DESISTENCIA DO CANDIDATO (Via Importação RH)'
             })
             .eq('ID_Vaga', vaga.ID_Vaga);
-
         if (error) throw error;
-
         alert('Desistência registrada com sucesso.');
         logAction(`Registrou desistência do candidato: ${nome} (Vaga #${vaga.ID_Vaga})`);
-
         await fetchCandidatosAprovados();
         if (typeof checkPendingImports === 'function') checkPendingImports();
-
     } catch (err) {
         console.error('Erro ao cancelar vaga:', err);
         alert('Erro ao registrar desistência: ' + err.message);
         fetchCandidatosAprovados();
     }
-}
-
-// --- NOVA FUNÇÃO: Confirmar NoShow ---
-async function confirmarNoShowVaga(vaga) {
+}async function confirmarNoShowVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar NO SHOW (Não Comparecimento) de:\n\n${nome}?\n\nA vaga será cancelada com motivo 'NO SHOW'.`);
-
     if (!confirmacao) return;
-
     if (tbodyCandidatosRH) tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Processando NoShow...</td></tr>';
-
     try {
         const {error} = await supabase
             .from('Vagas')
@@ -422,87 +468,55 @@ async function confirmarNoShowVaga(vaga) {
                 Motivo: 'NO SHOW (Colaborador não compareceu)'
             })
             .eq('ID_Vaga', vaga.ID_Vaga);
-
         if (error) throw error;
-
         alert('No Show registrado com sucesso.');
         logAction(`Registrou NO SHOW do candidato: ${nome} (Vaga #${vaga.ID_Vaga})`);
-
         await fetchCandidatosAprovados();
         if (typeof checkPendingImports === 'function') checkPendingImports();
-
     } catch (err) {
         console.error('Erro ao registrar No Show:', err);
         alert('Erro ao registrar No Show: ' + err.message);
         fetchCandidatosAprovados();
     }
-}
-
-
-async function selecionarCandidatoImportacao(candidatoRaw) {
+}async function selecionarCandidatoImportacao(candidatoRaw) {
     const dadosMapeados = mapearDadosRhParaFormulario(candidatoRaw);
-
-
     modalListaRH.classList.add('hidden');
-
-
     await prepararFormularioAdicao();
-
-
     document.dispatchEvent(new CustomEvent('open-add-modal'));
-
-
     setTimeout(() => {
         preencherFormularioAdicao(dadosMapeados);
     }, 100);
-}
-
-
-async function prepararFormularioAdicao() {
+}async function prepararFormularioAdicao() {
     await loadGestoresParaFormulario();
     loadSVCsParaFormulario();
     await populateContratoSelect(document.getElementById('addContrato'));
     populateGestorSelect(null);
     attachUppercaseHandlers();
-}
-
-
-function preencherFormularioAdicao(dados) {
+}function preencherFormularioAdicao(dados) {
     const setVal = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.value = val || '';
     };
-
-
     if (Object.keys(dados).length === 0) {
         if (addForm) addForm.reset();
         return;
     }
-
     setVal('addNome', dados.Nome);
     setVal('addCPF', dados.CPF);
     setVal('addCargo', dados.Cargo);
     setVal('addContrato', dados.Contrato);
     setVal('addMatriz', dados.MATRIZ);
-
     if (dados.DataInicio) {
         setVal('addDataAdmissao', dados.DataInicio);
     }
-
-
     if (dados.MATRIZ && state.matrizesData) {
         const matrizItem = state.matrizesData.find(m => m.MATRIZ === dados.MATRIZ);
         if (matrizItem && matrizItem.SERVICE) {
             setVal('addSVC', matrizItem.SERVICE);
-
             populateGestorSelect(matrizItem.SERVICE);
         }
     }
-}
-
-
-function checkUserAdminStatus() {
-
+}function checkUserAdminStatus() {
     const sessionString = localStorage.getItem('userSession');
     if (!sessionString) {
         console.warn('Sessão do usuário não encontrada. Permissões de admin não concedidas.');
@@ -522,10 +536,7 @@ function checkUserAdminStatus() {
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
     }
-}
-
-function promptForDate(title, defaultDate) {
-
+}function promptForDate(title, defaultDate) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';
@@ -568,10 +579,7 @@ function promptForDate(title, defaultDate) {
             if (e.target === overlay) close(null);
         };
     });
-}
-
-async function fetchAllWithPagination(queryBuilder) {
-
+}async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -590,56 +598,32 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
     return allData;
-}
-
-function ymdToday() {
-
+}function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}
-
-function isFutureYMD(yyyyMmDd) {
-
+}function isFutureYMD(yyyyMmDd) {
     if (!yyyyMmDd) return false;
     return yyyyMmDd > ymdToday();
-}
-
-function normalizeCPF(raw) {
-
+}function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
-}
-
-function toUpperNoTrim(str) {
-
+}function toUpperNoTrim(str) {
     return typeof str === 'string' ? str.toUpperCase() : str;
-}
-
-function toUpperTrim(str) {
-
+}function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}
-
-function nullIfEmpty(v) {
-
+}function nullIfEmpty(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s === '' ? null : s;
-}
-
-function numberOrNull(v) {
-
+}function numberOrNull(v) {
     const s = nullIfEmpty(v);
     if (s === null) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
-}
-
-function toStartOfDay(dateish) {
-
+}function toStartOfDay(dateish) {
     if (!dateish) return NaN;
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
@@ -651,17 +635,11 @@ function toStartOfDay(dateish) {
     }
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
-function formatDateLocal(iso) {
-
+}function formatDateLocal(iso) {
     if (!iso) return '';
     const [y, m, d] = String(iso).split('T')[0].split('-');
     return `${d}/${m}/${y}`;
-}
-
-function attachUppercaseHandlers() {
-
+}function attachUppercaseHandlers() {
     if (!addForm || addForm.dataset.upperBound === '1') return;
     addForm.dataset.upperBound = '1';
     const uppercaseOnInput = (el) => {
@@ -686,10 +664,7 @@ function attachUppercaseHandlers() {
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}
-
-async function populateContratoSelect(selectElement) {
-
+}async function populateContratoSelect(selectElement) {
     if (!selectElement) return;
     const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
@@ -703,10 +678,7 @@ async function populateContratoSelect(selectElement) {
     if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
-}
-
-function attachUpperHandlersTo(form) {
-
+}function attachUpperHandlersTo(form) {
     if (!form || form.dataset.upperBound === '1') return;
     form.dataset.upperBound = '1';
     const textInputs = form.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="tel"], input:not([type]), textarea');
@@ -729,10 +701,7 @@ function attachUpperHandlersTo(form) {
     form.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}
-
-function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
-
+}function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -764,10 +733,7 @@ function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
-}
-
-function toUpperObject(obj) {
-
+}function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
@@ -799,10 +765,7 @@ function toUpperObject(obj) {
         }
     }
     return out;
-}
-
-function renderTable(dataToRender) {
-
+}function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
     colaboradoresTbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
@@ -811,18 +774,13 @@ function renderTable(dataToRender) {
     }
     const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
-
-
         if (colaborador.StatusDesligamento === 'PENDENTE') {
             return `${nomeBase} ⚠️ (Desligamento Pendente)`;
         }
         if (colaborador.StatusDesligamento === 'RECUSADO') {
             return `${nomeBase} ❌ (Desligamento Recusado)`;
         }
-
-
         if (colaborador.Ativo === 'AFAS') return `${nomeBase} (Afastado)`;
-
         const diasRest = state?.feriasAtivasMap?.get?.(nomeBase);
         if (diasRest != null && !isNaN(diasRest)) {
             if (diasRest === 0) return `${nomeBase} 🏖️ (Termina hoje)`;
@@ -834,15 +792,11 @@ function renderTable(dataToRender) {
     dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colaborador.Nome || '');
-
-
         if (colaborador.StatusDesligamento === 'PENDENTE') {
             tr.classList.add('row-pending');
         } else if (colaborador.StatusDesligamento === 'RECUSADO') {
             tr.classList.add('row-rejected');
         }
-
-
         const nomeCelula = formatarNomeColaborador(colaborador);
         const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);
         const admissaoKN = formatDateLocal(colaborador['Admissao KN']);
@@ -862,19 +816,13 @@ function renderTable(dataToRender) {
         `;
         colaboradoresTbody.appendChild(tr);
     });
-}
-
-function updateDisplay() {
-
+}function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
     renderTable(dataSlice);
     if (mostrarMenosBtn) mostrarMenosBtn.classList.toggle('hidden', itensVisiveis <= ITENS_POR_PAGINA);
     if (mostrarMaisBtn) mostrarMaisBtn.classList.toggle('hidden', itensVisiveis >= state.dadosFiltrados.length);
     if (contadorVisiveisEl) contadorVisiveisEl.textContent = `${dataSlice.length} de ${state.dadosFiltrados.length} colaboradores visíveis`;
-}
-
-function populateFilters() {
-
+}function populateFilters() {
     if (!filtrosSelect) return;
     const filtros = {
         Contrato: new Set(), Cargo: new Set(), Escala: new Set(), DSR: new Set(),
@@ -911,10 +859,7 @@ function populateFilters() {
         }
         selectEl.value = valorSalvo;
     });
-}
-
-function applyFiltersAndSearch() {
-
+}function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
@@ -948,10 +893,7 @@ function applyFiltersAndSearch() {
     itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
     updateDisplay();
-}
-
-function repopulateFilterOptionsCascade() {
-
+}function repopulateFilterOptionsCascade() {
     if (!filtrosSelect || !filtrosSelect.length) return;
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
@@ -1009,10 +951,7 @@ function repopulateFilterOptionsCascade() {
             selectEl.selectedIndex = 0;
         }
     });
-}
-
-function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
-
+}function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
     state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
@@ -1021,119 +960,76 @@ function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     if (bySvc) return toUpperTrim(bySvc);
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
-}
-
-
-async function checkPendingImports() {
-
+}async function checkPendingImports() {
     const matrizesPermitidas = getMatrizesPermitidas();
-
-
     let query = supabase
         .from('Vagas')
         .select('CandidatoAprovado, MATRIZ')
         .eq('Status', 'EM ADMISSÃO');
-
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
     }
-
     const {data: vagasCandidatos, error} = await query;
-
     if (error || !vagasCandidatos || vagasCandidatos.length === 0) {
         hidePendingImportAlert();
         return;
     }
-
-
     const nomesCadastrados = new Set(
         state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
     );
-
-
     const pendentes = vagasCandidatos.filter(vaga => {
         const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
         return nomeCandidato && !nomesCadastrados.has(nomeCandidato);
     });
-
-
     if (pendentes.length > 0) {
         showPendingImportAlert(pendentes.length);
     } else {
         hidePendingImportAlert();
     }
-}
-
-function showPendingImportAlert(count) {
+}function showPendingImportAlert(count) {
     let alertDiv = document.getElementById('pending-import-alert');
-
-    // Se não existir, cria o elemento
     if (!alertDiv) {
         alertDiv = document.createElement('div');
         alertDiv.id = 'pending-import-alert';
-
-        // Tenta encontrar o wrapper do botão Adicionar
         const addBtnWrapper = document.getElementById('dropdownAdd')?.parentNode || document.getElementById('add-colaborador-btn')?.parentNode;
-
         if (addBtnWrapper) {
-            // Insere logo DEPOIS do botão de adicionar
             addBtnWrapper.parentNode.insertBefore(alertDiv, addBtnWrapper.nextSibling);
         } else {
-            // Fallback
             const container = document.querySelector('.table-wrapper') || document.getElementById('colaboradores-tbody')?.closest('.container');
             if (container && container.parentNode) {
                 container.parentNode.insertBefore(alertDiv, container);
             }
         }
     }
-
-    // --- ATUALIZAÇÃO DO TEXTO ---
     const plural = count > 1 ? 'novas vagas pendentes' : 'nova vaga pendente';
-
     alertDiv.innerHTML = `
         <div class="alert-content">
             <span style="font-size: 14px;">⚠️</span>
             <span>Você tem <strong>${count} ${plural}</strong> de importação! Clique em <b>Adicionar</b> e depois <b>Importar do RH</b>.</span>
         </div>
     `;
-    // Removi o botão "Importar Agora" daqui já que o texto instrui a usar o menu principal,
-    // mas se quiser manter o atalho rápido, me avise.
-
     alertDiv.classList.remove('hidden');
-}
-
-function hidePendingImportAlert() {
+}function hidePendingImportAlert() {
     const alertDiv = document.getElementById('pending-import-alert');
     if (alertDiv) {
         alertDiv.classList.add('hidden');
     }
-}
-
-
-async function fetchColaboradores() {
+}async function fetchColaboradores() {
     const now = Date.now();
-
-
     try {
         const cached = localStorage.getItem('knc:colaboradoresCache');
         if (cached) {
             const {timestamp, data, ferias} = JSON.parse(cached);
-
             if ((now - timestamp) < CACHE_DURATION_MS) {
                 console.log("Usando cache de colaboradores (localStorage).");
                 cachedColaboradores = data;
                 cachedFeriasStatus = new Map(ferias);
                 lastFetchTimestamp = timestamp;
-
                 state.colaboradoresData = cachedColaboradores;
                 state.feriasAtivasMap = cachedFeriasStatus;
-
                 populateFilters();
                 applyFiltersAndSearch();
-
-
                 checkPendingImports();
-
                 return;
             } else {
                 console.log("Cache do localStorage expirado.");
@@ -1144,12 +1040,9 @@ async function fetchColaboradores() {
         console.warn('Falha ao ler cache de colaboradores do localStorage', e);
         localStorage.removeItem('knc:colaboradoresCache');
     }
-
-
     if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
         console.log("Usando cache de colaboradores (memória).");
         state.colaboradoresData = cachedColaboradores;
-
         if (cachedFeriasStatus) {
             state.feriasAtivasMap = cachedFeriasStatus;
         } else {
@@ -1171,17 +1064,11 @@ async function fetchColaboradores() {
                 cachedFeriasStatus = null;
             }
         }
-
         populateFilters();
         applyFiltersAndSearch();
-
-
         checkPendingImports();
-
         return;
     }
-
-
     console.log("Buscando dados frescos do banco (Colaboradores e Férias)...");
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando...</td></tr>';
@@ -1198,7 +1085,6 @@ async function fetchColaboradores() {
         }
         const data = await fetchAllWithPagination(query);
         state.colaboradoresData = data || [];
-
         const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
         if (nomes.length > 0) {
@@ -1210,12 +1096,9 @@ async function fetchColaboradores() {
                 state.feriasAtivasMap.set(f.Nome, Number.isFinite(dias) ? dias : null);
             });
         }
-
-
         cachedColaboradores = state.colaboradoresData;
         cachedFeriasStatus = state.feriasAtivasMap;
         lastFetchTimestamp = Date.now();
-
         try {
             localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
                 timestamp: lastFetchTimestamp,
@@ -1225,13 +1108,9 @@ async function fetchColaboradores() {
         } catch (e) {
             console.warn('Falha ao salvar cache no localStorage', e);
         }
-
         populateFilters();
         applyFiltersAndSearch();
-
-
         checkPendingImports();
-
     } catch (error) {
         console.error('Erro ao carregar colaboradores/férias:', error);
         if (colaboradoresTbody) {
@@ -1240,13 +1119,9 @@ async function fetchColaboradores() {
         cachedColaboradores = null;
         lastFetchTimestamp = 0;
     }
-}
-
-
-async function gerarJanelaDeQRCodes() {
-
+}async function gerarJanelaDeQRCodes() {
     if (state.selectedNames.size === 0) {
-        alert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.');
+        await window.customAlert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.', 'Aviso');
         return;
     }
     const todosOsSelecionados = state.colaboradoresData.filter(colab =>
@@ -1256,10 +1131,10 @@ async function gerarJanelaDeQRCodes() {
     if (todosOsSelecionados.length > colaboradoresParaQR.length) {
         const faltantes = todosOsSelecionados.length - colaboradoresParaQR.length;
         const plural = faltantes > 1 ? 'colaboradores não possuem' : 'colaborador não possui';
-        alert(`Aviso: ${todosOsSelecionados.length} colaboradores foram selecionados, mas ${faltantes} ${plural} ID GROOT e não puderam ser gerados.`);
+        await window.customAlert(`Aviso: ${todosOsSelecionados.length} colaboradores foram selecionados, mas ${faltantes} ${plural} ID GROOT e não puderam ser gerados.`, 'Atenção');
     }
     if (colaboradoresParaQR.length === 0) {
-        alert('Nenhum dos colaboradores selecionados possui um ID GROOT para gerar o QR Code.');
+        await window.customAlert('Nenhum dos colaboradores selecionados possui um ID GROOT para gerar o QR Code.', 'Erro');
         return;
     }
     const {data: imageData, error: imageError} = await supabase
@@ -1268,7 +1143,7 @@ async function gerarJanelaDeQRCodes() {
         .getPublicUrl('QRCODE.png');
     if (imageError) {
         console.error('Erro ao buscar a imagem do card:', imageError);
-        alert('Não foi possível carregar o template do card. Verifique o console de erros.');
+        await window.customAlert('Não foi possível carregar o template do card. Verifique o console de erros.', 'Erro');
         return;
     }
     const urlImagemCard = imageData.publicUrl;
@@ -1331,10 +1206,7 @@ async function gerarJanelaDeQRCodes() {
     `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
-}
-
-async function loadSVCsParaFormulario() {
-
+}async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
     if (state.matrizesData.length > 0 && svcSelect.options.length > 1) {
@@ -1366,10 +1238,7 @@ async function loadSVCsParaFormulario() {
         opt.textContent = svc;
         svcSelect.appendChild(opt);
     });
-}
-
-async function loadGestoresParaFormulario() {
-
+}async function loadGestoresParaFormulario() {
     if (state.gestoresData.length > 0) return;
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
@@ -1378,10 +1247,7 @@ async function loadGestoresParaFormulario() {
         return;
     }
     state.gestoresData = data || [];
-}
-
-function populateGestorSelect(selectedSvc) {
-
+}function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -1410,10 +1276,7 @@ function populateGestorSelect(selectedSvc) {
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-}
-
-function isDSRValida(dsrStr) {
-
+}function isDSRValida(dsrStr) {
     const raw = (dsrStr || '').toUpperCase().trim();
     if (!raw) return false;
     const dias = raw.split(',').map(d => d.trim()).filter(Boolean);
@@ -1421,13 +1284,10 @@ function isDSRValida(dsrStr) {
     const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
     permitidos.add('SABADO');
     return dias.every(d => permitidos.has(d));
-}
-
-async function handleAddSubmit(event) {
-
+}async function handleAddSubmit(event) {
     event.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
-        alert('Ação não permitida. Você está em modo de visualização.');
+        await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
     }
     attachUppercaseHandlers();
@@ -1436,7 +1296,7 @@ async function handleAddSubmit(event) {
     const cpf = normalizeCPF(cpfRaw);
     const nomeUpper = toUpperTrim(nomeRaw);
     if (!nomeUpper) {
-        alert('Informe o NOME do colaborador.');
+        await window.customAlert('Informe o NOME do colaborador.', 'Campo Obrigatório');
         document.getElementById('addNome')?.focus();
         return;
     }
@@ -1445,11 +1305,11 @@ async function handleAddSubmit(event) {
         .select('Nome', {count: 'exact', head: true})
         .ilike('Nome', nomeUpper);
     if (nomeErr) {
-        alert(`Erro ao validar nome: ${nomeErr.message}`);
+        await window.customAlert(`Erro ao validar nome: ${nomeErr.message}`, 'Erro');
         return;
     }
     if ((nomeCount || 0) > 0) {
-        alert('Já existe um colaborador com esse NOME.');
+        await window.customAlert('Já existe um colaborador com esse NOME.', 'Duplicidade');
         document.getElementById('addNome')?.focus();
         return;
     }
@@ -1459,11 +1319,11 @@ async function handleAddSubmit(event) {
             .select('CPF', {count: 'exact', head: true})
             .eq('CPF', cpf);
         if (cpfErr) {
-            alert(`Erro ao validar CPF: ${cpfErr.message}`);
+            await window.customAlert(`Erro ao validar CPF: ${cpfErr.message}`, 'Erro');
             return;
         }
         if ((cpfCount || 0) > 0) {
-            alert('Já existe um colaborador com esse CPF.');
+            await window.customAlert('Já existe um colaborador com esse CPF.', 'Duplicidade');
             document.getElementById('addCPF')?.focus();
             return;
         }
@@ -1471,14 +1331,14 @@ async function handleAddSubmit(event) {
     const generoVal = document.getElementById('addGenero')?.value || '';
     const generoNorm = nullIfEmpty(generoVal);
     if (!generoNorm) {
-        alert('Selecione o GÊNERO.');
+        await window.customAlert('Selecione o GÊNERO.', 'Campo Obrigatório');
         document.getElementById('addGenero')?.focus();
         return;
     }
     const dsrRaw = document.getElementById('addDSR')?.value || '';
     const dsrVal = toUpperTrim(dsrRaw);
     if (!isDSRValida(dsrVal)) {
-        alert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).');
+        await window.customAlert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).', 'Campo Obrigatório');
         document.getElementById('addDSRBtn')?.focus();
         return;
     }
@@ -1512,10 +1372,10 @@ async function handleAddSubmit(event) {
     });
     const {error} = await supabase.from('Colaboradores').insert([newColaborador]);
     if (error) {
-        alert(`Erro ao adicionar colaborador: ${error.message}`);
+        await window.customAlert(`Erro ao adicionar colaborador: ${error.message}`, 'Erro');
         return;
     }
-    alert('Colaborador adicionado com sucesso!');
+    await window.customAlert('Colaborador adicionado com sucesso!', 'Sucesso');
     logAction(`Adicionou o colaborador: ${newColaborador.Nome} (Contrato: ${newColaborador.Contrato}, Cargo: ${newColaborador.Cargo}, SVC: ${newColaborador.SVC})`);
     if (addForm) {
         addForm.reset();
@@ -1533,10 +1393,7 @@ async function handleAddSubmit(event) {
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}
-
-async function loadServiceMatrizForEdit() {
-
+}async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
     if (state.matrizesData.length > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
@@ -1566,27 +1423,17 @@ async function loadServiceMatrizForEdit() {
         opt.textContent = svc;
         editSVC.appendChild(opt);
     });
-}
-
-async function fetchColabByNome(nome) {
-
+}async function fetchColabByNome(nome) {
     const {data, error} = await supabase.from('Colaboradores').select('*').eq('Nome', nome).maybeSingle();
     if (error) throw error;
     return data;
-}
-
-function showEditModal() {
+}function showEditModal() {
     editModal?.classList.remove('hidden');
-}
-
-function hideEditModal() {
+}function hideEditModal() {
     editModal?.classList.add('hidden');
     editOriginal = null;
     editForm?.reset();
-}
-
-async function fillEditForm(colab) {
-
+}async function fillEditForm(colab) {
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
@@ -1671,8 +1518,6 @@ async function fillEditForm(colab) {
             editEfetivarKnBtn.disabled = false;
         }
     }
-
-
     if (editDesligarBtn) {
         if (colab.StatusDesligamento === 'PENDENTE') {
             editDesligarBtn.textContent = 'Desligamento Pendente';
@@ -1690,15 +1535,10 @@ async function fillEditForm(colab) {
             editDesligarBtn.style.display = 'none';
         }
     }
-
-
     if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
-}
-
-function openFluxoEfetivacaoModal() {
-
+}function openFluxoEfetivacaoModal() {
     if (!editOriginal || !fluxoEfetivacaoModal) {
         console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
@@ -1758,24 +1598,18 @@ function openFluxoEfetivacaoModal() {
         fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
     }
     fluxoEfetivacaoModal.classList.remove('hidden');
-}
-
-function closeFluxoEfetivacaoModal() {
-
+}function closeFluxoEfetivacaoModal() {
     if (fluxoEfetivacaoModal) {
         fluxoEfetivacaoModal.classList.add('hidden');
         fluxoEfetivacaoForm.reset();
     }
-}
-
-async function handleFluxoSubmit(action) {
-
+}async function handleFluxoSubmit(action) {
     if (!fluxoNumeroEl || !fluxoDataAberturaEl || !fluxoObservacaoEl || !fluxoAdmissaoKnEl || !fluxoGerarBtn || !fluxoFinalizarBtn || !fluxoCancelarBtn) {
-        alert('Erro crítico: Elementos do formulário de fluxo não foram encontrados. Verifique os IDs no HTML e no JS (função wireFluxoEfetivacao).');
+        await window.customAlert('Erro crítico: Elementos do formulário não encontrados.', 'Erro');
         return;
     }
     if (!editOriginal) {
-        alert('Erro crítico: Dados do colaborador original perdidos.');
+        await window.customAlert('Erro crítico: Dados do colaborador original perdidos.', 'Erro');
         return;
     }
     const nome = editOriginal.Nome;
@@ -1795,70 +1629,64 @@ async function handleFluxoSubmit(action) {
     payload['Data Fluxo'] = dataAbertura;
     payload['Observacao Fluxo'] = observacao;
     let confirmMsg = '';
+    let confirmTitle = 'Confirmação';
     if (action === 'gerar') {
         if (!numeroFluxo || !dataAbertura) {
-            alert('Para "Gerar" ou "Atualizar" o Fluxo, o "Número do Fluxo" e a "Data de Abertura" são obrigatórios.');
+            await window.customAlert('Para "Gerar" ou "Atualizar", o número do Fluxo e Data são obrigatórios.', 'Campos Obrigatórios');
             fluxoNumeroEl.focus();
             return;
         }
         payload.Efetivacao = 'Aberto';
-        confirmMsg = `Tem certeza que deseja salvar o fluxo para "${nome}" como "Aberto"?`;
+        confirmMsg = `Tem certeza que deseja salvar o fluxo para <b>"${nome}"</b> como "Aberto"?`;
     } else if (action === 'finalizar') {
         if (!admissaoKN) {
-            alert('Para "Finalizar Fluxo", a "Data de Admissão KN" é obrigatória.');
+            await window.customAlert('Para "Finalizar", a Data de Admissão KN é obrigatória.', 'Campo Obrigatório');
             fluxoAdmissaoKnEl.focus();
             return;
         }
         const admOriginal = editOriginal['Data de admissão'] || null;
         if (admOriginal && admissaoKN < admOriginal) {
-            alert(`Admissão KN (${formatDateLocal(admissaoKN)}) não pode ser anterior à Data de Admissão original (${formatDateLocal(admOriginal)}).`);
+            await window.customAlert(`Admissão KN (${formatDateLocal(admissaoKN)}) não pode ser anterior à admissão original.`, 'Data Inválida');
             fluxoAdmissaoKnEl.focus();
             return;
         }
         payload.Efetivacao = 'Concluido';
         payload.Contrato = 'KN';
         payload['Admissao KN'] = admissaoKN;
-        confirmMsg = `Tem certeza que deseja "Finalizar Fluxo" para "${nome}"?\n\nIsso irá:
-1. Definir o status como "Concluido".
-2. Alterar o contrato para "KN".
-3. Registrar a Admissão KN em ${formatDateLocal(admissaoKN)}.`;
+        confirmMsg = `Tem certeza que deseja <b>FINALIZAR</b> o fluxo para "${nome}"?<br><br>Isso irá:<br>1. Alterar status para "Concluido".<br>2. Mudar contrato para "KN".<br>3. Registrar admissão em ${formatDateLocal(admissaoKN)}.`;
+        confirmTitle = 'Finalizar Fluxo';
     } else if (action === 'cancelar') {
         payload.Efetivacao = 'Cancelado';
         payload.Contrato = editOriginal.Contrato;
         payload['Admissao KN'] = null;
-        confirmMsg = `Tem certeza que deseja "Cancelar Fluxo" para "${nome}"?`;
+        confirmMsg = `Tem certeza que deseja <b>CANCELAR</b> o fluxo para "${nome}"?`;
+        confirmTitle = 'Cancelar Fluxo';
     } else {
         return;
     }
-    const ok = confirm(confirmMsg);
+    const ok = await window.customConfirm(confirmMsg, confirmTitle, action === 'gerar' ? 'warning' : 'danger');
     if (!ok) return;
     try {
         if (fluxoGerarBtn) fluxoGerarBtn.disabled = true;
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = true;
         if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;
-        const {error} = await supabase
-            .from('Colaboradores')
-            .update(payload)
-            .eq('Nome', nome);
+        const {error} = await supabase.from('Colaboradores').update(payload).eq('Nome', nome);
         if (error) throw error;
-        alert(`Fluxo de efetivação para "${nome}" foi salvo com status: ${payload.Efetivacao}!`);
+        await window.customAlert(`Fluxo de efetivação para "${nome}" salvo com sucesso!`, 'Sucesso');
         logAction(`Alterou fluxo de efetivação para ${nome}: Status ${payload.Efetivacao}, Fluxo Nº ${payload.Fluxo || 'N/A'}`);
         closeFluxoEfetivacaoModal();
         hideEditModal();
         invalidateColaboradoresCache();
         await fetchColaboradores();
     } catch (error) {
-        console.error('Erro ao salvar fluxo de efetivação:', error);
-        alert(`Não foi possível salvar o fluxo: ${error.message}`);
+        console.error('Erro fluxo:', error);
+        await window.customAlert(`Não foi possível salvar o fluxo: ${error.message}`, 'Erro');
     } finally {
         if (fluxoGerarBtn) fluxoGerarBtn.disabled = false;
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = false;
         if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;
     }
-}
-
-async function validateEditDuplicates(payload) {
-
+}async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
         const {count, error} = await supabase.from('Colaboradores').select('Nome', {
             count: 'exact',
@@ -1876,10 +1704,7 @@ async function validateEditDuplicates(payload) {
         if ((count || 0) > 0) return 'Já existe um colaborador com esse CPF.';
     }
     return null;
-}
-
-async function updateColaboradorSmart(nomeAnterior, payload) {
-
+}async function updateColaboradorSmart(nomeAnterior, payload) {
     if (payload.Nome && payload.Nome !== nomeAnterior) {
         const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
             nome_antigo: nomeAnterior,
@@ -1911,25 +1736,22 @@ async function updateColaboradorSmart(nomeAnterior, payload) {
         .update(payload)
         .eq('Nome', nomeAnterior);
     if (upErr) throw upErr;
-}
-
-async function onEditSubmit(e) {
-
+}async function onEditSubmit(e) {
     e.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
-        alert('Ação não permitida. Você está em modo de visualização.');
+        await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
     }
     if (isSubmittingEdit) return;
     isSubmittingEdit = true;
     if (!editOriginal) {
-        alert('Erro: Não há dados originais do colaborador.');
+        await window.customAlert('Erro: Não há dados originais do colaborador.', 'Erro');
         isSubmittingEdit = false;
         return;
     }
     const Nome = toUpperTrim(editInputs.Nome.value || '');
     if (!Nome) {
-        alert('Informe o NOME.');
+        await window.customAlert('Informe o NOME.', 'Campo Obrigatório');
         editInputs.Nome.focus();
         isSubmittingEdit = false;
         return;
@@ -1946,7 +1768,7 @@ async function onEditSubmit(e) {
         const dsrRaw = document.getElementById('editDSR').value;
         const dsrValue = toUpperTrim(nullIfEmpty(dsrRaw));
         if (!isDSRValida(dsrValue)) {
-            alert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).');
+            await window.customAlert('Selecione pelo menos um dia de DSR (ex.: DOMINGO, SEGUNDA, ...).', 'DSR Inválido');
             document.getElementById('editDSRBtn')?.focus();
             isSubmittingEdit = false;
             return;
@@ -1959,36 +1781,43 @@ async function onEditSubmit(e) {
         const dataAdmissao = editInputs['Data de admissão']?.value || null;
         const admKn = editInputs['Admissao KN']?.value || null;
         if (dataAdmissao && admKn && admKn < dataAdmissao) {
-            alert('Admissão KN não pode ser anterior à Data de Admissão.');
+            await window.customAlert('Admissão KN não pode ser anterior à Data de Admissão.', 'Data Inválida');
             editInputs['Admissao KN'].focus();
             isSubmittingEdit = false;
             return;
+        }
+        let gestorFinal = toUpperTrim(nullIfEmpty(editInputs.Gestor?.value));
+        if (!gestorFinal && svc === editOriginal.SVC && editOriginal.Gestor) {
+            gestorFinal = editOriginal.Gestor;
         }
         const payload = {
             Nome,
             CPF,
             Contrato: toUpperTrim(editInputs.Contrato.value || ''),
             Cargo: toUpperTrim(editInputs.Cargo.value || ''),
-            Gestor: toUpperTrim(nullIfEmpty(editInputs.Gestor?.value)),
+            Gestor: gestorFinal,
             DSR: dsrValue,
             Escala: toUpperTrim(nullIfEmpty(editInputs.Escala.value)),
             'FOLGA ESPECIAL': toUpperTrim(nullIfEmpty(editInputs['FOLGA ESPECIAL'].value)),
             LDAP: nullIfEmpty(editInputs.LDAP.value),
-            'ID GROOT': numberOrNull(editInputs['ID GROOT'].value), 'Data de nascimento': dataNasc,
+            'ID GROOT': numberOrNull(editInputs['ID GROOT'].value),
+            'Data de nascimento': dataNasc,
             'Data de admissão': dataAdmissao,
-            'Admissao KN': admKn, SVC: toUpperTrim(svc),
+            'Admissao KN': admKn,
+            SVC: toUpperTrim(svc),
             MATRIZ: toUpperTrim(matrizAuto),
-            REGIAO: regiaoFinal, 'Efetivacao': editOriginal.Efetivacao,
+            REGIAO: regiaoFinal,
+            'Efetivacao': editOriginal.Efetivacao,
             'Fluxo': editOriginal.Fluxo,
             'Data Fluxo': editOriginal['Data Fluxo'],
             'Observacao Fluxo': editOriginal['Observacao Fluxo']
         };
         const changes = [];
         if (payload.Nome !== editOriginal.Nome) changes.push(`Nome (de '${editOriginal.Nome}' para '${payload.Nome}')`);
-        if (payload.DSR !== editOriginal.DSR) changes.push(`DSR (de '${editOriginal.DSR || 'N/A'}' para '${payload.DSR || 'N/A'}')`);
-        if (payload.Cargo !== editOriginal.Cargo) changes.push(`Cargo (de '${editOriginal.Cargo}' para '${payload.Cargo}')`);
-        if (payload.Contrato !== editOriginal.Contrato) changes.push(`Contrato (de '${editOriginal.Contrato}' para '${payload.Contrato}')`);
-        if (payload.Gestor !== editOriginal.Gestor) changes.push(`Gestor (de '${editOriginal.Gestor || 'N/A'}' para '${payload.Gestor || 'N/A'}')`);
+        if (payload.DSR !== editOriginal.DSR) changes.push(`DSR`);
+        if (payload.Cargo !== editOriginal.Cargo) changes.push(`Cargo`);
+        if (payload.Contrato !== editOriginal.Contrato) changes.push(`Contrato`);
+        if (payload.Gestor !== editOriginal.Gestor) changes.push(`Gestor`);
         if (payload.Escala !== editOriginal.Escala) changes.push(`Escala`);
         if (payload.LDAP !== editOriginal.LDAP) changes.push(`LDAP`);
         if (payload['ID GROOT'] !== editOriginal['ID GROOT']) changes.push(`ID GROOT`);
@@ -1997,7 +1826,7 @@ async function onEditSubmit(e) {
         if (payload['Admissao KN'] !== editOriginal['Admissao KN']) changes.push(`Admissão KN`);
         const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
-            alert(dupMsg);
+            await window.customAlert(dupMsg, 'Duplicidade');
             isSubmittingEdit = false;
             return;
         }
@@ -2006,13 +1835,9 @@ async function onEditSubmit(e) {
         const dsrAtual = payload.DSR || null;
         if (dsrAnterior !== dsrAtual) {
             try {
-                const {data: maxRow} = await supabase
-                    .from('LogDSR')
-                    .select('Numero')
-                    .order('Numero', {ascending: false})
-                    .limit(1);
+                const {data: maxRow} = await supabase.from('LogDSR').select('Numero').order('Numero', {ascending: false}).limit(1);
                 const nextNumero = (maxRow?.[0]?.Numero || 0) + 1;
-                const logEntry = {
+                await supabase.from('LogDSR').insert([{
                     Numero: nextNumero,
                     Name: payload.Nome,
                     DsrAnterior: dsrAnterior,
@@ -2022,8 +1847,7 @@ async function onEditSubmit(e) {
                     Gestor: payload.Gestor,
                     SVC: payload.SVC,
                     MATRIZ: payload.MATRIZ
-                };
-                await supabase.from('LogDSR').insert([logEntry]);
+                }]);
             } catch (e) {
                 console.warn('Falha ao registrar log de DSR:', e);
             }
@@ -2038,14 +1862,14 @@ async function onEditSubmit(e) {
         if (changes.length > 0) {
             logAction(`Atualizou o colaborador ${editOriginal.Nome}: ${changes.join(', ')}.`);
         }
-        alert('Colaborador atualizado com sucesso em todas as tabelas!');
+        await window.customAlert('Colaborador atualizado com sucesso em todas as tabelas!', 'Sucesso');
         hideEditModal();
         document.dispatchEvent(new CustomEvent('colaborador-edited', {
             detail: {nomeAnterior: nomeAnterior, nomeAtual: payload.Nome}
         }));
     } catch (err) {
         console.error('Erro no processo de edição:', err);
-        alert('Ocorreu um erro inesperado. Verifique o console.');
+        await window.customAlert('Ocorreu um erro inesperado. Verifique o console.', 'Erro');
     } finally {
         isSubmittingEdit = false;
         if (editSalvarBtn) {
@@ -2053,24 +1877,20 @@ async function onEditSubmit(e) {
             editSalvarBtn.textContent = 'Salvar Alterações';
         }
     }
-}
-
-async function onAfastarClick() {
-
+}async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
-        alert('Erro: Colaborador não identificado.');
+        await window.customAlert('Erro: Colaborador não identificado.', 'Erro');
         return;
     }
     let colab;
     try {
         colab = await fetchColabByNome(editOriginal.Nome);
     } catch (fetchError) {
-        console.error("Erro ao buscar colaborador para afastamento:", fetchError);
-        alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
+        await window.customAlert('Não foi possível carregar os dados atuais do colaborador.', 'Erro de Rede');
         return;
     }
     if (!colab) {
-        alert('Não foi possível carregar os dados atuais do colaborador. Tente novamente.');
+        await window.customAlert('Colaborador não encontrado no banco.', 'Erro');
         return;
     }
     const currentStatus = colab.Ativo;
@@ -2078,8 +1898,11 @@ async function onAfastarClick() {
     if (currentStatus === 'SIM') {
         const dataInicio = await promptForDate("Selecione a data de INÍCIO do afastamento:", hojeISO);
         if (!dataInicio) return;
-        const confirmationMessage = `Tem certeza que deseja AFASTAR "${colab.Nome}" a partir de ${formatDateLocal(dataInicio)}?`;
-        const ok = confirm(confirmationMessage);
+        const ok = await window.customConfirm(
+            `Tem certeza que deseja <b>AFASTAR</b> "${colab.Nome}" a partir de <b>${formatDateLocal(dataInicio)}</b>?`,
+            'Confirmar Afastamento',
+            'warning'
+        );
         if (!ok) return;
         const newAfastamento = {
             NOME: colab.Nome,
@@ -2091,23 +1914,20 @@ async function onAfastarClick() {
         };
         const {error: insertError} = await supabase.from('Afastamentos').insert(newAfastamento);
         if (insertError) {
-            alert(`Erro ao criar registro de afastamento: ${insertError.message}`);
+            await window.customAlert(`Erro ao criar registro: ${insertError.message}`, 'Erro');
             return;
         }
-        const {error: updateError} = await supabase
-            .from('Colaboradores')
-            .update({Ativo: 'AFAS'})
-            .eq('Nome', colab.Nome);
+        const {error: updateError} = await supabase.from('Colaboradores').update({Ativo: 'AFAS'}).eq('Nome', colab.Nome);
         if (updateError) {
-            alert(`Erro ao atualizar o status do colaborador: ${updateError.message}`);
+            await window.customAlert(`Erro ao atualizar status: ${updateError.message}`, 'Erro');
             return;
         }
-        alert('Colaborador afastado com sucesso!');
+        await window.customAlert('Colaborador afastado com sucesso!', 'Sucesso');
         logAction(`Afastou o colaborador: ${colab.Nome} (Início: ${formatDateLocal(dataInicio)})`);
     } else if (currentStatus === 'AFAS') {
         const dataRetorno = await promptForDate("Selecione a data de RETORNO do colaborador:", hojeISO);
         if (!dataRetorno) return;
-        const {data: ultimoAfastamento, error: findError} = await supabase
+        const {data: ultimoAfastamento} = await supabase
             .from('Afastamentos')
             .select('"DATA INICIO"')
             .eq('NOME', colab.Nome)
@@ -2115,16 +1935,15 @@ async function onAfastarClick() {
             .order('"DATA INICIO"', {ascending: false})
             .limit(1)
             .maybeSingle();
-        if (findError) {
-            alert('Erro ao verificar data de início do afastamento: ' + findError.message);
-            return;
-        }
         if (ultimoAfastamento && ultimoAfastamento["DATA INICIO"] > dataRetorno) {
-            alert(`Data de retorno inválida. O afastamento iniciou em ${formatDateLocal(ultimoAfastamento["DATA INICIO"])}.`);
+            await window.customAlert(`Data de retorno inválida. O afastamento iniciou em ${formatDateLocal(ultimoAfastamento["DATA INICIO"])}.`, 'Data Inválida');
             return;
         }
-        const confirmationMessage = `Tem certeza que deseja registrar o RETORNO de "${colab.Nome}" em ${formatDateLocal(dataRetorno)}?`;
-        const ok = confirm(confirmationMessage);
+        const ok = await window.customConfirm(
+            `Tem certeza que deseja registrar o <b>RETORNO</b> de "${colab.Nome}" em <b>${formatDateLocal(dataRetorno)}</b>?`,
+            'Confirmar Retorno',
+            'success'
+        );
         if (!ok) return;
         const {error: updateAfastamentoError} = await supabase
             .from('Afastamentos')
@@ -2132,7 +1951,7 @@ async function onAfastarClick() {
             .eq('NOME', colab.Nome)
             .is('DATA RETORNO', null);
         if (updateAfastamentoError) {
-            alert(`Erro ao atualizar o registro de afastamento: ${updateAfastamentoError.message}`);
+            await window.customAlert(`Erro ao atualizar registro: ${updateAfastamentoError.message}`, 'Erro');
             return;
         }
         const {error: updateColabError} = await supabase
@@ -2140,22 +1959,19 @@ async function onAfastarClick() {
             .update({Ativo: 'SIM'})
             .eq('Nome', colab.Nome);
         if (updateColabError) {
-            alert(`Erro ao atualizar o status do colaborador: ${updateColabError.message}`);
+            await window.customAlert(`Erro ao atualizar status: ${updateColabError.message}`, 'Erro');
             return;
         }
-        alert('Retorno do colaborador registrado com sucesso!');
-        logAction(`Registrou retorno de afastamento para: ${colab.Nome} (Retorno: ${formatDateLocal(dataRetorno)})`);
+        await window.customAlert('Retorno registrado com sucesso!', 'Sucesso');
+        logAction(`Registrou retorno de afastamento para: ${colab.Nome}`);
     } else {
-        alert(`Ação não permitida para o status atual "${currentStatus}".`);
+        await window.customAlert(`Ação não permitida para status "${currentStatus}".`, 'Aviso');
         return;
     }
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}
-
-function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
-
+}function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -2175,10 +1991,7 @@ function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}
-
-function openDesligarModalFromColab(colab) {
-
+}function openDesligarModalFromColab(colab) {
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
     const hoje = new Date();
@@ -2186,20 +1999,30 @@ function openDesligarModalFromColab(colab) {
     const iso = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
     desligarDataEl.value = iso;
     desligarMotivoEl.selectedIndex = 0;
+    const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
+    if (desligarSmartoffContainer) {
+        if (isKN) {
+            desligarSmartoffContainer.classList.remove('hidden');
+            if (desligarSmartoffEl) {
+                desligarSmartoffEl.value = '';
+            }
+            if (desligarConfirmarBtn) {
+                desligarConfirmarBtn.disabled = true;
+            }
+        } else {
+            desligarSmartoffContainer.classList.add('hidden');
+            if (desligarSmartoffEl) desligarSmartoffEl.value = '';
+            if (desligarConfirmarBtn) {
+                desligarConfirmarBtn.disabled = false;
+            }
+        }
+    }
     desligarModal.classList.remove('hidden');
-}
-
-function closeDesligarModal() {
-
+}function closeDesligarModal() {
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}
-
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-async function ensureColaboradorInativado(nome, tentativas = 4, delayMs = 200) {
-
+}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function ensureColaboradorInativado(nome, tentativas = 4, delayMs = 200) {
     for (let i = 0; i < tentativas; i++) {
         const {data, error} = await supabase
             .from('Colaboradores')
@@ -2212,35 +2035,33 @@ async function ensureColaboradorInativado(nome, tentativas = 4, delayMs = 200) {
         await sleep(delayMs);
     }
     return false;
-}
-
-
-async function onDesligarSubmit(e) {
-
+}async function onDesligarSubmit(e) {
     e.preventDefault();
     if (!desligarColaborador) {
-        alert('Erro: colaborador não carregado.');
+        await window.customAlert('Erro: colaborador não carregado.', 'Erro');
         return;
     }
     if (document.body.classList.contains('user-level-visitante')) {
-        alert('Ação não permitida. Você está em modo de visualização.');
+        await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
     }
-
     const nome = desligarColaborador.Nome;
     const dataDesligamento = (desligarDataEl?.value || '').trim();
     const motivo = (desligarMotivoEl?.value || '').trim();
-
+    const isKN = (desligarColaborador.Contrato || '').trim().toUpperCase() === 'KN';
+    const smartoffVal = desligarSmartoffEl ? desligarSmartoffEl.value.trim() : null;
+    if (isKN && !smartoffVal) {
+        await window.customAlert('Para colaboradores KN, o número do Smartoff é obrigatório.', 'Campo Obrigatório');
+        return;
+    }
     if (!dataDesligamento) {
-        alert('Informe a data de desligamento.html.');
+        await window.customAlert('Informe a data de desligamento.', 'Campo Obrigatório');
         return;
     }
     if (!motivo) {
-        alert('Selecione o motivo.');
+        await window.customAlert('Selecione o motivo.', 'Campo Obrigatório');
         return;
     }
-
-
     let solicitante = 'Gestor Desconhecido';
     try {
         const userSession = localStorage.getItem('userSession');
@@ -2248,48 +2069,42 @@ async function onDesligarSubmit(e) {
             solicitante = JSON.parse(userSession)?.Nome || solicitante;
         }
     } catch (e) {
-        console.warn('Não foi possível ler o nome do solicitante da sessão.');
     }
-
-    const ok = confirm(`Tem certeza que deseja ENVIAR A SOLICITAÇÃO de desligamento para "${nome}" na data ${formatDateLocal(dataDesligamento)}?`);
+    const ok = await window.customConfirm(
+        `Tem certeza que deseja <b>ENVIAR A SOLICITAÇÃO</b> de desligamento para <b>"${nome}"</b> na data <b>${formatDateLocal(dataDesligamento)}</b>?`,
+        'Confirmar Desligamento',
+        'danger'
+    );
     if (!ok) return;
-
     try {
+        const payload = {
+            Ativo: 'SIM',
+            StatusDesligamento: 'PENDENTE',
+            DataDesligamentoSolicitada: dataDesligamento,
+            MotivoDesligamento: motivo,
+            SolicitanteDesligamento: solicitante
+        };
+        if (isKN) {
+            payload.Smartoff = smartoffVal;
+        } else {
+            payload.Smartoff = null;
+        }
         const {error} = await supabase
             .from('Colaboradores')
-            .update({
-                Ativo: 'SIM',
-                StatusDesligamento: 'PENDENTE',
-                DataDesligamentoSolicitada: dataDesligamento,
-                MotivoDesligamento: motivo,
-                SolicitanteDesligamento: solicitante
-            })
+            .update(payload)
             .eq('Nome', nome);
-
-        if (error) {
-            throw error;
-        }
-
-        alert('Solicitação de desligamento.html enviada para aprovação do RH!');
-
-        logAction(`Enviou solicitação de desligamento para: ${nome} (Data: ${formatDateLocal(dataDesligamento)}, Motivo: ${motivo})`);
-
+        if (error) throw error;
+        await window.customAlert('Solicitação de desligamento enviada para aprovação do RH!', 'Sucesso');
+        logAction(`Enviou solicitação de desligamento para: ${nome} (Data: ${formatDateLocal(dataDesligamento)}, Motivo: ${motivo}, Smartoff: ${isKN ? smartoffVal : 'N/A'})`);
         closeDesligarModal();
         hideEditModal();
-
-
         invalidateColaboradoresCache();
         await fetchColaboradores();
-
     } catch (err) {
-        console.error('Erro ao enviar solicitação de desligamento.html:', err);
-        alert(`Erro ao enviar solicitação: ${err.message || err}`);
+        console.error('Erro desligamento:', err);
+        await window.customAlert(`Erro ao enviar solicitação: ${err.message || err}`, 'Erro');
     }
-}
-
-
-async function getNonFinalizedFerias(nome) {
-
+}async function getNonFinalizedFerias(nome) {
     const {data, error} = await supabase
         .from('Ferias')
         .select('Numero, Status, "Data Final"')
@@ -2299,10 +2114,7 @@ async function getNonFinalizedFerias(nome) {
         .limit(1);
     if (error) return {error};
     return {data: (data && data.length > 0) ? data[0] : null};
-}
-
-async function agendarFerias(info) {
-
+}async function agendarFerias(info) {
     const {colaborador, dataInicio, dataFinal} = info;
     const {data: feriasPendentes, error: feriasCheckError} = await getNonFinalizedFerias(colaborador.Nome);
     if (feriasCheckError) {
@@ -2346,10 +2158,7 @@ async function agendarFerias(info) {
     invalidateColaboradoresCache();
     await updateAllVacationStatuses();
     return {success: true};
-}
-
-async function updateAllVacationStatuses() {
-
+}async function updateAllVacationStatuses() {
     const {data: feriasList, error} = await supabase.from('Ferias').select('*').order('Numero', {ascending: true});
     if (error || !feriasList) return;
     const today = toStartOfDay(new Date());
@@ -2389,10 +2198,7 @@ async function updateAllVacationStatuses() {
     if (needsColabUpdate) {
         invalidateColaboradoresCache();
     }
-}
-
-function openFeriasModalFromColab(colab) {
-
+}function openFeriasModalFromColab(colab) {
     feriasColaborador = colab;
     if (!feriasModal) return;
     if (feriasNomeEl) feriasNomeEl.value = colab?.Nome || '';
@@ -2402,42 +2208,40 @@ function openFeriasModalFromColab(colab) {
     if (feriasInicioEl && !feriasInicioEl.value) feriasInicioEl.value = iso;
     if (feriasFinalEl && !feriasFinalEl.value) feriasFinalEl.value = iso;
     feriasModal.classList.remove('hidden');
-}
-
-function closeFeriasModal() {
-
+}function closeFeriasModal() {
     if (!feriasModal) return;
     feriasModal.classList.add('hidden');
     feriasColaborador = null;
     feriasForm?.reset();
-}
-
-async function onFeriasSubmit(e) {
-
+}async function onFeriasSubmit(e) {
     e.preventDefault();
     if (isSubmittingFerias) return;
     try {
         if (!feriasColaborador || !feriasColaborador.Nome) {
-            alert('Erro: dados do colaborador não carregados.');
+            await window.customAlert('Erro: dados do colaborador não carregados.', 'Erro');
             return;
         }
         const dataInicio = (feriasInicioEl?.value || '').trim();
         const dataFinal = (feriasFinalEl?.value || '').trim();
         if (!dataInicio || !dataFinal) {
-            alert('Selecione a Data de Início e a Data Final.');
+            await window.customAlert('Selecione a Data de Início e a Data Final.', 'Campos Obrigatórios');
             return;
         }
         const dIni = new Date(dataInicio);
         const dFim = new Date(dataFinal);
         if (isNaN(dIni) || isNaN(dFim)) {
-            alert('Datas inválidas. Verifique os campos.');
+            await window.customAlert('Datas inválidas.', 'Erro');
             return;
         }
         if (dFim < dIni) {
-            alert('A Data Final não pode ser anterior à Data de Início.');
+            await window.customAlert('A Data Final não pode ser anterior à Data de Início.', 'Data Inválida');
             return;
         }
-        const ok = confirm(`Confirmar férias de ${feriasColaborador.Nome} de ${formatDateLocal(dataInicio)} até ${formatDateLocal(dataFinal)}?`);
+        const ok = await window.customConfirm(
+            `Confirmar férias de <b>${feriasColaborador.Nome}</b><br>De: ${formatDateLocal(dataInicio)}<br>Até: ${formatDateLocal(dataFinal)}?`,
+            'Confirmar Férias',
+            'warning'
+        );
         if (!ok) return;
         isSubmittingFerias = true;
         const submitButton = feriasForm ? feriasForm.querySelector('button[type="submit"]') : null;
@@ -2447,9 +2251,9 @@ async function onFeriasSubmit(e) {
         }
         const {success, error} = await agendarFerias({colaborador: feriasColaborador, dataInicio, dataFinal});
         if (!success) {
-            alert(`Erro ao agendar férias: ${error?.message || error}`);
+            await window.customAlert(`Erro ao agendar férias: ${error?.message || error}`, 'Erro');
         } else {
-            alert('Férias agendadas com sucesso!');
+            await window.customAlert('Férias agendadas com sucesso!', 'Sucesso');
             logAction(`Agendou férias para ${feriasColaborador.Nome} de ${formatDateLocal(dataInicio)} até ${formatDateLocal(dataFinal)}`);
             closeFeriasModal();
             await fetchColaboradores();
@@ -2462,9 +2266,7 @@ async function onFeriasSubmit(e) {
             submitButton.textContent = 'Confirmar';
         }
     }
-}
-
-const HIST = {
+}const HIST = {
     nome: null, ano: new Date().getFullYear(), marks: new Map(), dsrDates: new Set(),
     initialized: false, els: {modal: null, title: null, yearSel: null, months: null, fecharBtn: null,}
 };
@@ -2494,10 +2296,7 @@ const firstWeekdayIndex = (year, month0) => {
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';
-
-function ensureHistoricoDomRefs() {
-
+const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';function ensureHistoricoDomRefs() {
     if (HIST.initialized) return;
     HIST.els.modal = document.getElementById('historicoModal');
     HIST.els.title = document.getElementById('hist-title');
@@ -2532,16 +2331,10 @@ function ensureHistoricoDomRefs() {
         }
     });
     HIST.initialized = true;
-}
-
-function putHistoricoTitle() {
-
+}function putHistoricoTitle() {
     if (!HIST.els.title) return;
     HIST.els.title.textContent = HIST.nome ? `Histórico – ${HIST.nome}` : 'Histórico';
-}
-
-function renderHistoricoCalendar() {
-
+}function renderHistoricoCalendar() {
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
     monthsEl.innerHTML = '';
@@ -2589,10 +2382,7 @@ function renderHistoricoCalendar() {
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
-}
-
-async function computeDsrDatesForYear(nome, ano) {
-
+}async function computeDsrDatesForYear(nome, ano) {
     try {
         const {data: colab, error} = await supabase.from('Colaboradores').select('DSR').eq('Nome', nome).maybeSingle();
         if (error) throw error;
@@ -2626,10 +2416,7 @@ async function computeDsrDatesForYear(nome, ano) {
         console.error('computeDsrDatesForYear error:', e);
         return new Set();
     }
-}
-
-async function loadHistoricoIntoModal() {
-
+}async function loadHistoricoIntoModal() {
     if (!HIST.nome) return;
     if (HIST.els.months) {
         HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
@@ -2665,10 +2452,7 @@ async function loadHistoricoIntoModal() {
             HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#e55353;">Erro ao carregar histórico.</div>';
         }
     }
-}
-
-async function openHistorico(nome) {
-
+}async function openHistorico(nome) {
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
         alert('Não foi possível abrir o histórico (elementos do modal não encontrados).');
@@ -2683,10 +2467,7 @@ async function openHistorico(nome) {
     putHistoricoTitle();
     await loadHistoricoIntoModal();
     HIST.els.modal.classList.remove('hidden');
-}
-
-function wireDsrModal() {
-
+}function wireDsrModal() {
     dsrModal = document.getElementById('dsrModal');
     if (!dsrModal || dsrModal.dataset.wired === '1') return;
     dsrModal.dataset.wired = '1';
@@ -2725,10 +2506,7 @@ function wireDsrModal() {
         dsrModal.classList.add('hidden');
         currentDsrInputTarget = null;
     });
-}
-
-function openDsrModal(targetInput) {
-
+}function openDsrModal(targetInput) {
     if (!dsrModal) return;
     currentDsrInputTarget = targetInput;
     const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -2737,10 +2515,7 @@ function openDsrModal(targetInput) {
         checkbox.checked = currentValueSet.has(checkbox.value);
     });
     dsrModal.classList.remove('hidden');
-}
-
-function wireEdit() {
-
+}function wireEdit() {
     editModal = document.getElementById('editModal');
     if (!editModal || editModal.dataset.wired === '1') return;
     editModal.dataset.wired = '1';
@@ -2794,20 +2569,20 @@ function wireEdit() {
     editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);
     editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
-            alert('Apenas administradores podem excluir colaboradores.');
+            await window.customAlert('Apenas administradores podem excluir colaboradores.', 'Acesso Negado');
             return;
         }
         if (!editOriginal) return;
-        const ok1 = confirm('Deseja excluir o colaborador? Só faça isso em caso de duplicidade ou erros.');
+        const ok1 = await window.customConfirm('Deseja excluir o colaborador? Só faça isso em caso de duplicidade ou erros.', 'Atenção', 'warning');
         if (!ok1) return;
-        const ok2 = confirm('Tem certeza que deseja excluir? Ação irreversível.');
+        const ok2 = await window.customConfirm('Tem certeza que deseja excluir? <b>Ação irreversível.</b>', 'Exclusão Definitiva', 'danger');
         if (!ok2) return;
         try {
             editExcluirBtn.disabled = true;
             editExcluirBtn.textContent = 'Excluindo...';
             const {error} = await supabase.from('Colaboradores').delete().eq('Nome', editOriginal.Nome);
             if (error) throw error;
-            alert('Colaborador excluído com sucesso!');
+            await window.customAlert('Colaborador excluído com sucesso!', 'Sucesso');
             logAction(`EXCLUIU (PERMANENTEMENTE) o colaborador: ${editOriginal.Nome}`);
             document.dispatchEvent(new CustomEvent('colaborador-deleted', {detail: {nome: editOriginal.Nome}}));
             hideEditModal();
@@ -2815,7 +2590,7 @@ function wireEdit() {
             await fetchColaboradores();
         } catch (error) {
             console.error('Erro ao excluir:', error);
-            alert(`Erro ao excluir: ${error.message}`);
+            await window.customAlert(`Erro ao excluir: ${error.message}`, 'Erro');
         } finally {
             editExcluirBtn.disabled = false;
             editExcluirBtn.textContent = 'Excluir Colaborador';
@@ -2823,9 +2598,33 @@ function wireEdit() {
     });
     editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
+        const continuar = await showAvisoDesligamento();
+        if (!continuar) return;
+        const btnTextoOriginal = editDesligarBtn.textContent;
+        editDesligarBtn.textContent = 'Verificando...';
+        editDesligarBtn.disabled = true;
+        let temPendencia = false;
+        try {
+            const colabAtualizado = await fetchColabByNome(editOriginal.Nome);
+            if (colabAtualizado) {
+                temPendencia = await verificarPendencias(colabAtualizado);
+            }
+        } catch (e) {
+            console.error("Erro verificação pendencia", e);
+        } finally {
+            editDesligarBtn.textContent = btnTextoOriginal;
+            editDesligarBtn.disabled = false;
+        }
+        if (temPendencia) {
+            await window.customAlert(
+                'Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário e ajuste antes de desliga-lo.',
+                'Pendências Encontradas'
+            );
+            return;
+        }
         const colab = await fetchColabByNome(editOriginal.Nome);
         if (!colab) {
-            alert('Colaborador não encontrado.');
+            await window.customAlert('Colaborador não encontrado.', 'Erro');
             return;
         }
         openDesligarModalFromColab(colab);
@@ -2834,7 +2633,7 @@ function wireEdit() {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
         if (!colab) {
-            alert('Colaborador não encontrado.');
+            await window.customAlert('Colaborador não encontrado.', 'Erro');
             return;
         }
         openFeriasModalFromColab(colab);
@@ -2850,20 +2649,17 @@ function wireEdit() {
             await loadServiceMatrizForEdit();
             const colab = await fetchColabByNome(nome);
             if (!colab) {
-                alert('Colaborador não encontrado.');
+                await window.customAlert('Colaborador não encontrado.', 'Erro');
                 return;
             }
             await fillEditForm(colab);
             showEditModal();
         } catch (err) {
             console.error(err);
-            alert('Erro ao carregar colaborador para edição.');
+            await window.customAlert('Erro ao carregar colaborador para edição.', 'Erro');
         }
     });
-}
-
-function wireDesligar() {
-
+}function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');
     if (!desligarModal || desligarModal.dataset.wired === '1') return;
     desligarModal.dataset.wired = '1';
@@ -2872,12 +2668,20 @@ function wireDesligar() {
     desligarDataEl = document.getElementById('desligarData');
     desligarMotivoEl = document.getElementById('desligarMotivo');
     desligarCancelarBtn = document.getElementById('desligarCancelarBtn');
+    desligarSmartoffEl = document.getElementById('desligarSmartoff');
+    desligarSmartoffContainer = document.getElementById('desligarSmartoffContainer');
+    desligarConfirmarBtn = desligarForm.querySelector('button[type="submit"]');
     desligarCancelarBtn?.addEventListener('click', closeDesligarModal);
     desligarForm?.addEventListener('submit', onDesligarSubmit);
-}
-
-function wireFerias() {
-
+    if (desligarSmartoffEl) {
+        desligarSmartoffEl.addEventListener('input', () => {
+            const val = desligarSmartoffEl.value.trim();
+            if (desligarConfirmarBtn) {
+                desligarConfirmarBtn.disabled = !val;
+            }
+        });
+    }
+}function wireFerias() {
     feriasModal = document.getElementById('feriasModal') || null;
     if (!feriasModal || feriasModal.dataset.wired === '1') return;
     feriasModal.dataset.wired = '1';
@@ -2888,10 +2692,7 @@ function wireFerias() {
     feriasCancelarBtn = document.getElementById('feriasCancelarBtn') || document.getElementById('cancelarBtn') || null;
     feriasCancelarBtn?.addEventListener('click', closeFeriasModal);
     feriasForm?.addEventListener('submit', onFeriasSubmit);
-}
-
-async function ensureXLSX() {
-
+}async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -2900,10 +2701,7 @@ async function ensureXLSX() {
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}
-
-function mapColabToExportRow(c) {
-
+}function mapColabToExportRow(c) {
     const fmt = (v) => v == null ? '' : v;
     const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
     return {
@@ -2932,13 +2730,10 @@ function mapColabToExportRow(c) {
         'Total Atestados': c['Total Atestados'] ?? '',
         'Total Suspensões': c['Total Suspensões'] ?? ''
     };
-}
-
-async function exportColaboradoresXLSX(useFiltered) {
-
+}async function exportColaboradoresXLSX(useFiltered) {
     const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
     if (!data || data.length === 0) {
-        alert('Não há dados para exportar.');
+        await window.customAlert('Não há dados para exportar.', 'Aviso');
         return;
     }
     await ensureXLSX();
@@ -2987,10 +2782,7 @@ async function exportColaboradoresXLSX(useFiltered) {
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
     window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
-}
-
-function wireFluxoEfetivacao() {
-
+}function wireFluxoEfetivacao() {
     fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');
     if (!fluxoEfetivacaoModal) {
         console.warn("Modal de fluxo de efetivação (id='fluxoEfetivacaoModal') não encontrado. A funcionalidade não será ativada.");
@@ -3022,10 +2814,7 @@ function wireFluxoEfetivacao() {
             closeFluxoEfetivacaoModal();
         }
     });
-}
-
-function wireTabelaColaboradoresEventos() {
-
+}function wireTabelaColaboradoresEventos() {
     if (!colaboradoresTbody) return;
     if (colaboradoresTbody.dataset.wired === '1') return;
     colaboradoresTbody.dataset.wired = '1';
@@ -3072,10 +2861,7 @@ function wireTabelaColaboradoresEventos() {
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}
-
-export function init() {
-
+}export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
@@ -3086,20 +2872,14 @@ export function init() {
     mostrarMenosBtn = document.getElementById('mostrar-menos-btn');
     contadorVisiveisEl = document.getElementById('contador-visiveis');
     addForm = document.getElementById('addForm');
-
-
     dropdownAdd = document.getElementById('dropdownAdd');
     btnAdicionarManual = document.getElementById('btnAdicionarManual');
     btnImportarRH = document.getElementById('btnImportarRH');
-
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
     fecharModalRH = document.getElementById('fecharModalRH');
-
     checkUserAdminStatus();
     fetchColaboradores();
-
-
     if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
     if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
@@ -3111,7 +2891,6 @@ export function init() {
             });
         });
     }
-
     if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
@@ -3125,8 +2904,6 @@ export function init() {
             applyFiltersAndSearch();
         });
     }
-
-
     if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
@@ -3139,39 +2916,26 @@ export function init() {
             updateDisplay();
         });
     }
-
-
     if (addColaboradorBtn) {
-
-
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
-
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
     }
-
-
     document.addEventListener('click', (event) => {
-
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
     });
-
-
     if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
-
             await prepararFormularioAdicao();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
             preencherFormularioAdicao({});
         });
     }
-
-
     if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
@@ -3179,20 +2943,14 @@ export function init() {
             fetchCandidatosAprovados();
         });
     }
-
-
     if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
     }
-
-
     window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
     });
-
-
     if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
@@ -3211,8 +2969,6 @@ export function init() {
             });
         }
     }
-
-
     if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
@@ -3236,8 +2992,6 @@ export function init() {
             }
         });
     }
-
-
     const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
@@ -3264,17 +3018,12 @@ export function init() {
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
     }
-
-
     wireEdit();
     wireDesligar();
     wireFerias();
     wireFluxoEfetivacao();
     wireDsrModal();
-}
-
-export function destroy() {
-
+}export function destroy() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;

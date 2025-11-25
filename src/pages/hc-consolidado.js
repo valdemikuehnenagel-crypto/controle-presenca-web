@@ -3,15 +3,18 @@ import {supabase} from '../supabaseClient.js';
 import './hc-diario.js';
 import './relatorio-abs.js';
 import './hc-analise-abs.js';const WEEK_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
-const WEEK_KEYS = ['DOMINGO', 'SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA', 'SABADO'];const norm = v => String(v ?? '').trim().toUpperCase();
+const WEEK_KEYS = ['DOMINGO', 'SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA', 'SABADO'];
+const norm = v => String(v ?? '').trim().toUpperCase();
 const normalizeWeekdayPT = s => norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');const esc = v => {
+    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+const esc = v => {
     if (v == null) return '';
     const s = String(v);
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};const isActive = c => norm(c.Ativo || 'SIM') === 'SIM';
+};
+const isActive = c => norm(c.Ativo || 'SIM') === 'SIM';
 const onlyActiveAux = a => (a || []).filter(c => isActive(c) && norm(c.Cargo) === 'AUXILIAR');
 const onlyActiveConf = a => (a || []).filter(c => isActive(c) && norm(c.Cargo) === 'CONFERENTE');
 const splitByTurno = a => ({
@@ -20,12 +23,14 @@ const splitByTurno = a => ({
     T3: a.filter(c => norm(c.Escala) === 'T3')
 });
 const uniqueNonEmptySorted = v => Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));const toISO = v => String(v || '').slice(0, 10);
+    .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
+const toISO = v => String(v || '').slice(0, 10);
 const fmtBR = iso => {
     if (!iso) return '';
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
     return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-};const pad2 = n => String(n).padStart(2, '0');
+};
+const pad2 = n => String(n).padStart(2, '0');
 const todayISO = () => {
     const t = new Date();
     return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
@@ -56,7 +61,8 @@ const todayISO = () => {
     const today = new Date();
     const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
     const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);    const overlay = document.createElement('div');
+    const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    const overlay = document.createElement('div');
     overlay.id = 'cd-period-overlay';
     overlay.innerHTML = `
     <div class="cdp-card">
@@ -74,7 +80,8 @@ const todayISO = () => {
         <button id="cdp-cancel" class="btn">Cancelar</button>
         <button id="cdp-apply"  class="btn-add">Aplicar</button>
       </div>
-    </div>`;    const cssId = 'cdp-style';
+    </div>`;
+    const cssId = 'cdp-style';
     if (!document.getElementById(cssId)) {
         const st = document.createElement('style');
         st.id = cssId;
@@ -94,7 +101,8 @@ const todayISO = () => {
     overlay.addEventListener('click', ev => {
         if (ev.target === overlay) close();
     });
-    overlay.querySelector('#cdp-cancel').onclick = close;    overlay.querySelector('#cdp-today').onclick = () => {
+    overlay.querySelector('#cdp-cancel').onclick = close;
+    overlay.querySelector('#cdp-today').onclick = () => {
         const iso = toISOstr(today);
         onApply(iso, iso);
         close();
@@ -109,11 +117,12 @@ const todayISO = () => {
         [s, e] = clampEndToToday(s, e);
         onApply(s, e);
         close();
-    };    overlay.querySelector('#cdp-apply').onclick = () => {
+    };
+    overlay.querySelector('#cdp-apply').onclick = async () => {
         let sVal = String(overlay.querySelector('#cdp-period-start')?.value || '').slice(0, 10);
         let eVal = String(overlay.querySelector('#cdp-period-end')?.value || '').slice(0, 10);
         if (!sVal || !eVal) {
-            alert('Selecione as duas datas.');
+            await window.customAlert('Selecione as duas datas.', 'Aviso');
             return;
         }
         [sVal, eVal] = clampEndToToday(sVal, eVal);
@@ -121,46 +130,56 @@ const todayISO = () => {
         close();
     };
 }let _allColabsCache = [];
-const _filters = {svc: '', matriz: '', regiao: '', gerencia: ''};const _deslState = {
+const _filters = {svc: '', matriz: '', regiao: '', gerencia: ''};
+const _deslState = {
     loaded: false, rows: [], search: '', escala: '', motivo: '', cargo: '',
     startISO: null, endISO: null
 };
 const _feriasState = {
     loaded: false, rows: [], search: '', escala: '', status: '', cargo: '',
     startISO: null, endISO: null
-};let _wiredSubtabs = false;let _cache = {ts: 0, key: '', rows: null};
-const CACHE_MS = 5 * 60 * 1000;let _matrizesCache = {ts: 0, key: '', map: null};
-const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
+};
+let _wiredSubtabs = false;
+let _cache = {ts: 0, key: '', rows: null};
+const CACHE_MS = 5 * 60 * 1000;
+let _matrizesCache = {ts: 0, key: '', map: null};
+const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
     const buildFns = [window.buildHCAnaliseABS, window.buildHCRelatorio, window.buildHCDiario];
     buildFns.forEach(fn => {
         try {
             if (fn && typeof fn.resetState === 'function') fn.resetState();
         } catch {
         }
-    });    _allColabsCache = [];
+    });
+    _allColabsCache = [];
     _filters.svc = '';
     _filters.matriz = '';
     _filters.regiao = '';
-    _filters.gerencia = '';    _deslState.loaded = false;
+    _filters.gerencia = '';
+    _deslState.loaded = false;
     _deslState.rows = [];
     _deslState.search = '';
     _deslState.escala = '';
     _deslState.motivo = '';
     _deslState.cargo = '';
     _deslState.startISO = null;
-    _deslState.endISO = null;    _feriasState.loaded = false;
+    _deslState.endISO = null;
+    _feriasState.loaded = false;
     _feriasState.rows = [];
     _feriasState.search = '';
     _feriasState.escala = '';
     _feriasState.status = '';
     _feriasState.cargo = '';
     _feriasState.startISO = null;
-    _feriasState.endISO = null;    _cache.rows = null;
+    _feriasState.endISO = null;
+    _cache.rows = null;
     _cache.ts = 0;
     _cache.key = '';
     _matrizesCache.map = null;
     _matrizesCache.ts = 0;
-    _matrizesCache.key = '';    _wiredSubtabs = false;    console.log('Estado do HC Consolidado destruído, pronto para recarregar.');
+    _matrizesCache.key = '';
+    _wiredSubtabs = false;
+    console.log('Estado do HC Consolidado destruído, pronto para recarregar.');
 }function calcularPeriodoTrabalhado(dtAdmISO, dtDesISO) {
     if (!dtAdmISO) return '';
     const dtAdm = new Date(dtAdmISO + 'T00:00:00Z');
@@ -294,30 +313,36 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         if (_filters.regiao && norm(c.REGIAO) !== norm(_filters.regiao)) return false;
         if (_filters.gerencia && norm(c.GERENCIA) !== norm(_filters.gerencia)) return false;
         return true;
-    });    const aux = onlyActiveAux(filtered);
-    const conf = onlyActiveConf(filtered);    const byAux = splitByTurno(aux);
+    });
+    const aux = onlyActiveAux(filtered);
+    const conf = onlyActiveConf(filtered);
+    const byAux = splitByTurno(aux);
     const aux_t1 = createTableDataForCargo(byAux.T1);
     const aux_t2 = createTableDataForCargo(byAux.T2);
     const aux_t3 = createTableDataForCargo(byAux.T3);
-    const aux_geral = sumRows(sumRows(aux_t1, aux_t2), aux_t3);    const auxT1El = document.getElementById('hc-aux-t1');
+    const aux_geral = sumRows(sumRows(aux_t1, aux_t2), aux_t3);
+    const auxT1El = document.getElementById('hc-aux-t1');
     const auxT2El = document.getElementById('hc-aux-t2');
     const auxT3El = document.getElementById('hc-aux-t3');
     const auxGeralEl = document.getElementById('hc-aux-geral');
     if (auxT1El) auxT1El.innerHTML = toTableHTML('TURNO 1', aux_t1);
     if (auxT2El) auxT2El.innerHTML = toTableHTML('TURNO 2', aux_t2);
     if (auxT3El) auxT3El.innerHTML = toTableHTML('TURNO 3', aux_t3);
-    if (auxGeralEl) auxGeralEl.innerHTML = toTableHTML('QUADRO GERAL', aux_geral);    const byConf = splitByTurno(conf);
+    if (auxGeralEl) auxGeralEl.innerHTML = toTableHTML('QUADRO GERAL', aux_geral);
+    const byConf = splitByTurno(conf);
     const conf_t1 = createTableDataForCargo(byConf.T1);
     const conf_t2 = createTableDataForCargo(byConf.T2);
     const conf_t3 = createTableDataForCargo(byConf.T3);
-    const conf_geral = sumRows(sumRows(conf_t1, conf_t2), conf_t3);    const confT1El = document.getElementById('hc-conf-t1');
+    const conf_geral = sumRows(sumRows(conf_t1, conf_t2), conf_t3);
+    const confT1El = document.getElementById('hc-conf-t1');
     const confT2El = document.getElementById('hc-conf-t2');
     const confT3El = document.getElementById('hc-conf-t3');
     const confGeralEl = document.getElementById('hc-conf-geral');
     if (confT1El) confT1El.innerHTML = toTableHTML('TURNO 1', conf_t1);
     if (confT2El) confT2El.innerHTML = toTableHTML('TURNO 2', conf_t2);
     if (confT3El) confT3El.innerHTML = toTableHTML('TURNO 3', conf_t3);
-    if (confGeralEl) confGeralEl.innerHTML = toTableHTML('QUADRO GERAL', conf_geral);    const total_geral_consolidado = composeTotalTableData(aux_geral, conf_geral);
+    if (confGeralEl) confGeralEl.innerHTML = toTableHTML('QUADRO GERAL', conf_geral);
+    const total_geral_consolidado = composeTotalTableData(aux_geral, conf_geral);
     const totalGeralConsolidadoEl = document.getElementById('hc-total-geral-quadro');
     if (totalGeralConsolidadoEl) totalGeralConsolidadoEl.innerHTML = toTableHTML('TOTAL GERAL', total_geral_consolidado);
 }function populateFilterSelects(colabs) {
@@ -325,22 +350,27 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
     const selM = document.getElementById('hc-filter-matriz');
     const selR = document.getElementById('hc-filter-regiao');
     const selG = document.getElementById('hc-filter-gerencia');
-    if (!selS || !selM || !selR || !selG) return;    if (window.__HC_GLOBAL_FILTERS) {
+    if (!selS || !selM || !selR || !selG) return;
+    if (window.__HC_GLOBAL_FILTERS) {
         _filters.svc = window.__HC_GLOBAL_FILTERS.svc || '';
         _filters.matriz = window.__HC_GLOBAL_FILTERS.matriz || '';
         _filters.regiao = window.__HC_GLOBAL_FILTERS.regiao || '';
         _filters.gerencia = window.__HC_GLOBAL_FILTERS.gerencia || '';
-    }    const prevS = _filters.svc, prevM = _filters.matriz, prevR = _filters.regiao, prevG = _filters.gerencia;
+    }
+    const prevS = _filters.svc, prevM = _filters.matriz, prevR = _filters.regiao, prevG = _filters.gerencia;
     const svcs = uniqueNonEmptySorted(colabs.map(c => c.SVC));
     const matrizes = uniqueNonEmptySorted(colabs.map(c => c.MATRIZ));
     const regioes = uniqueNonEmptySorted(colabs.map(c => c.REGIAO));
-    const gerencias = uniqueNonEmptySorted(colabs.map(c => c.GERENCIA));    selS.innerHTML = `<option value="">SVC</option>` + svcs.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    const gerencias = uniqueNonEmptySorted(colabs.map(c => c.GERENCIA));
+    selS.innerHTML = `<option value="">SVC</option>` + svcs.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     selM.innerHTML = `<option value="">Matriz</option>` + matrizes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     selR.innerHTML = `<option value="">Região</option>` + regioes.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-    selG.innerHTML = `<option value="">Gerência</option>` + gerencias.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');    if (prevS) selS.value = prevS;
+    selG.innerHTML = `<option value="">Gerência</option>` + gerencias.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    if (prevS) selS.value = prevS;
     if (prevM) selM.value = prevM;
     if (prevR) selR.value = prevR;
-    if (prevG) selG.value = prevG;    const handleFilterChange = () => {
+    if (prevG) selG.value = prevG;
+    const handleFilterChange = () => {
         _filters.svc = selS.value;
         _filters.matriz = selM.value;
         _filters.regiao = selR.value;
@@ -509,26 +539,33 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
     window.dispatchEvent(new CustomEvent('hc-filters-changed', {detail: {..._filters}}));
 }function wireSubtabs() {
     if (_wiredSubtabs) return;
-    _wiredSubtabs = true;    const host = document.querySelector('.hc-root');
+    _wiredSubtabs = true;
+    const host = document.querySelector('.hc-root');
     if (!host) return;
     const subButtons = host.querySelectorAll('.hc-subtab-btn');
-    let isTransitioning = false;    subButtons.forEach(btn => {
+    let isTransitioning = false;
+    subButtons.forEach(btn => {
         btn.addEventListener('click', async () => {
             if (isTransitioning) return;
             const currentView = host.querySelector('.hc-view.active');
             const viewName = btn.dataset.view;
             const nextView = host.querySelector(`#hc-${viewName}`);
-            if (currentView === nextView) return;            isTransitioning = true;
+            if (currentView === nextView) return;
+            isTransitioning = true;
             subButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');            if (currentView) currentView.style.opacity = 0;            setTimeout(async () => {
+            btn.classList.add('active');
+            if (currentView) currentView.style.opacity = 0;
+            setTimeout(async () => {
                 if (currentView) {
                     currentView.classList.remove('active');
                     currentView.style.opacity = 1;
                 }
                 if (nextView) {
                     nextView.style.opacity = 0;
-                    nextView.classList.add('active');                    try {
-                        if (viewName !== 'analise-abs' && typeof window.destroyHCAnaliseABS === 'function') window.destroyHCAnaliseABS();                        if (viewName === 'diario') {
+                    nextView.classList.add('active');
+                    try {
+                        if (viewName !== 'analise-abs' && typeof window.destroyHCAnaliseABS === 'function') window.destroyHCAnaliseABS();
+                        if (viewName === 'diario') {
                             if (typeof window.buildHCDiario === 'function') await window.buildHCDiario();
                         } else if (viewName === 'relatorio-abs') {
                             if (typeof window.buildHCRelatorio === 'function') await window.buildHCRelatorio();
@@ -538,23 +575,27 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
                             ensureDesligamentosMounted();
                         } else if (viewName === 'ferias') {
                             ensureFeriasMounted();
-                        }                        window.dispatchEvent(new CustomEvent('hc-activated', {detail: {view: viewName}}));
+                        }
+                        window.dispatchEvent(new CustomEvent('hc-activated', {detail: {view: viewName}}));
                     } catch (e) {
                         console.error('Erro ao trocar sub-aba:', e);
-                    }                    requestAnimationFrame(() => {
+                    }
+                    requestAnimationFrame(() => {
                         nextView.style.opacity = 1;
                     });
                 }
                 isTransitioning = false;
             }, 200);
         });
-    });    const refreshBtn = host.querySelector('#hc-refresh');
+    });
+    const refreshBtn = host.querySelector('#hc-refresh');
     refreshBtn?.addEventListener('click', async () => {
         try {
             _cache.rows = null;
             _cache.ts = 0;
             _matrizesCache.map = null;
-            _matrizesCache.ts = 0;            await buildHCWeekly();
+            _matrizesCache.ts = 0;
+            await buildHCWeekly();
             const active = host.querySelector('.hc-view.active');
             if (active?.id === 'hc-diario') {
                 await ensureDiarioDOM();
@@ -568,7 +609,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
                 fetchDesligados();
             } else if (active?.id === 'hc-ferias') {
                 fetchFerias();
-            }            window.dispatchEvent(new Event('hc-refresh'));
+            }
+            window.dispatchEvent(new Event('hc-refresh'));
         } catch (e) {
             console.error('Refresh HC erro:', e);
         }
@@ -585,42 +627,57 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         });
     } catch (error) {
         console.error("Falha ao carregar a biblioteca XLSX:", error);
-        alert("Erro ao carregar a biblioteca de exportação de Excel. Tente recarregar a página.");
+        await window.customAlert("Erro ao carregar a biblioteca de exportação de Excel. Tente recarregar a página.", "Erro");
     }
 }async function fetchAndDownloadHistorico(colaboradorNome, targetButton) {
-    if (!colaboradorNome) return;    targetButton.disabled = true;
-    targetButton.textContent = '...';    try {        await loadSheetJS();
+    if (!colaboradorNome) return;
+    targetButton.disabled = true;
+    targetButton.textContent = '...';
+    try {
+        await loadSheetJS();
         if (!window.XLSX) {
             throw new Error("Biblioteca XLSX não carregou.");
-        }        const headers = [
+        }
+        const headers = [
             'Nome', 'Presença', 'Falta', 'Atestado', 'Folga Especial',
             'Suspensao', 'Feriado', 'Data', 'Turno', 'Entrevista',
             'Acao', 'TipoAtestado', 'Observacao', 'CID'
-        ];        const selectString = 'Nome,Presença,Falta,Atestado,"Folga Especial",Suspensao,Feriado,Data,Turno,Entrevista,Acao,TipoAtestado,Observacao,CID';        let query = supabase
+        ];
+        const selectString = 'Nome,Presença,Falta,Atestado,"Folga Especial",Suspensao,Feriado,Data,Turno,Entrevista,Acao,TipoAtestado,Observacao,CID';
+        let query = supabase
             .from('ControleDiario')
             .select(selectString)
             .eq('Nome', colaboradorNome)
-            .order('Data', {ascending: false});        const data = await fetchAllWithPagination(query);        if (!data || data.length === 0) {
-            alert('Nenhum histórico de presença encontrado para este colaborador.');
+            .order('Data', {ascending: false});
+        const data = await fetchAllWithPagination(query);
+        if (!data || data.length === 0) {
+            await window.customAlert('Nenhum histórico de presença encontrado para este colaborador.', 'Aviso');
             return;
-        }        const sheetData = [
+        }
+        const sheetData = [
             headers,
             ...data.map(row => headers.map(header => row[header]))
-        ];        const wb = XLSX.utils.book_new();
+        ];
+        const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
-        XLSX.utils.book_append_sheet(wb, ws, 'Histórico');        const safeName = colaboradorNome.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        XLSX.writeFile(wb, `historico_${safeName}.xlsx`);    } catch (error) {
+        XLSX.utils.book_append_sheet(wb, ws, 'Histórico');
+        const safeName = colaboradorNome.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        XLSX.writeFile(wb, `historico_${safeName}.xlsx`);
+    } catch (error) {
         console.error("Erro ao gerar histórico:", error);
-        alert(`Falha ao gerar histórico: ${error.message}`);
-    } finally {        targetButton.disabled = false;
+        await window.customAlert(`Falha ao gerar histórico: ${error.message}`, 'Erro');
+    } finally {
+        targetButton.disabled = false;
         targetButton.textContent = '💾';
     }
 }function ensureDesligamentosMounted() {
     const host = document.getElementById('hc-desligamentos');
     if (!host || host.dataset.mounted === '1') return;
-    if (typeof _deslState.cargo !== 'string') _deslState.cargo = '';    if (!_deslState.startISO || !_deslState.endISO) {
+    if (typeof _deslState.cargo !== 'string') _deslState.cargo = '';
+    if (!_deslState.startISO || !_deslState.endISO) {
         [_deslState.startISO, _deslState.endISO] = defaultPeriod();
-    }    host.innerHTML = `
+    }
+    host.innerHTML = `
     <div class="hcdesl-toolbar">
       <div class="hcdesl-left">
         <input id="hcdesl-search" type="search" placeholder="Pesquisar por nome..." />
@@ -662,7 +719,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
       </table>
     </div>
   `;
-    host.dataset.mounted = '1';    document.getElementById('hcdesl-period')?.addEventListener('click', () => {
+    host.dataset.mounted = '1';
+    document.getElementById('hcdesl-period')?.addEventListener('click', () => {
         const [cs, ce] = [_deslState.startISO, _deslState.endISO];
         showPeriodOverlay({
             curStart: cs, curEnd: ce,
@@ -672,7 +730,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
                 renderDesligamentosTable();
             }
         });
-    });    document.getElementById('hcdesl-search')?.addEventListener('input', (e) => {
+    });
+    document.getElementById('hcdesl-search')?.addEventListener('input', (e) => {
         _deslState.search = e.target.value;
         renderDesligamentosTable();
     });
@@ -688,14 +747,16 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         _deslState.motivo = e.target.value;
         renderDesligamentosTable();
     });
-    document.getElementById('hcdesl-export')?.addEventListener('click', () => exportDesligamentos());    document.getElementById('hcdesl-tbody').addEventListener('click', e => {
+    document.getElementById('hcdesl-export')?.addEventListener('click', async () => await exportDesligamentos());
+    document.getElementById('hcdesl-tbody').addEventListener('click', e => {
         const button = e.target.closest('.btn-download-historico');
         if (button) {
             e.preventDefault();
             const nome = button.dataset.nome;
             fetchAndDownloadHistorico(nome, button);
         }
-    });    fetchDesligados();
+    });
+    fetchDesligados();
 }function getDeslFilters() {
     return {
         search: _deslState.search || '',
@@ -709,38 +770,50 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         startISO: _deslState.startISO || null,
         endISO: _deslState.endISO || null,
     };
-}async function fetchDesligados() {    const tbody = document.getElementById('hcdesl-tbody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando…</td></tr>`;    try {
+}async function fetchDesligados() {
+    const tbody = document.getElementById('hcdesl-tbody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando…</td></tr>`;
+    try {
         const matrizesMap = await loadMatrizesMapping();
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase
             .from('Desligados')
             .select('Nome, Contrato, Cargo, "Data de Admissão", "Data de Desligamento", "Período Trabalhado", Motivo, SVC, MATRIZ, Escala')
             .order('Data de Desligamento', {ascending: false});
-        if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);        const {data, error} = await query;
-        if (error) throw error;        const enrichedData = (Array.isArray(data) ? data : []).map(r => {
+        if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
+        const {data, error} = await query;
+        if (error) throw error;
+        const enrichedData = (Array.isArray(data) ? data : []).map(r => {
             const mapping = matrizesMap.get(norm(r.MATRIZ));
             return {...r, REGIAO: mapping?.regiao || '', GERENCIA: mapping?.gerencia || ''};
-        });        _deslState.rows = enrichedData;
-        _deslState.loaded = true;        const motivos = Array.from(new Set(_deslState.rows.map(r => String(r.Motivo || '')).filter(Boolean)))
+        });
+        _deslState.rows = enrichedData;
+        _deslState.loaded = true;
+        const motivos = Array.from(new Set(_deslState.rows.map(r => String(r.Motivo || '')).filter(Boolean)))
             .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
         const elMotivo = document.getElementById('hcdesl-motivo');
         if (elMotivo) {
             const prev = _deslState.motivo;
             elMotivo.innerHTML = `<option value="">Motivo</option>` + motivos.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
             if (prev) elMotivo.value = prev;
-        }        renderDesligamentosTable();
+        }
+        renderDesligamentosTable();
     } catch (e) {
-        console.error('Desligamentos: erro', e);        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Erro ao carregar.</td></tr>`;
+        console.error('Desligamentos: erro', e);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Erro ao carregar.</td></tr>`;
     }
 }function renderDesligamentosTable() {
     const tbody = document.getElementById('hcdesl-tbody');
     if (!tbody) return;
-    if (!_deslState.loaded) {        tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando…</td></tr>`;
+    if (!_deslState.loaded) {
+        tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando…</td></tr>`;
         return;
-    }    const {search, escala, cargo, motivo, svc, matriz, regiao, gerencia, startISO, endISO} = getDeslFilters();
-    const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();    const startUtc = makeBoundUTC(startISO, false);
-    const endUtc = makeBoundUTC(endISO, true);    const filtered = _deslState.rows.filter(r => {
+    }
+    const {search, escala, cargo, motivo, svc, matriz, regiao, gerencia, startISO, endISO} = getDeslFilters();
+    const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+    const startUtc = makeBoundUTC(startISO, false);
+    const endUtc = makeBoundUTC(endISO, true);
+    const filtered = _deslState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
         if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
@@ -748,20 +821,25 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         if (svc && norm(r.SVC) !== norm(svc)) return false;
         if (matriz && norm(r.MATRIZ) !== norm(matriz)) return false;
         if (regiao && norm(r.REGIAO) !== norm(regiao)) return false;
-        if (gerencia && norm(r.GERENCIA) !== norm(gerencia)) return false;        if (startUtc && endUtc) {
+        if (gerencia && norm(r.GERENCIA) !== norm(gerencia)) return false;
+        if (startUtc && endUtc) {
             const d = makeBoundUTC(r['Data de Desligamento'], false);
             if (!d) return false;
             if (d < startUtc || d > endUtc) return false;
         }
         return true;
-    });    if (!filtered.length) {        tbody.innerHTML = `<tr><td colspan="8" class="muted">Sem registros nos filtros aplicados.</td></tr>`;
+    });
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="muted">Sem registros nos filtros aplicados.</td></tr>`;
         return;
-    }    const frag = document.createDocumentFragment();
+    }
+    const frag = document.createDocumentFragment();
     filtered.forEach(r => {
         const dtAdm = r['Data de Admissão'] ?? '';
         const dtDes = r['Data de Desligamento'] ?? '';
         const periodo = calcularPeriodoTrabalhado(dtAdm, dtDes);
-        const tr = document.createElement('tr');        tr.innerHTML = `
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
       <td class="cell-name">${escapeHtml(r.Nome || '')}</td>
       <td>${escapeHtml(r.Contrato || '')}</td>
       <td>${escapeHtml(r.Cargo || '')}</td>
@@ -779,7 +857,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
     const {search, escala, cargo, motivo, svc, matriz, regiao, gerencia, startISO, endISO} = getDeslFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
     const startUtc = makeBoundUTC(startISO, false);
-    const endUtc = makeBoundUTC(endISO, true);    const filtered = _deslState.rows.filter(r => {
+    const endUtc = makeBoundUTC(endISO, true);
+    const filtered = _deslState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
         if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
@@ -793,7 +872,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
             if (!d || d < startUtc || d > endUtc) return false;
         }
         return true;
-    });    return filtered.map(r => ({
+    });
+    return filtered.map(r => ({
         Nome: r.Nome || '',
         Contrato: r.Contrato || '',
         Cargo: r.Cargo || '',
@@ -807,13 +887,14 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         REGIAO: r.REGIAO || '',
         GERENCIA: r.GERENCIA || '',
     }));
-}function exportDesligamentos() {
+}async function exportDesligamentos() {
     const rows = getVisibleDesligadosRows();
     if (!rows.length) {
-        alert('Nada para exportar com os filtros atuais.');
+        await window.customAlert('Nada para exportar com os filtros atuais.', 'Aviso');
         return;
     }
-    const keys = Object.keys(rows[0] || {});    const csv = [keys.join(',')].concat(rows.map(r => keys.map(k => esc(r[k])).join(','))).join('\n');
+    const keys = Object.keys(rows[0] || {});
+    const csv = [keys.join(',')].concat(rows.map(r => keys.map(k => esc(r[k])).join(','))).join('\n');
     const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -826,9 +907,11 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
 }function ensureFeriasMounted() {
     const host = document.getElementById('hc-ferias');
     if (!host || host.dataset.mounted === '1') return;
-    if (typeof _feriasState.cargo !== 'string') _feriasState.cargo = '';    if (!_feriasState.startISO || !_feriasState.endISO) {
+    if (typeof _feriasState.cargo !== 'string') _feriasState.cargo = '';
+    if (!_feriasState.startISO || !_feriasState.endISO) {
         [_feriasState.startISO, _feriasState.endISO] = defaultPeriod();
-    }    host.innerHTML = `
+    }
+    host.innerHTML = `
     <div class="hcf-toolbar">
       <div class="hcf-left">
         <input id="hcf-search" type="search" placeholder="Pesquisar por nome..." />
@@ -871,7 +954,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
       </table>
     </div>
   `;
-    host.dataset.mounted = '1';    document.getElementById('hcf-period')?.addEventListener('click', () => {
+    host.dataset.mounted = '1';
+    document.getElementById('hcf-period')?.addEventListener('click', () => {
         const [cs, ce] = [_feriasState.startISO, _feriasState.endISO];
         showPeriodOverlay({
             curStart: cs, curEnd: ce,
@@ -881,7 +965,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
                 renderFeriasTable();
             }
         });
-    });    document.getElementById('hcf-search')?.addEventListener('input', (e) => {
+    });
+    document.getElementById('hcf-search')?.addEventListener('input', (e) => {
         _feriasState.search = e.target.value;
         renderFeriasTable();
     });
@@ -897,9 +982,11 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         _feriasState.status = e.target.value;
         renderFeriasTable();
     });
-    document.getElementById('hcf-export')?.addEventListener('click', () => exportFerias());    window.addEventListener('hc-filters-changed', () => {
+    document.getElementById('hcf-export')?.addEventListener('click', async () => await exportFerias());
+    window.addEventListener('hc-filters-changed', () => {
         if (_feriasState.loaded) renderFeriasTable();
-    });    fetchFerias();
+    });
+    fetchFerias();
 }function getFeriasFilters() {
     return {
         search: _feriasState.search || '',
@@ -929,7 +1016,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
     return Math.max(0, diff);
 }async function fetchFerias() {
     const tbody = document.getElementById('hcf-tbody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;    try {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
+    try {
         const matrizesMap = await loadMatrizesMapping();
         const matrizesPermitidas = getMatrizesPermitidas();
         let qFerias = supabase
@@ -937,8 +1025,10 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
             .select('"Numero", "Nome", "Cargo", "Escala", "SVC", "MATRIZ", "Data Inicio", "Data Final", "Status", "Dias para finalizar"')
             .order('Data Inicio', {ascending: false})
             .order('Data Final', {ascending: false});
-        if (matrizesPermitidas !== null) qFerias = qFerias.in('MATRIZ', matrizesPermitidas);        const {data: feriasData, error: feriasErr} = await qFerias;
-        if (feriasErr) throw feriasErr;        _feriasState.rows = (Array.isArray(feriasData) ? feriasData : []).map(r => {
+        if (matrizesPermitidas !== null) qFerias = qFerias.in('MATRIZ', matrizesPermitidas);
+        const {data: feriasData, error: feriasErr} = await qFerias;
+        if (feriasErr) throw feriasErr;
+        _feriasState.rows = (Array.isArray(feriasData) ? feriasData : []).map(r => {
             const mapping = matrizesMap.get(norm(r.MATRIZ));
             return {
                 ...r,
@@ -951,14 +1041,16 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
                 'Dias para Finalizar': r['Dias para Finalizar'] ?? r['Dias para finalizar'] ?? ''
             };
         });
-        _feriasState.loaded = true;        const statusList = Array.from(new Set(_feriasState.rows.map(r => String(r.Status || '')).filter(Boolean)))
+        _feriasState.loaded = true;
+        const statusList = Array.from(new Set(_feriasState.rows.map(r => String(r.Status || '')).filter(Boolean)))
             .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
         const elStatus = document.getElementById('hcf-status');
         if (elStatus) {
             const prev = _feriasState.status;
             elStatus.innerHTML = `<option value="">Status</option>` + statusList.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
             if (prev) elStatus.value = prev;
-        }        renderFeriasTable();
+        }
+        renderFeriasTable();
     } catch (e) {
         console.error('Férias: erro', e);
         if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Erro ao carregar.</td></tr>`;
@@ -969,9 +1061,12 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
     if (!_feriasState.loaded) {
         tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
         return;
-    }    const {search, escala, cargo, status, svc, matriz, regiao, gerencia, startISO, endISO} = getFeriasFilters();
-    const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();    const startUtc = makeBoundUTC(startISO, false);
-    const endUtc = makeBoundUTC(endISO, true);    const filtered = _feriasState.rows.filter(r => {
+    }
+    const {search, escala, cargo, status, svc, matriz, regiao, gerencia, startISO, endISO} = getFeriasFilters();
+    const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+    const startUtc = makeBoundUTC(startISO, false);
+    const endUtc = makeBoundUTC(endISO, true);
+    const filtered = _feriasState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
         if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
@@ -979,17 +1074,22 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         if (svc && norm(r.SVC) !== norm(svc)) return false;
         if (matriz && norm(r.MATRIZ) !== norm(matriz)) return false;
         if (regiao && norm(r.REGIAO) !== norm(regiao)) return false;
-        if (gerencia && norm(r.GERENCIA) !== norm(gerencia)) return false;        if (startUtc && endUtc) {
+        if (gerencia && norm(r.GERENCIA) !== norm(gerencia)) return false;
+        if (startUtc && endUtc) {
             const di = makeBoundUTC(r['Data Inicio'], false);
             const df = makeBoundUTC(r['Data Final'], true) || di;
-            if (!di && !df) return false;            const rowStart = di || df;
+            if (!di && !df) return false;
+            const rowStart = di || df;
             const rowEnd = df || di;
             if (rowEnd < startUtc || rowStart > endUtc) return false;
-        }        return true;
-    });    if (!filtered.length) {
+        }
+        return true;
+    });
+    if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="9" class="muted">Sem registros nos filtros aplicados.</td></tr>`;
         return;
-    }    const frag = document.createDocumentFragment();
+    }
+    const frag = document.createDocumentFragment();
     filtered.forEach(r => {
         const di = r['Data Inicio'] ?? '';
         const df = r['Data Final'] ?? '';
@@ -1012,7 +1112,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
     const {search, escala, cargo, status, svc, matriz, regiao, gerencia, startISO, endISO} = getFeriasFilters();
     const s = (search || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
     const startUtc = makeBoundUTC(startISO, false);
-    const endUtc = makeBoundUTC(endISO, true);    const filtered = _feriasState.rows.filter(r => {
+    const endUtc = makeBoundUTC(endISO, true);
+    const filtered = _feriasState.rows.filter(r => {
         if (s && !String(r.Nome || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().includes(s)) return false;
         if (escala && String(r.Escala || '') !== escala) return false;
         if (cargo && norm(r.Cargo) !== norm(cargo)) return false;
@@ -1030,7 +1131,8 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
             if (rowEnd < startUtc || rowStart > endUtc) return false;
         }
         return true;
-    });    return filtered.map(r => ({
+    });
+    return filtered.map(r => ({
         Nome: r.Nome || '',
         'Data Início': fmtBR(r['Data Inicio'] ?? ''),
         'Data Final': fmtBR(r['Data Final'] ?? ''),
@@ -1043,13 +1145,14 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         REGIAO: r.REGIAO || '',
         GERENCIA: r.GERENCIA || '',
     }));
-}function exportFerias() {
+}async function exportFerias() {
     const rows = getVisibleFeriasRows();
     if (!rows.length) {
-        alert('Nada para exportar com os filtros atuais.');
+        await window.customAlert('Nada para exportar com os filtros atuais.', 'Aviso');
         return;
     }
-    const keys = Object.keys(rows[0] || {});    const csv = [keys.join(',')].concat(rows.map(r => keys.map(k => esc(r[k])).join(','))).join('\n');
+    const keys = Object.keys(rows[0] || {});
+    const csv = [keys.join(',')].concat(rows.map(r => keys.map(k => esc(r[k])).join(','))).join('\n');
     const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1072,9 +1175,11 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000; export function destroy() {
         tableIds.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.innerHTML = loadingHTML;
-        });        wireSubtabs();
+        });
+        wireSubtabs();
         await buildHCWeekly();
-        await ensureDiarioDOM();        window.addEventListener('hc-filters-changed', () => {
+        await ensureDiarioDOM();
+        window.addEventListener('hc-filters-changed', () => {
             const active = document.querySelector('.hc-view.active')?.id || '';
             if (active === 'hc-ferias' && _feriasState.loaded) renderFeriasTable();
             if (active === 'hc-desligamentos' && _deslState.loaded) renderDesligamentosTable();
