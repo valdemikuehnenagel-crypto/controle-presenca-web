@@ -1,17 +1,21 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
 import qrcode from 'qrcode-generator';
-import {createClient} from '@supabase/supabase-js';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import {createClient} from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);const SUPPORTED_FORMATS = [
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.QR_CODE,
     Html5QrcodeSupportedFormats.CODE_128,
     Html5QrcodeSupportedFormats.CODE_39,
     Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.UPC_A,
 ];
-const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
+const BRASILIA_TIMEZONE = 'America/Sao_Paulo';
+let state = {
     cacheData: [],
     idPacoteMap: new Map(),
     isSeparaçãoProcessing: false,
@@ -30,11 +34,13 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
         pendingRoutes: null,
         dockIssues: null
     }
-};let dom = {    summaryContainer: null,
-    routesContainer: null,    btnSeparação: null,
+};
+let dom = {
+    summaryContainer: null,
+    routesContainer: null, btnSeparação: null,
     btnCarregamento: null,
     periodBtn: null,
-    btnImportarConsolidado: null,    modalSeparação: null,
+    btnImportarConsolidado: null, modalSeparação: null,
     modalSepClose: null,
     sepUser: null,
     sepScan: null,
@@ -43,14 +49,14 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     sepQrTitle: null,
     sepQrCanvas: null,
     sepPrintBtn: null,
-    sepCamBtn: null,    modalCarregamento: null,
+    sepCamBtn: null, modalCarregamento: null,
     modalCarClose: null,
     carUser: null,
     carDockSelect: null,
     carIlhaSelect: null,
     carScan: null,
     carStatus: null,
-    carCamBtn: null,    scannerModal: null,
+    carCamBtn: null, scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
     scannerFeedbackOverlay: null,
@@ -58,27 +64,31 @@ const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     scannerConfirmOverlay: null,
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
-    scannerConfirmNoBtn: null,    relatorioModal: null,
+    scannerConfirmNoBtn: null, relatorioModal: null,
     relatorioModalClose: null,
     relatorioTitle: null,
-    relatorioBody: null,    modalImportar: null,
+    relatorioBody: null, modalImportar: null,
     importCloseBtn: null,
     importTextarea: null,
     importSubmitBtn: null,
-    importStatus: null,    netBanner: null,
+    importStatus: null, netBanner: null,
     netMsg: null,
     netForceBtn: null,
-    netCloseBtn: null,    tabBtnSeparacao: null,
+    netCloseBtn: null, tabBtnSeparacao: null,
     tabBtnAnalise: null,
     subtabSeparacao: null,
     subtabAnalise: null,
-};let eventHandlers = {
+};
+let eventHandlers = {
     onOnline: null,
     onSepSuccess: null,
     onCarSuccess: null,
-};const NET_TIMEOUT_MS = 8000;
+};
+const NET_TIMEOUT_MS = 8000;
 const OUTBOX_KEY = 'auditoriaOutboxV1';
-let outbox = {queue: [], sending: false};async function ensureApexCharts() {
+let outbox = {queue: [], sending: false};
+
+async function ensureApexCharts() {
     if (window.ApexCharts) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -87,13 +97,17 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         s.onerror = () => reject(new Error('Falha ao carregar ApexCharts'));
         document.head.appendChild(s);
     });
-}function getBrazilDateKey(isoString) {
+}
+
+function getBrazilDateKey(isoString) {
     if (!isoString) return null;
-    try {        let dateToParse = isoString;
+    try {
+        let dateToParse = isoString;
         if (!isoString.endsWith('Z') && !isoString.includes('+')) {
             dateToParse += 'Z';
         }
-        const dateObj = new Date(dateToParse);        const formatter = new Intl.DateTimeFormat('sv-SE', {
+        const dateObj = new Date(dateToParse);
+        const formatter = new Intl.DateTimeFormat('sv-SE', {
             timeZone: 'America/Sao_Paulo',
             year: 'numeric',
             month: '2-digit',
@@ -103,11 +117,16 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } catch (e) {
         return isoString ? isoString.split('T')[0] : null;
     }
-}function switchTab(tabName) {
-    if (!dom.subtabSeparacao || !dom.subtabAnalise) return;    const activeBtnClass = ['bg-white', 'text-blue-700', 'shadow'];
-    const inactiveBtnClass = ['text-gray-500', 'hover:text-gray-700', 'bg-transparent', 'shadow-none'];    if (tabName === 'separacao') {
+}
+
+function switchTab(tabName) {
+    if (!dom.subtabSeparacao || !dom.subtabAnalise) return;
+    const activeBtnClass = ['bg-white', 'text-blue-700', 'shadow'];
+    const inactiveBtnClass = ['text-gray-500', 'hover:text-gray-700', 'bg-transparent', 'shadow-none'];
+    if (tabName === 'separacao') {
         dom.subtabSeparacao.classList.remove('hidden');
-        dom.subtabAnalise.classList.add('hidden');        if (dom.tabBtnSeparacao) {
+        dom.subtabAnalise.classList.add('hidden');
+        if (dom.tabBtnSeparacao) {
             dom.tabBtnSeparacao.classList.add(...activeBtnClass);
             dom.tabBtnSeparacao.classList.remove(...inactiveBtnClass);
         }
@@ -117,76 +136,98 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         }
     } else {
         dom.subtabSeparacao.classList.add('hidden');
-        dom.subtabAnalise.classList.remove('hidden');        if (dom.tabBtnAnalise) {
+        dom.subtabAnalise.classList.remove('hidden');
+        if (dom.tabBtnAnalise) {
             dom.tabBtnAnalise.classList.add(...activeBtnClass);
             dom.tabBtnAnalise.classList.remove(...inactiveBtnClass);
         }
         if (dom.tabBtnSeparacao) {
             dom.tabBtnSeparacao.classList.remove(...activeBtnClass);
             dom.tabBtnSeparacao.classList.add(...inactiveBtnClass);
-        }        renderAnalysisTab();
+        }
+        renderAnalysisTab();
     }
-}async function renderAnalysisTab() {
+}
+
+async function renderAnalysisTab() {
     await ensureApexCharts();
-    const data = state.cacheData;    if (!data) return;    const rotasMap = new Map();
+    const data = state.cacheData;
+    if (!data) return;
+    const rotasMap = new Map();
     const docasMap = new Map();
     const timeMap = new Map();
-    const bipadorMap = new Map();    data.forEach(item => {        const r = item.ROTA || 'N/A';
-        if (!rotasMap.has(r)) rotasMap.set(r, { total: 0, ok: 0, pending: 0 });
+    const bipadorMap = new Map();
+    data.forEach(item => {
+        const r = item.ROTA || 'N/A';
+        if (!rotasMap.has(r)) rotasMap.set(r, {total: 0, ok: 0, pending: 0});
         const rStats = rotasMap.get(r);
         rStats.total++;
-        if (item.VALIDACAO === 'BIPADO') rStats.ok++; else rStats.pending++;        const d = item.DOCA ? String(item.DOCA).trim() : null;
+        if (item.VALIDACAO === 'BIPADO') rStats.ok++; else rStats.pending++;
+        const d = item.DOCA ? String(item.DOCA).trim() : null;
         const labelDoca = d || 'S/D';
-        if (!docasMap.has(labelDoca)) docasMap.set(labelDoca, { total: 0, pending: 0 });
+        if (!docasMap.has(labelDoca)) docasMap.set(labelDoca, {total: 0, pending: 0});
         const dStats = docasMap.get(labelDoca);
         dStats.total++;
-        if (item.VALIDACAO !== 'BIPADO') dStats.pending++;        const dateKey = getBrazilDateKey(item.DATA);
+        if (item.VALIDACAO !== 'BIPADO') dStats.pending++;
+        const dateKey = getBrazilDateKey(item.DATA);
         if (dateKey) {
-            if (!timeMap.has(dateKey)) timeMap.set(dateKey, { total: 0, ok: 0 });
+            if (!timeMap.has(dateKey)) timeMap.set(dateKey, {total: 0, ok: 0});
             const tStats = timeMap.get(dateKey);
             tStats.total++;
             if (item.VALIDACAO === 'BIPADO') tStats.ok++;
-        }        if (item.VALIDACAO === 'BIPADO' && item['BIPADO SAIDA']) {
+        }
+        if (item.VALIDACAO === 'BIPADO' && item['BIPADO SAIDA']) {
             const nome = item['BIPADO SAIDA'].trim();
             if (nome) {
                 bipadorMap.set(nome, (bipadorMap.get(nome) || 0) + 1);
             }
         }
-    });    const rotasArr = Array.from(rotasMap.entries()).map(([rota, st]) => ({
+    });
+    const rotasArr = Array.from(rotasMap.entries()).map(([rota, st]) => ({
         rota, ...st, assertividade: st.total > 0 ? (st.ok / st.total) * 100 : 0
-    }));    const timeArr = Array.from(timeMap.entries()).sort((a,b) => a[0].localeCompare(b[0]));    const totalGeral = rotasArr.reduce((acc, r) => acc + r.total, 0);
+    }));
+    const timeArr = Array.from(timeMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const totalGeral = rotasArr.reduce((acc, r) => acc + r.total, 0);
     const totalOk = rotasArr.reduce((acc, r) => acc + r.ok, 0);
-    const percentualGeral = totalGeral > 0 ? ((totalOk / totalGeral) * 100).toFixed(1) : 0;    const elKpiPerc = document.getElementById('kpi-percentual');
+    const percentualGeral = totalGeral > 0 ? ((totalOk / totalGeral) * 100).toFixed(1) : 0;
+    const elKpiPerc = document.getElementById('kpi-percentual');
     const elKpiBar = document.getElementById('kpi-percentual-bar');
-    if(elKpiPerc) elKpiPerc.innerText = `${percentualGeral}%`;
-    if(elKpiBar) elKpiBar.style.width = `${percentualGeral}%`;    const sortedByAssert = [...rotasArr].filter(r => r.total > 5).sort((a,b) => b.assertividade - a.assertividade);
+    if (elKpiPerc) elKpiPerc.innerText = `${percentualGeral}%`;
+    if (elKpiBar) elKpiBar.style.width = `${percentualGeral}%`;
+    const sortedByAssert = [...rotasArr].filter(r => r.total > 5).sort((a, b) => b.assertividade - a.assertividade);
     const bestRoute = sortedByAssert.length > 0 ? sortedByAssert[0] : (rotasArr[0] || {rota: '---'});
     const elKpiBest = document.getElementById('kpi-best-route');
-    if(elKpiBest) elKpiBest.innerText = `Rota ${bestRoute.rota}`;    const sortedByPending = [...rotasArr].filter(r => r.pending > 0).sort((a,b) => b.pending - a.pending);
+    if (elKpiBest) elKpiBest.innerText = `Rota ${bestRoute.rota}`;
+    const sortedByPending = [...rotasArr].filter(r => r.pending > 0).sort((a, b) => b.pending - a.pending);
     const worstRoute = sortedByPending.length > 0 ? sortedByPending[0] : null;
     const elKpiWorst = document.getElementById('kpi-worst-route');
-    if(elKpiWorst) {
+    if (elKpiWorst) {
         elKpiWorst.innerText = worstRoute ? `Rota ${worstRoute.rota}` : '100% OK';
         elKpiWorst.className = worstRoute ? 'text-xl font-bold text-red-600 truncate mt-0.5' : 'text-xl font-bold text-green-600 truncate mt-0.5';
-    }    const validDockIssues = Array.from(docasMap.entries())
-        .map(([doca, st]) => ({ doca, ...st }))
+    }
+    const validDockIssues = Array.from(docasMap.entries())
+        .map(([doca, st]) => ({doca, ...st}))
         .filter(d => d.doca !== 'S/D' && d.doca !== '---' && d.pending > 0)
-        .sort((a,b) => b.pending - a.pending);    const worstDock = validDockIssues.length > 0 ? validDockIssues[0] : null;
+        .sort((a, b) => b.pending - a.pending);
+    const worstDock = validDockIssues.length > 0 ? validDockIssues[0] : null;
     const elKpiDock = document.getElementById('kpi-worst-dock');
-    if(elKpiDock) {
+    if (elKpiDock) {
         elKpiDock.innerText = worstDock ? `${worstDock.doca}` : '100% OK';
         elKpiDock.className = worstDock ? 'text-xl font-bold text-red-600 truncate mt-0.5' : 'text-xl font-bold text-green-600 truncate mt-0.5';
-    }    let bestBipadorName = '---';
+    }
+    let bestBipadorName = '---';
     let bestBipadorCount = 0;
-    const bipadoresArr = Array.from(bipadorMap.entries()).map(([nome, count]) => ({ nome, count }));
-    bipadoresArr.sort((a, b) => b.count - a.count);    if (bipadoresArr.length > 0) {
+    const bipadoresArr = Array.from(bipadorMap.entries()).map(([nome, count]) => ({nome, count}));
+    bipadoresArr.sort((a, b) => b.count - a.count);
+    if (bipadoresArr.length > 0) {
         bestBipadorName = bipadoresArr[0].nome;
         bestBipadorCount = bipadoresArr[0].count;
     }
     const elKpiBipador = document.getElementById('kpi-best-bipador');
-    if(elKpiBipador) elKpiBipador.innerText = bestBipadorName !== '---' ? `${bestBipadorName} (${bestBipadorCount})` : '---';    renderChart('chart-timeline', 'timeline', {
+    if (elKpiBipador) elKpiBipador.innerText = bestBipadorName !== '---' ? `${bestBipadorName} (${bestBipadorCount})` : '---';
+    renderChart('chart-timeline', 'timeline', {
         series: [
-            { name: 'Volume', type: 'column', data: timeArr.map(t => t[1].total) },
+            {name: 'Volume', type: 'column', data: timeArr.map(t => t[1].total)},
             {
                 name: 'Assertividade (%)',
                 type: 'line',
@@ -203,58 +244,65 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
                 return `${parts[2]}/${parts[1]}`;
             })
         },
-        chart: { type: 'line', height: 250 },
-        dataLabels: { enabled: true, enabledOnSeries: [1], formatter: (val) => val + "%" },
+        chart: {type: 'line', height: 250},
+        dataLabels: {enabled: true, enabledOnSeries: [1], formatter: (val) => val + "%"},
         colors: ['#e5e7eb', '#16a34a'],
-        stroke: { width: [0, 4] },
+        stroke: {width: [0, 4]},
         yaxis: [
-            { title: { text: 'Volume' } },
-            { opposite: true, title: { text: 'Assertividade' }, max: 100 }
+            {title: {text: 'Volume'}},
+            {opposite: true, title: {text: 'Assertividade'}, max: 100}
         ]
-    });    const top5Assert = sortedByAssert.slice(0, 5);
+    });
+    const top5Assert = sortedByAssert.slice(0, 5);
     renderChart('chart-top-routes', 'topRoutes', {
-        series: [{ name: 'Assertividade (%)', data: top5Assert.map(r => r.assertividade.toFixed(1)) }],
-        xaxis: { categories: top5Assert.map(r => r.rota) },
-        chart: { type: 'bar', height: 220 },
+        series: [{name: 'Assertividade (%)', data: top5Assert.map(r => r.assertividade.toFixed(1))}],
+        xaxis: {categories: top5Assert.map(r => r.rota)},
+        chart: {type: 'bar', height: 220},
         colors: ['#2563eb'],
-        dataLabels: { enabled: true, formatter: (val) => val + "%", style: { colors: ['#fff'] } },
-        plotOptions: { bar: { borderRadius: 4, horizontal: true } }
-    });    const top5Pending = sortedByPending.slice(0, 5);
+        dataLabels: {enabled: true, formatter: (val) => val + "%", style: {colors: ['#fff']}},
+        plotOptions: {bar: {borderRadius: 4, horizontal: true}}
+    });
+    const top5Pending = sortedByPending.slice(0, 5);
     renderChart('chart-pending-routes', 'pendingRoutes', {
-        series: [{ name: 'Pendentes', data: top5Pending.map(r => r.pending) }],
-        xaxis: { categories: top5Pending.map(r => r.rota) },
-        chart: { type: 'bar', height: 220 },
-        dataLabels: { enabled: true, style: { colors: ['#fff'] } },
+        series: [{name: 'Pendentes', data: top5Pending.map(r => r.pending)}],
+        xaxis: {categories: top5Pending.map(r => r.rota)},
+        chart: {type: 'bar', height: 220},
+        dataLabels: {enabled: true, style: {colors: ['#fff']}},
         colors: ['#ef4444'],
-        plotOptions: { bar: { borderRadius: 4, horizontal: false } }
-    });    const top5Bipadores = bipadoresArr.slice(0, 5);
+        plotOptions: {bar: {borderRadius: 4, horizontal: false}}
+    });
+    const top5Bipadores = bipadoresArr.slice(0, 5);
     renderChart('chart-top-bipadores', 'dockIssues', {
-        series: [{ name: 'Volume Saída', data: top5Bipadores.map(b => b.count) }],
+        series: [{name: 'Volume Saída', data: top5Bipadores.map(b => b.count)}],
         xaxis: {
             categories: top5Bipadores.map(b => {
                 const parts = b.nome.split(' ');
                 return parts[0];
             })
         },
-        chart: { type: 'bar', height: 220 },
-        dataLabels: { enabled: true, style: { colors: ['#fff'] } },
+        chart: {type: 'bar', height: 220},
+        dataLabels: {enabled: true, style: {colors: ['#fff']}},
         colors: ['#8b5cf6'],
-        plotOptions: { bar: { borderRadius: 4, horizontal: false } },
+        plotOptions: {bar: {borderRadius: 4, horizontal: false}},
         tooltip: {
-            y: { formatter: (val) => val + " bipagens" }
+            y: {formatter: (val) => val + " bipagens"}
         }
     });
-}function renderChart(domId, chartKey, options) {
+}
+
+function renderChart(domId, chartKey, options) {
     const defaultOpts = {
-        chart: { toolbar: { show: false }, fontFamily: 'inherit' },
-        dataLabels: { enabled: false },        grid: { show: false, padding: { left: 0, right: 0 } }
-    };    const finalOpts = {
+        chart: {toolbar: {show: false}, fontFamily: 'inherit'},
+        dataLabels: {enabled: false}, grid: {show: false, padding: {left: 0, right: 0}}
+    };
+    const finalOpts = {
         ...defaultOpts,
         ...options,
-        chart: { ...defaultOpts.chart, ...options.chart },
-        dataLabels: { ...defaultOpts.dataLabels, ...(options.dataLabels || {}) },
-        grid: { ...defaultOpts.grid, ...(options.grid || {}) }
-    };    if (state.charts[chartKey]) {
+        chart: {...defaultOpts.chart, ...options.chart},
+        dataLabels: {...defaultOpts.dataLabels, ...(options.dataLabels || {})},
+        grid: {...defaultOpts.grid, ...(options.grid || {})}
+    };
+    if (state.charts[chartKey]) {
         state.charts[chartKey].updateOptions(finalOpts);
     } else {
         const el = document.getElementById(domId);
@@ -263,7 +311,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             state.charts[chartKey].render();
         }
     }
-}function createImportarModal() {
+}
+
+function createImportarModal() {
     if (document.getElementById('modal-importar-consolidado')) return;
     const modal = document.createElement('div');
     modal.id = 'modal-importar-consolidado';
@@ -294,7 +344,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     dom.importTextarea = modal.querySelector('#importar-textarea');
     dom.importSubmitBtn = modal.querySelector('#importar-submit-btn');
     dom.importStatus = modal.querySelector('#importar-status');
-}async function handleImportarConsolidado() {
+}
+
+async function handleImportarConsolidado() {
     if (state.isImporting) return;
     const rawText = dom.importTextarea.value;
     if (!rawText || !rawText.trim()) {
@@ -369,7 +421,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         dom.importSubmitBtn.disabled = false;
         dom.importSubmitBtn.textContent = 'Importar Dados';
     }
-}function loadOutbox() {
+}
+
+function loadOutbox() {
     try {
         const raw = localStorage.getItem(OUTBOX_KEY);
         outbox = raw ? JSON.parse(raw) : {queue: [], sending: false};
@@ -377,12 +431,16 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } catch {
         outbox = {queue: [], sending: false};
     }
-}function saveOutbox() {
+}
+
+function saveOutbox() {
     try {
         localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
     } catch {
     }
-}function installNetworkBanner() {
+}
+
+function installNetworkBanner() {
     if (document.getElementById('net-banner')) return;
     const wrap = document.createElement('div');
     wrap.id = 'net-banner';
@@ -400,34 +458,50 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     dom.netCloseBtn = wrap.querySelector('#net-close');
     dom.netForceBtn.addEventListener('click', () => processOutbox(true));
     dom.netCloseBtn.addEventListener('click', () => hideNetBanner());
-}function showNetBanner(msg) {
+}
+
+function showNetBanner(msg) {
     if (!dom.netBanner) installNetworkBanner();
     if (dom.netMsg && msg) dom.netMsg.textContent = msg;
     dom.netBanner.classList.remove('hidden');
-}function updateNetBannerCount() {
+}
+
+function updateNetBannerCount() {
     const n = outbox.queue.length;
     showNetBanner(`Falha na conexão com a rede… Tentando registrar (${n} na fila)`);
-}function hideNetBannerSoon(okMsg = 'Tudo certo: itens enviados') {
+}
+
+function hideNetBannerSoon(okMsg = 'Tudo certo: itens enviados') {
     if (!dom.netBanner) return;
     if (dom.netMsg) dom.netMsg.textContent = okMsg;
     setTimeout(() => dom.netBanner.classList.add('hidden'), 1500);
-}function hideNetBanner() {
+}
+
+function hideNetBanner() {
     dom.netBanner?.classList.add('hidden');
-}function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
+}
+
+function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const merged = {...opt, signal: ctrl.signal};
     return fetch(url, merged).finally(() => clearTimeout(t));
-}function isNetworkLikeError(err) {
+}
+
+function isNetworkLikeError(err) {
     const s = String(err?.message || err || '').toLowerCase();
     return s.includes('network') || s.includes('failed to fetch') || s.includes('abort') || s.includes('timeout');
-}function enqueueTask(task) {
+}
+
+function enqueueTask(task) {
     loadOutbox();
     outbox.queue.push(task);
     saveOutbox();
     updateNetBannerCount();
     setTimeout(() => processOutbox(), 1200);
-}async function processOutbox(force = false) {
+}
+
+async function processOutbox(force = false) {
     loadOutbox();
     if (outbox.sending) return;
     if (!force && !navigator.onLine) {
@@ -479,7 +553,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         if (outbox.queue.length === 0) hideNetBannerSoon();
         else updateNetBannerCount();
     }
-}async function tryPostOrQueue(kind, url, body) {
+}
+
+async function tryPostOrQueue(kind, url, body) {
     try {
         const res = await fetchWithTimeout(url, {
             method: 'POST',
@@ -506,7 +582,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         }
         throw err;
     }
-}function handleOutboxSepSuccess(ev) {
+}
+
+function handleOutboxSepSuccess(ev) {
     const {json} = ev.detail || {};
     try {
         const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json || {};
@@ -531,7 +609,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } catch (e) {
         console.error('[Outbox] pós-sucesso separação falhou:', e);
     }
-}function handleOutboxCarSuccess(ev) {
+}
+
+function handleOutboxCarSuccess(ev) {
     const {json} = ev.detail || {};
     try {
         const {updatedData, idempotent, message} = json || {};
@@ -555,7 +635,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } catch (e) {
         console.error('[Outbox] pós-sucesso carregamento falhou:', e);
     }
-}function getBrasiliaDate(asDateObject = false) {
+}
+
+function getBrasiliaDate(asDateObject = false) {
     const date = new Date();
     const formatter = new Intl.DateTimeFormat('sv-SE', {
         timeZone: BRASILIA_TIMEZONE,
@@ -568,27 +650,37 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         return new Date(parts[0], parts[1] - 1, parts[2]);
     }
     return formatter.format(date);
-}function clampEndToToday(startStr, endStr) {
+}
+
+function clampEndToToday(startStr, endStr) {
     const todayISO = getBrasiliaDate(false);
     if (endStr > todayISO) endStr = todayISO;
     if (startStr > endStr) startStr = endStr;
     return [startStr, endStr];
-}function toast(message, type = 'info') {
+}
+
+function toast(message, type = 'info') {
     console.warn(`TOAST (${type}):`, message);
     alert(message);
-}function buildFunctionHeaders() {
+}
+
+function buildFunctionHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}function buildSelectHeaders() {
+}
+
+function buildSelectHeaders() {
     return {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}function formatarDataHack(isoString, formatOptions) {
+}
+
+function formatarDataHack(isoString, formatOptions) {
     if (!isoString) return '---';
     try {
         let dt;
@@ -602,7 +694,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } catch {
         return '---';
     }
-}function formatarDataHora(isoString) {
+}
+
+function formatarDataHora(isoString) {
     const options = {
         day: '2-digit',
         month: '2-digit',
@@ -612,7 +706,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         second: '2-digit'
     };
     return formatarDataHack(isoString, options);
-}function formatarDataInicio(isoString) {
+}
+
+function formatarDataInicio(isoString) {
     if (!isoString) return '---';
     const options = {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'};
     try {
@@ -620,13 +716,19 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } catch {
         return '---';
     }
-}function waitForPaint() {
+}
+
+function waitForPaint() {
     return new Promise((r) => {
         requestAnimationFrame(() => requestAnimationFrame(r));
     });
-}function sleep(ms) {
+}
+
+function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
-}async function printCurrentQr() {
+}
+
+async function printCurrentQr() {
     if (!dom.sepQrArea || dom.sepQrArea.style.display === 'none') {
         setSepStatus("Primeiro gere um QR Code para imprimir.", {error: true});
         return;
@@ -636,12 +738,16 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     await waitForPaint();
     await sleep(400);
     window.print();
-}function extractElevenDigits(str) {
+}
+
+function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, '');
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}function normalizeScanned(input) {
+}
+
+function normalizeScanned(input) {
     if (!input) return '';
     const s = String(input).trim();
     if (s.startsWith('{') && s.endsWith('}')) {
@@ -657,7 +763,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}function openModal(modal) {
+}
+
+function openModal(modal) {
     if (!modal || !modal.classList.contains('hidden')) return;
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
@@ -687,7 +795,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     modal.addEventListener('click', modal._bound.onOverlayClick, true);
     const first = modal.querySelector('input, button, textarea, [tabindex]:not([tabindex="-1"])');
     if (first) setTimeout(() => first.focus(), 50);
-}function closeModal(modal) {
+}
+
+function closeModal(modal) {
     if (!modal || modal.classList.contains('hidden')) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add('hidden');
@@ -695,12 +805,16 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     if (modal._bound?.onKeyDown) document.removeEventListener('keydown', modal._bound.onKeyDown);
     if (modal._bound?.onOverlayClick) modal.removeEventListener('click', modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}function resetSeparacaoModal() {
+}
+
+function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = '';
     setSepStatus('');
     clearSepQrCanvas();
-}function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
+}
+
+function resetCarregamentoModal({preserveUser = true, preserveDock = true} = {}) {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (!preserveUser && dom.carUser) dom.carUser.value = '';
     if (!preserveDock) {
@@ -711,7 +825,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = '';
     if (dom.carScan) dom.carScan.value = '';
     setCarStatus('');
-}function showScannerFeedback(type, message, sticky = false) {
+}
+
+function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector('span');
     if (textEl) textEl.textContent = message;
@@ -725,7 +841,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         dom.scannerFeedbackCloseBtn.style.display = 'block';
         if (!sticky) setTimeout(() => dom.scannerFeedbackOverlay.classList.add('hidden'), 1500);
     }
-}function showScannerConfirm(decodedText, onYes, onNo) {
+}
+
+function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -744,7 +862,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     };
     dom.scannerConfirmYesBtn.addEventListener('click', yesHandler);
     dom.scannerConfirmNoBtn.addEventListener('click', noHandler);
-}function createGlobalScannerModal() {
+}
+
+function createGlobalScannerModal() {
     if (document.getElementById('auditoria-scanner-modal')) return;
     const modal = document.createElement('div');
     modal.id = 'auditoria-scanner-modal';
@@ -816,7 +936,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             }
         }
     });
-}function injectScannerButtons() {
+}
+
+function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [
         {input: dom.sepScan, id: 'sep-cam-btn'},
@@ -837,7 +959,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     });
     dom.sepCamBtn?.addEventListener('click', () => startGlobalScanner('separacao'));
     dom.carCamBtn?.addEventListener('click', () => startGlobalScanner('carregamento'));
-}function startGlobalScanner(targetModal) {
+}
+
+function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -890,7 +1014,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         setCarStatus("Erro ao iniciar câmera.", {error: true});
         stopGlobalScanner();
     }
-}function stopGlobalScanner() {
+}
+
+function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add('hidden');
         if (dom._currentModal) {
@@ -918,7 +1044,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}async function onGlobalScanSuccess(decodedText) {
+}
+
+async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -945,8 +1073,12 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             state.globalScannerInstance?.resume();
         }
     );
-}function onGlobalScanError(_) {
-}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+}
+
+function onGlobalScanError(_) {
+}
+
+async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {id_pacote: idPacote, data_scan: dataScan, usuario_entrada: usuarioEntrada};
     const response = await fetch(FUNC_SEPARACAO_URL, {
         method: 'POST',
@@ -958,7 +1090,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         throw new Error(json?.error || 'Erro desconhecido');
     }
     return json;
-}async function handleSeparacaoFromScanner(idPacote) {
+}
+
+async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
     const usuarioEntrada = dom.sepUser?.value?.trim();
     if (!usuarioEntrada) {
@@ -1018,18 +1152,24 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } finally {
         state.isSeparaçãoProcessing = false;
     }
-}function handleSepUserKeydown(e) {
+}
+
+function handleSepUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}function parseBulkEntries(raw) {
+}
+
+function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map(s => s.trim())
         .filter(s => s.length > 0);
-}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}
+
+async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
     let ok = 0, fail = 0, dup = 0, queued = 0;
     state.isSeparaçãoProcessing = true;
@@ -1083,7 +1223,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}async function handleSeparaçãoSubmit(e) {
+}
+
+async function handleSeparaçãoSubmit(e) {
     if (e.key !== 'Enter') return;
     if (state.isSeparaçãoProcessing) return;
     e.preventDefault();
@@ -1148,14 +1290,20 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}function setCarStatus(message, {error = false} = {}) {
+}
+
+function setCarStatus(message, {error = false} = {}) {
     if (!dom.carStatus) return;
     dom.carStatus.textContent = message;
     dom.carStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.carStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function formatDockLabel(n) {
+}
+
+function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, '0')}`;
-}function ensureDockSelect() {
+}
+
+function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById('car-dock-select');
     if (!dom.carDockSelect) {
@@ -1195,7 +1343,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     dom.carDockSelect.addEventListener('change', () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}function ensureIlhaSelect() {
+}
+
+function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById('car-ilha-select');
     if (!dom.carIlhaSelect) {
@@ -1220,7 +1370,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     dom.carIlhaSelect.addEventListener('change', () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}function populateIlhaSelect() {
+}
+
+function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [...new Set(state.cacheData.map(item => item.ROTA).filter(Boolean))];
     rotas.sort();
@@ -1239,7 +1391,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
+}
+
+async function processarValidacao(idPacoteScaneado, rotaSelecionada, usuarioSaida, doca) {
     const body = {id_pacote: idPacoteScaneado, rota_selecionada: rotaSelecionada, usuario_saida: usuarioSaida, doca};
     const response = await fetch(FUNC_CARREGAMENTO_URL, {
         method: 'POST',
@@ -1256,7 +1410,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         throw new Error(msg);
     }
     return json || {};
-}function handleCarUserKeydown(e) {
+}
+
+function handleCarUserKeydown(e) {
     if (e.key === 'Enter') {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -1267,7 +1423,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             dom.carScan.focus();
         }
     }
-}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+}
+
+async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
@@ -1304,7 +1462,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         const msg = String(err?.message || err);
         return {success: false, message: `Erro: ${msg}`};
     }
-}async function handleCarregamentoFromScanner(decodedText) {
+}
+
+async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
     const cleaned = normalizeScanned(decodedText);
     try {
@@ -1326,7 +1486,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     } finally {
         state.isCarregamentoProcessing = false;
     }
-}async function handleCarregamentoSubmit(e) {
+}
+
+async function handleCarregamentoSubmit(e) {
     if (e.key !== 'Enter' || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -1361,32 +1523,49 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             dom.carScan.focus();
         }
     }
-}async function fetchDashboardData() {    if (!state.period.start || !state.period.end) {
+}
+
+async function fetchDashboardData() {
+    if (!state.period.start || !state.period.end) {
         const today = new Date();
-        const endISO = getBrasiliaDate(false);        const startObj = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endISO = getBrasiliaDate(false);
+        const startObj = new Date(today.getFullYear(), today.getMonth(), 1);
         const formatter = new Intl.DateTimeFormat('sv-SE', {
             timeZone: 'America/Sao_Paulo',
             year: 'numeric',
             month: '2-digit',
             day: '2-digit'
         });
-        const startISO = formatter.format(startObj);        state.period.start = startISO;
+        const startISO = formatter.format(startObj);
+        state.period.start = startISO;
         state.period.end = endISO;
         updatePeriodLabel();
-    }    const startDate = `${state.period.start}T00:00:00-03:00`;
-    const endDate = `${state.period.end}T23:59:59-03:00`;    const baseParams = new URLSearchParams();
+    }
+    const startDate = `${state.period.start}T00:00:00-03:00`;
+    const endDate = `${state.period.end}T23:59:59-03:00`;
+    const baseParams = new URLSearchParams();
     baseParams.append('select', '*');
     baseParams.append('DATA', `gte.${startDate}`);
     baseParams.append('DATA', `lte.${endDate}`);
-    baseParams.append('order', 'DATA.desc');    const pageSize = 1000;
+    baseParams.append('order', 'DATA.desc');
+    const pageSize = 1000;
     let offset = 0;
-    let allRows = [];    try {
+    let allRows = [];
+    try {
         while (true) {
             const params = new URLSearchParams(baseParams);
             params.append('limit', String(pageSize));
-            params.append('offset', String(offset));            const url = `${SUPABASE_URL}/rest/v1/Carregamento?${params.toString()}`;            const response = await fetch(url, { headers: buildSelectHeaders() });
-            if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);            const page = await response.json();            allRows = allRows.concat(page);            if (page.length < pageSize) break;            offset += pageSize;            if (offset >= 50000) break;
-        }        state.cacheData = allRows;
+            params.append('offset', String(offset));
+            const url = `${SUPABASE_URL}/rest/v1/Carregamento?${params.toString()}`;
+            const response = await fetch(url, {headers: buildSelectHeaders()});
+            if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);
+            const page = await response.json();
+            allRows = allRows.concat(page);
+            if (page.length < pageSize) break;
+            offset += pageSize;
+            if (offset >= 50000) break;
+        }
+        state.cacheData = allRows;
         state.idPacoteMap.clear();
         for (const item of allRows) {
             const id = extractElevenDigits(item['ID PACOTE']);
@@ -1399,7 +1578,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
                 `<p class="text-red-500 text-xs p-2">Erro ao carregar dados.</p>`;
         }
     }
-}function processDashboardData(data) {
+}
+
+function processDashboardData(data) {
     if (!data || data.length === 0) return [];
     const rotasMap = new Map();
     for (const item of data) {
@@ -1454,19 +1635,29 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     }
     rotasConsolidadas.sort((a, b) => a.percentual - b.percentual);
     return rotasConsolidadas;
-}function renderDashboard() {
+}
+
+function renderDashboard() {
     const summaryContainer = dom.summaryContainer;
-    const routesContainer = dom.routesContainer;    if (!summaryContainer || !routesContainer) return;    const todayISO = getBrasiliaDate(false);
-    const todayFormatted = todayISO.split('-').reverse().join('/');    const operacaoData = state.cacheData.filter(item => {
+    const routesContainer = dom.routesContainer;
+    if (!summaryContainer || !routesContainer) return;
+    const todayISO = getBrasiliaDate(false);
+    const todayFormatted = todayISO.split('-').reverse().join('/');
+    const operacaoData = state.cacheData.filter(item => {
         const itemDate = getBrazilDateKey(item.DATA);
         return itemDate === todayISO;
-    });    const rotasConsolidadas = processDashboardData(operacaoData);    const totalGeralPacotes = rotasConsolidadas.reduce((acc, r) => acc + r.total, 0);
+    });
+    const rotasConsolidadas = processDashboardData(operacaoData);
+    const totalGeralPacotes = rotasConsolidadas.reduce((acc, r) => acc + r.total, 0);
     const totalGeralVerificados = rotasConsolidadas.reduce((acc, r) => acc + r.verificados, 0);
-    const totalGeralPendentes = totalGeralPacotes - totalGeralVerificados;    const percVerificados = totalGeralPacotes > 0
+    const totalGeralPendentes = totalGeralPacotes - totalGeralVerificados;
+    const percVerificados = totalGeralPacotes > 0
         ? (totalGeralVerificados / totalGeralPacotes) * 100
-        : 0;    const percPendentes = totalGeralPacotes > 0
+        : 0;
+    const percPendentes = totalGeralPacotes > 0
         ? (totalGeralPendentes / totalGeralPacotes) * 100
-        : 0;    let resumoHtml = `
+        : 0;
+    let resumoHtml = `
     <div class="flex items-center justify-between mb-2">
          <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
             Visão: ${todayFormatted}
@@ -1502,14 +1693,17 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         </div>
     </div>
     `;
-    summaryContainer.innerHTML = resumoHtml;    if (rotasConsolidadas.length === 0) {
+    summaryContainer.innerHTML = resumoHtml;
+    if (rotasConsolidadas.length === 0) {
         routesContainer.innerHTML = `
             <div class="text-center py-8 bg-white rounded-lg border border-dashed border-gray-200">
                 <p class="text-sm text-gray-400">Sem movimentação hoje.</p>
             </div>`;
         return;
-    }    const concluidaIcon = `<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
-    const emAndamentoIcon = `<svg class="w-4 h-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;    let rotasHtml = '<div class="space-y-2">';
+    }
+    const concluidaIcon = `<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
+    const emAndamentoIcon = `<svg class="w-4 h-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+    let rotasHtml = '<div class="space-y-2">';
     for (const rota of rotasConsolidadas) {
         const statusHtml = rota.concluida
             ? `<div class="flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded text-green-700 text-[10px] font-bold border border-green-100">OK</div>`
@@ -1553,22 +1747,31 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         </div>`;
     }
     rotasHtml += '</div>';
-    routesContainer.innerHTML = rotasHtml;    routesContainer.querySelectorAll('.rota-card').forEach(card => {
+    routesContainer.innerHTML = rotasHtml;
+    routesContainer.querySelectorAll('.rota-card').forEach(card => {
         card.addEventListener('dblclick', () => {
             const rota = card.getAttribute('data-rota');
             openRelatorioModal(rota);
         });
     });
-}async function fetchAndRenderDashboard() {
+}
+
+async function fetchAndRenderDashboard() {
     await fetchDashboardData();
-    renderDashboard();    if (!dom.subtabAnalise.classList.contains('hidden')) {
+    renderDashboard();
+    if (!dom.subtabAnalise.classList.contains('hidden')) {
         renderAnalysisTab();
     }
-}function reorderControlsOverDashboard() {
+}
+
+function reorderControlsOverDashboard() {
     const container = document.getElementById('extra-controls-container');
-    if (!container) return;    if (!dom.btnImportarConsolidado) {
+    if (!container) return;
+    if (!dom.btnImportarConsolidado) {
         const btn3 = document.createElement('button');
-        btn3.id = 'btn-importar-consolidado';        btn3.className = 'group relative overflow-hidden bg-white border border-purple-200 hover:border-purple-400 p-3 rounded-lg shadow-sm hover:shadow-md transition-all text-left flex items-center gap-3 h-full w-full';        btn3.innerHTML = `
+        btn3.id = 'btn-importar-consolidado';
+        btn3.className = 'group relative overflow-hidden bg-white border border-purple-200 hover:border-purple-400 p-3 rounded-lg shadow-sm hover:shadow-md transition-all text-left flex items-center gap-3 h-full w-full';
+        btn3.innerHTML = `
             <div class="bg-purple-50 p-2 rounded-lg group-hover:bg-purple-600 transition-colors flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -1580,28 +1783,35 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             </div>
         `;
         dom.btnImportarConsolidado = btn3;
-        container.appendChild(btn3);        btn3.addEventListener('click', () => {
-             if (dom.importStatus) dom.importStatus.textContent = '';
-             if (dom.importTextarea) dom.importTextarea.value = '';
-             state.isImporting = false;
-             if (dom.importSubmitBtn) {
-                 dom.importSubmitBtn.disabled = false;
-                 dom.importSubmitBtn.textContent = 'Importar Dados';
-             }
-             openModal(dom.modalImportar);
+        container.appendChild(btn3);
+        btn3.addEventListener('click', () => {
+            if (dom.importStatus) dom.importStatus.textContent = '';
+            if (dom.importTextarea) dom.importTextarea.value = '';
+            state.isImporting = false;
+            if (dom.importSubmitBtn) {
+                dom.importSubmitBtn.disabled = false;
+                dom.importSubmitBtn.textContent = 'Importar Dados';
+            }
+            openModal(dom.modalImportar);
         });
     }
-}function setSepStatus(message, {error = false} = {}) {
+}
+
+function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
     dom.sepStatus.textContent = message;
     dom.sepStatus.classList.remove('text-red-600', 'text-green-600', 'text-gray-500');
     dom.sepStatus.classList.add(error ? 'text-red-600' : 'text-green-600');
-}function clearSepQrCanvas() {
+}
+
+function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = '';
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = '';
     if (dom.sepQrArea) dom.sepQrArea.style.display = 'none';
     state.lastPrintData = null;
-}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+}
+
+function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
             console.warn('DOM do QR Code não encontrado, pulando geração.');
@@ -1650,7 +1860,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             reject(err);
         }
     });
-}function createRelatorioModal() {
+}
+
+function createRelatorioModal() {
     if (document.getElementById('modal-relatorio-rota')) return;
     const modal = document.createElement('div');
     modal.id = 'modal-relatorio-rota';
@@ -1674,7 +1886,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     dom.relatorioModalClose?.addEventListener('click', () => {
         closeModal(dom.relatorioModal);
     });
-}function openRelatorioModal(rota) {
+}
+
+function openRelatorioModal(rota) {
     if (!dom.relatorioModal || !rota) return;
     const items = state.cacheData.filter(item => item.ROTA === rota);
     dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;
@@ -1715,7 +1929,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     tableHtml += `</tbody></table>`;
     dom.relatorioBody.innerHTML = tableHtml;
     openModal(dom.relatorioModal);
-}function updatePeriodLabel() {
+}
+
+function updatePeriodLabel() {
     if (!dom.periodBtn) return;
     if (!state.period.start || !state.period.end) {
         dom.periodBtn.textContent = 'Selecionar Período';
@@ -1732,7 +1948,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     const start = format(state.period.start);
     const end = format(state.period.end);
     dom.periodBtn.textContent = (start === end) ? `Período: ${start}` : `Período: ${start} - ${end}`;
-}function openPeriodModal() {
+}
+
+function openPeriodModal() {
     const today = getBrasiliaDate(true);
     const pad2 = (n) => String(n).padStart(2, '0');
     const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -1741,7 +1959,8 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
     const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-    const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);    const overlay = document.createElement('div');
+    const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const overlay = document.createElement('div');
     overlay.id = 'cd-period-overlay';
     overlay.innerHTML = `
       <div class="cdp-card">
@@ -1789,7 +2008,8 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     overlay.addEventListener('click', (ev) => {
         if (ev.target === overlay) close();
     });
-    btnCancel.onclick = close;    overlay.querySelector('#cdp-today').onclick = () => {
+    btnCancel.onclick = close;
+    overlay.querySelector('#cdp-today').onclick = () => {
         const iso = toISO(getBrasiliaDate(true));
         [state.period.start, state.period.end] = [iso, iso];
         updatePeriodLabel();
@@ -1837,7 +2057,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         close();
         fetchAndRenderDashboard();
     };
-}function injectAuditoriaStyles() {
+}
+
+function injectAuditoriaStyles() {
     if (document.getElementById('auditoria-styles')) return;
     const style = document.createElement('style');
     style.id = 'auditoria-styles';
@@ -1869,16 +2091,26 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }
     `;
     document.head.appendChild(style);
-}let initOnce = false;export function init() {
+}
+
+let initOnce = false;
+
+export function init() {
     if (initOnce) return;
-    initOnce = true;    dom.dashboard = document.getElementById('dashboard-stats');    dom.tabBtnSeparacao = document.getElementById('tab-btn-separacao');
+    initOnce = true;
+    dom.dashboard = document.getElementById('dashboard-stats');
+    dom.tabBtnSeparacao = document.getElementById('tab-btn-separacao');
     dom.tabBtnAnalise = document.getElementById('tab-btn-analise');
     dom.subtabSeparacao = document.getElementById('subtab-separacao');
-    dom.subtabAnalise = document.getElementById('subtab-analise');    dom.summaryContainer = document.getElementById('auditoria-summary');
-    dom.routesContainer = document.getElementById('auditoria-routes');    if (!dom.summaryContainer) dom.summaryContainer = document.getElementById('dashboard-stats');
-    if (!dom.routesContainer) dom.routesContainer = document.getElementById('dashboard-stats');    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
+    dom.subtabAnalise = document.getElementById('subtab-analise');
+    dom.summaryContainer = document.getElementById('auditoria-summary');
+    dom.routesContainer = document.getElementById('auditoria-routes');
+    if (!dom.summaryContainer) dom.summaryContainer = document.getElementById('dashboard-stats');
+    if (!dom.routesContainer) dom.routesContainer = document.getElementById('dashboard-stats');
+    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
-    dom.periodBtn = document.getElementById('auditoria-period-btn');    dom.modalSeparação = document.getElementById('modal-separacao');
+    dom.periodBtn = document.getElementById('auditoria-period-btn');
+    dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
     dom.sepUser = document.getElementById('sep-user-name');
     dom.sepScan = document.getElementById('sep-scan-input');
@@ -1886,11 +2118,13 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     dom.sepQrArea = document.getElementById('sep-qr-area');
     dom.sepQrTitle = document.getElementById('sep-qr-title');
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
-    dom.sepPrintBtn = document.getElementById('sep-print-btn');    dom.modalCarregamento = document.getElementById('modal-carregamento');
+    dom.sepPrintBtn = document.getElementById('sep-print-btn');
+    dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
-    dom.carStatus = document.getElementById('car-status');    injectAuditoriaStyles();
+    dom.carStatus = document.getElementById('car-status');
+    injectAuditoriaStyles();
     const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
@@ -1900,9 +2134,12 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     createImportarModal();
     injectScannerButtons();
     ensureDockSelect();
-    ensureIlhaSelect();    dom.tabBtnSeparacao?.addEventListener('click', () => switchTab('separacao'));
-    dom.tabBtnAnalise?.addEventListener('click', () => switchTab('analise'));    reorderControlsOverDashboard();
-    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnImportarConsolidado?.addEventListener('click', () => {
+    ensureIlhaSelect();
+    dom.tabBtnSeparacao?.addEventListener('click', () => switchTab('separacao'));
+    dom.tabBtnAnalise?.addEventListener('click', () => switchTab('analise'));
+    reorderControlsOverDashboard();
+    dom.periodBtn?.addEventListener('click', openPeriodModal);
+    dom.btnImportarConsolidado?.addEventListener('click', () => {
         if (dom.importStatus) dom.importStatus.textContent = '';
         if (dom.importTextarea) dom.importTextarea.value = '';
         state.isImporting = false;
@@ -1911,13 +2148,16 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             dom.importSubmitBtn.textContent = 'Importar Dados';
         }
         openModal(dom.modalImportar);
-    });    dom.importCloseBtn?.addEventListener('click', () => closeModal(dom.modalImportar));
-    dom.importSubmitBtn?.addEventListener('click', handleImportarConsolidado);    dom.btnSeparação?.addEventListener('click', () => {
+    });
+    dom.importCloseBtn?.addEventListener('click', () => closeModal(dom.modalImportar));
+    dom.importSubmitBtn?.addEventListener('click', handleImportarConsolidado);
+    dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) dom.sepUser.focus();
         else dom.sepScan?.focus();
-    });    dom.btnCarregamento?.addEventListener('click', () => {
+    });
+    dom.btnCarregamento?.addEventListener('click', () => {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
         populateIlhaSelect();
         openModal(dom.modalCarregamento);
@@ -1925,7 +2165,8 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
-    });    dom.modalSepClose?.addEventListener('click', (ev) => {
+    });
+    dom.modalSepClose?.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalSeparação);
@@ -1936,10 +2177,12 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-    });    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
+    });
+    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
-    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener('click', async () => {
+    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
+    dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             if (state.lastPrintData) {
                 setSepStatus('Reimprimindo...');
@@ -1957,7 +2200,8 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
             console.error('Falha ao reimprimir etiqueta:', e);
             setSepStatus(`Erro ao reimprimir: ${e.message}`, {error: true});
         }
-    });    document.addEventListener('keydown', (e) => {
+    });
+    document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
                 e.preventDefault();
@@ -1967,14 +2211,16 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
                 dom.sepScan.focus();
             }
         }
-    });    [dom.sepScan, dom.carScan].forEach(inp => {
+    });
+    [dom.sepScan, dom.carScan].forEach(inp => {
         if (!inp) return;
         inp.addEventListener('paste', () => {
             setTimeout(() => {
                 inp.value = normalizeScanned(inp.value);
             }, 0);
         });
-    });    fetchAndRenderDashboard();
+    });
+    fetchAndRenderDashboard();
     installNetworkBanner();
     loadOutbox();
     eventHandlers.onOnline = () => processOutbox(true);
@@ -1986,22 +2232,28 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     if (outbox.queue.length > 0) showNetBanner('Itens pendentes: tentando enviar…');
     setTimeout(() => processOutbox(), 2000);
     console.log('Módulo de Auditoria (Dashboard) inicializado [V30 - DataFix + Separated Containers].');
-}export function destroy() {
+}
+
+export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();
     const styleTag = document.getElementById('auditoria-styles');
     if (styleTag) styleTag.parentElement.removeChild(styleTag);
     const cdpStyle = document.getElementById('cdp-style');
-    if (cdpStyle) cdpStyle.parentElement.removeChild(cdpStyle);    Object.values(state.charts).forEach(chart => {
+    if (cdpStyle) cdpStyle.parentElement.removeChild(cdpStyle);
+    Object.values(state.charts).forEach(chart => {
         if (chart && typeof chart.destroy === 'function') chart.destroy();
-    });    const impModal = document.getElementById('modal-importar-consolidado');
+    });
+    const impModal = document.getElementById('modal-importar-consolidado');
     if (impModal) impModal.parentElement.removeChild(impModal);
     if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
     if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);
-    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
+    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);
+    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
     if (eventHandlers.onSepSuccess) window.removeEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
     if (eventHandlers.onCarSuccess) window.removeEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);
-    eventHandlers = {onOnline: null, onSepSuccess: null, onCarSuccess: null};    state = {
+    eventHandlers = {onOnline: null, onSepSuccess: null, onCarSuccess: null};
+    state = {
         cacheData: [],
         idPacoteMap: new Map(),
         isSeparaçãoProcessing: false,
@@ -2018,7 +2270,9 @@ let outbox = {queue: [], sending: false};async function ensureApexCharts() {
     };
     dom = {};
     initOnce = false;
-}if (typeof document !== 'undefined') {
+}
+
+if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             try {
