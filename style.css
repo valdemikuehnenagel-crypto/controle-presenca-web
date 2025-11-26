@@ -5295,3 +5295,30 @@ html, body {
 .hidden {
     display: none !important;
 }
+
+
+@media screen and (max-width: 1536px) {
+
+    body {
+        zoom: 0.85;
+    }
+
+
+    .fixed {
+        zoom: 1;
+    }
+
+
+    #addModal, #editModal, .modal-overlay {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+
+@media screen and (max-width: 1366px) {
+    body {
+        zoom: 0.75;
+    }
+}
