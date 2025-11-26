@@ -508,14 +508,14 @@ async function loadSpamData() {
 
 async function loadMatrizesData() {
     return fetchOnce('matrizesData', async () => {
-        const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
+                const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
         if (error) throw error;
         const map = new Map();
         (data || []).forEach(r => {
             const svc = norm(r.SERVICE).replace(/\s+/g, '');
             if (svc) {
                 map.set(svc, {
-                    GERENCIA: String(r.GERENCIA || 'N/D').trim(),
+                    MATRIZ: String(r.MATRIZ || '').trim(),                     GERENCIA: String(r.GERENCIA || 'N/D').trim(),
                     REGIAO: norm(r.REGIAO || 'N/D')
                 });
             }
@@ -1791,14 +1791,27 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
 
-
     const [allSpamData] = await Promise.all([loadSpamData()]);
     const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
 
+        const spamData = allSpamData.filter(r => {
+                if (state.regiao && r.REGIAO !== state.regiao) return false;
 
-    const spamData = allSpamData.filter(r => {
-        if (state.regiao && r.REGIAO !== state.regiao) return false;
-        if (svcsDoGerente) if (!svcsDoGerente.has(r.SVC)) return false;
+                const svcNorm = mapSvcLabel(r.SVC).replace(/\s+/g, '');
+        const matrizInfo = matrizesMap.get(svcNorm);
+
+                if (state.matriz) {
+            if (!matrizInfo || matrizInfo.MATRIZ !== state.matriz) return false;
+        }
+
+                if (state.gerencia) {
+            if (!matrizInfo || matrizInfo.GERENCIA !== state.gerencia) return false;
+        }
+
+                if (svcsDoGerente) {
+            if (!svcsDoGerente.has(r.SVC)) return false;
+        }
+
         return true;
     });
 
@@ -1848,8 +1861,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
 
-
-
         let maxHcParaEscala = 0;
         datasets.forEach(ds => {
             const max = ds.data.length > 0 ? Math.max(...ds.data) : 0;
@@ -1860,7 +1871,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
             if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
         }
-
 
         const datasetAtual = datasets.find(d => d.label === mesAtualLabel);
         if (datasetAtual && mesAnteriorLabel) {
@@ -1924,12 +1934,12 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         const hcPorGerente = new Map();
         spamMesAtual.forEach(r => {
             const svc = r.SVC;
-            const gerente = matrizesMap.get(svc)?.GERENCIA || 'SEM GERENTE';
+            const mapSvc = mapSvcLabel(svc).replace(/\s+/g, '');
+            const gerente = matrizesMap.get(mapSvc)?.GERENCIA || 'SEM GERENTE';
             const totalAnterior = hcPorGerente.get(gerente) || 0;
             hcPorGerente.set(gerente, totalAnterior + r.HC_Total);
         });
         const dataSorted = [...hcPorGerente.entries()].sort((a, b) => a[1] - b[1]);
-
 
         const labels = dataSorted.map(d => d[0]);
         const dataValues = dataSorted.map(d => d[1]);
@@ -1952,7 +1962,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (state.charts.spamHcVsAux) {
         const auxPorSvc = new Map();
         colabsAtivos.forEach(c => {
-            if (norm(c.Cargo) === 'AUXILIAR') {
+                        if (norm(c.Cargo) === 'AUXILIAR') {
                 const svc = norm(c.SVC);
                 const svcAgrupado = mapSvcLabel(svc);
                 auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
@@ -1969,8 +1979,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
 
         const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
         const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
-
-
 
         const maxSpam = dataHcTotalSpam.length > 0 ? Math.max(...dataHcTotalSpam) : 0;
         const maxReal = dataAuxAtivoReal.length > 0 ? Math.max(...dataAuxAtivoReal) : 0;
@@ -2017,17 +2025,12 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             const regMap = dataMap.get(reg);
 
             regMap.set(cont, (regMap.get(cont) || 0) + 1);
-
-
             globalCounts.set(cont, (globalCounts.get(cont) || 0) + 1);
-
             allContracts.add(cont);
         });
 
         const labels = Array.from(dataMap.keys()).sort();
-
         labels.push('GERAL');
-
         const contractTypes = Array.from(allContracts).sort();
 
         const datasets = contractTypes.map((ctype, i) => {
@@ -2039,11 +2042,9 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                 let totalReg = 0;
 
                 if (reg === 'GERAL') {
-
                     count = globalCounts.get(ctype) || 0;
                     totalReg = Array.from(globalCounts.values()).reduce((a, b) => a + b, 0) || 1;
                 } else {
-
                     const regMap = dataMap.get(reg);
                     if (regMap) {
                         count = regMap.get(ctype) || 0;
@@ -2066,7 +2067,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
 
         applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
-
         state.charts.spamContractDonut.data.labels = labels;
         state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
@@ -2094,28 +2094,37 @@ async function desligamento_fetchPendentes() {
     }
     tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Carregando...</td></tr>';
 
+        const matrizesMap = await loadMatrizesData();
     const matrizesPermitidas = getMatrizesPermitidas();
 
-
-    let queryPendentes = supabase
+        let queryPendentes = supabase
         .from('Colaboradores')
-        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
+        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO')
         .in('StatusDesligamento', ['PENDENTE', 'RECUSADO'])
         .eq('Ativo', 'SIM');
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-
     let queryConcluidos = supabase
         .from('Colaboradores')
-        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento')
+        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO')
         .eq('StatusDesligamento', 'CONCLUIDO')
         .eq('Ativo', 'NÃO')
         .gte('DataDesligamentoSolicitada', sevenDaysAgo);
 
-    if (matrizesPermitidas) {
+        if (matrizesPermitidas) {
         queryPendentes = queryPendentes.in('MATRIZ', matrizesPermitidas);
         queryConcluidos = queryConcluidos.in('MATRIZ', matrizesPermitidas);
+    }
+
+        if (state.matriz) {
+        queryPendentes = queryPendentes.eq('MATRIZ', state.matriz);
+        queryConcluidos = queryConcluidos.eq('MATRIZ', state.matriz);
+    }
+
+        if (state.regiao) {
+        queryPendentes = queryPendentes.eq('REGIAO', state.regiao);
+        queryConcluidos = queryConcluidos.eq('REGIAO', state.regiao);
     }
 
     const [
@@ -2133,7 +2142,21 @@ async function desligamento_fetchPendentes() {
         return;
     }
 
-    state.desligamentoModule.pendentes = [...(pendentes || []), ...(concluidos || [])];
+    let allItems = [...(pendentes || []), ...(concluidos || [])];
+
+            if (state.gerencia) {
+        allItems = allItems.filter(c => {
+            const svcNorm = norm(c.SVC).replace(/\s+/g, '');
+            const mInfo = matrizesMap.get(svcNorm);
+            return mInfo && mInfo.GERENCIA === state.gerencia;
+        });
+    }
+
+        if (state.regiao) {
+        allItems = allItems.filter(c => c.REGIAO === state.regiao);
+    }
+
+    state.desligamentoModule.pendentes = allItems;
     desligamento_renderTable();
 }
 
@@ -2829,10 +2852,9 @@ function initControleVagas() {
 }
 
 async function fetchMatrizes() {
-
     const {data, error} = await supabase
         .from('Matrizes')
-        .select('MATRIZ, SERVICE, CC')
+        .select('MATRIZ, SERVICE, CC, GERENCIA, REGIAO')
         .order('MATRIZ', {ascending: true});
 
     if (error) {
@@ -3188,7 +3210,7 @@ function filtrarVagas() {
     const fRecrut = filterRecrutadora.value;
 
     const filtrados = vagasData.filter(vaga => {
-        const txt = (
+                const txt = (
             (vaga.CandidatoAprovado || '') +
             (vaga.CPFCandidato || '') +
             (vaga.FluxoSmart || '') +
@@ -3196,11 +3218,31 @@ function filtrarVagas() {
             (vaga.MATRIZ || '')
         ).toLowerCase();
 
-        return txt.includes(termo) &&
+        const matchLocal = txt.includes(termo) &&
             (!fFilial || vaga.MATRIZ === fFilial) &&
             (!fStatus || vaga.Status === fStatus) &&
             (!fGestor || vaga.Gestor === fGestor) &&
             (!fRecrut || vaga.Recrutadora === fRecrut);
+
+        if (!matchLocal) return false;
+
+
+                if (state.matriz && vaga.MATRIZ !== state.matriz) {
+            return false;
+        }
+
+                        if (state.gerencia || state.regiao) {
+            const dadosMatriz = matrizesData.find(m => m.MATRIZ === vaga.MATRIZ);
+
+            if (!dadosMatriz) {
+                                return false;
+            }
+
+            if (state.gerencia && dadosMatriz.GERENCIA !== state.gerencia) return false;
+            if (state.regiao && dadosMatriz.REGIAO !== state.regiao) return false;
+        }
+
+        return true;
     });
 
     renderVagasTable(filtrados);

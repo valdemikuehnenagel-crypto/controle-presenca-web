@@ -470,16 +470,14 @@ import {supabase} from '../supabaseClient.js';(function () {
         overlay.style.display = 'flex';
         overlay.style.alignItems = 'center';
         overlay.style.justifyContent = 'center';
-        overlay.style.zIndex = '9999';
-        var modal = document.createElement('div');
+        overlay.style.zIndex = '9999';        var modal = document.createElement('div');
         modal.className = 'abs-modal';
         modal.style.background = '#fff';
         modal.style.borderRadius = '12px';
         modal.style.padding = '16px';
         modal.style.minWidth = '420px';
         modal.style.maxWidth = '90vw';
-        modal.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';
-        modal.innerHTML =
+        modal.style.boxShadow = '0 10px 30px rgba(0,0,0,.25)';        modal.innerHTML =
             '<h3 style="margin:0 0 12px 0;">Atualizar registro de absenteísmo</h3>' +
             '<div class="abs-modal-meta" style="font-size:14px;line-height:1.4;margin-bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;">' +
             '  <div><strong>Nome:</strong> ' + esc(row.Nome) + '</div>' +
@@ -496,35 +494,29 @@ import {supabase} from '../supabaseClient.js';(function () {
             '    <label><input type="radio" name="abs-entrevista" value="SIM"> Sim</label>' +
             '    <label><input type="radio" name="abs-entrevista" value="NAO"> Não</label>' +
             '  </div>' +
-            '  <div id="abs-entrevista-details" style="display:none; flex-direction:column; gap:8px; margin-top:6px;">' +
-            '    <div id="abs-injustificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
-            '      <label>Observação (Falta Injustificada)</label>' +
+            '  <div id="abs-entrevista-details" style="display:none; flex-direction:column; gap:8px; margin-top:6px;">' +            '    <div id="abs-injustificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
+            '      <label>Motivo (Falta Injustificada)</label>' +
             '      <select id="abs-obs-injustificado" class="abs-observacao-select">' +
             '        <option value="">— Selecionar —</option>' +
-            '        <option>Falecimento parente</option>' +
-            '        <option>Proposital</option>' +
-            '        <option>Não quis informar</option>' +
+            '        <option>Problemas de saúde sem atestado</option>' +
+            '        <option>Pediu demissão/desistência</option>' +
             '        <option>Problemas pessoais</option>' +
             '      </select>' +
-            '    </div>' +
-            '    <div id="abs-justificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
-            '      <label>Tipo de Atestado</label>' +
+            '    </div>' +            '    <div id="abs-justificado-fields" style="display:none; flex-direction:column; gap:8px;">' +
+            '      <label>Motivo (Falta Justificada)</label>' +
             '      <select id="abs-tipo-atestado">' +
             '        <option value="">— Selecionar —</option>' +
-            '        <option>Atestado médico</option>' +
-            '        <option>Acidente de trabalho</option>' +
             '        <option>Licença Maternidade/Paternidade</option>' +
-            '        <option>Outros</option>' +
-            '      </select>' +
-            '      <div id="abs-cid-container" style="display:none; flex-direction:column; gap:8px;">' +
+            '        <option>Licença Nojo</option>' +
+            '        <option>Atestado</option>' +
+            '        <option>Problema com Fretado</option>' +
+            '      </select>' +            '      <div id="abs-cid-container" style="display:none; flex-direction:column; gap:8px;">' +
             '        <label>CID</label>' +
             '        <input type="text" id="abs-cid-input" placeholder="Insira o CID..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
-            '      </div>' +
-            '      <label>Observação (Atestado)</label>' +
-            '      <input type="text" id="abs-obs-justificado" placeholder="Observações adicionais..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
+            '      </div>' +            '      <label>Observação Adicional</label>' +
+            '      <input type="text" id="abs-obs-justificado" placeholder="Detalhes..." style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;"/>' +
             '    </div>' +
-            '  </div>' +
-            '  <label style="margin-top:6px;">Ação tomada</label>' +
+            '  </div>' +            '  <label style="margin-top:6px;">Ação tomada</label>' +
             '  <select id="abs-acao" style="padding:6px 8px;border:1px solid #ddd;border-radius:8px;">' +
             '    <option value="">— Selecionar —</option>' +
             '    <option>Advertência Verbal</option>' +
@@ -537,33 +529,26 @@ import {supabase} from '../supabaseClient.js';(function () {
             '<div class="abs-modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">' +
             '  <button class="btn" id="abs-cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fafafa;">Cancelar</button>' +
             '  <button class="btn-add" id="abs-save" style="padding:8px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;">Salvar</button>' +
-            '</div>';
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
-        var radioSim = modal.querySelector('input[value="SIM"]');
+            '</div>';        overlay.appendChild(modal);
+        document.body.appendChild(overlay);        var radioSim = modal.querySelector('input[value="SIM"]');
         var radioNao = modal.querySelector('input[value="NAO"]');
         var selAcao = modal.querySelector('#abs-acao');
         var entrevistaDetails = modal.querySelector('#abs-entrevista-details');
         var injustificadoFields = modal.querySelector('#abs-injustificado-fields');
-        var justificadoFields = modal.querySelector('#abs-justificado-fields');
-        var selObsInjustificado = modal.querySelector('#abs-obs-injustificado');
+        var justificadoFields = modal.querySelector('#abs-justificado-fields');        var selObsInjustificado = modal.querySelector('#abs-obs-injustificado');
         var selTipoAtestado = modal.querySelector('#abs-tipo-atestado');
         var inputObsJustificado = modal.querySelector('#abs-obs-justificado');
         var cidContainer = modal.querySelector('#abs-cid-container');
         var cidInput = modal.querySelector('#abs-cid-input');        function toggleConditionalFields() {
             var entrevistaSim = radioSim.checked;
-            entrevistaDetails.style.display = entrevistaSim ? 'flex' : 'none';
-            if (entrevistaSim) {
-                var absType = String(row.Absenteismo || '').toUpperCase().trim();
-                if (absType === 'INJUSTIFICADO') {
+            entrevistaDetails.style.display = entrevistaSim ? 'flex' : 'none';            if (entrevistaSim) {
+                var absType = String(row.Absenteismo || '').toUpperCase().trim();                if (absType === 'INJUSTIFICADO') {
                     injustificadoFields.style.display = 'flex';
                     justificadoFields.style.display = 'none';
                 } else if (absType === 'JUSTIFICADO') {
                     injustificadoFields.style.display = 'none';
-                    justificadoFields.style.display = 'flex';
-                    cidContainer.style.display = selTipoAtestado.value === 'Atestado médico' ? 'flex' : 'none';
-                } else {
-                    injustificadoFields.style.display = 'none';
+                    justificadoFields.style.display = 'flex';                    cidContainer.style.display = selTipoAtestado.value === 'Atestado' ? 'flex' : 'none';
+                } else {                    injustificadoFields.style.display = 'none';
                     justificadoFields.style.display = 'none';
                 }
             } else {
@@ -573,43 +558,32 @@ import {supabase} from '../supabaseClient.js';(function () {
             }
         }        radioSim.addEventListener('change', toggleConditionalFields);
         radioNao.addEventListener('change', toggleConditionalFields);
-        selTipoAtestado.addEventListener('change', toggleConditionalFields);
-        if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true; else radioNao.checked = true;
+        selTipoAtestado.addEventListener('change', toggleConditionalFields);        if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true; else radioNao.checked = true;
         selAcao.value = row.Acao || '';
-        cidInput.value = row.CID || '';
-        if (row.Absenteismo === 'Justificado') {
+        cidInput.value = row.CID || '';        if (row.Absenteismo === 'Justificado') {
             selTipoAtestado.value = row.TipoAtestado || '';
             inputObsJustificado.value = row.Observacao || '';
         } else {
             selObsInjustificado.value = row.Observacao || '';
-        }
-        toggleConditionalFields();
-        modal.querySelector('#abs-cancel')?.addEventListener('click', () => {
+        }        toggleConditionalFields();        modal.querySelector('#abs-cancel')?.addEventListener('click', () => {
             document.body.removeChild(overlay);
-        });
-        overlay.addEventListener('click', function (ev) {
+        });        overlay.addEventListener('click', function (ev) {
             if (ev.target === overlay) document.body.removeChild(overlay);
-        });
-        var btnSave = modal.querySelector('#abs-save');
+        });        var btnSave = modal.querySelector('#abs-save');
         if (btnSave) btnSave.addEventListener('click', async function () {
             btnSave.disabled = true;
-            btnSave.textContent = 'Salvando...';
-            var entrevista = (modal.querySelector('input[name="abs-entrevista"]:checked') || {}).value || 'NAO';
+            btnSave.textContent = 'Salvando...';            var entrevista = (modal.querySelector('input[name="abs-entrevista"]:checked') || {}).value || 'NAO';
             var acao = selAcao.value || null;
-            var updatePayload = {Entrevista: entrevista, Acao: acao, Observacao: null, TipoAtestado: null, CID: null};
-            if (entrevista === 'SIM') {
-                var absType = String(row.Absenteismo || '').toUpperCase().trim();
-                if (absType === 'INJUSTIFICADO') {
+            var updatePayload = {Entrevista: entrevista, Acao: acao, Observacao: null, TipoAtestado: null, CID: null};            if (entrevista === 'SIM') {
+                var absType = String(row.Absenteismo || '').toUpperCase().trim();                if (absType === 'INJUSTIFICADO') {
                     updatePayload.Observacao = selObsInjustificado.value || null;
                 } else if (absType === 'JUSTIFICADO') {
                     updatePayload.TipoAtestado = selTipoAtestado.value || null;
-                    updatePayload.Observacao = inputObsJustificado.value || null;
-                    if (updatePayload.TipoAtestado === 'Atestado médico') {
+                    updatePayload.Observacao = inputObsJustificado.value || null;                    if (updatePayload.TipoAtestado === 'Atestado') {
                         updatePayload.CID = (cidInput.value || '').trim() || null;
                     }
                 }
-            }
-            try {
+            }            try {
                 const {error} = await supabase.from('ControleDiario').update(updatePayload).eq('Numero', row.Numero);
                 if (error) throw error;
                 window.dispatchEvent(new CustomEvent('controle-diario-saved', {detail: {id: row.Numero}}));
