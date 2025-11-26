@@ -2751,6 +2751,7 @@ h3 {
 .diaristas-root #btn-add-diarista {
     background: #28a745;
 }
+
 .diaristas-root #btn-add-diarista:hover {
     background: #218838;
     transform: translateY(-2px);
@@ -2759,6 +2760,7 @@ h3 {
 .diaristas-root #btn-gerenciar {
     background: #003369; /* Azul escuro */
 }
+
 .diaristas-root #btn-gerenciar:hover {
     background: #002244;
     transform: translateY(-2px);
@@ -2767,10 +2769,12 @@ h3 {
 .diaristas-root #btn-export-xlsx {
     background: #003369;
 }
+
 .diaristas-root #btn-export-xlsx:hover {
     background: #02B1EE;
     transform: translateY(-2px);
 }
+
 .diaristas-root #btn-export-xlsx:disabled {
     opacity: .6;
     cursor: not-allowed;
@@ -2826,8 +2830,13 @@ h3 {
     border-bottom: 1px solid var(--d-border);
 }
 
-.diaristas-root .diaristas-table thead th:first-child { border-top-left-radius: 14px; }
-.diaristas-root .diaristas-table thead th:last-child { border-top-right-radius: 14px; }
+.diaristas-root .diaristas-table thead th:first-child {
+    border-top-left-radius: 14px;
+}
+
+.diaristas-root .diaristas-table thead th:last-child {
+    border-top-right-radius: 14px;
+}
 
 .diaristas-root .diaristas-table tbody td {
     padding: 8px 10px;
