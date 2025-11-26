@@ -1,5 +1,7 @@
 import html2canvas from 'html2canvas';
-import {createClient} from '@supabase/supabase-js';const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
+import {createClient} from '@supabase/supabase-js';
+
+const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
 const userInfoEl = document.getElementById('userInfo');
 const logoutBtn = document.getElementById('logoutBtn');
 const screenshotBtn = document.getElementById('screenshotBtn');
@@ -14,35 +16,49 @@ let isLoadingPage = false;
 let loadToken = 0;
 const pageModules = import.meta.glob('/src/pages/*.js');
 const LAST_PAGE_KEY = 'knc:lastPage';
-const normalizePage = (name) => String(name || '').trim().toLowerCase();const dialogEl = document.getElementById('kn-global-dialog');
+const normalizePage = (name) => String(name || '').trim().toLowerCase();
+const dialogEl = document.getElementById('kn-global-dialog');
 const dialogTitle = document.getElementById('kn-dialog-title');
 const dialogMsg = document.getElementById('kn-dialog-message');
 const btnConfirm = document.getElementById('kn-dialog-btn-confirm');
 const btnCancel = document.getElementById('kn-dialog-btn-cancel');
-const iconContainer = document.getElementById('kn-dialog-icon-container');function closeDialog() {
+const iconContainer = document.getElementById('kn-dialog-icon-container');
+
+function closeDialog() {
     if (dialogEl) dialogEl.classList.add('hidden');
-}window.customAlert = function (message, title = 'Aviso') {
+}
+
+window.customAlert = function (message, title = 'Aviso') {
     return new Promise((resolve) => {
         if (!dialogEl) {
             alert(message);
             resolve();
             return;
-        }        dialogTitle.textContent = title;
+        }
+        dialogTitle.textContent = title;
         dialogTitle.style.color = '#003369';
-        dialogMsg.innerHTML = message.replace(/\n/g, '<br>');        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-[#02B1EE]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;        btnCancel.classList.add('hidden');
+        dialogMsg.innerHTML = message.replace(/\n/g, '<br>');
+        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-[#02B1EE]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+        btnCancel.classList.add('hidden');
         btnConfirm.textContent = 'OK';
-        btnConfirm.className = "px-6 py-2 rounded text-white font-bold shadow-md transition-all text-xs uppercase bg-[#003369] hover:bg-[#02B1EE]";        btnConfirm.onclick = () => {
+        btnConfirm.className = "px-6 py-2 rounded text-white font-bold shadow-md transition-all text-xs uppercase bg-[#003369] hover:bg-[#02B1EE]";
+        btnConfirm.onclick = () => {
             closeDialog();
             resolve();
-        };        dialogEl.classList.remove('hidden');
+        };
+        dialogEl.classList.remove('hidden');
     });
-};window.customConfirm = function (message, title = 'Confirmação', type = 'warning') {
+};
+
+window.customConfirm = function (message, title = 'Confirmação', type = 'warning') {
     return new Promise((resolve) => {
         if (!dialogEl) {
             resolve(confirm(message));
             return;
-        }        dialogTitle.textContent = title;
-        dialogMsg.innerHTML = message.replace(/\n/g, '<br>');        if (type === 'danger') {
+        }
+        dialogTitle.textContent = title;
+        dialogMsg.innerHTML = message.replace(/\n/g, '<br>');
+        if (type === 'danger') {
             dialogTitle.style.color = '#D81D1D';
             iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-[#D81D1D]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`;
             btnConfirm.className = "px-6 py-2 rounded text-white font-bold shadow-md transition-all text-xs uppercase bg-[#D81D1D] hover:bg-red-700";
@@ -50,17 +66,27 @@ const iconContainer = document.getElementById('kn-dialog-icon-container');functi
             dialogTitle.style.color = '#003369';
             iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-[#003369]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
             btnConfirm.className = "px-6 py-2 rounded text-white font-bold shadow-md transition-all text-xs uppercase bg-[#003369] hover:bg-[#02B1EE]";
-        }        btnCancel.classList.remove('hidden');
-        btnConfirm.textContent = 'Confirmar';        btnConfirm.onclick = () => {
+        }
+        btnCancel.classList.remove('hidden');
+        btnConfirm.textContent = 'Confirmar';
+        btnConfirm.onclick = () => {
             closeDialog();
             resolve(true);
-        };        btnCancel.onclick = () => {
+        };
+        btnCancel.onclick = () => {
             closeDialog();
             resolve(false);
-        };        dialogEl.classList.remove('hidden');
+        };
+        dialogEl.classList.remove('hidden');
     });
-};function showZoomRecommendation(userName) {    if (sessionStorage.getItem('knc:zoomAlertShown')) return;    const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4';    const imgSrc = '/imagens/ctrl.png';    overlay.innerHTML = `
+};
+
+function showZoomRecommendation(userName) {
+    if (sessionStorage.getItem('knc:zoomAlertShown')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4';
+    const imgSrc = '/imagens/ctrl.png';
+    overlay.innerHTML = `
         <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-scaleIn transform transition-all">
             <div class="bg-[#003369] p-4 text-center">
                 <h3 class="text-white font-bold text-lg">💡 Dica de Visualização</h3>
@@ -69,7 +95,8 @@ const iconContainer = document.getElementById('kn-dialog-icon-container');functi
                 <h2 class="text-xl font-bold text-[#003369] mb-4">Olá, ${userName.toUpperCase()}! 👋</h2>
                 <p class="text-gray-600 mb-4 text-sm leading-relaxed">
                     Para mais conforto visual e para visualizar todas as tabelas corretamente, recomendo os seguintes ajustes de zoom:
-                </p>                <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
+                </p>
+                <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
                     <div class="bg-gray-50 p-3 rounded border border-gray-200">
                         <span class="block text-gray-500 text-xs">Telas Pequenas (14")</span>
                         <span class="block font-bold text-[#003369] text-xl">70%</span>
@@ -78,7 +105,8 @@ const iconContainer = document.getElementById('kn-dialog-icon-container');functi
                         <span class="block text-gray-500 text-xs">Telas Médias (15.6")</span>
                         <span class="block font-bold text-[#003369] text-xl">80%</span>
                     </div>
-                </div>                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6">
+                </div>
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6">
                     <p class="text-xs text-blue-800 font-semibold mb-2 uppercase tracking-wide">Como ajustar:</p>
                     <p class="text-sm text-gray-700 mb-3">
                         Pressione <kbd class="bg-white border border-gray-300 px-2 py-0.5 rounded shadow-sm font-sans font-semibold">Ctrl</kbd> 
@@ -88,17 +116,24 @@ const iconContainer = document.getElementById('kn-dialog-icon-container');functi
                     <div class="flex justify-center">
                         <img src="${imgSrc}" alt="Pressione Ctrl e Menos" class="h-16 object-contain opacity-90 hover:opacity-100 transition-opacity">
                     </div>
-                </div>                <button id="btnZoomOk" style="background-color: #003369; color: white;" class="w-full py-3 font-bold rounded-lg shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 hover:brightness-110">
+                </div>
+                <button id="btnZoomOk" style="background-color: #003369; color: white;" class="w-full py-3 font-bold rounded-lg shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 hover:brightness-110">
                     OK, ENTENDI
                 </button>
             </div>
         </div>
-    `;    document.body.appendChild(overlay);    const btn = overlay.querySelector('#btnZoomOk');
-    btn.onclick = () => {        overlay.style.opacity = '0';
+    `;
+    document.body.appendChild(overlay);
+    const btn = overlay.querySelector('#btnZoomOk');
+    btn.onclick = () => {
+        overlay.style.opacity = '0';
         overlay.style.transition = 'opacity 0.2s';
-        setTimeout(() => overlay.remove(), 200);        sessionStorage.setItem('knc:zoomAlertShown', 'true');
+        setTimeout(() => overlay.remove(), 200);
+        sessionStorage.setItem('knc:zoomAlertShown', 'true');
     };
-}function setActiveTab(pageName) {
+}
+
+function setActiveTab(pageName) {
     const p = normalizePage(pageName);
     tabButtons.forEach(btn => {
         btn.classList.toggle('active', normalizePage(btn.dataset.page) === p);
@@ -107,19 +142,32 @@ const iconContainer = document.getElementById('kn-dialog-icon-container');functi
         localStorage.setItem(LAST_PAGE_KEY, p);
     } catch (_) {
     }
-    const newHash = `#${p}`;
-    if (location.hash !== newHash) {
-        history.replaceState(null, '', newHash);
+
+
+    const currentPath = location.pathname.replace(/^\//, '');
+    if (currentPath !== p) {
+        history.pushState({page: p}, '', `/${p}`);
     }
-}function getInitialPage() {
-    const fromHash = normalizePage(location.hash.replace(/^#\/?/, ''));
+}
+
+function getInitialPage() {
+
+    const path = location.pathname.replace(/^\//, '');
+    const ignoreList = ['', 'dashboard', 'dashboard.html'];
+    const fromPath = ignoreList.includes(path) ? '' : normalizePage(path);
+
     const fromStore = normalizePage(localStorage.getItem(LAST_PAGE_KEY));
     const fallback = 'colaboradores';
+
     const exists = (pg) => !!document.querySelector(`.tab-btn[data-page="${pg}"]`);
-    if (fromHash && exists(fromHash)) return fromHash;
+
+    if (fromPath && exists(fromPath)) return fromPath;
     if (fromStore && exists(fromStore)) return fromStore;
+
     return fallback;
-}if (menuToggleBtn) {
+}
+
+if (menuToggleBtn) {
     menuToggleBtn.addEventListener('click', () => {
         document.body.classList.toggle('sidebar-collapsed');
     });
@@ -129,7 +177,10 @@ if (sidebarOverlay) {
         document.body.classList.add('sidebar-collapsed');
     });
 }
-document.body.classList.add('sidebar-collapsed');function checkSession() {
+document.body.classList.add('sidebar-collapsed');
+
+function checkSession() {
+    const DEFAULT_AVATAR_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co/storage/v1/object/public/avatars/avatar.png';
     const userDataString = localStorage.getItem('userSession');
     if (!userDataString) {
         window.location.href = '/index.html';
@@ -137,9 +188,11 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
     }
     try {
         const user = JSON.parse(userDataString);
-        const userType = (user && user.Tipo) ? user.Tipo.trim().toUpperCase() : '';
+        const userTipo = (user.Tipo || '').trim().toUpperCase();
+        const userMatriz = (user.Matriz || '').trim().toUpperCase();
         const restrictedPage = 'separacao';
-        if (userType === 'OPERAÇÃO') {
+
+        if (userTipo === 'OPERAÇÃO') {
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 const page = btn.dataset.page;
                 if (page !== restrictedPage) {
@@ -154,11 +207,21 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
                 localStorage.setItem(LAST_PAGE_KEY, restrictedPage);
             } catch (_) {
             }
-            location.hash = `#${restrictedPage}`;
+
+            history.replaceState(null, '', `/${restrictedPage}`);
+            return;
         } else {
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.style.display = '';
             });
+            if (userTipo !== 'MASTER') {
+                const btnPainel = document.querySelector('.tab-btn[data-page="painel-gerencial"]');
+                if (btnPainel) btnPainel.style.display = 'none';
+            }
+            if (!userMatriz.includes('CONQUISTA') && userMatriz !== 'TODOS') {
+                const btnSeparacao = document.querySelector('.tab-btn[data-page="separacao"]');
+                if (btnSeparacao) btnSeparacao.style.display = 'none';
+            }
             try {
                 const fromStore = normalizePage(localStorage.getItem(LAST_PAGE_KEY));
                 if (fromStore === restrictedPage) {
@@ -166,14 +229,27 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
                 }
             } catch (_) {
             }
-            const separacaoBtn = document.querySelector(`.tab-btn[data-page="${restrictedPage}"]`);
-            if (separacaoBtn) separacaoBtn.classList.remove('active');
             const activeBtn = document.querySelector('.tab-btn.active');
             if (!activeBtn) {
                 const colabBtn = document.querySelector('.tab-btn[data-page="colaboradores"]');
                 if (colabBtn) colabBtn.classList.add('active');
             }
         }
+
+
+        const currentPath = normalizePage(location.pathname.replace(/^\//, ''));
+
+        if (currentPath === 'painel-gerencial' && userTipo !== 'MASTER') {
+            console.warn("Acesso negado ao Painel. Redirecionando.");
+            setActiveTab('colaboradores');
+            loadPage('colaboradores');
+        }
+        if (currentPath === 'separacao' && !userMatriz.includes('CONQUISTA') && userMatriz !== 'TODOS') {
+            console.warn("Acesso negado à Separação. Redirecionando.");
+            setActiveTab('colaboradores');
+            loadPage('colaboradores');
+        }
+
         if (user?.Nivel) {
             document.body.classList.remove('user-level-visitante', 'user-level-usuario', 'user-level-admin');
             const nivel = user.Nivel.toUpperCase();
@@ -193,14 +269,15 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
                     currentHour >= 12 && currentHour < 18 ? 'Boa tarde' : 'Boa noite';
             const fullName = user?.Nome || 'Usuário';
             const firstName = fullName.split(' ')[0];
-            userInfoEl.textContent = `${greeting}, ${firstName}!`;            showZoomRecommendation(firstName);
+            userInfoEl.textContent = `${greeting}, ${firstName}!`;
+            showZoomRecommendation(firstName);
         }
         try {
             if (userAvatarEl) {
-                if (user?.avatar_url) {
+                if (user?.avatar_url && user.avatar_url.trim() !== '') {
                     userAvatarEl.src = user.avatar_url.toLowerCase();
                 } else {
-                    userAvatarEl.src = '/imagens/default-avatar.png';
+                    userAvatarEl.src = DEFAULT_AVATAR_URL;
                 }
                 userAvatarEl.classList.remove('hidden');
                 setupAvatarUpload(userAvatarEl);
@@ -213,13 +290,17 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     }
-}function setLoading(on) {
+}
+
+function setLoading(on) {
     isLoadingPage = !!on;
     if (!contentArea) return;
     if (on) {
         contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
     }
-}async function loadPage(pageName) {
+}
+
+async function loadPage(pageName) {
     if (!pageName || isLoadingPage) return;
     isLoadingPage = true;
     const myToken = ++loadToken;
@@ -266,11 +347,19 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
             if (contentArea) contentArea.classList.remove('fade-out');
         }
     }
-}function showAddModal() {
+}
+
+function showAddModal() {
     if (addModal) addModal.classList.remove('hidden');
-}function hideAddModal() {
+}
+
+function hideAddModal() {
     if (addModal) addModal.classList.add('hidden');
-}let hiddenAvatarInput = null;function setupAvatarUpload(avatarElement) {
+}
+
+let hiddenAvatarInput = null;
+
+function setupAvatarUpload(avatarElement) {
     if (!hiddenAvatarInput) {
         hiddenAvatarInput = document.createElement('input');
         hiddenAvatarInput.type = 'file';
@@ -314,7 +403,9 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
             document.addEventListener('contextmenu', removeOldMenu, {once: true});
         }, 0);
     });
-}async function uploadAvatar(file, avatarElement) {
+}
+
+async function uploadAvatar(file, avatarElement) {
     const userDataString = localStorage.getItem('userSession');
     if (!userDataString) {
         await window.customAlert('Sessão expirada. Faça login novamente.');
@@ -366,7 +457,9 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
         await window.customAlert(`Falha ao atualizar a foto: ${error.message}`, 'Erro');
         avatarElement.classList.remove('uploading');
     }
-}tabButtons.forEach((button) => {
+}
+
+tabButtons.forEach((button) => {
     button.addEventListener('click', () => {
         if (isLoadingPage) return;
         const page = button.dataset.page;
@@ -376,7 +469,9 @@ document.body.classList.add('sidebar-collapsed');function checkSession() {
     });
 });
 if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {        sessionStorage.removeItem('knc:zoomAlertShown');        localStorage.removeItem('userSession');
+    logoutBtn.addEventListener('click', () => {
+        sessionStorage.removeItem('knc:zoomAlertShown');
+        localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     });
 }
@@ -384,30 +479,57 @@ if (screenshotBtn) {
     screenshotBtn.addEventListener('click', () => {
         console.log('Iniciando captura de tela...');
         const originalText = screenshotBtn.textContent;
+        const originalScrollY = window.scrollY;
+        const originalScrollX = window.scrollX;
         screenshotBtn.disabled = true;
-        screenshotBtn.textContent = 'Capturando...';
-        html2canvas(document.body, {
-            useCORS: true,
-            logging: false,
-            windowWidth: document.body.scrollWidth,
-            windowHeight: document.body.scrollHeight
-        }).then(canvas => {
-            const link = document.createElement('a');
-            const data = new Date();
-            const dataFormatada = data.toISOString().split('T')[0];
-            const horaFormatada = data.toTimeString().split(' ')[0].replace(/:/g, '-');
-            link.download = `captura-knconecta-${dataFormatada}_${horaFormatada}.png`;
-            link.href = canvas.toDataURL('image/png');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }).catch(err => {
-            console.error('Erro ao gerar screenshot:', err);
-            window.customAlert('Falha ao gerar a captura de tela. Tente novamente.', 'Erro');
-        }).finally(() => {
-            screenshotBtn.disabled = false;
-            screenshotBtn.textContent = originalText;
-        });
+        screenshotBtn.textContent = 'Processando...';
+
+        const body = document.body;
+        const html = document.documentElement;
+
+        const fullHeight = Math.max(
+            body.scrollHeight, body.offsetHeight,
+            html.clientHeight, html.scrollHeight, html.offsetHeight
+        );
+        const fullWidth = Math.max(
+            body.scrollWidth, body.offsetWidth,
+            html.clientWidth, html.scrollWidth, html.offsetWidth
+        );
+
+        window.scrollTo(0, 0);
+
+        setTimeout(() => {
+            html2canvas(document.body, {
+                useCORS: true,
+                logging: false,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+
+                windowWidth: fullWidth,
+                windowHeight: fullHeight,
+                x: 0,
+                y: 0,
+                scrollX: 0,
+                scrollY: 0
+            }).then(canvas => {
+                const link = document.createElement('a');
+                const data = new Date();
+                const dataFormatada = data.toISOString().split('T')[0];
+                const horaFormatada = data.toTimeString().split(' ')[0].replace(/:/g, '-');
+                link.download = `captura-knconecta-${dataFormatada}_${horaFormatada}.png`;
+                link.href = canvas.toDataURL('image/png');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }).catch(err => {
+                console.error('Erro ao gerar screenshot:', err);
+                window.customAlert('Falha ao gerar a captura de tela. Tente novamente.', 'Erro');
+            }).finally(() => {
+                screenshotBtn.disabled = false;
+                screenshotBtn.textContent = originalText;
+                window.scrollTo(originalScrollX, originalScrollY);
+            });
+        }, 800);
     });
 }
 document.addEventListener('open-add-modal', showAddModal);
@@ -425,24 +547,34 @@ checkSession();
 const firstPage = getInitialPage();
 setActiveTab(firstPage);
 loadPage(firstPage);
-window.addEventListener('hashchange', () => {
-    const pg = normalizePage(location.hash.replace(/^#\/?/, ''));
-    if (!pg) return;
+
+window.addEventListener('popstate', () => {
+    const pg = normalizePage(location.pathname.replace(/^\//, ''));
+
+    // Se voltou para a raiz ou dashboard, não faz nada ou carrega o padrão
+    if (!pg || pg === 'dashboard' || pg === 'dashboard.html') return;
+
     try {
         const user = JSON.parse(localStorage.getItem('userSession'));
         const userType = (user && user.Tipo) ? user.Tipo.trim().toUpperCase() : '';
         const restrictedPage = 'separacao';
+
         if (userType === 'OPERAÇÃO' && pg !== restrictedPage) {
-            location.hash = `#${restrictedPage}`;
+
+            history.replaceState(null, '', `/${restrictedPage}`);
+            setActiveTab(restrictedPage);
+            loadPage(restrictedPage);
             return;
         }
     } catch (e) {
-        console.error('Falha ao ler sessão no hashchange', e);
+        console.error('Falha ao ler sessão no popstate', e);
     }
+
     if (!document.querySelector(`.tab-btn[data-page="${pg}"]`)) return;
-    const active = document.querySelector('.tab-btn.active')?.dataset.page;
-    if (normalizePage(active) !== pg && !isLoadingPage) {
-        setActiveTab(pg);
-        loadPage(pg);
-    }
+
+
+    tabButtons.forEach(btn => {
+        btn.classList.toggle('active', normalizePage(btn.dataset.page) === pg);
+    });
+    loadPage(pg);
 });

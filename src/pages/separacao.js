@@ -1,19 +1,17 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from 'html5-qrcode';
 import qrcode from 'qrcode-generator';
-import { createClient } from '@supabase/supabase-js';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
+import {createClient} from '@supabase/supabase-js';const SUPABASE_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
 const FUNC_CARREGAMENTO_URL = `${SUPABASE_URL}/functions/v1/get-processar-carregamento-validacao`;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const SUPPORTED_FORMATS = [
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);const SUPPORTED_FORMATS = [
     Html5QrcodeSupportedFormats.QR_CODE,
     Html5QrcodeSupportedFormats.CODE_128,
     Html5QrcodeSupportedFormats.CODE_39,
     Html5QrcodeSupportedFormats.EAN_13,
     Html5QrcodeSupportedFormats.UPC_A,
 ];
-const BRASILIA_TIMEZONE = 'America/Sao_Paulo';
-let state = {
+const BRASILIA_TIMEZONE = 'America/Sao_Paulo';let state = {
     cacheData: [],
     idPacoteMap: new Map(),
     isSeparaçãoProcessing: false,
@@ -26,15 +24,17 @@ let state = {
     lastPrintData: null,
     period: {start: null, end: null},
     isImporting: false,
-};
-let dom = {
-    dashboard: null,
-    summaryContainer: null,
-    routesContainer: null,
-    btnSeparação: null,
+    charts: {
+        topRoutes: null,
+        timeline: null,
+        pendingRoutes: null,
+        dockIssues: null
+    }
+};let dom = {    summaryContainer: null,
+    routesContainer: null,    btnSeparação: null,
     btnCarregamento: null,
     periodBtn: null,
-    btnImportarConsolidado: null, modalSeparação: null,
+    btnImportarConsolidado: null,    modalSeparação: null,
     modalSepClose: null,
     sepUser: null,
     sepScan: null,
@@ -43,14 +43,14 @@ let dom = {
     sepQrTitle: null,
     sepQrCanvas: null,
     sepPrintBtn: null,
-    sepCamBtn: null, modalCarregamento: null,
+    sepCamBtn: null,    modalCarregamento: null,
     modalCarClose: null,
     carUser: null,
     carDockSelect: null,
     carIlhaSelect: null,
     carScan: null,
     carStatus: null,
-    carCamBtn: null, scannerModal: null,
+    carCamBtn: null,    scannerModal: null,
     scannerContainer: null,
     scannerCancelBtn: null,
     scannerFeedbackOverlay: null,
@@ -58,26 +58,212 @@ let dom = {
     scannerConfirmOverlay: null,
     scannerConfirmText: null,
     scannerConfirmYesBtn: null,
-    scannerConfirmNoBtn: null, relatorioModal: null,
+    scannerConfirmNoBtn: null,    relatorioModal: null,
     relatorioModalClose: null,
     relatorioTitle: null,
-    relatorioBody: null, modalImportar: null,
+    relatorioBody: null,    modalImportar: null,
     importCloseBtn: null,
     importTextarea: null,
     importSubmitBtn: null,
-    importStatus: null, netBanner: null,
+    importStatus: null,    netBanner: null,
     netMsg: null,
     netForceBtn: null,
-    netCloseBtn: null,
-};
-let eventHandlers = {
+    netCloseBtn: null,    tabBtnSeparacao: null,
+    tabBtnAnalise: null,
+    subtabSeparacao: null,
+    subtabAnalise: null,
+};let eventHandlers = {
     onOnline: null,
     onSepSuccess: null,
     onCarSuccess: null,
-};
-const NET_TIMEOUT_MS = 8000;
+};const NET_TIMEOUT_MS = 8000;
 const OUTBOX_KEY = 'auditoriaOutboxV1';
-let outbox = {queue: [], sending: false};function createImportarModal() {
+let outbox = {queue: [], sending: false};async function ensureApexCharts() {
+    if (window.ApexCharts) return;
+    await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/apexcharts';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Falha ao carregar ApexCharts'));
+        document.head.appendChild(s);
+    });
+}function getBrazilDateKey(isoString) {
+    if (!isoString) return null;
+    try {        let dateToParse = isoString;
+        if (!isoString.endsWith('Z') && !isoString.includes('+')) {
+            dateToParse += 'Z';
+        }
+        const dateObj = new Date(dateToParse);        const formatter = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'America/Sao_Paulo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return formatter.format(dateObj);
+    } catch (e) {
+        return isoString ? isoString.split('T')[0] : null;
+    }
+}function switchTab(tabName) {
+    if (!dom.subtabSeparacao || !dom.subtabAnalise) return;    const activeBtnClass = ['bg-white', 'text-blue-700', 'shadow'];
+    const inactiveBtnClass = ['text-gray-500', 'hover:text-gray-700', 'bg-transparent', 'shadow-none'];    if (tabName === 'separacao') {
+        dom.subtabSeparacao.classList.remove('hidden');
+        dom.subtabAnalise.classList.add('hidden');        if (dom.tabBtnSeparacao) {
+            dom.tabBtnSeparacao.classList.add(...activeBtnClass);
+            dom.tabBtnSeparacao.classList.remove(...inactiveBtnClass);
+        }
+        if (dom.tabBtnAnalise) {
+            dom.tabBtnAnalise.classList.remove(...activeBtnClass);
+            dom.tabBtnAnalise.classList.add(...inactiveBtnClass);
+        }
+    } else {
+        dom.subtabSeparacao.classList.add('hidden');
+        dom.subtabAnalise.classList.remove('hidden');        if (dom.tabBtnAnalise) {
+            dom.tabBtnAnalise.classList.add(...activeBtnClass);
+            dom.tabBtnAnalise.classList.remove(...inactiveBtnClass);
+        }
+        if (dom.tabBtnSeparacao) {
+            dom.tabBtnSeparacao.classList.remove(...activeBtnClass);
+            dom.tabBtnSeparacao.classList.add(...inactiveBtnClass);
+        }        renderAnalysisTab();
+    }
+}async function renderAnalysisTab() {
+    await ensureApexCharts();
+    const data = state.cacheData;    if (!data) return;    const rotasMap = new Map();
+    const docasMap = new Map();
+    const timeMap = new Map();
+    const bipadorMap = new Map();    data.forEach(item => {        const r = item.ROTA || 'N/A';
+        if (!rotasMap.has(r)) rotasMap.set(r, { total: 0, ok: 0, pending: 0 });
+        const rStats = rotasMap.get(r);
+        rStats.total++;
+        if (item.VALIDACAO === 'BIPADO') rStats.ok++; else rStats.pending++;        const d = item.DOCA ? String(item.DOCA).trim() : null;
+        const labelDoca = d || 'S/D';
+        if (!docasMap.has(labelDoca)) docasMap.set(labelDoca, { total: 0, pending: 0 });
+        const dStats = docasMap.get(labelDoca);
+        dStats.total++;
+        if (item.VALIDACAO !== 'BIPADO') dStats.pending++;        const dateKey = getBrazilDateKey(item.DATA);
+        if (dateKey) {
+            if (!timeMap.has(dateKey)) timeMap.set(dateKey, { total: 0, ok: 0 });
+            const tStats = timeMap.get(dateKey);
+            tStats.total++;
+            if (item.VALIDACAO === 'BIPADO') tStats.ok++;
+        }        if (item.VALIDACAO === 'BIPADO' && item['BIPADO SAIDA']) {
+            const nome = item['BIPADO SAIDA'].trim();
+            if (nome) {
+                bipadorMap.set(nome, (bipadorMap.get(nome) || 0) + 1);
+            }
+        }
+    });    const rotasArr = Array.from(rotasMap.entries()).map(([rota, st]) => ({
+        rota, ...st, assertividade: st.total > 0 ? (st.ok / st.total) * 100 : 0
+    }));    const timeArr = Array.from(timeMap.entries()).sort((a,b) => a[0].localeCompare(b[0]));    const totalGeral = rotasArr.reduce((acc, r) => acc + r.total, 0);
+    const totalOk = rotasArr.reduce((acc, r) => acc + r.ok, 0);
+    const percentualGeral = totalGeral > 0 ? ((totalOk / totalGeral) * 100).toFixed(1) : 0;    const elKpiPerc = document.getElementById('kpi-percentual');
+    const elKpiBar = document.getElementById('kpi-percentual-bar');
+    if(elKpiPerc) elKpiPerc.innerText = `${percentualGeral}%`;
+    if(elKpiBar) elKpiBar.style.width = `${percentualGeral}%`;    const sortedByAssert = [...rotasArr].filter(r => r.total > 5).sort((a,b) => b.assertividade - a.assertividade);
+    const bestRoute = sortedByAssert.length > 0 ? sortedByAssert[0] : (rotasArr[0] || {rota: '---'});
+    const elKpiBest = document.getElementById('kpi-best-route');
+    if(elKpiBest) elKpiBest.innerText = `Rota ${bestRoute.rota}`;    const sortedByPending = [...rotasArr].filter(r => r.pending > 0).sort((a,b) => b.pending - a.pending);
+    const worstRoute = sortedByPending.length > 0 ? sortedByPending[0] : null;
+    const elKpiWorst = document.getElementById('kpi-worst-route');
+    if(elKpiWorst) {
+        elKpiWorst.innerText = worstRoute ? `Rota ${worstRoute.rota}` : '100% OK';
+        elKpiWorst.className = worstRoute ? 'text-xl font-bold text-red-600 truncate mt-0.5' : 'text-xl font-bold text-green-600 truncate mt-0.5';
+    }    const validDockIssues = Array.from(docasMap.entries())
+        .map(([doca, st]) => ({ doca, ...st }))
+        .filter(d => d.doca !== 'S/D' && d.doca !== '---' && d.pending > 0)
+        .sort((a,b) => b.pending - a.pending);    const worstDock = validDockIssues.length > 0 ? validDockIssues[0] : null;
+    const elKpiDock = document.getElementById('kpi-worst-dock');
+    if(elKpiDock) {
+        elKpiDock.innerText = worstDock ? `${worstDock.doca}` : '100% OK';
+        elKpiDock.className = worstDock ? 'text-xl font-bold text-red-600 truncate mt-0.5' : 'text-xl font-bold text-green-600 truncate mt-0.5';
+    }    let bestBipadorName = '---';
+    let bestBipadorCount = 0;
+    const bipadoresArr = Array.from(bipadorMap.entries()).map(([nome, count]) => ({ nome, count }));
+    bipadoresArr.sort((a, b) => b.count - a.count);    if (bipadoresArr.length > 0) {
+        bestBipadorName = bipadoresArr[0].nome;
+        bestBipadorCount = bipadoresArr[0].count;
+    }
+    const elKpiBipador = document.getElementById('kpi-best-bipador');
+    if(elKpiBipador) elKpiBipador.innerText = bestBipadorName !== '---' ? `${bestBipadorName} (${bestBipadorCount})` : '---';    renderChart('chart-timeline', 'timeline', {
+        series: [
+            { name: 'Volume', type: 'column', data: timeArr.map(t => t[1].total) },
+            {
+                name: 'Assertividade (%)',
+                type: 'line',
+                data: timeArr.map(t => {
+                    const total = t[1].total;
+                    const ok = t[1].ok;
+                    return total > 0 ? ((ok / total) * 100).toFixed(1) : 0;
+                })
+            }
+        ],
+        xaxis: {
+            categories: timeArr.map(t => {
+                const parts = t[0].split('-');
+                return `${parts[2]}/${parts[1]}`;
+            })
+        },
+        chart: { type: 'line', height: 250 },
+        dataLabels: { enabled: true, enabledOnSeries: [1], formatter: (val) => val + "%" },
+        colors: ['#e5e7eb', '#16a34a'],
+        stroke: { width: [0, 4] },
+        yaxis: [
+            { title: { text: 'Volume' } },
+            { opposite: true, title: { text: 'Assertividade' }, max: 100 }
+        ]
+    });    const top5Assert = sortedByAssert.slice(0, 5);
+    renderChart('chart-top-routes', 'topRoutes', {
+        series: [{ name: 'Assertividade (%)', data: top5Assert.map(r => r.assertividade.toFixed(1)) }],
+        xaxis: { categories: top5Assert.map(r => r.rota) },
+        chart: { type: 'bar', height: 220 },
+        colors: ['#2563eb'],
+        dataLabels: { enabled: true, formatter: (val) => val + "%", style: { colors: ['#fff'] } },
+        plotOptions: { bar: { borderRadius: 4, horizontal: true } }
+    });    const top5Pending = sortedByPending.slice(0, 5);
+    renderChart('chart-pending-routes', 'pendingRoutes', {
+        series: [{ name: 'Pendentes', data: top5Pending.map(r => r.pending) }],
+        xaxis: { categories: top5Pending.map(r => r.rota) },
+        chart: { type: 'bar', height: 220 },
+        dataLabels: { enabled: true, style: { colors: ['#fff'] } },
+        colors: ['#ef4444'],
+        plotOptions: { bar: { borderRadius: 4, horizontal: false } }
+    });    const top5Bipadores = bipadoresArr.slice(0, 5);
+    renderChart('chart-top-bipadores', 'dockIssues', {
+        series: [{ name: 'Volume Saída', data: top5Bipadores.map(b => b.count) }],
+        xaxis: {
+            categories: top5Bipadores.map(b => {
+                const parts = b.nome.split(' ');
+                return parts[0];
+            })
+        },
+        chart: { type: 'bar', height: 220 },
+        dataLabels: { enabled: true, style: { colors: ['#fff'] } },
+        colors: ['#8b5cf6'],
+        plotOptions: { bar: { borderRadius: 4, horizontal: false } },
+        tooltip: {
+            y: { formatter: (val) => val + " bipagens" }
+        }
+    });
+}function renderChart(domId, chartKey, options) {
+    const defaultOpts = {
+        chart: { toolbar: { show: false }, fontFamily: 'inherit' },
+        dataLabels: { enabled: false },        grid: { show: false, padding: { left: 0, right: 0 } }
+    };    const finalOpts = {
+        ...defaultOpts,
+        ...options,
+        chart: { ...defaultOpts.chart, ...options.chart },
+        dataLabels: { ...defaultOpts.dataLabels, ...(options.dataLabels || {}) },
+        grid: { ...defaultOpts.grid, ...(options.grid || {}) }
+    };    if (state.charts[chartKey]) {
+        state.charts[chartKey].updateOptions(finalOpts);
+    } else {
+        const el = document.getElementById(domId);
+        if (el) {
+            state.charts[chartKey] = new ApexCharts(el, finalOpts);
+            state.charts[chartKey].render();
+        }
+    }
+}function createImportarModal() {
     if (document.getElementById('modal-importar-consolidado')) return;
     const modal = document.createElement('div');
     modal.id = 'modal-importar-consolidado';
@@ -398,9 +584,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     };
 }function buildSelectHeaders() {
     return {
+        'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        Range: '0-1000',
     };
 }function formatarDataHack(isoString, formatOptions) {
     if (!isoString) return '---';
@@ -1085,18 +1271,24 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     if (!usuarioSaida) return {success: false, message: 'Digite o nome do colaborador'};
     if (!doca) return {success: false, message: 'Selecione a DOCA'};
     if (!ilha) return {success: false, message: 'Selecione a ILHA'};
-    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};    try {
+    if (!idPacoteScaneado) return {success: false, message: 'Bipe o QR/Barra do Pacote'};
+    try {
         const body = {id_pacote: idPacoteScaneado, rota_selecionada: ilha, usuario_saida: usuarioSaida, doca};
-        const {queued, json} = await tryPostOrQueue('carregamento', FUNC_CARREGAMENTO_URL, body);        if (queued) {
+        const {queued, json} = await tryPostOrQueue('carregamento', FUNC_CARREGAMENTO_URL, body);
+        if (queued) {
             return {
                 success: false,
                 message: 'Falha na conexão com a rede… Tentando registrar (item na fila). Clique em "Forçar envio" ou aguarde.'
             };
-        }        const {updatedData, idempotent, message} = json || {};        if (!updatedData) {
+        }
+        const {updatedData, idempotent, message} = json || {};
+        if (!updatedData) {
             throw new Error(json?.error || "Backend não retornou dados da manga/pacote.");
-        }        const updatedNumeracao = updatedData?.NUMERACAO;
+        }
+        const updatedNumeracao = updatedData?.NUMERACAO;
         let successMessage = message || `OK! ${updatedNumeracao} validado.`;
-        if (idempotent) successMessage = message || `Manga/Pacote ${updatedNumeracao} já estava validada.`;        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
+        if (idempotent) successMessage = message || `Manga/Pacote ${updatedNumeracao} já estava validada.`;
+        const index = state.cacheData.findIndex(itemCache => itemCache.NUMERACAO === updatedNumeracao);
         if (index > -1) {
             state.cacheData[index] = {...state.cacheData[index], ...updatedData};
             const id = extractElevenDigits(state.cacheData[index]['ID PACOTE']);
@@ -1105,7 +1297,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             state.cacheData.unshift(updatedData);
             const id = extractElevenDigits(updatedData['ID PACOTE']);
             if (id) state.idPacoteMap.set(id, updatedData);
-        }        return {success: true, message: successMessage};    } catch (err) {
+        }
+        return {success: true, message: successMessage};
+    } catch (err) {
         console.error('Erro Carregamento (runCarregamentoValidation):', err);
         const msg = String(err?.message || err);
         return {success: false, message: `Erro: ${msg}`};
@@ -1167,33 +1361,43 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             dom.carScan.focus();
         }
     }
-}async function fetchDashboardData() {
-    if (!state.period.start || !state.period.end) {
-        const todayISO = getBrasiliaDate(false);
-        state.period.start = todayISO;
-        state.period.end = todayISO;
-    }
-    const startDate = `${state.period.start}T00:00:00-03:00`;
-    const endDate = `${state.period.end}T23:59:59-03:00`;
-    const query = new URLSearchParams();
-    query.append('select', '*');
-    query.append('DATA', `gte.${startDate}`);
-    query.append('DATA', `lte.${endDate}`);
-    query.append('order', 'DATA.desc');
-    const url = `${SUPABASE_URL}/rest/v1/Carregamento?${query.toString()}`;
-    try {
-        const response = await fetch(url, {headers: buildSelectHeaders()});
-        if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);
-        const data = await response.json();
-        state.cacheData = data;
+}async function fetchDashboardData() {    if (!state.period.start || !state.period.end) {
+        const today = new Date();
+        const endISO = getBrasiliaDate(false);        const startObj = new Date(today.getFullYear(), today.getMonth(), 1);
+        const formatter = new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'America/Sao_Paulo',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        const startISO = formatter.format(startObj);        state.period.start = startISO;
+        state.period.end = endISO;
+        updatePeriodLabel();
+    }    const startDate = `${state.period.start}T00:00:00-03:00`;
+    const endDate = `${state.period.end}T23:59:59-03:00`;    const baseParams = new URLSearchParams();
+    baseParams.append('select', '*');
+    baseParams.append('DATA', `gte.${startDate}`);
+    baseParams.append('DATA', `lte.${endDate}`);
+    baseParams.append('order', 'DATA.desc');    const pageSize = 1000;
+    let offset = 0;
+    let allRows = [];    try {
+        while (true) {
+            const params = new URLSearchParams(baseParams);
+            params.append('limit', String(pageSize));
+            params.append('offset', String(offset));            const url = `${SUPABASE_URL}/rest/v1/Carregamento?${params.toString()}`;            const response = await fetch(url, { headers: buildSelectHeaders() });
+            if (!response.ok) throw new Error(`Erro ao buscar dados: ${response.statusText}`);            const page = await response.json();            allRows = allRows.concat(page);            if (page.length < pageSize) break;            offset += pageSize;            if (offset >= 50000) break;
+        }        state.cacheData = allRows;
         state.idPacoteMap.clear();
-        for (const item of data) {
+        for (const item of allRows) {
             const id = extractElevenDigits(item['ID PACOTE']);
             if (id) state.idPacoteMap.set(id, item);
         }
     } catch (err) {
         console.error('Falha ao carregar placar:', err);
-        if (dom.dashboard) dom.dashboard.innerHTML = `<p class="text-red-500">Erro ao carregar dados.</p>`;
+        if (dom.summaryContainer) {
+            dom.summaryContainer.innerHTML =
+                `<p class="text-red-500 text-xs p-2">Erro ao carregar dados.</p>`;
+        }
     }
 }function processDashboardData(data) {
     if (!data || data.length === 0) return [];
@@ -1252,95 +1456,104 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     return rotasConsolidadas;
 }function renderDashboard() {
     const summaryContainer = dom.summaryContainer;
-    const routesContainer = dom.dashboard;
-    if (!summaryContainer || !routesContainer) return;
-    const rotasConsolidadas = processDashboardData(state.cacheData);
-    const totalGeralPacotes = rotasConsolidadas.reduce((acc, r) => acc + r.total, 0);
+    const routesContainer = dom.routesContainer;    if (!summaryContainer || !routesContainer) return;    const todayISO = getBrasiliaDate(false);
+    const todayFormatted = todayISO.split('-').reverse().join('/');    const operacaoData = state.cacheData.filter(item => {
+        const itemDate = getBrazilDateKey(item.DATA);
+        return itemDate === todayISO;
+    });    const rotasConsolidadas = processDashboardData(operacaoData);    const totalGeralPacotes = rotasConsolidadas.reduce((acc, r) => acc + r.total, 0);
     const totalGeralVerificados = rotasConsolidadas.reduce((acc, r) => acc + r.verificados, 0);
-    const totalGeralPendentes = totalGeralPacotes - totalGeralVerificados;
-    const percVerificados = totalGeralPacotes > 0 ? (totalGeralVerificados / totalGeralPacotes) * 100 : 0;
-    const percPendentes = totalGeralPacotes > 0 ? (totalGeralPendentes / totalGeralPacotes) * 100 : 0;
-    let resumoHtml = `
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 text-center">
-            <span class="block text-sm font-medium text-gray-500 uppercase">Carregamentos</span>
-            <span class="block text-4xl font-bold text-auditoria-primary">${totalGeralVerificados}</span>
-            <span class="block text-sm text-gray-500">de ${totalGeralPacotes}</span>
-        </div>
-        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 text-center">
-            <span class="block text-sm font-medium text-gray-500 uppercase">Concluído</span>
-            <span class="block text-4xl font-bold text-green-600">${percVerificados.toFixed(2)}%</span>
-            <span class="block text-sm text-gray-500">(${totalGeralVerificados} concluídos)</span>
-        </div>
-        <div class="bg-white p-4 rounded-lg shadow border border-gray-200 text-center">
-            <span class="block text-sm font-medium text-gray-500 uppercase">Em Andamento</span>
-            <span class="block text-4xl font-bold text-yellow-600">${percPendentes.toFixed(2)}%</span>
-            <span class="block text-sm text-gray-500">(${totalGeralPendentes} pendentes)</span>
+    const totalGeralPendentes = totalGeralPacotes - totalGeralVerificados;    const percVerificados = totalGeralPacotes > 0
+        ? (totalGeralVerificados / totalGeralPacotes) * 100
+        : 0;    const percPendentes = totalGeralPacotes > 0
+        ? (totalGeralPendentes / totalGeralPacotes) * 100
+        : 0;    let resumoHtml = `
+    <div class="flex items-center justify-between mb-2">
+         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            Visão: ${todayFormatted}
+         </span>
+         <span class="text-[10px] text-gray-400">${state.cacheData.length} regs</span>
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-2">
+        <!-- Carregamentos -->
+        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+            <span class="text-[10px] font-bold text-gray-400 uppercase">Carregamentos</span>
+            <span class="text-xl font-bold text-auditoria-primary leading-none mt-1">
+                ${totalGeralVerificados}
+            </span>
+            <span class="text-[10px] text-gray-400">de ${totalGeralPacotes}</span>
+        </div>        <!-- Concluído -->
+        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+            <span class="text-[10px] font-bold text-gray-400 uppercase">Concluído</span>
+            <span class="text-xl font-bold text-green-600 leading-none mt-1">
+                ${percVerificados.toFixed(2)}%
+            </span>
+            <span class="text-[10px] text-gray-400">
+                (${totalGeralVerificados} concluídos)
+            </span>
+        </div>        <!-- Em Andamento -->
+        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+            <span class="text-[10px] font-bold text-gray-400 uppercase">Em Andamento</span>
+            <span class="text-xl font-bold text-yellow-600 leading-none mt-1">
+                ${percPendentes.toFixed(2)}%
+            </span>
+            <span class="text-[10px] text-gray-400">
+                (${totalGeralPendentes} pendentes)
+            </span>
         </div>
     </div>
     `;
-    if (rotasConsolidadas.length === 0) {
-        routesContainer.innerHTML = '<p class="text-gray-500">Nenhum registro encontrado para este período.</p>';
-        summaryContainer.innerHTML = resumoHtml;
+    summaryContainer.innerHTML = resumoHtml;    if (rotasConsolidadas.length === 0) {
+        routesContainer.innerHTML = `
+            <div class="text-center py-8 bg-white rounded-lg border border-dashed border-gray-200">
+                <p class="text-sm text-gray-400">Sem movimentação hoje.</p>
+            </div>`;
         return;
-    }
-    const concluidaIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-green-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>`;
-    const emAndamentoIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-yellow-500"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 4.5a1.5 1.5 0 00-1.5 1.5v5.25a1.5 1.5 0 003 0V6a1.5 1.5 0 00-1.5-1.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0z" clip-rule="evenodd" /></svg>`;
-    let rotasHtml = '<div class="space-y-3">';
+    }    const concluidaIcon = `<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
+    const emAndamentoIcon = `<svg class="w-4 h-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;    let rotasHtml = '<div class="space-y-2">';
     for (const rota of rotasConsolidadas) {
         const statusHtml = rota.concluida
-            ? `<div class="flex items-center space-x-1">${concluidaIcon} <span class="text-green-600 font-medium">Concluída</span></div>`
-            : `<div class="flex items-center space-x-1">${emAndamentoIcon} <span class="text-yellow-600 font-medium">${rota.pendentes} pendente(s)</span></div>`;
-        const circleColor = rota.percentual === 100 ? 'text-green-500' : 'text-auditoria-accent';
-        const progressCircle = `
-            <div class="relative w-16 h-16">
-                <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
-                    <path class="text-gray-200"
-                        d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke-width="3.5" stroke="currentColor" />
-                    <path class="${circleColor}"
-                        stroke-dasharray="${rota.percentual}, 100"
-                        d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                        fill="none" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" />
-                </svg>
-                <div class="absolute inset-0 flex items-center justify-center">
-                    <span class="text-lg font-semibold ${circleColor}">${rota.percentual}%</span>
-                </div>
-            </div>
-        `;
+            ? `<div class="flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded text-green-700 text-[10px] font-bold border border-green-100">OK</div>`
+            : `<div class="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 text-[10px] font-bold border border-yellow-100">${rota.pendentes} pend</div>`;
+        const circleColor = rota.percentual === 100 ? 'text-green-500' : 'text-blue-500';
         rotasHtml += `
-        <div class="rota-card bg-white p-4 rounded-lg shadow border border-gray-200 cursor-pointer hover:shadow-md" data-rota="${rota.rota}">
-            <div class="flex flex-wrap items-center justify-evenly gap-x-4 gap-y-2">
-            <div class="flex-shrink-0" style="min-width: 140px;">
-                    <h5 class="text-xl font-bold text-gray-800">Rota ${rota.rota}</h5>
-                    <span class="text-sm text-gray-500">Início: ${rota.inicio}</span>
+        <div class="rota-card bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:border-blue-300 transition-colors" data-rota="${rota.rota}">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="bg-gray-100 h-10 w-10 rounded-full flex items-center justify-center font-bold text-gray-600 text-sm border border-gray-200">
+                        ${rota.rota}
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-gray-800">Rota ${rota.rota}</span>
+                            ${statusHtml}
+                        </div>
+                        <div class="text-[10px] text-gray-400 mt-0.5 flex gap-2">
+                             <span>Início: ${rota.inicio.split(' ')[1] || '--:--'}</span>
+                             <span>•</span>
+                             <span>Ult: ${rota.ultimoCarregamento.split(' ')[1] || '--:--'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="flex-shrink-0" style="min-width: 150px;">
-                    <span class="text-sm font-medium text-gray-700">${rota.ultimoCarregamento}</span>
-                    <span class="block text-xs text-gray-500">Ult. Carreg. (${rota.usuario})</span>
-                </div>
-                <div class="flex-shrink-0">
-                    ${progressCircle}
-                </div>
-                <div class="flex-shrink-0 text-sm text-gray-700" style="min-width: 140px;">
-                    <div><b>${rota.verificados}</b> pacotes verificados</div>
-                    <div class="text-gray-500"><b>${rota.total}</b> total</div>
-                </div>
-                <div class="flex-shrink-0" style="min-width: 130px;">
-                    ${statusHtml}
+                <div class="flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <div class="text-xs font-bold text-gray-700">${rota.verificados}/${rota.total}</div>
+                        <div class="text-[10px] text-gray-400">Verificados</div>
+                    </div>
+                    <div class="relative w-10 h-10">
+                         <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
+                            <path class="text-gray-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke="currentColor" />
+                            <path class="${circleColor}" stroke-dasharray="${rota.percentual}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke-linecap="round" stroke="currentColor" />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-600">
+                            ${rota.percentual}%
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        `;
+        </div>`;
     }
     rotasHtml += '</div>';
-    summaryContainer.innerHTML = resumoHtml;
-    routesContainer.innerHTML = rotasHtml;
-    routesContainer.querySelectorAll('.rota-card').forEach(card => {
+    routesContainer.innerHTML = rotasHtml;    routesContainer.querySelectorAll('.rota-card').forEach(card => {
         card.addEventListener('dblclick', () => {
             const rota = card.getAttribute('data-rota');
             openRelatorioModal(rota);
@@ -1348,43 +1561,35 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     });
 }async function fetchAndRenderDashboard() {
     await fetchDashboardData();
-    renderDashboard();
+    renderDashboard();    if (!dom.subtabAnalise.classList.contains('hidden')) {
+        renderAnalysisTab();
+    }
 }function reorderControlsOverDashboard() {
-    const root = document.getElementById('tab-auditoria-mangas');
-    if (!root) return;
-    const btn1 = document.getElementById('btn-iniciar-separacao');
-    const btn2 = document.getElementById('btn-iniciar-carregamento');
-    const dashboardBlock = document.getElementById('dashboard-stats')?.closest('.p-4');
-    const periodBlock = dom.periodBtn?.closest('.p-4');
-    if (!btn1 || !btn2 || !dashboardBlock) return;
-    let bar = document.getElementById('auditoria-controls-bar');
-    if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'auditoria-controls-bar';
-        dashboardBlock.parentElement.insertBefore(bar, dashboardBlock);
-    }
-    bar.className = 'p-4 grid grid-cols-1 md:grid-cols-4 gap-4';
-    if (periodBlock && periodBlock.parentElement !== bar) {
-        bar.appendChild(periodBlock);
-        periodBlock.style.padding = '0';
-        dom.periodBtn.style.width = '100%';
-        dom.periodBtn.style.height = '100%';
-        dom.periodBtn.style.minHeight = '82px';
-    }
-    if (btn1.parentElement !== bar) bar.appendChild(btn1);
-    if (btn2.parentElement !== bar) bar.appendChild(btn2);
-    if (!dom.btnImportarConsolidado) {
+    const container = document.getElementById('extra-controls-container');
+    if (!container) return;    if (!dom.btnImportarConsolidado) {
         const btn3 = document.createElement('button');
-        btn3.id = 'btn-importar-consolidado';
-        btn3.className = 'px-4 py-3 text-lg w-full h-full flex flex-col items-center justify-center text-white font-semibold rounded-lg shadow-md';
-        btn3.style.backgroundColor = '#6d28d9';
-        btn3.style.minHeight = '82px';
-        btn3.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 mb-1"><path d="M12 1.5a.75.75 0 01.75.75V7.5h-1.5V2.25A.75.75 0 0112 1.5zM11.25 7.5v5.69l-1.72-1.72a.75.75 0 00-1.06 1.06l3 3a.75.75 0 001.06 0l3-3a.75.75 0 10-1.06-1.06l-1.72 1.72V7.5h3.75a3 3 0 013 3v9.75a3 3 0 01-3 3H5.25a3 3 0 01-3-3V10.5a3 3 0 013-3h3.75z" /></svg>
-            <span class="text-lg">Importar Consolidado</span>
+        btn3.id = 'btn-importar-consolidado';        btn3.className = 'group relative overflow-hidden bg-white border border-purple-200 hover:border-purple-400 p-3 rounded-lg shadow-sm hover:shadow-md transition-all text-left flex items-center gap-3 h-full w-full';        btn3.innerHTML = `
+            <div class="bg-purple-50 p-2 rounded-lg group-hover:bg-purple-600 transition-colors flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+            </div>
+            <div class="flex-grow">
+                <span class="block text-sm font-bold text-gray-800">3. Importar</span>
+                <span class="block text-[10px] text-gray-500 leading-tight">Consolidado SBA7</span>
+            </div>
         `;
         dom.btnImportarConsolidado = btn3;
-        bar.appendChild(btn3);
+        container.appendChild(btn3);        btn3.addEventListener('click', () => {
+             if (dom.importStatus) dom.importStatus.textContent = '';
+             if (dom.importTextarea) dom.importTextarea.value = '';
+             state.isImporting = false;
+             if (dom.importSubmitBtn) {
+                 dom.importSubmitBtn.disabled = false;
+                 dom.importSubmitBtn.textContent = 'Importar Dados';
+             }
+             openModal(dom.modalImportar);
+        });
     }
 }function setSepStatus(message, {error = false} = {}) {
     if (!dom.sepStatus) return;
@@ -1536,7 +1741,7 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
     const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-    const overlay = document.createElement('div');
+    const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);    const overlay = document.createElement('div');
     overlay.id = 'cd-period-overlay';
     overlay.innerHTML = `
       <div class="cdp-card">
@@ -1544,11 +1749,12 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         <div class="cdp-shortcuts">
           <button id="cdp-today"   class="btn-salvar">Hoje</button>
           <button id="cdp-yday"    class="btn-salvar">Ontem</button>
+          <button id="cdp-curmo"   class="btn-salvar">Mês Atual</button>
           <button id="cdp-prevmo"  class="btn-salvar">Mês anterior</button>
         </div>
         <div class="dates-grid">
           <div><label>Início</label><input id="cdp-period-start" type="date" value="${curStart}"></div>
-          <div><label>Fim</label><input id="cdp-period-end"     type="date" value="${curEnd}"></div>
+          <div><label>Fim</label><input id="cdp-period-end"      type="date" value="${curEnd}"></div>
         </div>
         <div class="form-actions">
           <button id="cdp-cancel" class="btn">Cancelar</button>
@@ -1583,8 +1789,7 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     overlay.addEventListener('click', (ev) => {
         if (ev.target === overlay) close();
     });
-    btnCancel.onclick = close;
-    overlay.querySelector('#cdp-today').onclick = () => {
+    btnCancel.onclick = close;    overlay.querySelector('#cdp-today').onclick = () => {
         const iso = toISO(getBrasiliaDate(true));
         [state.period.start, state.period.end] = [iso, iso];
         updatePeriodLabel();
@@ -1594,6 +1799,16 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     overlay.querySelector('#cdp-yday').onclick = () => {
         const iso = toISO(yesterday);
         [state.period.start, state.period.end] = [iso, iso];
+        updatePeriodLabel();
+        close();
+        fetchAndRenderDashboard();
+    };
+    overlay.querySelector('#cdp-curmo').onclick = () => {
+        const s = toISO(currentMonthStart);
+        const e = toISO(today);
+        const [cs, ce] = clampEndToToday(s, e);
+        state.period.start = cs;
+        state.period.end = ce;
         updatePeriodLabel();
         close();
         fetchAndRenderDashboard();
@@ -1656,26 +1871,14 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     document.head.appendChild(style);
 }let initOnce = false;export function init() {
     if (initOnce) return;
-    initOnce = true;
-    dom.dashboard = document.getElementById('dashboard-stats');
-    const dashboardBlock = dom.dashboard?.closest('.p-4');
-    if (dashboardBlock) {
-        const parent = dashboardBlock.parentElement;
-        if (parent) {
-            parent.classList.add('auditoria-main-container');
-            dom.summaryContainer = document.createElement('div');
-            dom.summaryContainer.id = 'auditoria-summary-container';
-            parent.insertBefore(dom.summaryContainer, dashboardBlock);
-            dom.routesContainer = document.createElement('div');
-            dom.routesContainer.id = 'auditoria-routes-container';
-            parent.insertBefore(dom.routesContainer, dashboardBlock);
-            dom.routesContainer.appendChild(dashboardBlock);
-        }
-    }
-    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
+    initOnce = true;    dom.dashboard = document.getElementById('dashboard-stats');    dom.tabBtnSeparacao = document.getElementById('tab-btn-separacao');
+    dom.tabBtnAnalise = document.getElementById('tab-btn-analise');
+    dom.subtabSeparacao = document.getElementById('subtab-separacao');
+    dom.subtabAnalise = document.getElementById('subtab-analise');    dom.summaryContainer = document.getElementById('auditoria-summary');
+    dom.routesContainer = document.getElementById('auditoria-routes');    if (!dom.summaryContainer) dom.summaryContainer = document.getElementById('dashboard-stats');
+    if (!dom.routesContainer) dom.routesContainer = document.getElementById('dashboard-stats');    dom.btnSeparação = document.getElementById('btn-iniciar-separacao');
     dom.btnCarregamento = document.getElementById('btn-iniciar-carregamento');
-    dom.periodBtn = document.getElementById('auditoria-period-btn');
-    dom.modalSeparação = document.getElementById('modal-separacao');
+    dom.periodBtn = document.getElementById('auditoria-period-btn');    dom.modalSeparação = document.getElementById('modal-separacao');
     dom.modalSepClose = dom.modalSeparação?.querySelector('.modal-close');
     dom.sepUser = document.getElementById('sep-user-name');
     dom.sepScan = document.getElementById('sep-scan-input');
@@ -1683,13 +1886,11 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     dom.sepQrArea = document.getElementById('sep-qr-area');
     dom.sepQrTitle = document.getElementById('sep-qr-title');
     dom.sepQrCanvas = document.getElementById('sep-qr-canvas');
-    dom.sepPrintBtn = document.getElementById('sep-print-btn');
-    dom.modalCarregamento = document.getElementById('modal-carregamento');
+    dom.sepPrintBtn = document.getElementById('sep-print-btn');    dom.modalCarregamento = document.getElementById('modal-carregamento');
     dom.modalCarClose = dom.modalCarregamento?.querySelector('.modal-close');
     dom.carUser = document.getElementById('car-user-name');
     dom.carScan = document.getElementById('car-scan-input');
-    dom.carStatus = document.getElementById('car-status');
-    injectAuditoriaStyles();
+    dom.carStatus = document.getElementById('car-status');    injectAuditoriaStyles();
     const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
@@ -1699,28 +1900,9 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     createImportarModal();
     injectScannerButtons();
     ensureDockSelect();
-    ensureIlhaSelect();
-    if (dom.btnSeparação) {
-        dom.btnSeparação.classList.remove('px-6', 'py-4', 'text-xl');
-        dom.btnSeparação.classList.add('px-4', 'py-3', 'text-lg');
-        const span = dom.btnSeparação.querySelector('.text-xl');
-        if (span) {
-            span.classList.remove('text-xl');
-            span.classList.add('text-lg');
-        }
-    }
-    if (dom.btnCarregamento) {
-        dom.btnCarregamento.classList.remove('px-6', 'py-4', 'text-xl');
-        dom.btnCarregamento.classList.add('px-4', 'py-3', 'text-lg');
-        const span = dom.btnCarregamento.querySelector('.text-xl');
-        if (span) {
-            span.classList.remove('text-xl');
-            span.classList.add('text-lg');
-        }
-    }
-    reorderControlsOverDashboard();
-    dom.periodBtn?.addEventListener('click', openPeriodModal);
-    dom.btnImportarConsolidado?.addEventListener('click', () => {
+    ensureIlhaSelect();    dom.tabBtnSeparacao?.addEventListener('click', () => switchTab('separacao'));
+    dom.tabBtnAnalise?.addEventListener('click', () => switchTab('analise'));    reorderControlsOverDashboard();
+    dom.periodBtn?.addEventListener('click', openPeriodModal);    dom.btnImportarConsolidado?.addEventListener('click', () => {
         if (dom.importStatus) dom.importStatus.textContent = '';
         if (dom.importTextarea) dom.importTextarea.value = '';
         state.isImporting = false;
@@ -1729,16 +1911,13 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             dom.importSubmitBtn.textContent = 'Importar Dados';
         }
         openModal(dom.modalImportar);
-    });
-    dom.importCloseBtn?.addEventListener('click', () => closeModal(dom.modalImportar));
-    dom.importSubmitBtn?.addEventListener('click', handleImportarConsolidado);
-    dom.btnSeparação?.addEventListener('click', () => {
+    });    dom.importCloseBtn?.addEventListener('click', () => closeModal(dom.modalImportar));
+    dom.importSubmitBtn?.addEventListener('click', handleImportarConsolidado);    dom.btnSeparação?.addEventListener('click', () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) dom.sepUser.focus();
         else dom.sepScan?.focus();
-    });
-    dom.btnCarregamento?.addEventListener('click', () => {
+    });    dom.btnCarregamento?.addEventListener('click', () => {
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
         populateIlhaSelect();
         openModal(dom.modalCarregamento);
@@ -1746,8 +1925,7 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan) (dom.carScan.value ? dom.carScan.select() : dom.carScan.focus());
-    });
-    dom.modalSepClose?.addEventListener('click', (ev) => {
+    });    dom.modalSepClose?.addEventListener('click', (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalSeparação);
@@ -1758,12 +1936,10 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
         resetCarregamentoModal({preserveUser: true, preserveDock: true});
-    });
-    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
+    });    dom.sepUser?.addEventListener('keydown', handleSepUserKeydown);
     dom.carUser?.addEventListener('keydown', handleCarUserKeydown);
     dom.sepScan?.addEventListener('keydown', handleSeparaçãoSubmit);
-    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);
-    dom.sepPrintBtn?.addEventListener('click', async () => {
+    dom.carScan?.addEventListener('keydown', handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener('click', async () => {
         try {
             if (state.lastPrintData) {
                 setSepStatus('Reimprimindo...');
@@ -1781,8 +1957,7 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
             console.error('Falha ao reimprimir etiqueta:', e);
             setSepStatus(`Erro ao reimprimir: ${e.message}`, {error: true});
         }
-    });
-    document.addEventListener('keydown', (e) => {
+    });    document.addEventListener('keydown', (e) => {
         if (e.key === 'F6') {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
                 e.preventDefault();
@@ -1792,16 +1967,14 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
                 dom.sepScan.focus();
             }
         }
-    });
-    [dom.sepScan, dom.carScan].forEach(inp => {
+    });    [dom.sepScan, dom.carScan].forEach(inp => {
         if (!inp) return;
         inp.addEventListener('paste', () => {
             setTimeout(() => {
                 inp.value = normalizeScanned(inp.value);
             }, 0);
         });
-    });
-    fetchAndRenderDashboard();
+    });    fetchAndRenderDashboard();
     installNetworkBanner();
     loadOutbox();
     eventHandlers.onOnline = () => processOutbox(true);
@@ -1812,35 +1985,23 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
     window.addEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);
     if (outbox.queue.length > 0) showNetBanner('Itens pendentes: tentando enviar…');
     setTimeout(() => processOutbox(), 2000);
-    console.log('Módulo de Auditoria (Dashboard) inicializado [V27 - Importador + Otimização].');
+    console.log('Módulo de Auditoria (Dashboard) inicializado [V30 - DataFix + Separated Containers].');
 }export function destroy() {
     console.log('Módulo de Auditoria (Dashboard) destruído.');
     if (state.globalScannerInstance) stopGlobalScanner();
     const styleTag = document.getElementById('auditoria-styles');
     if (styleTag) styleTag.parentElement.removeChild(styleTag);
     const cdpStyle = document.getElementById('cdp-style');
-    if (cdpStyle) cdpStyle.parentElement.removeChild(cdpStyle);
-    const dashboardBlock = dom.dashboard?.closest('.p-4');
-    if (dashboardBlock && dom.routesContainer && dom.summaryContainer) {
-        const mainContainer = dom.routesContainer.parentElement;
-        if (mainContainer) {
-            mainContainer.insertBefore(dashboardBlock, dom.routesContainer);
-            mainContainer.removeChild(dom.routesContainer);
-            mainContainer.removeChild(dom.summaryContainer);
-            mainContainer.classList.remove('auditoria-main-container');
-        }
-    }
-    const impModal = document.getElementById('modal-importar-consolidado');
+    if (cdpStyle) cdpStyle.parentElement.removeChild(cdpStyle);    Object.values(state.charts).forEach(chart => {
+        if (chart && typeof chart.destroy === 'function') chart.destroy();
+    });    const impModal = document.getElementById('modal-importar-consolidado');
     if (impModal) impModal.parentElement.removeChild(impModal);
     if (dom.scannerModal) dom.scannerModal.parentElement.removeChild(dom.scannerModal);
     if (dom.relatorioModal) dom.relatorioModal.parentElement.removeChild(dom.relatorioModal);
-    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);
-    if (dom.btnImportarConsolidado) dom.btnImportarConsolidado.parentElement.removeChild(dom.btnImportarConsolidado);
-    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
+    if (dom.netBanner) dom.netBanner.parentElement.removeChild(dom.netBanner);    if (eventHandlers.onOnline) window.removeEventListener('online', eventHandlers.onOnline);
     if (eventHandlers.onSepSuccess) window.removeEventListener('outbox:separacao:success', eventHandlers.onSepSuccess);
     if (eventHandlers.onCarSuccess) window.removeEventListener('outbox:carregamento:success', eventHandlers.onCarSuccess);
-    eventHandlers = {onOnline: null, onSepSuccess: null, onCarSuccess: null};
-    state = {
+    eventHandlers = {onOnline: null, onSepSuccess: null, onCarSuccess: null};    state = {
         cacheData: [],
         idPacoteMap: new Map(),
         isSeparaçãoProcessing: false,
@@ -1853,6 +2014,7 @@ let outbox = {queue: [], sending: false};function createImportarModal() {
         lastPrintData: null,
         period: {start: null, end: null},
         isImporting: false,
+        charts: {topRoutes: null, timeline: null, pendingRoutes: null, dockIssues: null}
     };
     dom = {};
     initOnce = false;

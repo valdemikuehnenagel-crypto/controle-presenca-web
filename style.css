@@ -188,13 +188,9 @@ body:not(.sidebar-collapsed) #sidebar-overlay {
     flex-wrap: nowrap;
     overflow-x: auto;
     padding-bottom: 8px;
-
-
     scrollbar-width: none;
-
     -ms-overflow-style: none;
 }
-
 
 .search-and-filters-wrapper::-webkit-scrollbar {
     display: none;
@@ -502,7 +498,6 @@ h3 {
     color: #2b3355;
 }
 
-
 #modalListaRH {
     position: fixed;
     inset: 0;
@@ -517,7 +512,6 @@ h3 {
     display: none;
 }
 
-
 #modalListaRH .modal-card {
     width: min(1000px, 94vw);
     max-height: 90vh;
@@ -529,7 +523,6 @@ h3 {
     display: flex;
     flex-direction: column;
 }
-
 
 #modalListaRH h3 {
     color: #003369;
@@ -543,7 +536,6 @@ h3 {
     align-items: center;
 }
 
-
 #rh-toolbar {
     display: flex;
     gap: 10px;
@@ -551,9 +543,7 @@ h3 {
     flex-wrap: wrap;
     margin-bottom: 16px;
     background: #fff;
-
 }
-
 
 #rh-toolbar label {
     font-size: 12px;
@@ -562,7 +552,6 @@ h3 {
     margin-bottom: 4px;
     display: block;
 }
-
 
 #rh-toolbar input[type="text"],
 #rh-toolbar select {
@@ -585,13 +574,11 @@ h3 {
     box-shadow: 0 0 0 3px rgba(2, 177, 238, .15);
 }
 
-
 #filterRhSearch {
     border-radius: 22px;
     padding-left: 14px;
     text-transform: uppercase;
 }
-
 
 #btnToggleFutureDates {
     height: 36px;
@@ -609,7 +596,6 @@ h3 {
     color: #fff;
 }
 
-
 #btnToggleFutureDates.bg-blue-100 {
     background-color: #eef3fb !important;
     color: #003369 !important;
@@ -626,7 +612,6 @@ h3 {
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
 }
 
-
 #countRhBadges {
     background: rgba(0, 0, 0, 0.1);
     color: inherit;
@@ -638,7 +623,6 @@ h3 {
     font-weight: 800;
 }
 
-
 .rh-table-wrapper {
     flex-grow: 1;
     min-height: 0;
@@ -649,7 +633,6 @@ h3 {
     box-shadow: 0 6px 16px rgba(0, 0, 0, .08);
 }
 
-
 #modalListaRH table {
     width: 100%;
     border-collapse: separate;
@@ -657,7 +640,6 @@ h3 {
     table-layout: auto;
     min-width: 800px;
 }
-
 
 #modalListaRH thead th {
     position: sticky;
@@ -675,7 +657,6 @@ h3 {
     text-align: left;
 }
 
-
 #modalListaRH thead th:first-child {
     border-top-left-radius: 14px;
 }
@@ -683,7 +664,6 @@ h3 {
 #modalListaRH thead th:last-child {
     border-top-right-radius: 14px;
 }
-
 
 #modalListaRH tbody td {
     padding: 8px 12px;
@@ -704,13 +684,11 @@ h3 {
     background-color: #f6f9ff;
 }
 
-
 #modalListaRH tbody tr td:nth-child(1) {
     font-weight: 700;
     color: #003369;
     min-width: 180px;
 }
-
 
 #modalListaRH tbody tr td:nth-child(2) {
     color: #6b7280;
@@ -718,13 +696,11 @@ h3 {
     font-size: 11px;
 }
 
-
 #modalListaRH thead th:nth-child(6), #modalListaRH tbody td:nth-child(6),
 #modalListaRH thead th:nth-child(7), #modalListaRH tbody td:nth-child(7),
 #modalListaRH thead th:nth-child(8), #modalListaRH tbody td:nth-child(8) {
     text-align: center !important;
 }
-
 
 .btn-desistencia {
     background-color: #fff;
@@ -746,7 +722,6 @@ h3 {
     transform: translateY(-1px);
 }
 
-
 .rh-table-wrapper::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -761,7 +736,6 @@ h3 {
     background: transparent;
 }
 
-
 .dropdown-wrapper {
     position: relative;
     display: inline-block;
@@ -772,28 +746,20 @@ h3 {
     top: 100%;
     right: 0;
     margin-top: 8px;
-
-
     background-color: #ffffff !important;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-
-
     min-width: 220px;
     padding: 8px 0;
     display: flex;
     flex-direction: column;
-
-
     z-index: 99999 !important;
 }
-
 
 .dropdown-menu.hidden {
     display: none !important;
 }
-
 
 .dropdown-item {
     width: 100%;
@@ -815,7 +781,6 @@ h3 {
     background-color: #f3f4f6;
     color: #003369;
 }
-
 
 #pending-import-alert {
     display: inline-flex;
@@ -850,7 +815,6 @@ h3 {
         transform: translateX(0);
     }
 }
-
 
 #cd-loading {
     z-index: 9998;
@@ -2637,6 +2601,13 @@ h3 {
 }
 
 .diaristas-root {
+    --d-primary: #003369;
+    --d-accent: #02B1EE;
+    --d-surface: #fff;
+    --d-border: #eceff5;
+    --d-muted: #6b7280;
+    --d-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -2650,6 +2621,9 @@ h3 {
     width: 100%;
 }
 
+/* ==========================================================================
+   TOOLBAR E FILTROS (ESTILO CLEAN)
+   ========================================================================== */
 .diaristas-root .diaristas-toolbar {
     display: flex;
     gap: 10px;
@@ -2668,6 +2642,7 @@ h3 {
     flex-wrap: wrap;
 }
 
+/* Labels dos filtros (opcional, caso use labels fora do select) */
 .diaristas-root .filters label {
     font-size: 12px;
     font-weight: 700;
@@ -2677,17 +2652,134 @@ h3 {
     align-items: center;
 }
 
-.diaristas-root .filters input[type="date"],
+/* Estilo dos SELECTS (Arredondados e Clean) */
 .diaristas-root .filters select {
     padding: 8px 10px;
-    border-radius: 20px;
-    border: 1px solid var(--d-border);
-    font-weight: 700;
-    font-size: 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px; /* Borda arredondada conforme solicitado */
     background: #fff;
+    font-weight: 600;
     color: #333;
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 110px;
+    max-width: 160px;
+    outline: none;
+    transition: all .2s ease;
 }
 
+.diaristas-root .filters select:hover {
+    border-color: #b0b0b0;
+}
+
+.diaristas-root .filters select:focus {
+    border-color: #003369;
+}
+
+/* Inputs de data nos filtros (se houver) */
+.diaristas-root .filters input[type="date"] {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 12px;
+    color: #333;
+    outline: none;
+}
+
+/* Botão: Selecionar Período */
+.diaristas-root #btn-period-select {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 20px;
+    background: #e9eef7;
+    color: #003369;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, .06);
+    transition: all .2s ease;
+}
+
+.diaristas-root #btn-period-select:hover {
+    transform: translateY(-1px);
+    background: #dce5f2;
+}
+
+/* Botão: Limpar Filtros (Novo) */
+.diaristas-root #btn-limpar-filtros {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 24px;
+    background: #6c757d; /* Cinza para ação secundária */
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
+    transition: all .2s ease;
+}
+
+.diaristas-root #btn-limpar-filtros:hover {
+    background: #5a6268;
+    transform: translateY(-2px);
+}
+
+/* ==========================================================================
+   BOTÕES DE AÇÃO (ADICIONAR, EXPORTAR, ETC)
+   ========================================================================== */
+.diaristas-root #btn-add-diarista,
+.diaristas-root #btn-export-xlsx,
+.diaristas-root #btn-gerenciar {
+    align-self: center;
+    padding: 8px 14px;
+    min-width: 120px;
+    border: none;
+    border-radius: 24px !important;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s ease;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.1;
+}
+
+.diaristas-root #btn-add-diarista {
+    background: #28a745;
+}
+.diaristas-root #btn-add-diarista:hover {
+    background: #218838;
+    transform: translateY(-2px);
+}
+
+.diaristas-root #btn-gerenciar {
+    background: #003369; /* Azul escuro */
+}
+.diaristas-root #btn-gerenciar:hover {
+    background: #002244;
+    transform: translateY(-2px);
+}
+
+.diaristas-root #btn-export-xlsx {
+    background: #003369;
+}
+.diaristas-root #btn-export-xlsx:hover {
+    background: #02B1EE;
+    transform: translateY(-2px);
+}
+.diaristas-root #btn-export-xlsx:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ==========================================================================
+   ÁREA DE CONTEÚDO (TABELA) - AJUSTADA PARA 100% LARGURA
+   ========================================================================== */
 .diaristas-root .diaristas-subtab {
     display: none;
 }
@@ -2697,7 +2789,8 @@ h3 {
     flex-direction: column;
     flex-grow: 1;
     min-height: 0;
-    width: min(1200px, 96vw);
+    width: 100%; /* Ocupa toda a largura */
+    box-sizing: border-box;
 }
 
 .diaristas-root .table-wrapper {
@@ -2708,15 +2801,14 @@ h3 {
     flex-grow: 1;
     min-height: 0;
     overflow: auto;
-    -webkit-overflow-scrolling: touch;
+    width: 100%; /* Garante alinhamento total */
 }
 
 .diaristas-root .diaristas-table {
     width: 100%;
-    min-width: 900px;
+    min-width: 900px; /* Garante scroll horizontal em telas muito pequenas */
     border-collapse: separate;
     border-spacing: 0;
-    table-layout: fixed;
 }
 
 .diaristas-root .diaristas-table thead th {
@@ -2734,13 +2826,8 @@ h3 {
     border-bottom: 1px solid var(--d-border);
 }
 
-.diaristas-root .diaristas-table thead th:first-child {
-    border-top-left-radius: 14px;
-}
-
-.diaristas-root .diaristas-table thead th:last-child {
-    border-top-right-radius: 14px;
-}
+.diaristas-root .diaristas-table thead th:first-child { border-top-left-radius: 14px; }
+.diaristas-root .diaristas-table thead th:last-child { border-top-right-radius: 14px; }
 
 .diaristas-root .diaristas-table tbody td {
     padding: 8px 10px;
@@ -2748,52 +2835,48 @@ h3 {
     font-size: 13px;
     text-align: center;
     background: #fff;
-}
-
-.diaristas-root .diaristas-table th,
-.diaristas-root .diaristas-table td {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+/* ==========================================================================
+   KPIS / CARDS DO TOPO (COMPACTADOS)
+   ========================================================================== */
 .diaristas-root .relatorio-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(260px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
 }
 
 .diaristas-root .card {
     background: var(--d-surface);
     border: 1px solid var(--d-border);
-    border-radius: 14px;
+    border-radius: 12px;
     box-shadow: var(--d-shadow);
-    padding: 12px;
+    padding: 10px; /* Compactado */
 }
 
 .diaristas-root .card h3 {
-    margin: 0 0 8px;
+    margin: 0 0 6px;
     color: var(--d-primary);
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
-}
-
-.diaristas-root .card small {
-    color: var(--d-muted);
 }
 
 .diaristas-root .kpis {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-top: 8px;
+    gap: 6px;
+    margin-top: 6px;
 }
 
 .diaristas-root .kpi {
     background: #f6f9ff;
     border: 1px solid var(--d-border);
-    border-radius: 12px;
-    padding: 10px;
+    border-radius: 8px;
+    padding: 6px; /* Compactado */
     text-align: center;
 }
 
@@ -2802,61 +2885,17 @@ h3 {
 }
 
 .diaristas-root .kpi-label {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--d-muted);
     font-weight: 700;
+    margin-bottom: 2px;
 }
 
 .diaristas-root .kpi-value {
-    font-size: 20px;
+    font-size: 16px; /* Fonte reduzida */
     font-weight: 900;
     color: var(--d-primary);
-}
-
-.diaristas-root #btn-add-diarista,
-.diaristas-root #btn-export-xlsx {
-    align-self: center;
-    padding: 8px 14px;
-    min-width: 130px;
-    border: none;
-    border-radius: 24px !important;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all .2s ease;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
-    color: #fff;
-    appearance: none;
-    -webkit-appearance: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1.1;
-}
-
-.diaristas-root #btn-add-diarista {
-    background: #28a745;
-}
-
-.diaristas-root #btn-add-diarista:hover {
-    background: #218838;
-    transform: translateY(-2px);
-}
-
-.diaristas-root #btn-export-xlsx {
-    background: #003369;
-    margin-left: 10px;
-}
-
-.diaristas-root #btn-export-xlsx:hover {
-    background: #02B1EE;
-    transform: translateY(-2px);
-}
-
-.diaristas-root #btn-export-xlsx:disabled {
-    opacity: .6;
-    cursor: not-allowed;
-    transform: none;
+    line-height: 1.2;
 }
 
 #diarista-modal.diaristas-modal {
@@ -3567,7 +3606,6 @@ h3 {
 
 #dados-op-result .main-table {
     width: 100%;
-
     border-collapse: separate;
     border-spacing: 0;
     table-layout: fixed;
@@ -3586,8 +3624,6 @@ h3 {
     font-size: 12px;
     font-weight: 800;
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-
-
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3632,7 +3668,6 @@ h3 {
 #dados-op-result .main-table tbody td:first-child {
     background: var(--d-surface);
 }
-
 
 #dados-op-result .main-table tbody tr.total-geral-row td:first-child {
     background-color: #f0f3f5;
@@ -4700,7 +4735,6 @@ html, body {
     border-color: #02B1EE;
 }
 
-
 .custom-context-menu {
     position: fixed;
     z-index: 10000;
@@ -4736,15 +4770,11 @@ html, body {
     filter: blur(1px);
 }
 
-
 #efet-desligamento {
-
-
     gap: 15px;
     height: 100%;
     font-family: inherit;
 }
-
 
 #efet-desligamento .table-container-wrapper {
     background: #fff;
@@ -4764,14 +4794,12 @@ html, body {
     height: 100%;
 }
 
-
 #efet-desligamento table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
     min-width: 900px;
 }
-
 
 #efet-desligamento thead th {
     background-color: #003369;
@@ -4788,7 +4816,6 @@ html, body {
     border-bottom: 1px solid #eceff5;
 }
 
-
 #efet-desligamento thead th:first-child {
     border-top-left-radius: 0px;
 }
@@ -4796,7 +4823,6 @@ html, body {
 #efet-desligamento thead th:last-child {
     border-top-right-radius: 0px;
 }
-
 
 #efet-desligamento tbody td {
     padding: 12px 10px;
@@ -4808,11 +4834,9 @@ html, body {
     vertical-align: middle;
 }
 
-
 #efet-desligamento tbody tr:hover td {
     background-color: #f6f9ff;
 }
-
 
 #efet-desligamento tbody tr.row-completed td {
     background-color: #f0fdf4;
@@ -4823,7 +4847,6 @@ html, body {
     background-color: #fff5f5;
     opacity: 0.8;
 }
-
 
 #approveModal {
     position: fixed;
@@ -4836,11 +4859,9 @@ html, body {
     backdrop-filter: blur(3px);
 }
 
-
 #approveModal.hidden {
     display: none !important;
 }
-
 
 #approveModal .container {
     background: #fff;
@@ -4855,7 +4876,6 @@ html, body {
     margin: 0 15px;
 }
 
-
 #approveModal h3 {
     color: #003369;
     font-weight: 800;
@@ -4865,7 +4885,6 @@ html, body {
     border-bottom: 1px solid #eceff5;
     text-align: center;
 }
-
 
 #approveModal .form-group.full-width {
     background-color: #f6f9ff !important;
@@ -4890,7 +4909,6 @@ html, body {
     font-weight: 600;
     color: #333;
 }
-
 
 #approveModal label {
     display: block;
@@ -4927,7 +4945,6 @@ html, body {
     text-transform: uppercase;
 }
 
-
 #approveModal .form-actions {
     display: flex;
     justify-content: flex-end;
@@ -4961,7 +4978,6 @@ html, body {
     background-color: #d8dadf;
 }
 
-
 #approveSubmitBtn {
     background-color: #003369 !important;
     color: #fff !important;
@@ -4971,14 +4987,11 @@ html, body {
     background-color: #02B1EE !important;
 }
 
-
 #efet-controle-vagas {
-
     gap: 15px;
     height: 100%;
     font-family: inherit;
 }
-
 
 #efet-controle-vagas .vagas-filters {
     display: flex;
@@ -5009,7 +5022,6 @@ html, body {
     box-shadow: 0 0 0 3px rgba(2, 177, 238, 0.15);
 }
 
-
 #btn-gerar-vaga {
     background-color: #003369;
     color: #fff;
@@ -5032,7 +5044,6 @@ html, body {
     transform: translateY(-2px);
 }
 
-
 #efet-controle-vagas .table-container-wrapper {
     background: #fff;
     border: 1px solid #eceff5;
@@ -5052,7 +5063,6 @@ html, body {
     height: 100%;
 }
 
-
 #efet-controle-vagas table {
     min-width: 1200px;
     width: 100%;
@@ -5060,7 +5070,6 @@ html, body {
     border-spacing: 0;
     table-layout: auto;
 }
-
 
 #efet-controle-vagas thead th {
     background-color: #003369;
@@ -5086,7 +5095,6 @@ html, body {
     border-top-right-radius: 0px;
 }
 
-
 #efet-controle-vagas tbody td {
     padding: 10px 10px;
     border-bottom: 1px solid #eceff5;
@@ -5100,7 +5108,6 @@ html, body {
     max-width: 200px;
 }
 
-
 #efet-controle-vagas th:last-child,
 #efet-controle-vagas td:last-child {
     width: 60px;
@@ -5110,7 +5117,6 @@ html, body {
 #efet-controle-vagas tbody tr:hover td {
     background-color: #f6f9ff !important;
 }
-
 
 .btn-edit-vaga {
     background: #f3f4f6;
@@ -5132,7 +5138,6 @@ html, body {
     border-color: #003369;
     transform: scale(1.1);
 }
-
 
 .status-badge {
     display: inline-block;
@@ -5176,7 +5181,6 @@ html, body {
     color: #475569;
 }
 
-
 #vagasModal .container {
     background: #fff;
     border-radius: 16px;
@@ -5184,7 +5188,6 @@ html, body {
     border: 1px solid #e7ebf4;
     padding: 24px;
 }
-
 
 #vagasModal h3 {
     color: #003369;
@@ -5195,7 +5198,6 @@ html, body {
     border-bottom: 1px solid #eceff5;
     text-align: center;
 }
-
 
 #formVagas::-webkit-scrollbar {
     width: 8px;
@@ -5210,7 +5212,6 @@ html, body {
     background: #f8fafc;
 }
 
-
 #vagasModal label {
     font-size: 12px;
     color: #56607f;
@@ -5219,7 +5220,6 @@ html, body {
     display: block;
     white-space: nowrap;
 }
-
 
 #vagasModal input[type="text"],
 #vagasModal input[type="number"],
@@ -5238,7 +5238,6 @@ html, body {
     transition: all 0.2s ease;
 }
 
-
 #vagasModal input:focus, #vagasModal select:focus {
     border-color: #02B1EE;
     box-shadow: 0 0 0 3px rgba(2, 177, 238, 0.15);
@@ -5253,7 +5252,6 @@ html, body {
     padding: 0 8px;
     font-family: inherit;
 }
-
 
 #vagasModal .form-actions {
     display: flex;
@@ -5276,7 +5274,6 @@ html, body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-
 #vagasModal .btn-salvar {
     background-color: #003369;
     color: #fff;
@@ -5286,7 +5283,6 @@ html, body {
     background-color: #02B1EE;
 }
 
-
 #vagasModal .btn-cancelar {
     background-color: #e4e6eb;
     color: #4b4f56;
@@ -5295,7 +5291,6 @@ html, body {
 #vagasModal .btn-cancelar:hover {
     background-color: #d8dadf;
 }
-
 
 .hidden {
     display: none !important;

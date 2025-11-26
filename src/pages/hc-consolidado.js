@@ -409,16 +409,14 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
     const now = Date.now();
     if (_cache.rows && _cache.key === key && (now - _cache.ts) < CACHE_MS) {
         return _cache.rows;
-    }
-    let query = supabase
+    }    let query = supabase
         .from('Colaboradores')
         .select('Nome, SVC, Cargo, MATRIZ, Ativo, Ferias, Escala, DSR')
-        .order('Nome');
-    const matrizesPermitidas = getMatrizesPermitidas();
+        .eq('Ativo', 'SIM')
+        .order('Nome');    const matrizesPermitidas = getMatrizesPermitidas();
     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
-    }
-    const data = await fetchAllWithPagination(query);
+    }    const data = await fetchAllWithPagination(query);
     _cache.rows = data || [];
     _cache.ts = now;
     _cache.key = key;
@@ -672,12 +670,10 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
     }
 }function ensureDesligamentosMounted() {
     const host = document.getElementById('hc-desligamentos');
-    if (!host || host.dataset.mounted === '1') return;
-    if (typeof _deslState.cargo !== 'string') _deslState.cargo = '';
+    if (!host || host.dataset.mounted === '1') return;    if (typeof _deslState.cargo !== 'string') _deslState.cargo = '';
     if (!_deslState.startISO || !_deslState.endISO) {
         [_deslState.startISO, _deslState.endISO] = defaultPeriod();
-    }
-    host.innerHTML = `
+    }    host.innerHTML = `
     <div class="hcdesl-toolbar">
       <div class="hcdesl-left">
         <input id="hcdesl-search" type="search" placeholder="Pesquisar por nome..." />
@@ -719,44 +715,27 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
       </table>
     </div>
   `;
-    host.dataset.mounted = '1';
-    document.getElementById('hcdesl-period')?.addEventListener('click', () => {
+    host.dataset.mounted = '1';    document.getElementById('hcdesl-period')?.addEventListener('click', () => {
         const [cs, ce] = [_deslState.startISO, _deslState.endISO];
         showPeriodOverlay({
             curStart: cs, curEnd: ce,
             onApply: (s, e) => {
                 _deslState.startISO = s;
-                _deslState.endISO = e;
-                renderDesligamentosTable();
+                _deslState.endISO = e;                fetchDesligados();
             }
         });
-    });
-    document.getElementById('hcdesl-search')?.addEventListener('input', (e) => {
-        _deslState.search = e.target.value;
-        renderDesligamentosTable();
-    });
-    document.getElementById('hcdesl-escala')?.addEventListener('change', (e) => {
-        _deslState.escala = e.target.value;
-        renderDesligamentosTable();
-    });
-    document.getElementById('hcdesl-cargo')?.addEventListener('change', (e) => {
-        _deslState.cargo = e.target.value;
-        renderDesligamentosTable();
-    });
-    document.getElementById('hcdesl-motivo')?.addEventListener('change', (e) => {
-        _deslState.motivo = e.target.value;
-        renderDesligamentosTable();
-    });
-    document.getElementById('hcdesl-export')?.addEventListener('click', async () => await exportDesligamentos());
-    document.getElementById('hcdesl-tbody').addEventListener('click', e => {
+    });    document.getElementById('hcdesl-search')?.addEventListener('input', (e) => { _deslState.search = e.target.value; renderDesligamentosTable(); });
+    document.getElementById('hcdesl-escala')?.addEventListener('change', (e) => { _deslState.escala = e.target.value; renderDesligamentosTable(); });
+    document.getElementById('hcdesl-cargo')?.addEventListener('change', (e) => { _deslState.cargo = e.target.value; renderDesligamentosTable(); });
+    document.getElementById('hcdesl-motivo')?.addEventListener('change', (e) => { _deslState.motivo = e.target.value; renderDesligamentosTable(); });
+    document.getElementById('hcdesl-export')?.addEventListener('click', async () => await exportDesligamentos());    document.getElementById('hcdesl-tbody').addEventListener('click', e => {
         const button = e.target.closest('.btn-download-historico');
         if (button) {
             e.preventDefault();
             const nome = button.dataset.nome;
             fetchAndDownloadHistorico(nome, button);
         }
-    });
-    fetchDesligados();
+    });    fetchDesligados();
 }function getDeslFilters() {
     return {
         search: _deslState.search || '',
@@ -772,35 +751,29 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
     };
 }async function fetchDesligados() {
     const tbody = document.getElementById('hcdesl-tbody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando…</td></tr>`;
-    try {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Carregando dados do período...</td></tr>`;    try {
         const matrizesMap = await loadMatrizesMapping();
-        const matrizesPermitidas = getMatrizesPermitidas();
-        let query = supabase
+        const matrizesPermitidas = getMatrizesPermitidas();        const start = _deslState.startISO || defaultPeriod()[0];
+        const end = _deslState.endISO || defaultPeriod()[1];        let query = supabase
             .from('Desligados')
             .select('Nome, Contrato, Cargo, "Data de Admissão", "Data de Desligamento", "Período Trabalhado", Motivo, SVC, MATRIZ, Escala')
-            .order('Data de Desligamento', {ascending: false});
-        if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
-        const {data, error} = await query;
-        if (error) throw error;
-        const enrichedData = (Array.isArray(data) ? data : []).map(r => {
+            .gte('Data de Desligamento', start)
+            .lte('Data de Desligamento', end)
+            .order('Data de Desligamento', {ascending: false});        if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);        const {data, error} = await query;
+        if (error) throw error;        const enrichedData = (Array.isArray(data) ? data : []).map(r => {
             const mapping = matrizesMap.get(norm(r.MATRIZ));
             return {...r, REGIAO: mapping?.regiao || '', GERENCIA: mapping?.gerencia || ''};
-        });
-        _deslState.rows = enrichedData;
-        _deslState.loaded = true;
-        const motivos = Array.from(new Set(_deslState.rows.map(r => String(r.Motivo || '')).filter(Boolean)))
-            .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
-        const elMotivo = document.getElementById('hcdesl-motivo');
+        });        _deslState.rows = enrichedData;
+        _deslState.loaded = true;        const motivos = Array.from(new Set(_deslState.rows.map(r => String(r.Motivo || '')).filter(Boolean)))
+            .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));        const elMotivo = document.getElementById('hcdesl-motivo');
         if (elMotivo) {
             const prev = _deslState.motivo;
             elMotivo.innerHTML = `<option value="">Motivo</option>` + motivos.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
             if (prev) elMotivo.value = prev;
-        }
-        renderDesligamentosTable();
+        }        renderDesligamentosTable();
     } catch (e) {
         console.error('Desligamentos: erro', e);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Erro ao carregar.</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="muted">Erro ao carregar. Tente selecionar um período menor.</td></tr>`;
     }
 }function renderDesligamentosTable() {
     const tbody = document.getElementById('hcdesl-tbody');
@@ -906,12 +879,10 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
     URL.revokeObjectURL(url);
 }function ensureFeriasMounted() {
     const host = document.getElementById('hc-ferias');
-    if (!host || host.dataset.mounted === '1') return;
-    if (typeof _feriasState.cargo !== 'string') _feriasState.cargo = '';
+    if (!host || host.dataset.mounted === '1') return;    if (typeof _feriasState.cargo !== 'string') _feriasState.cargo = '';
     if (!_feriasState.startISO || !_feriasState.endISO) {
         [_feriasState.startISO, _feriasState.endISO] = defaultPeriod();
-    }
-    host.innerHTML = `
+    }    host.innerHTML = `
     <div class="hcf-toolbar">
       <div class="hcf-left">
         <input id="hcf-search" type="search" placeholder="Pesquisar por nome..." />
@@ -954,39 +925,22 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
       </table>
     </div>
   `;
-    host.dataset.mounted = '1';
-    document.getElementById('hcf-period')?.addEventListener('click', () => {
+    host.dataset.mounted = '1';    document.getElementById('hcf-period')?.addEventListener('click', () => {
         const [cs, ce] = [_feriasState.startISO, _feriasState.endISO];
         showPeriodOverlay({
             curStart: cs, curEnd: ce,
             onApply: (s, e) => {
                 _feriasState.startISO = s;
-                _feriasState.endISO = e;
-                renderFeriasTable();
+                _feriasState.endISO = e;                fetchFerias();
             }
         });
-    });
-    document.getElementById('hcf-search')?.addEventListener('input', (e) => {
-        _feriasState.search = e.target.value;
-        renderFeriasTable();
-    });
-    document.getElementById('hcf-escala')?.addEventListener('change', (e) => {
-        _feriasState.escala = e.target.value;
-        renderFeriasTable();
-    });
-    document.getElementById('hcf-cargo')?.addEventListener('change', (e) => {
-        _feriasState.cargo = e.target.value;
-        renderFeriasTable();
-    });
-    document.getElementById('hcf-status')?.addEventListener('change', (e) => {
-        _feriasState.status = e.target.value;
-        renderFeriasTable();
-    });
-    document.getElementById('hcf-export')?.addEventListener('click', async () => await exportFerias());
-    window.addEventListener('hc-filters-changed', () => {
+    });    document.getElementById('hcf-search')?.addEventListener('input', (e) => { _feriasState.search = e.target.value; renderFeriasTable(); });
+    document.getElementById('hcf-escala')?.addEventListener('change', (e) => { _feriasState.escala = e.target.value; renderFeriasTable(); });
+    document.getElementById('hcf-cargo')?.addEventListener('change', (e) => { _feriasState.cargo = e.target.value; renderFeriasTable(); });
+    document.getElementById('hcf-status')?.addEventListener('change', (e) => { _feriasState.status = e.target.value; renderFeriasTable(); });
+    document.getElementById('hcf-export')?.addEventListener('click', async () => await exportFerias());    window.addEventListener('hc-filters-changed', () => {
         if (_feriasState.loaded) renderFeriasTable();
-    });
-    fetchFerias();
+    });    fetchFerias();
 }function getFeriasFilters() {
     return {
         search: _feriasState.search || '',
@@ -1016,19 +970,15 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
     return Math.max(0, diff);
 }async function fetchFerias() {
     const tbody = document.getElementById('hcf-tbody');
-    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando…</td></tr>`;
-    try {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Carregando dados do período...</td></tr>`;    try {
         const matrizesMap = await loadMatrizesMapping();
-        const matrizesPermitidas = getMatrizesPermitidas();
-        let qFerias = supabase
+        const matrizesPermitidas = getMatrizesPermitidas();        const start = _feriasState.startISO || defaultPeriod()[0];
+        const end = _feriasState.endISO || defaultPeriod()[1];        let qFerias = supabase
             .from('Ferias')
-            .select('"Numero", "Nome", "Cargo", "Escala", "SVC", "MATRIZ", "Data Inicio", "Data Final", "Status", "Dias para finalizar"')
-            .order('Data Inicio', {ascending: false})
-            .order('Data Final', {ascending: false});
-        if (matrizesPermitidas !== null) qFerias = qFerias.in('MATRIZ', matrizesPermitidas);
-        const {data: feriasData, error: feriasErr} = await qFerias;
-        if (feriasErr) throw feriasErr;
-        _feriasState.rows = (Array.isArray(feriasData) ? feriasData : []).map(r => {
+            .select('"Numero", "Nome", "Cargo", "Escala", "SVC", "MATRIZ", "Data Inicio", "Data Final", "Status", "Dias para finalizar"')            .lte('Data Inicio', end)
+            .gte('Data Final', start)
+            .order('Data Inicio', {ascending: false});        if (matrizesPermitidas !== null) qFerias = qFerias.in('MATRIZ', matrizesPermitidas);        const {data: feriasData, error: feriasErr} = await qFerias;
+        if (feriasErr) throw feriasErr;        _feriasState.rows = (Array.isArray(feriasData) ? feriasData : []).map(r => {
             const mapping = matrizesMap.get(norm(r.MATRIZ));
             return {
                 ...r,
@@ -1040,17 +990,13 @@ const MATRIZES_CACHE_MS = 15 * 60 * 1000;export function destroy() {
                 GERENCIA: mapping?.gerencia || '',
                 'Dias para Finalizar': r['Dias para Finalizar'] ?? r['Dias para finalizar'] ?? ''
             };
-        });
-        _feriasState.loaded = true;
-        const statusList = Array.from(new Set(_feriasState.rows.map(r => String(r.Status || '')).filter(Boolean)))
-            .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
-        const elStatus = document.getElementById('hcf-status');
+        });        _feriasState.loaded = true;        const statusList = Array.from(new Set(_feriasState.rows.map(r => String(r.Status || '')).filter(Boolean)))
+            .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));        const elStatus = document.getElementById('hcf-status');
         if (elStatus) {
             const prev = _feriasState.status;
             elStatus.innerHTML = `<option value="">Status</option>` + statusList.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
             if (prev) elStatus.value = prev;
-        }
-        renderFeriasTable();
+        }        renderFeriasTable();
     } catch (e) {
         console.error('Férias: erro', e);
         if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="muted">Erro ao carregar.</td></tr>`;

@@ -1,103 +1,236 @@
-<section id="tab-auditoria-mangas" class="tab-panel active">
+<section id="tab-auditoria-mangas" class="tab-panel active"
+         style="background-color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column;">
 
-    <div class="cd-header single-line">
-        <div class="cd-filters">
-            <h3 class="text-lg font-semibold"></h3>
+    <div class="bg-white shadow-sm border-b sticky top-0 z-30 px-4 py-2 flex items-center justify-between h-14">
+        <div class="flex bg-gray-100 p-0.5 rounded-lg">
+            <button id="tab-btn-separacao"
+                    class="px-3 py-1.5 text-xs font-bold rounded-md shadow-sm bg-white text-blue-700 transition-all focus:outline-none uppercase tracking-wide">
+                Operação
+            </button>
+            <button id="tab-btn-analise"
+                    class="px-3 py-1.5 text-xs font-bold rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-all focus:outline-none uppercase tracking-wide">
+                Análise & Gráficos
+            </button>
         </div>
-    </div>
 
-    <div class="p-4">
         <button id="auditoria-period-btn"
-                class="w-full md:w-auto px-5 py-2 bg-gray-700 text-white font-semibold rounded-md shadow hover:bg-gray-800">
+                class="text-xs font-medium text-gray-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded border border-gray-200 transition-colors flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24"
+                 stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
             Selecionar Período
         </button>
     </div>
 
-    <div class="p-4">
-        <div class="bg-white p-4 rounded-lg shadow-md">
-            <h4 class="text-lg font-bold text-gray-800 mb-3">Progresso</h4>
-            <div id="dashboard-stats" class="space-y-2">
-                <p class="text-gray-500">Carregando dados...</p>
-            </div>
+    <div id="subtab-separacao" class="p-3 space-y-3 flex-grow overflow-y-auto">
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <button id="btn-iniciar-separacao"
+                    class="group relative overflow-hidden bg-blue-600 hover:bg-blue-700 border border-blue-800 p-3 rounded-lg shadow-md hover:shadow-lg transition-all text-left flex items-center gap-3 h-full">
+                <div class="bg-white/20 p-2 rounded-lg flex-shrink-0 backdrop-blur-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                </div>
+                <div class="flex-grow">
+                    <span class="block text-sm font-bold text-white">1. Separação</span>
+                    <span class="block text-[10px] text-blue-100 leading-tight font-medium">Bipar &rarr; Gerar QR</span>
+                </div>
+            </button>
+
+            <button id="btn-iniciar-carregamento"
+                    class="group relative overflow-hidden bg-green-600 hover:bg-green-700 border border-green-800 p-3 rounded-lg shadow-md hover:shadow-lg transition-all text-left flex items-center gap-3 h-full">
+                <div class="bg-white/20 p-2 rounded-lg flex-shrink-0 backdrop-blur-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <div class="flex-grow">
+                    <span class="block text-sm font-bold text-white">2. Carregamento</span>
+                    <span class="block text-[10px] text-green-100 leading-tight font-medium">Validar na Doca</span>
+                </div>
+            </button>
+
+            <div id="extra-controls-container" class="h-full"></div>
+        </div>
+
+        <div id="auditoria-summary"></div>
+
+        <div id="auditoria-routes" class="space-y-2 pb-4">
+            <div class="text-xs text-center text-gray-400 py-4">Carregando dados...</div>
         </div>
     </div>
 
-    <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button id="btn-iniciar-separacao"
-                class="w-full px-6 py-4 bg-blue-600 text-white font-semibold rounded-md shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <span class="text-xl">PASSO 1: Iniciar Separação</span>
-            <span class="block text-sm">(Bipar Pacote e Gerar QR do Manga)</span>
-        </button>
+    <div id="subtab-analise" class="hidden p-3 space-y-3 flex-grow overflow-y-auto bg-gray-50">
 
-        <button id="btn-iniciar-carregamento"
-                class="w-full px-6 py-4 bg-green-600 text-white font-semibold rounded-md shadow hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
-            <span class="text-xl">PASSO 2: Iniciar Carregamento</span>
-            <span class="block text-sm">(Bipar QR do Manga e Validar)</span>
-        </button>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Progresso</span>
+                        <div id="kpi-percentual" class="text-xl font-bold text-gray-800 mt-0.5">0%</div>
+                    </div>
+                    <div class="p-1 bg-green-50 rounded text-green-600">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-1 mt-2">
+                    <div id="kpi-percentual-bar" class="bg-green-500 h-1 rounded-full transition-all"
+                         style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-start">
+                    <div class="overflow-hidden">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Melhor Rota</span>
+                        <div id="kpi-best-route" class="text-xl font-bold text-blue-600 truncate mt-0.5">---</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-start">
+                    <div class="overflow-hidden">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Top Bipador</span>
+                        <div id="kpi-best-bipador" class="text-xl font-bold text-purple-600 truncate mt-0.5">---</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-start">
+                    <div class="overflow-hidden">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Rota Crítica</span>
+                        <div id="kpi-worst-route" class="text-xl font-bold text-gray-800 truncate mt-0.5">---</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-start">
+                    <div class="overflow-hidden">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Doca Crítica</span>
+                        <div id="kpi-worst-dock" class="text-xl font-bold text-gray-800 truncate mt-0.5">---</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+            <h4 class="text-xs font-bold text-gray-600 mb-2">Evolução Diária (Mês)</h4>
+            <div id="chart-timeline" style="min-height: 250px;"></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+                <h4 class="text-xs font-bold text-gray-600 mb-2">Top 5 Assertividade</h4>
+                <div id="chart-top-routes" style="min-height: 220px;"></div>
+            </div>
+
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+                <h4 class="text-xs font-bold text-gray-600 mb-2">Pendências (Top 10 Rotas)</h4>
+                <div id="chart-pending-routes" style="min-height: 220px;"></div>
+            </div>
+
+            <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-200">
+                <h4 class="text-xs font-bold text-gray-600 mb-2">Top 5 Bipadores (Saída)</h4>
+                <div id="chart-top-bipadores" style="min-height: 220px;"></div>
+            </div>
+        </div>
     </div>
 
 </section>
 
-<div id="modal-separacao" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 class="text-xl font-semibold">Passo 1: Registrar Manga (Separação)</h3>
-            <button class="modal-close" type="button">&times;</button>
-        </div>
-
-        <div class="max-w-md mx-auto">
-            <label for="sep-user-name" class="block text-sm font-medium text-gray-700">Colaborador</label>
-            <div class="mt-1">
-                <input type="text" id="sep-user-name"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                       placeholder="Digite seu nome...">
-            </div>
-
-            <label for="sep-scan-input" class="block text-sm font-medium text-gray-700 mt-4">Bipar Pacote
-                (Amostra)</label>
-            <div class="mt-1">
-                <input type="text" id="sep-scan-input"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                       placeholder="Aguardando leitura do scanner...">
-            </div>
-            <p id="sep-status" class="mt-2 text-sm text-gray-500 h-5"></p>
-        </div>
-
-        <div id="sep-qr-area" class="p-4 text-center" style="display: none;">
-            <h4 class="text-xl font-bold" id="sep-qr-title"></h4>
-            <div id="sep-qr-canvas" class="flex justify-center p-4"></div>
-            <button id="sep-print-btn"
-                    class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-md shadow hover:bg-blue-700">
-                Imprimir Etiqueta
+<div id="modal-separacao"
+     class="modal-overlay hidden fixed inset-0 z-[1200] bg-black bg-opacity-60 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="modal-content bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+        <div class="flex justify-between items-center px-4 py-3 border-b bg-gray-50">
+            <h3 class="text-base font-bold text-gray-700">Registrar Manga</h3>
+            <button class="modal-close text-gray-400 hover:text-red-500 transition-colors" type="button">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
             </button>
+        </div>
+        <div class="p-5 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Colaborador</label>
+                <input type="text" id="sep-user-name"
+                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                       placeholder="Nome do colaborador...">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Pacote (Leitura)</label>
+                <div class="relative">
+                    <input type="text" id="sep-scan-input"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none pr-8"
+                           placeholder="Aguardando bipagem..." autocomplete="off">
+                </div>
+            </div>
+
+            <div id="sep-status"
+                 class="text-xs font-medium text-center min-h-[24px] flex items-center justify-center text-gray-500 bg-gray-50 rounded border border-gray-100 mt-2 p-1">
+                Aguardando ação...
+            </div>
+
+            <div id="sep-qr-area"
+                 class="hidden mt-3 p-3 bg-white border-2 border-dashed border-gray-200 rounded-lg text-center">
+                <h4 id="sep-qr-title" class="text-sm font-bold text-gray-800 mb-2"></h4>
+                <div id="sep-qr-canvas" class="flex justify-center mb-3"></div>
+                <button id="sep-print-btn"
+                        class="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded shadow hover:bg-blue-700 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                    </svg>
+                    IMPRIMIR ETIQUETA
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-
-<div id="modal-carregamento" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 class="text-xl font-semibold">Passo 2: Validar Manga (Carregamento)</h3>
-            <button class="modal-close" type="button">&times;</button>
+<div id="modal-carregamento"
+     class="modal-overlay hidden fixed inset-0 z-[1200] bg-black bg-opacity-60 flex items-center justify-center p-4 backdrop-blur-sm">
+    <div class="modal-content bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+        <div class="flex justify-between items-center px-4 py-3 border-b bg-gray-50">
+            <h3 class="text-base font-bold text-gray-700">Validar Manga</h3>
+            <button class="modal-close text-gray-400 hover:text-red-500 transition-colors" type="button">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
         </div>
-
-        <div class="max-w-md mx-auto">
-            <label for="car-user-name" class="block text-sm font-medium text-gray-700">Colaborador</label>
-            <div class="mt-1">
+        <div class="p-5 space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Colaborador</label>
                 <input type="text" id="car-user-name"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                       placeholder="Digite seu nome...">
+                       class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
+                       placeholder="Nome do colaborador...">
             </div>
 
-            <label for="car-scan-input" class="block text-sm font-medium text-gray-700 mt-4">Bipar QR Code da
-                Manga</label>
-            <div class="mt-1">
-                <input type="text" id="car-scan-input"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
-                       placeholder="Aguardando leitura do scanner...">
+            <div class="pt-2 mt-2 border-t border-gray-100">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1 mt-2">QR Code da Manga</label>
+                <div class="relative">
+                    <input type="text" id="car-scan-input"
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none pr-8"
+                           placeholder="Bipar QR..." autocomplete="off">
+                </div>
             </div>
-            <p id="car-status" class="mt-2 text-sm text-gray-500 h-5"></p>
+
+            <div id="car-status"
+                 class="text-xs font-medium text-center min-h-[24px] flex items-center justify-center text-gray-500 bg-gray-50 rounded border border-gray-100 mt-2 p-1">
+                Aguardando validação...
+            </div>
         </div>
     </div>
 </div>

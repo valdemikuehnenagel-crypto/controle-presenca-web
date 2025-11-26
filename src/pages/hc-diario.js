@@ -1,7 +1,5 @@
 import {getMatrizesPermitidas} from '../session.js';
-import {supabase} from '../supabaseClient.js';
-
-const HOST_SEL = '#hc-diario';
+import {supabase} from '../supabaseClient.js';const HOST_SEL = '#hc-diario';
 const PARTIAL_URL = '/pages/hc-diario.html';
 const ROWS_ORDER = [
     'TOTAL QUADRO', 'LOG I', 'CONFERENTES', 'DSR', 'DSR PS',
@@ -34,9 +32,7 @@ const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.ge
 const firstDayOfMonth = d => new Date(d.getFullYear(), d.getMonth(), 1);
 const norm = v => String(v ?? '').trim().toUpperCase();
 const normalizeWeekdayPT = s =>
-    norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');
-
-function parseAnyToISO(v) {
+    norm(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Ç/g, 'C');function parseAnyToISO(v) {
     if (!v) return '';
     if (typeof v === 'string') {
         const s = v.trim();
@@ -54,9 +50,7 @@ function parseAnyToISO(v) {
     const d = new Date(v);
     if (isNaN(d)) return '';
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-async function loadMatrizesMapping() {
+}async function loadMatrizesMapping() {
     const matrizesPermitidas = getMatrizesPermitidas();
     let query = supabase.from('Matrizes').select('MATRIZ, GERENCIA, REGIAO');
     if (matrizesPermitidas !== null) {
@@ -78,9 +72,7 @@ async function loadMatrizesMapping() {
         }
     });
     return map;
-}
-
-function eachDateISO(a, b) {
+}function eachDateISO(a, b) {
     const [y1, m1, d1] = a.split('-').map(Number);
     const [y2, m2, d2] = b.split('-').map(Number);
     const out = [];
@@ -91,37 +83,25 @@ function eachDateISO(a, b) {
         cur.setDate(cur.getDate() + 1);
     }
     return out;
-}
-
-const labelDM = iso => {
+}const labelDM = iso => {
     const [, m, d] = iso.split('-');
     return `${d}/${m}`;
-};
-
-function weekdayKey(iso) {
+};function weekdayKey(iso) {
     const [y, m, d] = iso.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
     return ['DOMINGO', 'SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA', 'SABADO'][dt.getDay()];
-}
-
-function clampEndToToday(startISO, endISO) {
+}function clampEndToToday(startISO, endISO) {
     if (!startISO || !endISO) return [startISO, endISO];
     const todayISO = toISODate(new Date());
     return [startISO, endISO > todayISO ? todayISO : endISO];
-}
-
-const onlyActiveAux = arr => (arr || []).filter(c => norm(c.Cargo) === 'AUXILIAR' && norm(c.Ativo || 'SIM') === 'SIM');
-const onlyActiveConf = arr => (arr || []).filter(c => norm(c.Cargo) === 'CONFERENTE' && norm(c.Ativo || 'SIM') === 'SIM');
-
-function dsrSetFrom(c) {
+}const onlyActiveAux = arr => (arr || []).filter(c => norm(c.Cargo) === 'AUXILIAR' && norm(c.Ativo || 'SIM') === 'SIM');
+const onlyActiveConf = arr => (arr || []).filter(c => norm(c.Cargo) === 'CONFERENTE' && norm(c.Ativo || 'SIM') === 'SIM');function dsrSetFrom(c) {
     const raw = String(c?.DSR || '');
     if (!raw) return new Set();
     const parts = raw.split(',').map(s => normalizeWeekdayPT(s.trim()));
     const valid = new Set(['DOMINGO', 'SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA', 'SABADO']);
     return new Set(parts.filter(p => valid.has(p)));
-}
-
-function canonicalMark(row) {
+}function canonicalMark(row) {
     if (row?.['Presença'] === 1 || row?.['Presença'] === true) return 'PRESENCA';
     if (row?.Falta === 1 || row?.Falta === true) return 'FALTA';
     if (row?.Atestado === 1 || row?.Atestado === true) return 'ATESTADO';
@@ -134,17 +114,13 @@ function canonicalMark(row) {
     if (['FE', 'F_ESPECIAL', 'FOLGA ESPECIAL', 'FOLGA_ESPECIAL'].includes(s)) return 'F_ESPECIAL';
     if (s === 'FER' || s === 'FERIADO') return 'FERIADO';
     return '';
-}
-
-function firstISOFrom(row, keys) {
+}function firstISOFrom(row, keys) {
     for (const k of keys) {
         const iso = parseAnyToISO(row?.[k]);
         if (iso) return iso;
     }
     return '';
-}
-
-async function fetchAllWithPagination(queryBuilder, pageSize = 1000) {
+}async function fetchAllWithPagination(queryBuilder, pageSize = 1000) {
     let all = [], page = 0, more = true;
     while (more) {
         const {data, error} = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
@@ -158,14 +134,15 @@ async function fetchAllWithPagination(queryBuilder, pageSize = 1000) {
         }
     }
     return all;
-}
-
-async function fetchColabs(matrizesMap) {
+}async function fetchColabs(matrizesMap) {
     const matrizesPermitidas = getMatrizesPermitidas();
     let query = supabase
         .from('Colaboradores')
-        .select('Nome, Cargo, MATRIZ, SVC, Escala, DSR, Ativo, "Data de admissão"');
-    if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
+        .select('Nome, Cargo, MATRIZ, SVC, Escala, DSR, Ativo, "Data de admissão"')
+        .eq('Ativo', 'SIM');
+    if (matrizesPermitidas !== null) {
+        query = query.in('MATRIZ', matrizesPermitidas);
+    }
     if (_filters.matriz) query = query.eq('MATRIZ', _filters.matriz);
     if (_filters.svc) query = query.eq('SVC', _filters.svc);
     const colabData = await fetchAllWithPagination(query);
@@ -182,9 +159,7 @@ async function fetchColabs(matrizesMap) {
         if (_filters.gerencia && norm(c.GERENCIA) !== norm(_filters.gerencia)) return false;
         return true;
     });
-}
-
-async function fetchControleDiario(startISO, endISO) {
+}async function fetchControleDiario(startISO, endISO) {
     const pageSize = 1000;
     let from = 0;
     const all = [];
@@ -192,7 +167,7 @@ async function fetchControleDiario(startISO, endISO) {
         const to = from + pageSize - 1;
         const {data, error} = await supabase
             .from('ControleDiario')
-            .select('*')
+            .select('Nome, Data, Marcacao, Presença, Falta, Atestado, "Folga Especial", Feriado')
             .gte('Data', startISO)
             .lte('Data', endISO)
             .order('Data', {ascending: true})
@@ -205,9 +180,7 @@ async function fetchControleDiario(startISO, endISO) {
         if (from > 200000) break;
     }
     return all;
-}
-
-async function fetchFeriasRange(startISO, endISO, matrizesMap) {
+}async function fetchFeriasRange(startISO, endISO, matrizesMap) {
     if (!_colabs.length) {
         await fetchColabs(matrizesMap);
     }
@@ -218,9 +191,7 @@ async function fetchFeriasRange(startISO, endISO, matrizesMap) {
     });
     if (error) throw error;
     return Array.isArray(data) ? data : [];
-}
-
-async function fetchDesligadosRange(startISO, endISO, matrizesMap) {
+}async function fetchDesligadosRange(startISO, endISO, matrizesMap) {
     const matrizesPermitidas = getMatrizesPermitidas();
     let query = supabase
         .from('Desligados')
@@ -247,27 +218,21 @@ async function fetchDesligadosRange(startISO, endISO, matrizesMap) {
         if (_filters.gerencia && norm(d.GERENCIA) !== norm(_filters.gerencia)) return false;
         return true;
     });
-}
-
-function byTurnFilterAux(turno) {
+}function byTurnFilterAux(turno) {
     return onlyActiveAux(_colabs).filter(c => {
         if (norm(c.Escala) !== norm(turno)) return false;
         if (_filters.matriz && norm(c.MATRIZ) !== norm(_filters.matriz)) return false;
         if (_filters.svc && norm(c.SVC) !== norm(_filters.svc)) return false;
         return true;
     });
-}
-
-function byTurnFilterConf(turno) {
+}function byTurnFilterConf(turno) {
     return onlyActiveConf(_colabs).filter(c => {
         if (norm(c.Escala) !== norm(turno)) return false;
         if (_filters.matriz && norm(c.MATRIZ) !== norm(_filters.matriz)) return false;
         if (_filters.svc && norm(c.SVC) !== norm(_filters.svc)) return false;
         return true;
     });
-}
-
-function countAdmissoes(setNames, dateISO) {
+}function countAdmissoes(setNames, dateISO) {
     let n = 0;
     for (const nome of setNames) {
         const c = _colabs.find(x => x.Nome === nome);
@@ -275,35 +240,25 @@ function countAdmissoes(setNames, dateISO) {
         if (iso === dateISO) n++;
     }
     return n;
-}
-
-function emptyTable(el, title) {
+}function emptyTable(el, title) {
     el.innerHTML = `<thead><tr><th>${title}</th></tr></thead><tbody><tr><td>Carregando...</td></tr></tbody>`;
-}
-
-function tableFromRows(title, datesISO, rows) {
+}function tableFromRows(title, datesISO, rows) {
     const head = `<thead><tr><th>${title}</th>${datesISO.map(d => `<th>${labelDM(d)}</th>`).join('')}</tr></thead>`;
     const body = `<tbody>${
         ROWS_ORDER.map(lbl => `<tr><td>${lbl}</td>${datesISO.map(d => `<td>${rows[lbl]?.[d] ?? 0}</td>`).join('')}</tr>`).join('')
     }</tbody>`;
     return head + body;
-}
-
-function sumRowsByDate(a, b, dates) {
+}function sumRowsByDate(a, b, dates) {
     const out = {};
     ROWS_ORDER.forEach(k => out[k] = {});
     for (const k of ROWS_ORDER) for (const d of dates)
         out[k][d] = (Number(a?.[k]?.[d] || 0) + Number(b?.[k]?.[d] || 0));
     return out;
-}
-
-async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksByDate) {
+}async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksByDate) {
     const rows = {};
     ROWS_ORDER.forEach(k => rows[k] = {});
-
     const auxTurno = byTurnFilterAux(turno);
     const confTurno = byTurnFilterConf(turno);
-
     const dsrCache = new Map();
     const getDSRSet = (c) => {
         if (dsrCache.has(c.Nome)) return dsrCache.get(c.Nome);
@@ -311,35 +266,26 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
         dsrCache.set(c.Nome, s);
         return s;
     };
-
     for (const d of datesISO) {
         const want = weekdayKey(d);
-
         const auxElegiveis = auxTurno.filter(c => !c['Data de admissão'] || parseAnyToISO(c['Data de admissão']) <= d);
         const confElegiveis = confTurno.filter(c => !c['Data de admissão'] || parseAnyToISO(c['Data de admissão']) <= d);
-
         const setAux = new Set(auxElegiveis.map(c => c.Nome));
         const setConf = new Set(confElegiveis.map(c => c.Nome));
-
         const dsrAux = auxElegiveis.reduce((acc, c) => acc + (getDSRSet(c).has(want) ? 1 : 0), 0);
         const dsrConf = confElegiveis.reduce((acc, c) => acc + (getDSRSet(c).has(want) ? 1 : 0), 0);
-
         const nomesFerias = feriasPorDia.get(d) || new Set();
         let feriasAux = 0, feriasConf = 0;
         for (const c of auxElegiveis) if (nomesFerias.has(c.Nome)) feriasAux++;
         for (const c of confElegiveis) if (nomesFerias.has(c.Nome)) feriasConf++;
-
         let presAux = 0, presConf = 0, fal = 0, ate = 0, fe = 0, fer = 0;
         const marks = marksByDate.get(d) || [];
-
         for (const m of marks) {
             const nome = m.Nome;
             const inAux = setAux.has(nome);
             const inConf = setConf.has(nome);
             if (!inAux && !inConf) continue;
-
             const tipo = canonicalMark(m);
-
             const bump = (t, grp) => {
                 switch (t) {
                     case 'PRESENCA':
@@ -362,21 +308,16 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
             if (inAux) bump(tipo, 'AUX');
             else if (inConf) bump(tipo, 'CONF');
         }
-
         const adm = countAdmissoes(new Set([...setAux, ...setConf]), d);
         const deslig = (desligRows || []).reduce((acc, r) => {
             const iso = firstISOFrom(r, ['Data de Desligamento']);
             if (iso !== d) return acc;
-
             const rTurno = norm(r.Escala || '');
             const thisTurno = norm(turno);
-
             if (rTurno && rTurno !== thisTurno) return acc;
             if (!rTurno && !(setAux.has(r.Nome) || setConf.has(r.Nome))) return acc;
-
             return acc + 1;
         }, 0);
-
         rows['LOG I'][d] = presAux;
         rows['CONFERENTES'][d] = presConf;
         rows['DSR'][d] = dsrAux;
@@ -388,14 +329,10 @@ async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksBy
         rows['FERIADO'][d] = fer;
         rows['ADMISSÃO'][d] = adm;
         rows['DESLIGAMENTOS'][d] = deslig;
-
         rows['TOTAL QUADRO'][d] = (presAux + presConf) + (dsrAux + dsrConf) + (feriasAux + feriasConf) + fe + fer;
     }
-
     return rows;
-}
-
-export async function buildHCDiario() {
+}export async function buildHCDiario() {
     if (_building) {
         _needsRebuild = true;
         return;
@@ -513,9 +450,7 @@ export async function buildHCDiario() {
             queueMicrotask(() => buildHCDiario());
         }
     }
-}
-
-function setDefaultMonthRange(host) {
+}function setDefaultMonthRange(host) {
     if (!host) return;
     let startEl = host.querySelector('#hcd-start');
     let endEl = host.querySelector('#hcd-end');
@@ -677,9 +612,7 @@ function setDefaultMonthRange(host) {
         _filters.fimISO = endEl.value.slice(0, 10);
         if (_filters.inicioISO && _filters.fimISO) buildHCDiario();
     };
-}
-
-async function ensureHCDiarioMountedOnce() {
+}async function ensureHCDiarioMountedOnce() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
     if (!_mounted) {
@@ -714,9 +647,7 @@ async function ensureHCDiarioMountedOnce() {
     }
     setDefaultMonthRange(host);
     await buildHCDiario();
-}
-
-window.addEventListener('hc-filters-changed', async (ev) => {
+}window.addEventListener('hc-filters-changed', async (ev) => {
     const f = ev?.detail || {};
     _filters.matriz = f.matriz || '';
     _filters.svc = f.svc || '';

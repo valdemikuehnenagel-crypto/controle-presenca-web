@@ -12,6 +12,20 @@ function cacheKeyForColabs() {
     return `colabs:ALL`;
 }
 
+function toUpperTrim(str) {
+    return typeof str === 'string' ? str.toUpperCase().trim() : str;
+}
+
+function normalizeCPF(value) {
+    if (!value) return null;
+    return value.replace(/\D/g, '');
+}
+
+function nullIfEmpty(value) {
+    if (!value) return null;
+    return value.trim() === '' ? null : value.trim();
+}
+
 function desligamento_getCurrentUserEmail() {
     try {
         const userDataString = localStorage.getItem('userSession');
@@ -74,6 +88,39 @@ function invalidateCache(keys = []) {
         localStorage.removeItem('knc:colaboradoresCache');
     } catch (e) {
         console.warn('Falha ao invalidar cache de colaboradores no localStorage', e);
+    }
+}
+
+
+function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+    const selSapato = document.getElementById(idSelectSapato);
+    const selColete = document.getElementById(idSelectColete);
+
+
+    if (selSapato) {
+        const valorAtual = selSapato.getAttribute('data-selected') || selSapato.value;
+        selSapato.innerHTML = '<option value="">Selecione...</option>';
+        for (let i = 34; i <= 46; i++) {
+            const opt = document.createElement('option');
+            opt.value = i.toString();
+            opt.textContent = i.toString();
+            selSapato.appendChild(opt);
+        }
+        if (valorAtual) selSapato.value = valorAtual;
+    }
+
+
+    if (selColete) {
+        const valorAtual = selColete.getAttribute('data-selected') || selColete.value;
+        const tamanhos = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG'];
+        selColete.innerHTML = '<option value="">Selecione...</option>';
+        tamanhos.forEach(tam => {
+            const opt = document.createElement('option');
+            opt.value = tam;
+            opt.textContent = tam;
+            selColete.appendChild(opt);
+        });
+        if (valorAtual) selColete.value = valorAtual;
     }
 }
 
@@ -395,33 +442,46 @@ function populateFilters(allColabs, matrizesMap) {
 async function loadColabsCached() {
     const key = cacheKeyForColabs();
     const now = Date.now();
+
+
+
+    const CACHE_KEY_NAME = 'knc:hcIndiceCache';
+
     try {
-        const cached = localStorage.getItem('knc:colaboradoresCache');
+        const cached = localStorage.getItem(CACHE_KEY_NAME);
         if (cached) {
             const {timestamp, data} = JSON.parse(cached);
             if ((now - timestamp) < CACHE_TTL_MS) {
-                console.log("Usando cache de colaboradores (localStorage) para efetivações.");
+                console.log("Usando cache exclusivo do RH (localStorage).");
                 return data;
             } else {
-                localStorage.removeItem('knc:colaboradoresCache');
+                localStorage.removeItem(CACHE_KEY_NAME);
             }
         }
     } catch (e) {
-        console.warn('Falha ao ler cache de colaboradores do localStorage', e);
-        localStorage.removeItem('knc:colaboradoresCache');
+        console.warn('Falha ao ler cache do RH', e);
+        localStorage.removeItem(CACHE_KEY_NAME);
     }
+
     return fetchOnce(key, async () => {
-        let query = supabase.from('Colaboradores').select('*');
+
+
+        let query = supabase
+            .from('Colaboradores')
+            .select('Nome, Cargo, Contrato, MATRIZ, SVC, REGIAO, Escala, DSR, Ativo, Genero, "Data de nascimento", "Data de admissão", StatusDesligamento, Efetivacao, "Data Fluxo", Fluxo, "Observacao Fluxo", Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento');
+
         const data = await fetchAllWithPagination(query);
         const rows = Array.isArray(data) ? data.slice() : [];
+
         rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
+
         try {
-            localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
+            localStorage.setItem(CACHE_KEY_NAME, JSON.stringify({
                 timestamp: Date.now(),
                 data: rows
             }));
         } catch (e) {
-            console.warn('Falha ao salvar cache de colaboradores no localStorage', e);
+            console.warn('Falha ao salvar cache do RH', e);
         }
 
         return rows;
@@ -2710,14 +2770,18 @@ let filterFilial;
 let filterStatus;
 let filterGestor;
 let filterRecrutadora;
+let inputCc;
 
 function initControleVagas() {
     if (!document.getElementById('efet-controle-vagas')) return;
+
     vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     formVagas = document.getElementById('formVagas');
     tbodyVagas = document.getElementById('vagas-tbody');
+
+
     inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
@@ -2725,23 +2789,33 @@ function initControleVagas() {
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
+    inputCc = formVagas?.querySelector('[name="cc"]');
+
     searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
     filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
+
     fetchMatrizes();
     fetchGestores();
+
+
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
+
     if (btnGerarVaga) btnGerarVaga.addEventListener('click', () => openVagasModal());
     if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
     if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
+
     if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
             atualizarSVC(matrizSelecionada);
+            atualizarCC(matrizSelecionada);
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
     }
+
     if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
     if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
@@ -2750,13 +2824,15 @@ function initControleVagas() {
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
+
     fetchVagas();
 }
 
 async function fetchMatrizes() {
+
     const {data, error} = await supabase
         .from('Matrizes')
-        .select('MATRIZ, SERVICE')
+        .select('MATRIZ, SERVICE, CC')
         .order('MATRIZ', {ascending: true});
 
     if (error) {
@@ -2765,6 +2841,17 @@ async function fetchMatrizes() {
     }
     matrizesData = data || [];
     populateFilialSelect();
+}
+
+
+function atualizarCC(nomeMatriz) {
+    if (!inputCc) return;
+    if (!nomeMatriz) {
+        inputCc.value = '';
+        return;
+    }
+    const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
+    inputCc.value = encontrada ? (encontrada.CC || '-') : '';
 }
 
 async function fetchGestores() {
@@ -2785,10 +2872,17 @@ async function fetchGestores() {
 function populateFilialSelect() {
     if (!selectFilial) return;
     selectFilial.innerHTML = '<option value="">- Selecione uma Matriz -</option>';
-    matrizesData.forEach(item => {
+
+
+
+
+
+    const matrizesUnicas = [...new Set(matrizesData.map(item => item.MATRIZ).filter(Boolean))].sort();
+
+    matrizesUnicas.forEach(matrizNome => {
         const option = document.createElement('option');
-        option.value = item.MATRIZ;
-        option.textContent = item.MATRIZ;
+        option.value = matrizNome;
+        option.textContent = matrizNome;
         selectFilial.appendChild(option);
     });
 }
@@ -2861,16 +2955,26 @@ function openVagasModal(vagaData = null) {
 
     vagasModal.classList.remove('hidden');
     formVagas.reset();
+
+
     formVagas.querySelectorAll('select').forEach(sel => {
-        if (sel.name !== 'filial') sel.value = "";
+        if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
+            sel.value = "";
+        }
     });
+
     selectFilial.value = "";
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
     inputSvc.value = "";
+    if(inputCc) inputCc.value = "";
+
+
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
 
     if (document.getElementById('div-substituido')) {
         document.getElementById('div-substituido').classList.add('hidden');
     }
+
     if (vagaData) {
         document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
         formVagas.dataset.mode = 'edit';
@@ -2883,13 +2987,14 @@ function openVagasModal(vagaData = null) {
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
         if (f.cargo) f.cargo.value = vagaData.Cargo || '';
+
         if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
+            atualizarCC(vagaData.MATRIZ);
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
         }
 
-        if (f.cc) f.cc.value = vagaData.CentroCusto || '';
         if (f.cliente) f.cliente.value = vagaData.Cliente || '';
         if (f.setor) f.setor.value = vagaData.Setor || '';
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
@@ -2904,20 +3009,36 @@ function openVagasModal(vagaData = null) {
         if (f.hora_saida) f.hora_saida.value = vagaData.HoraSaida || '';
         if (f.dias_semana) f.dias_semana.value = vagaData.DiasSemana || '';
         if (f.jornada_tipo) f.jornada_tipo.value = vagaData.JornadaTipo || '';
-        if (f.candidato_aprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado || '';
-        if (f.cpf_candidato) f.cpf_candidato.value = vagaData.CPFCandidato || '';
-        if (f.qtd_entrevistados) f.qtd_entrevistados.value = vagaData.QtdEntrevistados || 0;
-        if (f.qtd_encaminhados) f.qtd_encaminhados.value = vagaData.QtdEncaminhados || 0;
-        if (f.qtd_finalistas) f.qtd_finalistas.value = vagaData.QtdFinalistas || 0;
+
         if (f.sla_acordada) f.sla_acordada.value = vagaData.SLA_Acordada || '';
         if (f.prazo_entrega_rs) f.prazo_entrega_rs.value = vagaData.PrazoEntregaRS || '';
         if (f.data_encaminhado_admissao) f.data_encaminhado_admissao.value = vagaData.DataEncaminhadoAdmissao || '';
         if (f.data_admissao_real) f.data_admissao_real.value = vagaData.DataAdmissaoReal || '';
 
+
+        if (f.candidato_aprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado || '';
+
+
+        if (f.data_nascimento_candidato) f.data_nascimento_candidato.value = vagaData.DataNascimento || '';
+
+
+        if (f.cpf_candidato) f.cpf_candidato.value = vagaData.CPFCandidato || '';
+        if (f.rg_candidato) f.rg_candidato.value = vagaData.rg || '';
+        if (f.telefone_candidato) f.telefone_candidato.value = vagaData.telefone || '';
+        if (f.email_candidato) f.email_candidato.value = vagaData.email || '';
+        if (f.pis_candidato) f.pis_candidato.value = vagaData.pis || '';
+        if (f.endereco_candidato) f.endereco_candidato.value = vagaData.endereco_completo || '';
+        if (f.numero_candidato) f.numero_candidato.value = vagaData.numero || '';
+        if (f.bairro_candidato) f.bairro_candidato.value = vagaData.bairro || '';
+        if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';
+
+
+        if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
+        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';
+
         toggleSubstituicao(vagaData.Motivo);
 
     } else {
-
         document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
         formVagas.dataset.mode = 'create';
         delete formVagas.dataset.id;
@@ -2962,6 +3083,7 @@ async function handleVagaSubmit(e) {
     const mode = formVagas.dataset.mode;
     const id = formVagas.dataset.id;
 
+
     const payload = {
         Status: raw.status,
         DataAprovacao: raw.data_aprovacao || null,
@@ -2985,11 +3107,26 @@ async function handleVagaSubmit(e) {
         HoraSaida: raw.hora_saida || null,
         DiasSemana: raw.dias_semana,
         JornadaTipo: raw.jornada_tipo,
-        CandidatoAprovado: raw.candidato_aprovado,
-        CPFCandidato: raw.cpf_candidato,
-        QtdEntrevistados: raw.qtd_entrevistados || 0,
-        QtdEncaminhados: raw.qtd_encaminhados || 0,
-        QtdFinalistas: raw.qtd_finalistas || 0,
+
+
+        CandidatoAprovado: toUpperTrim(raw.candidato_aprovado),
+
+
+        DataNascimento: raw.data_nascimento_candidato || null,
+
+
+        CPFCandidato: normalizeCPF(raw.cpf_candidato),
+        rg: raw.rg_candidato || null,
+        telefone: raw.telefone_candidato || null,
+        email: raw.email_candidato || null,
+        pis: raw.pis_candidato || null,
+        endereco_completo: toUpperTrim(raw.endereco_candidato),
+        numero: raw.numero_candidato || null,
+        bairro: toUpperTrim(raw.bairro_candidato),
+        cidade: toUpperTrim(raw.cidade_candidato),
+        colete: raw.vaga_colete || null,
+        sapato: raw.vaga_sapato || null,
+
         SLA_Acordada: raw.sla_acordada ? parseInt(raw.sla_acordada) : null,
         PrazoEntregaRS: raw.prazo_entrega_rs || null,
         DataEncaminhadoAdmissao: raw.data_encaminhado_admissao || null,

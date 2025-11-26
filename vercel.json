@@ -1,16 +1,18 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "redirects": [
+  "rewrites": [
     {
-      "source": "/index.html",
-      "destination": "/",
-      "permanent": true
+      "source": "/",
+      "destination": "/index.html"
     },
     {
-      "source": "/(.*)\\.html",
-      "destination": "/$1",
-      "permanent": true
+      "source": "/login",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/((?!assets|imagens|src|.*\\..*).*)",
+      "destination": "/dashboard.html"
     }
   ]
 }

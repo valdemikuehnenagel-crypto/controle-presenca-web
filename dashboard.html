@@ -174,7 +174,7 @@
 </div>
 
 <div id="addModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="container !h-auto !w-auto max-w-4xl">
+    <div class="container !h-auto !w-auto max-w-4xl" style="max-height: 90vh; overflow-y: auto;">
         <h3>Adicionar Novo Colaborador</h3>
         <form id="addForm">
             <div class="form-grid">
@@ -185,6 +185,14 @@
                 <div class="form-group">
                     <label for="addCPF">CPF (opcional)</label>
                     <input type="text" id="addCPF" maxlength="11"/>
+                </div>
+                <div class="form-group">
+                    <label for="addRG">RG (Opcional)</label>
+                    <input type="text" id="addRG"/>
+                </div>
+                <div class="form-group">
+                    <label for="addPIS">PIS (Opcional)</label>
+                    <input type="text" id="addPIS"/>
                 </div>
                 <div class="form-group">
                     <label for="addDataNascimento">Data de Nascimento (opcional)</label>
@@ -198,6 +206,33 @@
                         <option value="Feminino">Feminino</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label for="addTelefone">Telefone</label>
+                    <input type="text" id="addTelefone" placeholder="(XX) XXXXX-XXXX"/>
+                </div>
+                <div class="form-group">
+                    <label for="addEmail">E-mail</label>
+                    <input type="email" id="addEmail" placeholder="exemplo@email.com"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="addEndereco">Endereço (Logradouro)</label>
+                    <input type="text" id="addEndereco"/>
+                </div>
+                <div class="form-group">
+                    <label for="addNumero">Número</label>
+                    <input type="text" id="addNumero"/>
+                </div>
+                <div class="form-group">
+                    <label for="addBairro">Bairro</label>
+                    <input type="text" id="addBairro"/>
+                </div>
+                <div class="form-group">
+                    <label for="addCidade">Cidade</label>
+                    <input type="text" id="addCidade"/>
+                </div>
+
                 <div class="form-group">
                     <label for="addContrato">Contrato</label>
                     <select id="addContrato" required>
@@ -251,6 +286,19 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="addColete">Colete</label>
+                    <select id="addColete">
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="addSapato">Sapato</label>
+                    <select id="addSapato">
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="addLDAP">LDAP (Opcional)</label>
                     <input type="text" id="addLDAP"/>
                 </div>
@@ -268,8 +316,9 @@
         </form>
     </div>
 </div>
+
 <div id="editModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="container !h-auto !w-auto max-w-4xl">
+    <div class="container !h-auto !w-auto max-w-4xl" style="max-height: 90vh; overflow-y: auto;">
         <h3 id="editTitulo">Editar Colaborador</h3>
         <form id="editForm">
             <div class="form-grid">
@@ -281,6 +330,45 @@
                     <label for="editCPF">CPF</label>
                     <input id="editCPF" type="text" maxlength="11"/>
                 </div>
+                <div class="form-group">
+                    <label for="editRG">RG</label>
+                    <input id="editRG" type="text"/>
+                </div>
+                <div class="form-group">
+                    <label for="editPIS">PIS</label>
+                    <input id="editPIS" type="text"/>
+                </div>
+                <div class="form-group">
+                    <label for="editDataNascimento">Data de Nascimento</label>
+                    <input id="editDataNascimento" type="date"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editTelefone">Telefone</label>
+                    <input type="text" id="editTelefone"/>
+                </div>
+                <div class="form-group">
+                    <label for="editEmail">E-mail</label>
+                    <input type="email" id="editEmail"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editEndereco">Endereço</label>
+                    <input type="text" id="editEndereco"/>
+                </div>
+                <div class="form-group">
+                    <label for="editNumero">Número</label>
+                    <input type="text" id="editNumero"/>
+                </div>
+                <div class="form-group">
+                    <label for="editBairro">Bairro</label>
+                    <input type="text" id="editBairro"/>
+                </div>
+                <div class="form-group">
+                    <label for="editCidade">Cidade</label>
+                    <input type="text" id="editCidade"/>
+                </div>
+
                 <div class="form-group">
                     <label for="editContrato">Contrato</label>
                     <select id="editContrato">
@@ -314,28 +402,6 @@
                         <option value="4º DOMINGO">4º DOMINGO</option>
                         <option value="1ª SEGUNDA">1ª SEGUNDA</option>
                         <option value="2ª SEGUNDA">2ª SEGUNDA</option>
-                        <option value="3ª SEGUNDA">3ª SEGUNDA</option>
-                        <option value="4ª SEGUNDA">4ª SEGUNDA</option>
-                        <option value="1ª TERÇA">1ª TERÇA</option>
-                        <option value="2ª TERÇA">2ª TERÇA</option>
-                        <option value="3ª TERÇA">3ª TERÇA</option>
-                        <option value="4ª TERÇA">4ª TERÇA</option>
-                        <option value="1ª QUARTA">1ª QUARTA</option>
-                        <option value="2ª QUARTA">2ª QUARTA</option>
-                        <option value="3ª QUARTA">3ª QUARTA</option>
-                        <option value="4ª QUARTA">44ª QUARTA</option>
-                        <option value="1ª QUINTA">1ª QUINTA</option>
-                        <option value="2ª QUINTA">2ª QUINTA</option>
-                        <option value="3ª QUINTA">3ª QUINTA</option>
-                        <option value="4ª QUINTA">4ª QUINTA</option>
-                        <option value="1ª SEXTA">1ª SEXTA</option>
-                        <option value="2ª SEXTA">2ª SEXTA</option>
-                        <option value="3ª SEXTA">3ª SEXTA</option>
-                        <option value="4ª SEXTA">4ª SEXTA</option>
-                        <option value="1º SÁBADO">1º SÁBADO</option>
-                        <option value="2º SÁBADO">2º SÁBADO</option>
-                        <option value="3º SÁBADO">3º SÁBADO</option>
-                        <option value="4º SÁBADO">4º SÁBADO</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -356,9 +422,15 @@
                     <label for="editGestor">Gestor</label>
                     <select id="editGestor"></select>
                 </div>
+
                 <div class="form-group">
-                    <label for="editDataNascimento">Data de Nascimento</label>
-                    <input id="editDataNascimento" type="date"/>
+                    <label for="editMatriz">Matriz</label>
+                    <input id="editMatriz" type="text" readonly style="background:#f3f4f6;"/>
+                </div>
+
+                <div class="form-group">
+                    <label for="editRegiao">Região</label>
+                    <input id="editRegiao" type="text" readonly style="background:#f3f4f6;"/>
                 </div>
 
                 <div class="form-group">
@@ -371,6 +443,18 @@
                     <input id="editAdmissaoKn" type="date"/>
                 </div>
 
+                <div class="form-group">
+                    <label for="editColete">Colete</label>
+                    <select id="editColete">
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editSapato">Sapato</label>
+                    <select id="editSapato">
+                        <option value="" disabled selected>Carregando...</option>
+                    </select>
+                </div>
 
                 <div class="form-group">
                     <label for="editLDAP">LDAP</label>
@@ -413,7 +497,8 @@
     </div>
 </div>
 
-<div id="desligarModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+<div id="desligarModal"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="container !h-auto !w-auto max-w-2xl">
         <h3>Desligar Colaborador</h3>
         <form id="desligarForm">
@@ -421,7 +506,8 @@
 
                 <div class="form-group">
                     <label>Colaborador</label>
-                    <input id="desligarNome" type="text" readonly style="background-color: #f3f4f6; cursor: not-allowed;"/>
+                    <input id="desligarNome" type="text" readonly
+                           style="background-color: #f3f4f6; cursor: not-allowed;"/>
                 </div>
 
                 <div class="form-group">
@@ -434,7 +520,8 @@
                     <select id="desligarMotivo" required>
                         <option value="" disabled selected>Selecione...</option>
                         <option value="Abandono de emprego">Abandono de emprego</option>
-                        <option value="Ato de indisciplina ou insubordinação">Ato de indisciplina ou insubordinação</option>
+                        <option value="Ato de indisciplina ou insubordinação">Ato de indisciplina ou insubordinação
+                        </option>
                         <option value="Ausência não justificada">Ausência não justificada</option>
                         <option value="Corte de gastos">Corte de gastos</option>
                         <option value="Inadequação à cultura da empresa">Inadequação à cultura da empresa</option>
@@ -450,7 +537,8 @@
                     <label for="desligarSmartoff" style="color: #b91c1c; font-weight: 700;">
                         Número Smart (Obrigatório)
                     </label>
-                    <input id="desligarSmartoff" type="text" placeholder="Digite o número do chamado..." style="border-color: #b91c1c;" />
+                    <input id="desligarSmartoff" type="text" placeholder="Digite o número do chamado..."
+                           style="border-color: #b91c1c;"/>
                 </div>
 
             </div>
@@ -792,11 +880,14 @@
     </div>
 </div>
 
-<div id="modalListaRH" class="hidden diarist-modal"> <div class="modal-card">
+<div id="modalListaRH" class="hidden diarist-modal">
+    <div class="modal-card">
 
         <h3>
             <span>Candidatos Aprovados (RH)</span>
-            <button id="fecharModalRH" style="background:none; border:none; cursor:pointer; font-size:20px; color:#999;">&times;</button>
+            <button id="fecharModalRH"
+                    style="background:none; border:none; cursor:pointer; font-size:20px; color:#999;">&times;
+            </button>
         </h3>
 
         <div id="rh-toolbar">
@@ -823,19 +914,19 @@
         <div class="rh-table-wrapper">
             <table>
                 <thead>
-                    <tr>
-                        <th>Nome Completo</th>
-                        <th>CPF</th>
-                        <th>Cargo (Vaga)</th>
-                        <th>Matriz</th>
-                        <th>Gestor</th>
-                        <th>Início</th>
-                        <th>SLA</th>
-                        <th>Ação</th>
-                    </tr>
+                <tr>
+                    <th>Nome Completo</th>
+                    <th>CPF</th>
+                    <th>Cargo (Vaga)</th>
+                    <th>Matriz</th>
+                    <th>Gestor</th>
+                    <th>Início</th>
+                    <th>SLA</th>
+                    <th>Ação</th>
+                </tr>
                 </thead>
                 <tbody id="tbodyCandidatosRH">
-                    </tbody>
+                </tbody>
             </table>
         </div>
 
@@ -902,12 +993,13 @@
     </div>
 </div>
 
-<div id="kn-global-dialog" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99999]">
+<div id="kn-global-dialog"
+     class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99999]">
     <div class="bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-200 overflow-hidden transform transition-all scale-100">
 
         <div class="p-4 border-b border-gray-100 flex items-center gap-3 bg-gray-50">
             <div id="kn-dialog-icon-container">
-                </div>
+            </div>
             <h3 id="kn-dialog-title" class="text-lg font-bold text-[#003369] m-0">Aviso</h3>
         </div>
 
@@ -916,10 +1008,12 @@
         </div>
 
         <div class="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-            <button id="kn-dialog-btn-cancel" class="hidden px-4 py-2 rounded border border-gray-300 text-gray-700 font-semibold hover:bg-gray-200 transition-colors text-xs uppercase">
+            <button id="kn-dialog-btn-cancel"
+                    class="hidden px-4 py-2 rounded border border-gray-300 text-gray-700 font-semibold hover:bg-gray-200 transition-colors text-xs uppercase">
                 Cancelar
             </button>
-            <button id="kn-dialog-btn-confirm" class="px-6 py-2 rounded text-white font-bold shadow-md transition-all text-xs uppercase bg-[#003369] hover:bg-[#02B1EE]">
+            <button id="kn-dialog-btn-confirm"
+                    class="px-6 py-2 rounded text-white font-bold shadow-md transition-all text-xs uppercase bg-[#003369] hover:bg-[#02B1EE]">
                 OK
             </button>
         </div>

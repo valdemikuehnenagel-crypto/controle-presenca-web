@@ -1,46 +1,32 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';
-
-const TZ = 'America/Sao_Paulo';
-const pad2 = n => String(n).padStart(2, '0');
-
-function todayISO_BR() {
+import {getMatrizesPermitidas} from '../session.js';const TZ = 'America/Sao_Paulo';
+const pad2 = n => String(n).padStart(2, '0');function todayISO_BR() {
     const parts = new Intl.DateTimeFormat('en-CA', {timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit'})
         .formatToParts(new Date())
         .reduce((acc, p) => (acc[p.type] = p.value, acc), {});
     return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-function dateToISO_BR(d) {
+}function dateToISO_BR(d) {
     const dt = (d instanceof Date) ? d : new Date(d);
     if (!Number.isFinite(dt.getTime())) return null;
     const parts = new Intl.DateTimeFormat('en-CA', {timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit'})
         .formatToParts(dt)
         .reduce((acc, p) => (acc[p.type] = p.value, acc), {});
     return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-function addDaysISO(iso, delta) {
+}function addDaysISO(iso, delta) {
     const [y, m, d] = String(iso).split('-').map(Number);
     const dt = new Date(y, (m - 1), d);
     dt.setDate(dt.getDate() + delta);
     return dateToISO_BR(dt);
-}
-
-function getOntemISO() {
+}function getOntemISO() {
     return addDaysISO(todayISO_BR(), -1);
-}
-
-function getPrevMonthStartEndISO() {
+}function getPrevMonthStartEndISO() {
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
     const firstPrev = new Date(y, m - 1, 1);
     const lastPrev = new Date(y, m, 0);
     return {start: dateToISO_BR(firstPrev), end: dateToISO_BR(lastPrev)};
-}
-
-function diaristaToISO(v) {
+}function diaristaToISO(v) {
     const s = String(v || '').trim();
     if (!s) return null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -48,9 +34,7 @@ function diaristaToISO(v) {
     if (m) return `${m[3]}-${m[2]}-${m[1]}`;
     const iso = dateToISO_BR(s);
     return iso || null;
-}
-
-function diaristaFmtBR(val) {
+}function diaristaFmtBR(val) {
     if (!val) return '';
     const s = String(val).trim();
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
@@ -62,16 +46,12 @@ function diaristaFmtBR(val) {
         return `${dd}/${mm}/${y}`;
     }
     return s;
-}
-
-const safeTime = (dLike) => {
+}const safeTime = (dLike) => {
     const iso = diaristaToISO(dLike);
     if (!iso) return NaN;
     const [y, m, d] = iso.split('-').map(Number);
     return new Date(`${y}-${pad2(m)}-${pad2(d)}T12:00:00`).getTime();
-};
-
-function readCurrentSession() {
+};function readCurrentSession() {
     try {
         if (window.currentSession && typeof window.currentSession === 'object') return window.currentSession;
     } catch {
@@ -82,9 +62,7 @@ function readCurrentSession() {
     } catch {
     }
     return {matriz: 'TODOS'};
-}
-
-const getSessionMatriz = () => String(readCurrentSession()?.matriz || 'TODOS').trim().toUpperCase();
+}const getSessionMatriz = () => String(readCurrentSession()?.matriz || 'TODOS').trim().toUpperCase();
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;',
     '<': '&lt;',
@@ -97,9 +75,7 @@ const normalizeNameForMatch = s => removeDiacriticsBrowser(String(s || '')).toUp
 const formatNomeComId = (nome, id) => {
     const n = String(nome || '').trim(), g = String(id || '').trim();
     return g ? `${n} (${g})` : n;
-};
-
-function applyStandardButtonStyle(buttonElement, isBlue) {
+};function applyStandardButtonStyle(buttonElement, isBlue) {
     if (!buttonElement) return;
     buttonElement.style.padding = '8px 14px';
     buttonElement.style.border = 'none';
@@ -112,32 +88,7 @@ function applyStandardButtonStyle(buttonElement, isBlue) {
     buttonElement.style.transition = 'all .2s ease';
     buttonElement.style.whiteSpace = 'nowrap';
     if (isBlue) buttonElement.style.background = '#003369';
-}
-
-function setupDiaristasToolbar() {
-    const toolbar = document.querySelector('.diaristas-toolbar');
-    if (!toolbar) {
-        console.error('Container .diaristas-toolbar não encontrado.');
-        return;
-    }
-    const svcFilter = document.getElementById('flt-svc');
-    const turnoFilter = document.getElementById('flt-turno');
-    const addBtn = document.getElementById('btn-add-diarista');
-    const manageBtn = document.getElementById('btn-gerenciar');
-    const exportBtn = document.getElementById('btn-export-xlsx');
-    const periodBtn = document.getElementById('btn-period-select');
-    applyStandardButtonStyle(exportBtn, true);
-    applyStandardButtonStyle(periodBtn, true);
-    const orderedElements = [svcFilter, turnoFilter, addBtn, manageBtn, exportBtn, periodBtn];
-    toolbar.innerHTML = '';
-    orderedElements.forEach(el => el && toolbar.appendChild(el));
-    toolbar.style.display = 'flex';
-    toolbar.style.alignItems = 'center';
-    toolbar.style.flexWrap = 'wrap';
-    toolbar.style.gap = '8px';
-}
-
-const state = {
+}const state = {
     mounted: false,
     svcToMatriz: new Map(),
     matrizInfoMap: new Map(),
@@ -163,9 +114,7 @@ const setText = (id, v) => {
 const isGerenciarOpen = () => {
     const o = document.getElementById('gerenciar-modal');
     return o && !o.classList.contains('hidden');
-};
-
-async function loadBaseDiaristas() {
+};async function loadBaseDiaristas() {
     if (state.baseLoaded) return;
     const matrizesPermitidas = getMatrizesPermitidas();
     const sessMtz = getSessionMatriz();
@@ -200,14 +149,10 @@ async function loadBaseDiaristas() {
     } finally {
         state.baseLoaded = true;
     }
-}
-
-const getBaseListForCurrentMatriz = () => {
+}const getBaseListForCurrentMatriz = () => {
     const mtz = String(document.getElementById('f-matriz')?.value || '').trim().toUpperCase();
     return state.baseByMatriz.get(mtz) || [];
-};
-
-function checkDuplicadosDiaristas(nomes, ids) {
+};function checkDuplicadosDiaristas(nomes, ids) {
     const seenPair = new Set();
     const seenId = new Map();
     for (let i = 0; i < nomes.length; i++) {
@@ -226,9 +171,7 @@ function checkDuplicadosDiaristas(nomes, ids) {
         }
     }
     return '';
-}
-
-async function loadMatrizInfo() {
+}async function loadMatrizInfo() {
     state.svcToMatriz.clear();
     state.matrizInfoMap.clear();
     state.matrizesList = [];
@@ -281,9 +224,7 @@ async function loadMatrizInfo() {
     } catch (e) {
         console.error('Erro loadMatrizInfo:', e);
     }
-}
-
-async function loadDiaristas() {
+}async function loadDiaristas() {
     const CHUNK = 1000;
     let from = 0, all = [];
     const sessMtz = getSessionMatriz();
@@ -322,9 +263,7 @@ async function loadDiaristas() {
         console.warn('Falha loadDiaristas', e);
         state.records = [];
     }
-}
-
-function filteredRows() {
+}function filteredRows() {
     const s = state.filters;
     const tStart = safeTime(s.start);
     const tEnd = safeTime(s.end);
@@ -348,15 +287,11 @@ function filteredRows() {
             if (!Number.isFinite(tb) && Number.isFinite(ta)) return 1;
             return Number(b.Numero || 0) - Number(a.Numero || 0);
         });
-}
-
-function fillFilterCombos() {
+}function fillFilterCombos() {
     if (document.getElementById('flt-svc')?.options.length <= 1) {
         loadMatrizInfo();
     }
-}
-
-function renderKPIs() {
+}function renderKPIs() {
     const rows = filteredRows();
     const has = (txt, needle) => new RegExp(needle, 'i').test(String(txt || ''));
     const sumBy = (authPred, turno) => rows
@@ -380,18 +315,14 @@ function renderKPIs() {
     setText('kpiTOP-all-t2', knT2 + mlT2);
     setText('kpiTOP-all-t3', knT3 + mlT3);
     setText('kpiTOP-all-total', knT1 + knT2 + knT3 + mlT1 + mlT2 + mlT3);
-}
-
-function parseNomeDiaristaField(str) {
+}function parseNomeDiaristaField(str) {
     const s = String(str || '').trim();
     if (!s) return [];
     return s.split(/\s*,\s*/).map(pair => {
         const m = /(.*?)(?:\s*\(([^()]*)\))?$/.exec(pair);
         return {nome: (m?.[1] || '').trim(), id: (m?.[2] || '').trim()};
     }).filter(p => p.nome);
-}
-
-function ensureAjusteHeader() {
+}function ensureAjusteHeader() {
     const tbody = document.getElementById('diaristas-tbody');
     if (!tbody) return;
     const table = tbody.closest('table');
@@ -406,9 +337,7 @@ function ensureAjusteHeader() {
         th.textContent = 'Ajuste';
         tr.appendChild(th);
     }
-}
-
-function renderTable() {
+}function renderTable() {
     const tbody = document.getElementById('diaristas-tbody');
     if (!tbody) return;
     const rows = filteredRows();
@@ -434,9 +363,7 @@ function renderTable() {
     });
     tbody.innerHTML = '';
     tbody.appendChild(frag);
-}
-
-function ensurePopoverStyles() {
+}function ensurePopoverStyles() {
     if (document.getElementById('diaristas-names-popover-style')) return;
     const css = `
 #diaristas-names-popover{position:fixed;z-index:2000;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border:1px solid #e7ebf4;border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,.18);padding:16px 18px 18px;width:min(520px,96vw);max-width:96vw;animation:diaristas-popin .12s ease-out}
@@ -453,14 +380,10 @@ function ensurePopoverStyles() {
     style.id = 'diaristas-names-popover-style';
     style.textContent = css;
     document.head.appendChild(style);
-}
-
-const buildNamesTable = (entries) => {
+}const buildNamesTable = (entries) => {
     const rows = entries.map(e => `<tr><td>${escapeHtml(e.nome || '')}</td><td>${escapeHtml(e.id || '')}</td></tr>`).join('');
     return `<div class="pop-title">Diaristas lançados</div><div class="pop-scroll"><table><thead><tr><th>DIARISTAS</th><th>ID GROOT</th></tr></thead><tbody>${rows || '<tr><td colspan="2">Sem nomes.</td></tr>'}</tbody></table></div>`;
-};
-
-function closeNamesPopover() {
+};function closeNamesPopover() {
     if (state._popover) {
         try {
             state._popover.remove();
@@ -468,9 +391,7 @@ function closeNamesPopover() {
         }
         state._popover = null;
     }
-}
-
-function openNamesPopover(entries) {
+}function openNamesPopover(entries) {
     ensurePopoverStyles();
     closeNamesPopover();
     const pop = document.createElement('div');
@@ -479,35 +400,29 @@ function openNamesPopover(entries) {
     document.body.appendChild(pop);
     state._popover = pop;
     pop.querySelector('.pop-close')?.addEventListener('click', closeNamesPopover);
-}
-
-function openPeriodModalDiarista() {
+}function openPeriodModalDiarista() {
     const overlay = document.createElement('div');
     Object.assign(overlay.style, {
         position: 'fixed', inset: '0', background: 'rgba(0,0,0,.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: '9997'
-    });
-    const modal = document.createElement('div');
+    });    const modal = document.createElement('div');
     Object.assign(modal.style, {
         background: '#fff', borderRadius: '12px', padding: '16px',
         minWidth: '420px', maxWidth: '96vw',
         boxShadow: '0 10px 30px rgba(0,0,0,.25)'
-    });
-    const title = document.createElement('h3');
+    });    const title = document.createElement('h3');
     title.textContent = 'Selecionar Período';
     title.style.margin = '0 0 12px 0';
     title.style.color = '#003369';
     title.style.fontWeight = '800';
-    title.style.textAlign = 'center';
-    const quick = document.createElement('div');
+    title.style.textAlign = 'center';    const quick = document.createElement('div');
     Object.assign(quick.style, {
         display: 'flex',
         gap: '8px',
         flexWrap: 'wrap',
         marginBottom: '12px',
         justifyContent: 'center'
-    });
-    const mkChip = (label, action) => {
+    });    const mkChip = (label, action) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.textContent = label;
@@ -515,8 +430,7 @@ function openPeriodModalDiarista() {
         Object.assign(b.style, {
             padding: '6px 10px', borderRadius: '999px', border: '1px solid #e7ebf4',
             background: '#f9fbff', fontSize: '12px', fontWeight: '700', cursor: 'pointer'
-        });
-        b.addEventListener('click', () => {
+        });        b.addEventListener('click', async () => {
             if (action === 'hoje') {
                 const iso = todayISO_BR();
                 state.filters.start = iso;
@@ -525,72 +439,63 @@ function openPeriodModalDiarista() {
                 const iso = getOntemISO();
                 state.filters.start = iso;
                 state.filters.end = iso;
+            } else if (action === 'mes_atual') {                const now = new Date();
+                const y = now.getFullYear();
+                const m = now.getMonth();
+                const first = new Date(y, m, 1);
+                const last = new Date(y, m + 1, 0);
+                state.filters.start = dateToISO_BR(first);
+                state.filters.end = dateToISO_BR(last);
             } else if (action === 'mes_anterior') {
                 const {start, end} = getPrevMonthStartEndISO();
                 state.filters.start = start;
                 state.filters.end = end;
-            }
-            renderKPIs();
-            renderTable();
-            document.body.removeChild(overlay);
+            }            document.body.removeChild(overlay);            await loadDiaristas();
         });
         return b;
-    };
-    quick.append(mkChip('Hoje', 'hoje'), mkChip('Ontem', 'ontem'), mkChip('Mês anterior', 'mes_anterior'));
-    const grid = document.createElement('div');
-    Object.assign(grid.style, {display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px'});
-    const left = document.createElement('div');
-    const right = document.createElement('div');
-    const l1 = document.createElement('label');
+    };    quick.append(
+        mkChip('Hoje', 'hoje'),
+        mkChip('Ontem', 'ontem'),
+        mkChip('Mês Atual', 'mes_atual'),
+        mkChip('Mês Anterior', 'mes_anterior')
+    );    const grid = document.createElement('div');
+    Object.assign(grid.style, {display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px'});    const left = document.createElement('div');
+    const right = document.createElement('div');    const l1 = document.createElement('label');
     l1.textContent = 'Início';
     l1.style.display = 'block';
     l1.style.fontWeight = '700';
     const i1 = document.createElement('input');
     i1.type = 'date';
-    i1.value = state.filters.start || '';
-    const l2 = document.createElement('label');
+    i1.value = state.filters.start || '';    const l2 = document.createElement('label');
     l2.textContent = 'Fim';
     l2.style.display = 'block';
     l2.style.fontWeight = '700';
     const i2 = document.createElement('input');
     i2.type = 'date';
-    i2.value = state.filters.end || '';
-    left.append(l1, i1);
+    i2.value = state.filters.end || '';    left.append(l1, i1);
     right.append(l2, i2);
-    grid.append(left, right);
-    const actions = document.createElement('div');
-    Object.assign(actions.style, {display: 'flex', justifyContent: 'flex-end', gap: '8px'});
-    const cancel = document.createElement('button');
+    grid.append(left, right);    const actions = document.createElement('div');
+    Object.assign(actions.style, {display: 'flex', justifyContent: 'flex-end', gap: '8px'});    const cancel = document.createElement('button');
     cancel.textContent = 'Cancelar';
     cancel.className = 'btn-cancelar';
-    cancel.style.borderRadius = '24px';
-    const ok = document.createElement('button');
+    cancel.style.borderRadius = '24px';    const ok = document.createElement('button');
     ok.textContent = 'Aplicar';
     ok.className = 'btn-salvar';
-    ok.style.borderRadius = '24px';
-    actions.append(cancel, ok);
+    ok.style.borderRadius = '24px';    actions.append(cancel, ok);
     modal.append(title, quick, grid, actions);
     overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-    setTimeout(() => i1.focus(), 0);
-    cancel.addEventListener('click', () => document.body.removeChild(overlay));
-    ok.addEventListener('click', async () => {
+    document.body.appendChild(overlay);    setTimeout(() => i1.focus(), 0);    cancel.addEventListener('click', () => document.body.removeChild(overlay));    ok.addEventListener('click', async () => {
         if (!i1.value || !i2.value) {
             await window.customAlert('Selecione as duas datas.', 'Aviso');
             return;
         }
         state.filters.start = i1.value;
-        state.filters.end = i2.value;
-        renderKPIs();
-        renderTable();
-        document.body.removeChild(overlay);
-    });
-    overlay.addEventListener('click', (e) => {
+        state.filters.end = i2.value;        document.body.removeChild(overlay);
+        await loadDiaristas();
+    });    overlay.addEventListener('click', (e) => {
         if (e.target === overlay) document.body.removeChild(overlay);
     });
-}
-
-function buildNomeSelect(index, selectedName = '') {
+}function buildNomeSelect(index, selectedName = '') {
     const list = getBaseListForCurrentMatriz();
     const sel = document.createElement('select');
     sel.className = 'f-nome-sel';
@@ -611,9 +516,7 @@ function buildNomeSelect(index, selectedName = '') {
         sel.appendChild(o);
     });
     return sel;
-}
-
-function updateNameInputs(preserve = true) {
+}function updateNameInputs(preserve = true) {
     const raw = document.getElementById('f-quantidade').value;
     const qty = Math.max(1, parseInt(raw, 10) || 1);
     const box = document.getElementById('names-list');
@@ -671,29 +574,30 @@ function updateNameInputs(preserve = true) {
         wrapId.append(labelId, idInput);
         box.append(wrapNome, wrapId);
     }
-}
-
-function wireUI() {
-    const d0 = new Date();
-    d0.setDate(1);
-    state.filters.start = dateToISO_BR(d0);
-    state.filters.end = todayISO_BR();
-    const $svc = document.getElementById('flt-svc');
+}function wireUI() {    const d0 = new Date();
+    d0.setDate(1);    if (!state.filters.start) state.filters.start = dateToISO_BR(d0);
+    if (!state.filters.end) state.filters.end = todayISO_BR();    const $svc = document.getElementById('flt-svc');
     const $turno = document.getElementById('flt-turno');
-    on(document.getElementById('btn-period-select'), 'click', openPeriodModalDiarista);
-    on($svc, 'change', e => {
+    const $matriz = document.getElementById('flt-matriz');    on(document.getElementById('btn-period-select'), 'click', openPeriodModalDiarista);    on(document.getElementById('btn-limpar-filtros'), 'click', () => {        state.filters.svc = '';
+        state.filters.matriz = '';
+        state.filters.turno = '';        if ($svc) $svc.value = '';
+        if ($matriz) $matriz.value = '';
+        if ($turno) $turno.value = '';        renderKPIs();
+        renderTable();
+    });    on($svc, 'change', e => {
         state.filters.svc = e.target.value;
         renderKPIs();
         renderTable();
-    });
-    on($turno, 'change', e => {
+    });    on($matriz, 'change', e => {
+        state.filters.matriz = e.target.value;
+        renderKPIs();
+        renderTable();
+    });    on($turno, 'change', e => {
         state.filters.turno = e.target.value;
         renderKPIs();
         renderTable();
-    });
-    on(document.getElementById('btn-export-xlsx'), 'click', exportXLSX);
-    on(document.getElementById('btn-add-diarista'), 'click', openModal);
-    on(document.getElementById('btn-cancel-modal'), 'click', closeModal);
+    });    on(document.getElementById('btn-export-xlsx'), 'click', exportXLSX);
+    on(document.getElementById('btn-add-diarista'), 'click', openModal);    on(document.getElementById('btn-cancel-modal'), 'click', closeModal);
     on(document.getElementById('f-quantidade'), 'input', () => updateNameInputs(true));
     on(document.getElementById('f-quantidade'), 'change', () => updateNameInputs(true));
     on(document.getElementById('f-svc'), 'change', (e) => {
@@ -703,12 +607,9 @@ function wireUI() {
         updateNameInputs(true);
     });
     on(document.getElementById('diarista-form'), 'submit', onSubmitForm);
-    on(document.getElementById('f-matriz'), 'change', () => updateNameInputs(true));
-    on(document.getElementById('reg-cancel-modal'), 'click', closeRegistrarModal);
+    on(document.getElementById('f-matriz'), 'change', () => updateNameInputs(true));    on(document.getElementById('reg-cancel-modal'), 'click', closeRegistrarModal);
     on(document.getElementById('registrar-diarista-form'), 'submit', onSubmitRegistrarForm);
-    on(document.getElementById('reg-matriz'), 'change', onRegistrarMatrizChange);
-    on(document.getElementById('btn-gerenciar'), 'click', openGerenciarModal);
-    document.addEventListener('keydown', (e) => {
+    on(document.getElementById('reg-matriz'), 'change', onRegistrarMatrizChange);    on(document.getElementById('btn-gerenciar'), 'click', openGerenciarModal);    document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeNamesPopover();
             closeModal();
@@ -721,22 +622,16 @@ function wireUI() {
         if (state._popover && !state._popover.contains(e.target) && !e.target.closest('.btn-nomes')) closeNamesPopover();
     }, {passive: true});
     window.addEventListener('scroll', closeNamesPopover, {passive: true});
-}
-
-export async function init() {
+}export async function init() {
     if (state.mounted) return;
-    state.mounted = true;
-    setupDiaristasToolbar();
-    wireUI();
+    state.mounted = true;    wireUI();
     await loadMatrizInfo();
     await loadBaseDiaristas();
     await loadDiaristas();
     fillFilterCombos();
     renderKPIs();
     renderTable();
-}
-
-export async function destroy() {
+}export async function destroy() {
     try {
         state._listeners.forEach(off => off());
     } catch {
@@ -744,9 +639,7 @@ export async function destroy() {
     state._listeners = [];
     state.mounted = false;
     closeNamesPopover();
-}
-
-async function openModal() {
+}async function openModal() {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
@@ -773,15 +666,11 @@ async function openModal() {
     updateNameInputs(false);
     document.getElementById('diarista-modal').classList.remove('hidden');
     setTimeout(() => document.getElementById('f-empresa')?.focus(), 0);
-}
-
-function closeModal() {
+}function closeModal() {
     document.getElementById('diarista-modal').classList.add('hidden');
     const fMtz = document.getElementById('f-matriz');
     if (fMtz) fMtz.disabled = false;
-}
-
-async function onSubmitForm(ev) {
+}async function onSubmitForm(ev) {
     ev.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -801,9 +690,7 @@ async function onSubmitForm(ev) {
     let nomes = nomeSelects.length
         ? nomeSelects.map(s => String(s.value || '').trim()).filter(Boolean)
         : nomeInputs.map(i => String(i.value || '').trim()).filter(Boolean);
-    const ids = idsInputs.map(i => String(i.value || '').trim());
-
-    if (!dataISO) {
+    const ids = idsInputs.map(i => String(i.value || '').trim());    if (!dataISO) {
         await window.customAlert('Data inválida.', 'Erro');
         return;
     }
@@ -815,9 +702,7 @@ async function onSubmitForm(ev) {
     if (dupMsg) {
         await window.customAlert(dupMsg, 'Duplicidade');
         return;
-    }
-
-    let numero = 1;
+    }    let numero = 1;
     try {
         const {
             data: maxData,
@@ -847,9 +732,7 @@ async function onSubmitForm(ev) {
         console.error('Erro onSubmitForm', e);
         await window.customAlert('Falha ao salvar. Veja o console.', 'Erro');
     }
-}
-
-async function getUserTipo() {
+}async function getUserTipo() {
     if (state._userTipo) return state._userTipo;
     const U = (v) => String(v || '').trim();
     const N = (v) => U(v).toUpperCase();
@@ -897,9 +780,7 @@ async function getUserTipo() {
     if (!tipo) tipo = 'VISITANTE';
     state._userTipo = tipo;
     return tipo;
-}
-
-async function openEditDiaristaModal(record) {
+}async function openEditDiaristaModal(record) {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
@@ -1053,9 +934,7 @@ async function openEditDiaristaModal(record) {
     namesBox.id = 'ed-names-list';
     namesBox.className = 'form-grid';
     namesBox.style.gridTemplateColumns = '1fr 1fr';
-    namesBox.style.gap = '10px';
-
-    function updateEditNameInputs(preserve = true) {
+    namesBox.style.gap = '10px';    function updateEditNameInputs(preserve = true) {
         const qty = Math.max(1, parseInt(iQtd.value, 10) || 1);
         const mtzSel = iMtz.value;
         const baseList = getBaseListForMatriz(mtzSel);
@@ -1149,9 +1028,7 @@ async function openEditDiaristaModal(record) {
             wrapId.append(lblId, idInput);
             namesBox.append(wrapNome, wrapId);
         }
-    }
-
-    const actions = document.createElement('div');
+    }    const actions = document.createElement('div');
     Object.assign(actions.style, {display: 'flex', justifyContent: 'flex-end', gap: '8px'});
     const btnCancel = document.createElement('button');
     btnCancel.textContent = 'Cancelar';
@@ -1175,9 +1052,7 @@ async function openEditDiaristaModal(record) {
     iQtd.addEventListener('change', () => updateEditNameInputs(true));
     updateEditNameInputs(false);
     setTimeout(() => document.getElementById('ed-empresa')?.focus(), 0);
-}
-
-async function saveEditDiarista(numero) {
+}async function saveEditDiarista(numero) {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
@@ -1194,33 +1069,23 @@ async function saveEditDiarista(numero) {
     const turno = String(document.getElementById('ed-turno').value || '').trim();
     const svc = String(document.getElementById('ed-svc').value || '').trim();
     const matriz = String(document.getElementById('ed-matriz').value || '').trim();
-    const dataISO = diaristaToISO(document.getElementById('ed-data').value);
-
-    if (!dataISO) {
+    const dataISO = diaristaToISO(document.getElementById('ed-data').value);    if (!dataISO) {
         await window.customAlert('Data inválida.', 'Erro');
         return;
-    }
-
-    const nomeSelects = Array.from(document.querySelectorAll('.ed-nome-sel'));
+    }    const nomeSelects = Array.from(document.querySelectorAll('.ed-nome-sel'));
     const nomeInputs = Array.from(document.querySelectorAll('.ed-nome'));
     const idsInputs = Array.from(document.querySelectorAll('.ed-groot'));
     let nomes = nomeSelects.length
         ? nomeSelects.map(s => String(s.value || '').trim()).filter(Boolean)
         : nomeInputs.map(i => String(i.value || '').trim()).filter(Boolean);
-    const ids = idsInputs.map(i => String(i.value || '').trim());
-
-    if (nomes.length !== qtd || idsInputs.length !== qtd) {
+    const ids = idsInputs.map(i => String(i.value || '').trim());    if (nomes.length !== qtd || idsInputs.length !== qtd) {
         await window.customAlert('Quantidade e nomes/IDs não conferem. Ajuste "Quantidade" e preencha todas as linhas.', 'Erro');
         return;
-    }
-
-    const dupMsg = checkDuplicadosDiaristas(nomes, ids);
+    }    const dupMsg = checkDuplicadosDiaristas(nomes, ids);
     if (dupMsg) {
         await window.customAlert(dupMsg, 'Duplicidade');
         return;
-    }
-
-    const nomeDiarista = nomes.map((n, idx) => formatNomeComId(n, ids[idx])).join(', ');
+    }    const nomeDiarista = nomes.map((n, idx) => formatNomeComId(n, ids[idx])).join(', ');
     const payload = {
         Quantidade: Number(qtd),
         Empresa: empresa,
@@ -1245,14 +1110,10 @@ async function saveEditDiarista(numero) {
         console.error('Erro ao atualizar lançamento:', e);
         await window.customAlert('Falha ao salvar. Veja o console.', 'Erro');
     }
-}
-
-function closeEditDiaristaModal() {
+}function closeEditDiaristaModal() {
     const o = document.getElementById('diarista-edit-modal');
     if (o) o.remove();
-}
-
-async function openRegistrarModal() {
+}async function openRegistrarModal() {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
@@ -1271,20 +1132,14 @@ async function openRegistrarModal() {
     });
     regOverlay.classList.remove('hidden');
     setTimeout(() => document.getElementById('reg-nome')?.focus(), 0);
-}
-
-function closeRegistrarModal() {
+}function closeRegistrarModal() {
     document.getElementById('registrar-diarista-modal').classList.add('hidden');
-}
-
-function onRegistrarMatrizChange(ev) {
+}function onRegistrarMatrizChange(ev) {
     const matriz = ev.target.value;
     const info = state.matrizInfoMap.get(matriz);
     document.getElementById('reg-svc').value = info?.service || '';
     document.getElementById('reg-regiao').value = info?.regiao || '';
-}
-
-async function onSubmitRegistrarForm(ev) {
+}async function onSubmitRegistrarForm(ev) {
     ev.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -1295,9 +1150,7 @@ async function onSubmitRegistrarForm(ev) {
     const ldap = String(document.getElementById('reg-ldap').value || '').trim().toUpperCase();
     const matriz = String(document.getElementById('reg-matriz').value || '').trim().toUpperCase();
     const svc = String(document.getElementById('reg-svc').value || '').trim().toUpperCase();
-    const reg = String(document.getElementById('reg-regiao').value || '').trim().toUpperCase();
-
-    if (!nome || !matriz) {
+    const reg = String(document.getElementById('reg-regiao').value || '').trim().toUpperCase();    if (!nome || !matriz) {
         await window.customAlert('Preencha Nome e Matriz.', 'Campos Obrigatórios');
         return;
     }
@@ -1338,11 +1191,7 @@ async function onSubmitRegistrarForm(ev) {
             REGIAO: reg
         };
         const {error: insertError} = await supabase.from('BancoDiaristas').insert(payload);
-        if (insertError) throw new Error(`Erro ao salvar: ${insertError.message}`);
-
-        await window.customAlert(`Diarista "${nome}" registrado!\nID: ${nextId}`, 'Sucesso');
-
-        closeRegistrarModal();
+        if (insertError) throw new Error(`Erro ao salvar: ${insertError.message}`);        await window.customAlert(`Diarista "${nome}" registrado!\nID: ${nextId}`, 'Sucesso');        closeRegistrarModal();
         const matrizesPermitidas = getMatrizesPermitidas();
         const sessMtz = getSessionMatriz();
         const permitido = (!matrizesPermitidas?.length || matrizesPermitidas.includes(matriz)) &&
@@ -1365,9 +1214,7 @@ async function onSubmitRegistrarForm(ev) {
         console.error('Falha onSubmitRegistrarForm:', e);
         await window.customAlert(`Erro: ${e.message}`, 'Erro');
     }
-}
-
-async function ensureXLSXLoaded() {
+}async function ensureXLSXLoaded() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -1376,9 +1223,7 @@ async function ensureXLSXLoaded() {
         s.onerror = () => reject(new Error('Falha ao carregar a biblioteca XLSX.'));
         document.head.appendChild(s);
     });
-}
-
-async function exportXLSX() {
+}async function exportXLSX() {
     const rows = filteredRows();
     if (!rows.length) {
         await window.customAlert('Não há dados para exportar.', 'Aviso');
@@ -1423,9 +1268,7 @@ async function exportXLSX() {
     const start = state.filters.start || '';
     const end = state.filters.end || '';
     XLSX.writeFile(wb, `diaristas_${start}_a_${end}.xlsx`);
-}
-
-function ensureGerenciarStyles() {
+}function ensureGerenciarStyles() {
     if (document.getElementById('gerenciar-style')) return;
     const css = `
 .diaristas-modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:9999}
@@ -1442,9 +1285,7 @@ function ensureGerenciarStyles() {
     style.id = 'gerenciar-style';
     style.textContent = css;
     document.head.appendChild(style);
-}
-
-function buildGerenciarModal() {
+}function buildGerenciarModal() {
     if (document.getElementById('gerenciar-modal')) return;
     const overlay = document.createElement('div');
     overlay.id = 'gerenciar-modal';
@@ -1498,9 +1339,7 @@ function buildGerenciarModal() {
     document.getElementById('gerenciar-registrar-btn').addEventListener('click', openRegistrarModal);
     document.getElementById('gerenciar-qrcode-btn').addEventListener('click', gerarQRCodesGerenciar);
     document.getElementById('gerenciar-clear-btn').addEventListener('click', limparGerenciar);
-}
-
-async function openGerenciarModal() {
+}async function openGerenciarModal() {
     ensureGerenciarStyles();
     buildGerenciarModal();
     const $input = document.getElementById('gerenciar-search-input');
@@ -1523,18 +1362,14 @@ async function openGerenciarModal() {
         $matrizFilter.value = '';
     }
     applyGerenciarFilters();
-}
-
-function closeGerenciarModal() {
+}function closeGerenciarModal() {
     const o = document.getElementById('gerenciar-modal');
     if (o) o.classList.add('hidden');
     closeGerenciarEditModal();
     const $i = document.getElementById('gerenciar-search-input');
     if ($i) $i.value = '';
     state.gerenciar.searchRaw = '';
-}
-
-async function ensureBancoDiaristasLoaded() {
+}async function ensureBancoDiaristasLoaded() {
     if (state.gerenciar.loaded) return;
     const matrizesPermitidas = getMatrizesPermitidas();
     const sessMtz = getSessionMatriz();
@@ -1559,9 +1394,7 @@ async function ensureBancoDiaristasLoaded() {
     } finally {
         state.gerenciar.loaded = true;
     }
-}
-
-function limparGerenciar() {
+}function limparGerenciar() {
     const $input = document.getElementById('gerenciar-search-input');
     const $matrizFilter = document.getElementById('gerenciar-filter-matriz');
     if ($input) $input.value = '';
@@ -1569,9 +1402,7 @@ function limparGerenciar() {
     state.gerenciar.searchRaw = '';
     state.gerenciar.selectedNames = new Set();
     applyGerenciarFilters();
-}
-
-function renderGerenciarTable() {
+}function renderGerenciarTable() {
     const tbody = document.getElementById('gerenciar-tbody');
     if (!tbody) return;
     const rows = state.gerenciar.filtered || [];
@@ -1626,9 +1457,7 @@ function renderGerenciarTable() {
     tbody.appendChild(frag);
     tbody.querySelectorAll('button[data-act="edit"]').forEach(btn => btn.addEventListener('click', () => startEditGerenciar(Number(btn.dataset.id))));
     tbody.querySelectorAll('button[data-act="del"]').forEach(btn => btn.addEventListener('click', () => deleteGerenciar(Number(btn.dataset.id))));
-}
-
-function applyGerenciarFilters() {
+}function applyGerenciarFilters() {
     const input = document.getElementById('gerenciar-search-input');
     const matrizFilter = document.getElementById('gerenciar-filter-matriz');
     if (!input || !matrizFilter) return;
@@ -1653,9 +1482,7 @@ function applyGerenciarFilters() {
     }
     state.gerenciar.filtered = results.slice(0, 10000);
     renderGerenciarTable();
-}
-
-function openGerenciarEditModal(entity) {
+}function openGerenciarEditModal(entity) {
     closeGerenciarEditModal();
     const overlay = document.createElement('div');
     overlay.id = 'gerenciar-edit-modal';
@@ -1689,14 +1516,10 @@ function openGerenciarEditModal(entity) {
     overlay.querySelector('#gerenciar-edit-cancel').addEventListener('click', closeGerenciarEditModal);
     overlay.querySelector('#gerenciar-edit-save').addEventListener('click', saveGerenciarEdit);
     setTimeout(() => overlay.querySelector('#ger-ed-nome')?.focus(), 0);
-}
-
-function closeGerenciarEditModal() {
+}function closeGerenciarEditModal() {
     const o = document.getElementById('gerenciar-edit-modal');
     if (o) o.remove();
-}
-
-async function startEditGerenciar(id) {
+}async function startEditGerenciar(id) {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
@@ -1705,9 +1528,7 @@ async function startEditGerenciar(id) {
     if (!row) return;
     state.gerenciar.editing = {...row};
     openGerenciarEditModal(row);
-}
-
-async function substituirNomeEmDiaristaLancamentos(oldNome, newNome) {
+}async function substituirNomeEmDiaristaLancamentos(oldNome, newNome) {
     if (!oldNome || !newNome || oldNome === newNome) return 0;
     const alvo = normalizeNameForMatch(oldNome);
     let count = 0;
@@ -1747,9 +1568,7 @@ async function substituirNomeEmDiaristaLancamentos(oldNome, newNome) {
         r['Nome Diarista'] = partsNew.join(', ');
     });
     return count;
-}
-
-async function saveGerenciarEdit() {
+}async function saveGerenciarEdit() {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
@@ -1811,9 +1630,7 @@ async function saveGerenciarEdit() {
         console.error('Erro ao salvar edição:', e);
         await window.customAlert('Falha ao salvar. Veja o console.', 'Erro');
     }
-}
-
-async function deleteGerenciar(id) {
+}async function deleteGerenciar(id) {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
@@ -1833,9 +1650,7 @@ async function deleteGerenciar(id) {
         console.error('Erro ao excluir:', e);
         await window.customAlert('Falha ao excluir. Veja o console.', 'Erro');
     }
-}
-
-async function gerarQRCodesGerenciar() {
+}async function gerarQRCodesGerenciar() {
     const set = state.gerenciar.selectedNames || new Set();
     if (set.size === 0) {
         await window.customAlert('Nenhum diarista selecionado. Use Ctrl+Click nas linhas para selecionar.', 'Aviso');

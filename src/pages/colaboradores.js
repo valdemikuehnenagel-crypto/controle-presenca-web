@@ -14,6 +14,17 @@ import {logAction} from '../../logAction.js';let state = {
     matrizesData: [],
     feriasAtivasMap: new Map()
 };
+let rhState = {
+    dadosBrutos: [],
+    nomesExistentes: new Set(),
+    filtros: {
+        termo: '',
+        matriz: '',
+        cargo: ''
+    },
+    modoVisualizacao: 'ATUAIS',
+    somenteParaFechar: false
+};
 let cachedColaboradores = null;
 let cachedFeriasStatus = null;
 let lastFetchTimestamp = 0;
@@ -70,32 +81,59 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (cargoFormatado.includes('AUXILIAR')) cargoFormatado = 'AUXILIAR';
     else if (cargoFormatado.includes('ASSISTENTE')) cargoFormatado = 'ASSISTENTE';
     else if (cargoFormatado.includes('LÍDER') || cargoFormatado.includes('LIDER')) cargoFormatado = 'LIDER';
+    else if (cargoFormatado.includes('CONFERENTE')) cargoFormatado = 'CONFERENTE';
     return {
         Nome: candidato.CandidatoAprovado,
         CPF: candidato.CPFCandidato,
         Cargo: cargoFormatado,
         Contrato: contratoFormatado,
         MATRIZ: candidato.MATRIZ,
-        DataInicio: candidato.DataInicioDesejado
+        DataInicio: candidato.DataInicioDesejado, rg: candidato.rg,
+        telefone: candidato.telefone,
+        email: candidato.email,
+        pis: candidato.pis,
+        endereco_completo: candidato.endereco_completo,
+        numero: candidato.numero,
+        bairro: candidato.bairro,
+        cidade: candidato.cidade,
+        colete: candidato.colete,
+        sapato: candidato.sapato,
+        DataNascimento: candidato.DataNascimento
     };
-}let rhState = {
-    dadosBrutos: [],
-    nomesExistentes: new Set(),
-    modoVisualizacao: 'ATUAIS',
-    somenteParaFechar: false,
-    filtros: {
-        termo: '',
-        matriz: '',
-        cargo: ''
+}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+    const selSapato = document.getElementById(idSelectSapato);
+    const selColete = document.getElementById(idSelectColete);
+    if (selSapato) {
+        const valorAtual = selSapato.value;
+        selSapato.innerHTML = '<option value="">Selecione...</option>';
+        for (let i = 34; i <= 46; i++) {
+            const opt = document.createElement('option');
+            opt.value = i.toString();
+            opt.textContent = i.toString();
+            selSapato.appendChild(opt);
+        }
+        if (valorAtual) selSapato.value = valorAtual;
     }
-};async function fetchCandidatosAprovados() {
+    if (selColete) {
+        const valorAtual = selColete.value;
+        const tamanhos = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG'];
+        selColete.innerHTML = '<option value="">Selecione...</option>';
+        tamanhos.forEach(tam => {
+            const opt = document.createElement('option');
+            opt.value = tam;
+            opt.textContent = tam;
+            selColete.appendChild(opt);
+        });
+        if (valorAtual) selColete.value = valorAtual;
+    }
+}async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
     tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
     try {
         const matrizesPermitidas = getMatrizesPermitidas();
         let queryVagas = supabase
             .from('Vagas')
-            .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataEncaminhadoAdmissao, DataAprovacao')
+            .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataEncaminhadoAdmissao, DataAprovacao, rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato, DataNascimento')
             .eq('Status', 'EM ADMISSÃO');
         if (matrizesPermitidas !== null) {
             queryVagas = queryVagas.in('MATRIZ', matrizesPermitidas);
@@ -573,6 +611,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     await loadGestoresParaFormulario();
     loadSVCsParaFormulario();
     await populateContratoSelect(document.getElementById('addContrato'));
+    populateOptionsTamanhos('addSapato', 'addColete');
     populateGestorSelect(null);
     attachUppercaseHandlers();
 }function preencherFormularioAdicao(dados) {
@@ -589,8 +628,21 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     setVal('addCargo', dados.Cargo);
     setVal('addContrato', dados.Contrato);
     setVal('addMatriz', dados.MATRIZ);
+    setVal('addRG', dados.rg);
+    setVal('addPIS', dados.pis);
+    setVal('addTelefone', dados.telefone);
+    setVal('addEmail', dados.email);
+    setVal('addEndereco', dados.endereco_completo);
+    setVal('addNumero', dados.numero);
+    setVal('addBairro', dados.bairro);
+    setVal('addCidade', dados.cidade);
+    setVal('addColete', dados.colete);
+    setVal('addSapato', dados.sapato);
     if (dados.DataInicio) {
         setVal('addDataAdmissao', dados.DataInicio);
+    }
+    if (dados.DataNascimento) {
+        setVal('addDataNascimento', dados.DataNascimento);
     }
     if (dados.MATRIZ && state.matrizesData) {
         const matrizItem = state.matrizesData.find(m => m.MATRIZ === dados.MATRIZ);
@@ -850,10 +902,12 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     return out;
 }function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
-    colaboradoresTbody.innerHTML = '';    if (!dataToRender || dataToRender.length === 0) {
+    colaboradoresTbody.innerHTML = '';
+    if (!dataToRender || dataToRender.length === 0) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Nenhum colaborador encontrado.</td></tr>';
         return;
-    }    const formatarNomeColaborador = (colaborador) => {
+    }
+    const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
         if (colaborador.StatusDesligamento === 'PENDENTE') {
             return `${nomeBase} ⚠️ (Desligamento Pendente)`;
@@ -869,25 +923,36 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             return `${nomeBase} 🏖️ (Faltam ${diasRest} ${sufixo})`;
         }
         return nomeBase;
-    };    dataToRender.forEach((colaborador) => {
+    };
+    dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
-        tr.setAttribute('data-nome', colaborador.Nome || '');        if (colaborador.StatusDesligamento === 'PENDENTE') {
+        tr.setAttribute('data-nome', colaborador.Nome || '');
+        if (colaborador.StatusDesligamento === 'PENDENTE') {
             tr.classList.add('row-pending');
         } else if (colaborador.StatusDesligamento === 'RECUSADO') {
             tr.classList.add('row-rejected');
-        }        tr.addEventListener('dblclick', (e) => {
-            e.stopPropagation();            if (document.body.classList.contains('user-level-visitante')) return;            const sel = window.getSelection();
+        }
+        tr.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            if (document.body.classList.contains('user-level-visitante')) return;
+            const sel = window.getSelection();
             if (sel && sel.toString().length > 0) {
-                try { sel.removeAllRanges(); } catch {}
-            }            const nomeParaEditar = colaborador.Nome;
+                try {
+                    sel.removeAllRanges();
+                } catch {
+                }
+            }
+            const nomeParaEditar = colaborador.Nome;
             if (nomeParaEditar) {
                 document.dispatchEvent(
-                    new CustomEvent('open-edit-modal', { detail: { nome: nomeParaEditar } })
+                    new CustomEvent('open-edit-modal', {detail: {nome: nomeParaEditar}})
                 );
             }
-        });        const nomeCelula = formatarNomeColaborador(colaborador);
+        });
+        const nomeCelula = formatarNomeColaborador(colaborador);
         const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);
-        const admissaoKN = formatDateLocal(colaborador['Admissao KN']);        tr.innerHTML = `
+        const admissaoKN = formatDateLocal(colaborador['Admissao KN']);
+        tr.innerHTML = `
                 <td class="nome-col">${nomeCelula}</td>
                 <td>${colaborador.DSR || ''}</td>
                 <td>${colaborador.Escala || ''}</td>
@@ -1090,11 +1155,11 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const plural = count > 1 ? 'novas vagas pendentes' : 'nova vaga pendente';
     alertDiv.innerHTML = `
-            <div class="alert-content">
-                <span style="font-size: 14px;">⚠️</span>
-                <span>Você tem <strong>${count} ${plural}</strong> de importação! Clique em <b>Adicionar</b> e depois <b>Importar do RH</b>.</span>
-            </div>
-        `;
+                <div class="alert-content">
+                    <span style="font-size: 14px;">⚠️</span>
+                    <span>Você tem <strong>${count} ${plural}</strong> de importação! Clique em <b>Adicionar</b> e depois <b>Importar do RH</b>.</span>
+                </div>
+            `;
     alertDiv.classList.remove('hidden');
 }function hidePendingImportAlert() {
     const alertDiv = document.getElementById('pending-import-alert');
@@ -1164,7 +1229,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase
             .from('Colaboradores')
-            .select('*')
+            .select('Nome, CPF, DSR, Escala, Contrato, Cargo, Gestor, "ID GROOT", LDAP, SVC, REGIAO, MATRIZ, "Data de admissão", "Admissao KN", "FOLGA ESPECIAL", Ativo, StatusDesligamento, Ferias, Efetivacao, Fluxo, "Data Fluxo", "Observacao Fluxo", rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato')
             .neq('Ativo', 'NÃO')
             .order('Nome');
         if (matrizesPermitidas !== null) {
@@ -1449,6 +1514,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         REGIAO: nullIfEmpty(regiaoAuto),
         LDAP: nullIfEmpty(document.getElementById('addLDAP')?.value),
         'ID GROOT': numberOrNull(document.getElementById('addIdGroot')?.value),
+        rg: nullIfEmpty(document.getElementById('addRG')?.value),
+        telefone: nullIfEmpty(document.getElementById('addTelefone')?.value),
+        email: nullIfEmpty(document.getElementById('addEmail')?.value),
+        pis: nullIfEmpty(document.getElementById('addPIS')?.value),
+        endereco_completo: toUpperTrim(document.getElementById('addEndereco')?.value),
+        numero: nullIfEmpty(document.getElementById('addNumero')?.value),
+        bairro: toUpperTrim(document.getElementById('addBairro')?.value),
+        cidade: toUpperTrim(document.getElementById('addCidade')?.value),
+        colete: nullIfEmpty(document.getElementById('addColete')?.value),
+        sapato: nullIfEmpty(document.getElementById('addSapato')?.value),
         Ativo: 'SIM',
         Ferias: 'NAO',
         'Total Presença': 0,
@@ -1511,7 +1586,11 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         editSVC.appendChild(opt);
     });
 }async function fetchColabByNome(nome) {
-    const {data, error} = await supabase.from('Colaboradores').select('*').eq('Nome', nome).maybeSingle();
+    const {data, error} = await supabase
+        .from('Colaboradores')
+        .select('*')
+        .eq('Nome', nome)
+        .maybeSingle();
     if (error) throw error;
     return data;
 }function showEditModal() {
@@ -1524,6 +1603,7 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
+    populateOptionsTamanhos('editSapato', 'editColete');
     const setVal = (el, v) => {
         if (el) el.value = v ?? '';
     };
@@ -1552,6 +1632,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         editInputs['Admissao KN'],
         colab['Admissao KN'] ? new Date(colab['Admissao KN']).toISOString().split('T')[0] : ''
     );
+    setVal(editInputs.rg, colab.rg);
+    setVal(editInputs.telefone, colab.telefone);
+    setVal(editInputs.email, colab.email);
+    setVal(editInputs.pis, colab.pis);
+    setVal(editInputs.endereco_completo, colab.endereco_completo);
+    setVal(editInputs.numero, colab.numero);
+    setVal(editInputs.bairro, colab.bairro);
+    setVal(editInputs.cidade, colab.cidade);
+    setVal(editInputs.colete, colab.colete);
+    setVal(editInputs.sapato, colab.sapato);
     editMatriz = document.getElementById('editMatriz');
     const editRegiao = document.getElementById('editRegiao');
     if (editSVC) {
@@ -1897,7 +1987,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             'Efetivacao': editOriginal.Efetivacao,
             'Fluxo': editOriginal.Fluxo,
             'Data Fluxo': editOriginal['Data Fluxo'],
-            'Observacao Fluxo': editOriginal['Observacao Fluxo']
+            'Observacao Fluxo': editOriginal['Observacao Fluxo'], rg: nullIfEmpty(editInputs.rg?.value),
+            telefone: nullIfEmpty(editInputs.telefone?.value),
+            email: nullIfEmpty(editInputs.email?.value),
+            pis: nullIfEmpty(editInputs.pis?.value),
+            endereco_completo: toUpperTrim(editInputs.endereco_completo?.value),
+            numero: nullIfEmpty(editInputs.numero?.value),
+            bairro: toUpperTrim(editInputs.bairro?.value),
+            cidade: toUpperTrim(editInputs.cidade?.value),
+            colete: nullIfEmpty(editInputs.colete?.value),
+            sapato: nullIfEmpty(editInputs.sapato?.value)
         };
         const changes = [];
         if (payload.Nome !== editOriginal.Nome) changes.push(`Nome (de '${editOriginal.Nome}' para '${payload.Nome}')`);
@@ -2656,7 +2755,16 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         'ID GROOT': document.getElementById('editIdGroot'),
         'Data de nascimento': document.getElementById('editDataNascimento'),
         'Data de admissão': document.getElementById('editDataAdmissao'),
-        'Admissao KN': document.getElementById('editAdmissaoKn')
+        'Admissao KN': document.getElementById('editAdmissaoKn'), rg: document.getElementById('editRG'),
+        telefone: document.getElementById('editTelefone'),
+        email: document.getElementById('editEmail'),
+        pis: document.getElementById('editPIS'),
+        endereco_completo: document.getElementById('editEndereco'),
+        numero: document.getElementById('editNumero'),
+        bairro: document.getElementById('editBairro'),
+        cidade: document.getElementById('editCidade'),
+        colete: document.getElementById('editColete'),
+        sapato: document.getElementById('editSapato')
     };
     attachUpperHandlersTo(editForm);
     if (editSVC) {

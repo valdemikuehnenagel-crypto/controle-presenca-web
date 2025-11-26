@@ -112,18 +112,33 @@
             flex: 1;
             min-height: 0;
             position: relative;
+            display: flex; /* Garante estrutura flex */
+            flex-direction: column;
         }
 
+        /* --- CORREÇÃO DO SCROLL AQUI --- */
+
+        /* 1. Padrão para TODAS as abas (Permite scroll na página para os gráficos) */
         .efet-view {
             display: none;
             flex-direction: column;
             animation: fadeIn .2s ease-out both;
             height: 100%;
+            overflow-y: auto; /* <--- Importante para gráficos */
         }
 
         .efet-view.active {
             display: flex;
         }
+
+        /* 2. Exceção APENAS para as abas de Tabela (Trava a página para scroll interno) */
+        #efet-controle-vagas.efet-view,
+        #efet-em-efetivacao.efet-view,
+        #efet-desligamento.efet-view {
+            overflow: hidden; /* <--- Trava a rolagem externa */
+        }
+
+        /* ------------------------------ */
 
         .muted {
             color: #777;
@@ -133,12 +148,8 @@
         }
 
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         #efet-visao-regional .hcidx-grid {
@@ -171,19 +182,12 @@
             flex-wrap: wrap;
             gap: 10px 20px;
             margin-bottom: 10px;
+            flex-shrink: 0; /* Não deixa o cabeçalho encolher */
         }
 
-        .efet-header-bar > .hc-subtabs {
-            margin: 0;
-        }
-
-        .efet-header-bar > .hcidx-toolbar {
-            margin: 0;
-        }
-
-        .efet-header-bar .hc-actions {
-            margin-bottom: 0;
-        }
+        .efet-header-bar > .hc-subtabs { margin: 0; }
+        .efet-header-bar > .hcidx-toolbar { margin: 0; }
+        .efet-header-bar .hc-actions { margin-bottom: 0; }
 
         .table-container-wrapper {
             flex-grow: 1;
@@ -193,12 +197,15 @@
             box-shadow: 0 6px 16px rgba(0, 0, 0, .08);
             display: flex;
             flex-direction: column;
+            /* Garante que o container da tabela expanda e use scroll interno */
+            flex: 1;
+            min-height: 0;
         }
 
         .table-container {
             width: 100%;
             height: 100%;
-            overflow: auto;
+            overflow: auto; /* Scroll interno da tabela */
             background-color: #fff;
         }
 
@@ -218,9 +225,9 @@
         }
 
         .table-container th {
-            background-color: #f9fafb;
+            background-color: #003369; /* Azul padrão */
             font-weight: 700;
-            color: #003369;
+            color: #fff;
             position: sticky;
             top: 0;
             z-index: 2;
@@ -244,6 +251,7 @@
             flex-direction: column;
             padding: 0;
             min-height: 0;
+            height: 100%;
         }
 
         .efetivacoes-component-root > #hc-indice.hcidx-root {
@@ -268,13 +276,8 @@
         }
 
         @media (min-width: 1280px) {
-            .hcidx-canvas-wrap {
-                min-height: 560px;
-            }
-
-            .hcidx-card.hcidx-card--full .hcidx-canvas-wrap {
-                min-height: 720px;
-            }
+            .hcidx-canvas-wrap { min-height: 560px; }
+            .hcidx-card.hcidx-card--full .hcidx-canvas-wrap { min-height: 720px; }
         }
     </style>
 
@@ -347,7 +350,6 @@
                             <canvas id="ind-contrato-90d-svc-bar"></canvas>
                         </div>
                     </div>
-                    <!-- NOVO GRÁFICO: Consultorias por SVC -->
                     <div class="hcidx-card hcidx-card--full">
                         <h3 class="hcidx-card-title">Consultorias por SVC</h3>
                         <div class="hcidx-canvas-wrap">
@@ -480,9 +482,9 @@
             </div>
 
             <div id="efet-controle-vagas" class="efet-view">
-                <div class="space-y-4" style="width: 100%;">
+                <div class="space-y-4" style="width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;">
                     <div></div>
-                    <div class="efet-header-bar" style="margin-bottom: 10px; align-items: flex-end;">
+                    <div class="efet-header-bar" style="margin-bottom: 10px; align-items: flex-end; flex-shrink: 0;">
                         <div class="vagas-filters" style="display:flex; flex-wrap:wrap; gap:8px;">
                             <input type="text" id="vagas-search"
                                    placeholder="Buscar (ID, candidato, CPF, fluxo, matriz...)"
@@ -605,6 +607,7 @@
     <div class="container !h-auto !w-auto max-w-5xl" style="max-height: 95vh; display: flex; flex-direction: column;">
         <h3 id="modal-title">Gerar Nova Vaga</h3>
         <form id="formVagas" style="overflow-y: auto; padding-right: 10px;">
+
             <div class="form-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
                 <div class="form-group">
                     <label>Status</label>
@@ -665,73 +668,11 @@
                     <label>Filial</label>
                     <select name="filial">
                         <option value="">- Selecione uma Filial -</option>
-                        <option value="AIR SÃO LUIS">AIR SÃO LUIS</option>
-                        <option value="AIR TERESINA">AIR TERESINA</option>
-                        <option value="ARACAJU">ARACAJU</option>
-                        <option value="BARRA MANSA">BARRA MANSA</option>
-                        <option value="BRASÍLIA">BRASÍLIA</option>
-                        <option value="CABO FRIO">CABO FRIO</option>
-                        <option value="CAMPOS DOS GOYTACASES">CAMPOS DOS GOYTACASES</option>
-                        <option value="CUBATÃO">CUBATÃO</option>
-                        <option value="FEIRA">FEIRA</option>
-                        <option value="GUARAPUAVA">GUARAPUAVA</option>
-                        <option value="IJUÍ">IJUÍ</option>
-                        <option value="ITAPERUNA">ITAPERUNA</option>
-                        <option value="JOÃO PESSOA">JOÃO PESSOA</option>
-                        <option value="JUNDIAI">JUNDIAI</option>
-                        <option value="LAJEADO">LAJEADO</option>
-                        <option value="LINHARES">LINHARES</option>
-                        <option value="LOZ">LOZ</option>
-                        <option value="MACAÉ">MACAÉ</option>
-                        <option value="MACEIÓ">MACEIÓ</option>
-                        <option value="NATAL">NATAL</option>
-                        <option value="PATO BRANCO">PATO BRANCO</option>
-                        <option value="PIRACICABA">PIRACICABA</option>
-                        <option value="RIO VERDE">RIO VERDE</option>
-                        <option value="SALVADOR">SALVADOR</option>
-                        <option value="SÃO LUIS">SÃO LUIS</option>
-                        <option value="SÃO PAULO">SÃO PAULO</option>
-                        <option value="SINOP">SINOP</option>
-                        <option value="TERESINA">TERESINA</option>
-                        <option value="VIT. CONQUISTA">VIT. CONQUISTA</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Centro de Custo (CC)</label>
-                    <select name="cc">
-                        <option value="">- Selecione um CC -</option>
-                        <option value="-">-</option>
-                        <option value="0ATPCF">0ATPCF</option>
-                        <option value="11TPMA">11TPMA</option>
-                        <option value="26TM">26TM</option>
-                        <option value="27NPAO">27NPAO</option>
-                        <option value="55TPHM">55TPHM</option>
-                        <option value="56TPHN">56TPHN</option>
-                        <option value="57TPAS">57TPAS</option>
-                        <option value="57TPHS">57TPHS</option>
-                        <option value="58TPHT">58TPHT</option>
-                        <option value="59TPHV">59TPHV</option>
-                        <option value="61TPML">61TPML</option>
-                        <option value="62TPHF">62TPHF</option>
-                        <option value="63TPHJ">63TPHJ</option>
-                        <option value="65TPHI">65TPHI</option>
-                        <option value="66TPHP">66TPHP</option>
-                        <option value="68TPHR">68TPHR</option>
-                        <option value="69TPHL">69TPHL</option>
-                        <option value="71TPHG">71TPHG</option>
-                        <option value="75TPHB">75TPHB</option>
-                        <option value="76TPHE">76TPHE</option>
-                        <option value="77TPHC">77TPHC</option>
-                        <option value="79TPBM">79TPBM</option>
-                        <option value="81TPSI">81TPSI</option>
-                        <option value="91TPPI">91TPPI</option>
-                        <option value="92TPCG">92TPCG</option>
-                        <option value="94TP22">94TP22</option>
-                        <option value="94TP25">94TP25</option>
-                        <option value="96TPIT">96TPIT</option>
-                        <option value="BRABA1">BRABA1</option>
-                        <option value="J1TPAR">J1TPAR</option>
-                    </select>
+                    <input type="text" name="cc" readonly placeholder="Automático pela Matriz">
                 </div>
                 <div class="form-group">
                     <label>Cliente</label>
@@ -743,7 +684,7 @@
                 </div>
                 <div class="form-group">
                     <label>SVC</label>
-                    <input type="text" name="svc" readonly placeholder="Preenchido automaticamente pela matriz">
+                    <input type="text" name="svc" readonly placeholder="Automático pela Matriz">
                 </div>
             </div>
 
@@ -903,11 +844,12 @@
             <fieldset
                     style="border: 1px solid #dcfce7; background: #f0fdf4; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <legend style="font-size: 12px; font-weight: 700; color: #15803d; padding: 0 5px;">
-                    Fechamento da Vaga
+                    Fechamento da Vaga (Dados do Candidato Aprovado)
                 </legend>
-                <div class="form-grid" style="grid-template-columns: 2fr 1fr;">
-                    <div class="form-group">
-                        <label>Candidato Aprovado</label>
+
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 10px;">
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Nome Completo</label>
                         <input type="text" name="candidato_aprovado">
                     </div>
                     <div class="form-group">
@@ -915,21 +857,64 @@
                         <input type="text" name="cpf_candidato" maxlength="11" placeholder="Apenas números">
                     </div>
                 </div>
+
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr; margin-bottom: 10px;">
+                    <div class="form-group">
+                        <label>Data Nascimento</label>
+                        <input type="date" name="data_nascimento_candidato">
+                    </div>
+                    <div class="form-group">
+                        <label>RG</label>
+                        <input type="text" name="rg_candidato">
+                    </div>
+                    <div class="form-group">
+                        <label>PIS</label>
+                        <input type="text" name="pis_candidato">
+                    </div>
+                    <div class="form-group">
+                        <label>Telefone</label>
+                        <input type="text" name="telefone_candidato">
+                    </div>
+                </div>
+
+                <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr; margin-bottom: 10px;">
+                    <div class="form-group">
+                        <label>E-mail</label>
+                        <input type="email" name="email_candidato">
+                    </div>
+                    <div class="form-group">
+                        <label>Sapato</label>
+                        <select id="vaga_sapato" name="vaga_sapato">
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Colete</label>
+                        <select id="vaga_colete" name="vaga_colete">
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-grid" style="grid-template-columns: 3fr 1fr 2fr 2fr; margin-bottom: 10px;">
+                    <div class="form-group">
+                        <label>Endereço (Rua)</label>
+                        <input type="text" name="endereco_candidato">
+                    </div>
+                    <div class="form-group">
+                        <label>Número</label>
+                        <input type="text" name="numero_candidato">
+                    </div>
+                    <div class="form-group">
+                        <label>Bairro</label>
+                        <input type="text" name="bairro_candidato">
+                    </div>
+                    <div class="form-group">
+                        <label>Cidade</label>
+                        <input type="text" name="cidade_candidato">
+                    </div>
+                </div>
             </fieldset>
 
-            <div class="form-grid" style="grid-template-columns: repeat(6, 1fr); margin-bottom: 10px;">
-                <div class="form-group">
-                    <label title="Candidatos Entrevistados">Entrev.</label>
-                    <input type="number" name="qtd_entrevistados" min="0">
-                </div>
-                <div class="form-group">
-                    <label title="Candidatos Encaminhados">Encam.</label>
-                    <input type="number" name="qtd_encaminhados" min="0">
-                </div>
-                <div class="form-group">
-                    <label title="Finalistas">Final.</label>
-                    <input type="number" name="qtd_finalistas" min="0">
-                </div>
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px;">
                 <div class="form-group">
                     <label>SLA</label>
                     <select name="sla_acordada">
@@ -940,7 +925,7 @@
                         <option value="17">17 dias</option>
                     </select>
                 </div>
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group">
                     <label>Prazo Entrega R&S</label>
                     <input type="date" name="prazo_entrega_rs">
                 </div>

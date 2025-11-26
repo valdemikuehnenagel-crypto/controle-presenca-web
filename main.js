@@ -1,6 +1,4 @@
-import {createClient} from '@supabase/supabase-js';
-
-document.addEventListener('DOMContentLoaded', () => {
+import {createClient} from '@supabase/supabase-js';document.addEventListener('DOMContentLoaded', () => {
     const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
     const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
@@ -20,19 +18,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const openModalBtn = document.getElementById('open-matriz-modal-btn');
     const closeModalBtn = document.getElementById('close-matriz-modal-btn');
     const confirmSelectionBtn = document.getElementById('confirm-matriz-selection-btn');
-    const modalMatrizList = document.getElementById('modal-matriz-list');
-
-    function openModal() {
+    const modalMatrizList = document.getElementById('modal-matriz-list');    function openModal() {
         if (matrizModal) matrizModal.classList.add('show');
         if (modalOverlay) modalOverlay.classList.add('show');
-    }
-
-    function closeModal() {
+    }    function closeModal() {
         if (matrizModal) matrizModal.classList.remove('show');
         if (modalOverlay) modalOverlay.classList.remove('show');
-    }
-
-    function updateMainButtonText() {
+    }    function updateMainButtonText() {
         const triggerSpan = openModalBtn.querySelector('span');
         if (selectedMatrizesState.includes('TODOS')) {
             triggerSpan.textContent = 'TODOS';
@@ -43,9 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             triggerSpan.textContent = `${selectedMatrizesState.length} matrizes selecionadas`;
         }
-    }
-
-    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+    }    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
     if (modalOverlay) modalOverlay.addEventListener('click', closeModal);
     if (confirmSelectionBtn) {
@@ -67,9 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoginBtn.addEventListener('click', () => {
             container.classList.remove('active');
         });
-    }
-
-    async function verifyPin(pin) {
+    }    async function verifyPin(pin) {
         const loginMsg = document.getElementById('loginMsg');
         loginMsg.classList.remove('info');
         loginMsg.textContent = 'Verificando...';
@@ -92,26 +80,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const welcomeAvatar = document.getElementById('welcome-avatar');
             const fullName = data.Nome || 'Usuário';
             const firstName = fullName.split(' ')[0];
-            if (welcomeMessage) welcomeMessage.textContent = `Olá, ${firstName}!`;
-
-            // <-- AJUSTE AQUI -->
-            // Força a URL para minúsculas para o navegador carregar
-            if (welcomeAvatar && data.avatar_url) {
+            if (welcomeMessage) welcomeMessage.textContent = `Olá, ${firstName}!`;            if (welcomeAvatar && data.avatar_url) {
                 welcomeAvatar.src = data.avatar_url.toLowerCase();
             } else if (welcomeAvatar) {
-                welcomeAvatar.src = '/imagens/avatar.png'; // Fallback
-            }
-            // <-- FIM DO AJUSTE -->
-
-            welcomeBackContainer.classList.remove('hidden');
+                welcomeAvatar.src = '/imagens/avatar.png';
+            }            welcomeBackContainer.classList.remove('hidden');
             setTimeout(() => welcomeBackContainer.classList.add('visible'), 10);
         }
         setTimeout(() => {
             window.location.href = '/dashboard.html';
         }, 2800);
-    }
-
-    const loginForm = document.getElementById('loginForm');
+    }    const loginForm = document.getElementById('loginForm');
     const pinLogin = document.getElementById('pinLogin');
     const forgotPinBtn = document.getElementById('forgotPinBtn');
     if (loginForm) {
@@ -132,9 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loginMsg.classList.add('info');
         });
     }
-    const funcoes = ['ANALISTA', 'RH', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];
-
-    function loadFuncoes() {
+    const funcoes = ['ANALISTA', 'RH', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];    function loadFuncoes() {
         if (!registerFuncao) return;
         registerFuncao.innerHTML = '<option value="" disabled selected>Selecione a Função</option>';
         funcoes.forEach(funcao => {
@@ -143,9 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             option.textContent = funcao;
             registerFuncao.appendChild(option);
         });
-    }
-
-    async function loadMatrizes() {
+    }    async function loadMatrizes() {
         if (!modalMatrizList) return;
         modalMatrizList.innerHTML = '<div class="custom-option">Carregando...</div>';
         const {data, error} = await supabase.from('Matrizes').select('MATRIZ');
@@ -183,9 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-    }
-
-    async function createUniquePin() {
+    }    async function createUniquePin() {
         let pin;
         let pinExists = true;
         let attempts = 0;
@@ -209,9 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
         return pin;
-    }
-
-    if (generatePinBtn) {
+    }    if (generatePinBtn) {
         generatePinBtn.addEventListener('click', async () => {
             generatePinBtn.disabled = true;
             generatePinBtn.textContent = 'Gerando...';
@@ -254,22 +225,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 registerMsg.classList.add('error');
                 return;
             }
-            const nivelParaSalvar = (userData.funcao === 'MELI') ? 'VISITANTE' : 'Usuario';
-
-            // (Assumindo que sua lógica de upload de avatar está aqui ou em outro lugar)
-            // Se você ainda não tem, a lógica da minha resposta anterior deve ser inserida aqui.
-
-            const {error: insertError} = await supabase.from('Logins').insert({
+            const nivelParaSalvar = (userData.funcao === 'MELI') ? 'VISITANTE' : 'Usuario';            const {error: insertError} = await supabase.from('Logins').insert({
                 PIN: userData.pin,
                 Nome: userData.nome,
                 Usuario: userData.email.toLowerCase(),
                 Matriz: userData.matriz,
                 Tipo: userData.funcao,
                 Nivel: nivelParaSalvar,
-                Aprovacao: 'PENDENTE'
-                // Se a lógica de upload estiver aqui, você adicionaria:
-                // avatar_url: avatarUrl
-            });
+                Aprovacao: 'PENDENTE'            });
             if (insertError) {
                 registerMsg.textContent = 'Erro ao registrar. Este Email já pode estar em uso.';
                 registerMsg.classList.add('error');
@@ -287,9 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 3000);
             }
         });
-    }
-
-    function getBrasiliaTimestamp() {
+    }    function getBrasiliaTimestamp() {
         const date = new Date();
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -298,9 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const minutes = String(date.getMinutes()).padStart(2, '0');
         const seconds = String(date.getSeconds()).padStart(2, '0');
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    }
-
-    async function logLoginHistory(userData) {
+    }    async function logLoginHistory(userData) {
         try {
             const {error} = await supabase.from('LoginHistorico').insert({
                 Nome: userData.Nome,

@@ -1,6 +1,7 @@
 import {getMatrizesPermitidas} from '../session.js';
 import {supabase} from '../supabaseClient.js';(function () {
-    const HOST_SEL = '#hc-analise-abs';    const state = {
+    const HOST_SEL = '#hc-analise-abs';
+    const state = {
         mounted: false,
         loading: false,
         charts: {
@@ -21,19 +22,25 @@ import {supabase} from '../supabaseClient.js';(function () {
         fimISO: null,
         absenteeismData: [],
         interactiveFilters: {week: null, gender: null, contract: null, dow: null, age: null, turno: null}
-    };    const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    };
+    const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const root = () => document.documentElement;
-    const css = (el, name, fb) => (getComputedStyle(el).getPropertyValue(name).trim() || fb);    const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
+    const css = (el, name, fb) => (getComputedStyle(el).getPropertyValue(name).trim() || fb);
+    const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
     const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
-    const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];    let _colabCache = null;    async function loadMatrizesMapping() {
+    const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    let _colabCache = null;    async function loadMatrizesMapping() {
         const matrizesPermitidas = getMatrizesPermitidas();
-        let query = supabase.from('Matrizes').select('MATRIZ, GERENCIA, REGIAO');        if (matrizesPermitidas !== null && matrizesPermitidas.length > 0) {
+        let query = supabase.from('Matrizes').select('MATRIZ, GERENCIA, REGIAO');
+        if (matrizesPermitidas !== null && matrizesPermitidas.length > 0) {
             query = query.in('MATRIZ', matrizesPermitidas);
-        }        const {data, error} = await query;
+        }
+        const {data, error} = await query;
         if (error) {
             console.error("AnaliseABS: Erro ao buscar 'Matrizes'", error);
             throw error;
-        }        const map = new Map();
+        }
+        const map = new Map();
         (data || []).forEach(item => {
             const matrizNorm = norm(item.MATRIZ);
             if (matrizNorm) {
@@ -45,10 +52,13 @@ import {supabase} from '../supabaseClient.js';(function () {
         });
         return map;
     }    function parseDateMaybe(s) {
-        if (!s) return null;        const str = String(s).trim().substring(0, 10);
+        if (!s) return null;
+        const str = String(s).trim().substring(0, 10);
         const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(str);
-        if (m) {            return new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0);
-        }        return null;
+        if (m) {
+            return new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0);
+        }
+        return null;
     }    function calcAgeFromStr(s) {
         const d = parseDateMaybe(s);
         if (!d) return null;
@@ -86,24 +96,33 @@ import {supabase} from '../supabaseClient.js';(function () {
         const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
         return `W${String(weekNo).padStart(2, '0')}`;
     }    async function getColaboradoresCache() {
-        if (_colabCache) return _colabCache;        const matrizesMap = await loadMatrizesMapping();        const matrizesPermitidas = getMatrizesPermitidas();
+        if (_colabCache) return _colabCache;
+        const matrizesMap = await loadMatrizesMapping();
+        const matrizesPermitidas = getMatrizesPermitidas();
         let q = supabase
             .from('Colaboradores')
             .select('Nome, Genero, Contrato, "Data de nascimento", "Escala", MATRIZ, SVC, Ativo')
-            .eq('Ativo', 'SIM');        if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);        if (state.matriz) q = q.eq('MATRIZ', state.matriz);
-        if (state.svc) q = q.eq('SVC', state.svc);        const colabsRaw = await fetchAllWithPagination(q);        const colabsEnriched = (colabsRaw || []).map(c => {
+            .eq('Ativo', 'SIM');
+        if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);
+        if (state.matriz) q = q.eq('MATRIZ', state.matriz);
+        if (state.svc) q = q.eq('SVC', state.svc);
+        const colabsRaw = await fetchAllWithPagination(q);
+        const colabsEnriched = (colabsRaw || []).map(c => {
             const mapping = matrizesMap.get(norm(c.MATRIZ));
             return {
                 ...c,
                 REGIAO: mapping?.regiao || '',
                 GERENCIA: mapping?.gerencia || ''
             };
-        });        const colabsFiltered = colabsEnriched.filter(c => {
+        });
+        const colabsFiltered = colabsEnriched.filter(c => {
             if (state.regiao && norm(c.REGIAO) !== norm(state.regiao)) return false;
             if (state.gerencia && norm(c.GERENCIA) !== norm(state.gerencia)) return false;
             return true;
-        });        const map = new Map();
-        colabsFiltered.forEach(c => map.set(norm(c.Nome), c));        _colabCache = {list: colabsFiltered, map};
+        });
+        const map = new Map();
+        colabsFiltered.forEach(c => map.set(norm(c.Nome), c));
+        _colabCache = {list: colabsFiltered, map};
         return _colabCache;
     }    function palette() {
         return ['#02B1EE', '#003369', '#69D4FF', '#2677C7', '#A9E7FF', '#225B9E', '#7FB8EB', '#99CCFF'];
@@ -138,15 +157,20 @@ import {supabase} from '../supabaseClient.js';(function () {
         return [startISO, endISO > todayISO ? todayISO : endISO];
     }    function setupPeriodFilter(host) {
         const toolbar = host.querySelector('.abs-toolbar');
-        if (!toolbar || toolbar.querySelector('#abs-period-btn')) return;        const btn = document.createElement('button');
+        if (!toolbar || toolbar.querySelector('#abs-period-btn')) return;
+        const btn = document.createElement('button');
         btn.id = 'abs-period-btn';
         btn.textContent = 'Selecionar Período';
-        toolbar.appendChild(btn);        btn.onclick = () => {
+        toolbar.appendChild(btn);
+        btn.onclick = () => {
             const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            const today = new Date();            const curStart = state.inicioISO || toISO(new Date(today.getFullYear(), today.getMonth() - 2, 1));
-            const curEnd = state.fimISO || toISO(today);            const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+            const today = new Date();
+            const curStart = state.inicioISO || toISO(new Date(today.getFullYear(), today.getMonth() - 2, 1));
+            const curEnd = state.fimISO || toISO(today);
+            const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
             const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);            const overlay = document.createElement('div');
+            const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+            const overlay = document.createElement('div');
             overlay.id = 'cd-period-overlay';
             overlay.innerHTML = `
                   <div class="cdp-card">
@@ -161,7 +185,8 @@ import {supabase} from '../supabaseClient.js';(function () {
                       <button id="cdp-cancel" class="btn">Cancelar</button>
                       <button id="cdp-apply"  class="btn-add">Aplicar</button>
                     </div>
-                  </div>`;            const cssId = 'cdp-style';
+                  </div>`;
+            const cssId = 'cdp-style';
             if (!document.getElementById(cssId)) {
                 const st = document.createElement('style');
                 st.id = cssId;
@@ -175,14 +200,18 @@ import {supabase} from '../supabaseClient.js';(function () {
                   #cd-period-overlay .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
                 `;
                 document.head.appendChild(st);
-            }            document.body.appendChild(overlay);            const elStart = overlay.querySelector('#cdp-period-start');
+            }
+            document.body.appendChild(overlay);
+            const elStart = overlay.querySelector('#cdp-period-start');
             const elEnd = overlay.querySelector('#cdp-period-end');
             const btnCancel = overlay.querySelector('#cdp-cancel');
             const btnApply = overlay.querySelector('#cdp-apply');
-            const close = () => overlay.remove();            overlay.addEventListener('click', (ev) => {
+            const close = () => overlay.remove();
+            overlay.addEventListener('click', (ev) => {
                 if (ev.target === overlay) close();
             });
-            btnCancel.onclick = close;            overlay.querySelector('#cdp-today').onclick = () => {
+            btnCancel.onclick = close;
+            overlay.querySelector('#cdp-today').onclick = () => {
                 const iso = toISO(today);
                 [state.inicioISO, state.fimISO] = [iso, iso];
                 close();
@@ -202,7 +231,8 @@ import {supabase} from '../supabaseClient.js';(function () {
                 state.fimISO = ce;
                 close();
                 refresh();
-            };            btnApply.onclick = () => {
+            };
+            btnApply.onclick = () => {
                 let sVal = (elStart?.value || '').slice(0, 10);
                 let eVal = (elEnd?.value || '').slice(0, 10);
                 if (!sVal || !eVal) {
@@ -216,6 +246,14 @@ import {supabase} from '../supabaseClient.js';(function () {
                 refresh();
             };
         };
+    }    async function fetchRawAbsences(start, end) {
+        let q = supabase
+            .from('ControleDiario')
+            .select('Nome, Data, Falta, Atestado, Suspensao, "Folga Especial"')
+            .gte('Data', start)
+            .lte('Data', end)
+            .or('Falta.eq.1,Atestado.eq.1');
+        return fetchAllWithPagination(q);
     }    function ensureMounted() {
         if (state.mounted) return;
         const host = document.querySelector(HOST_SEL);
@@ -278,13 +316,16 @@ import {supabase} from '../supabaseClient.js';(function () {
         const mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
         const mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
         const mudouRegiao = (typeof f.regiao === 'string' && state.regiao !== f.regiao);
-        const mudouGerencia = (typeof f.gerencia === 'string' && state.gerencia !== f.gerencia);        if (mudouMatriz) state.matriz = f.matriz;
+        const mudouGerencia = (typeof f.gerencia === 'string' && state.gerencia !== f.gerencia);
+        if (mudouMatriz) state.matriz = f.matriz;
         if (mudouSvc) state.svc = f.svc;
         if (mudouRegiao) state.regiao = f.regiao;
-        if (mudouGerencia) state.gerencia = f.gerencia;        if (mudouMatriz || mudouSvc || mudouRegiao || mudouGerencia) {
+        if (mudouGerencia) state.gerencia = f.gerencia;
+        if (mudouMatriz || mudouSvc || mudouRegiao || mudouGerencia) {
             scheduleRefresh(true);
         }
-    });    ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'hc-refresh'].forEach(evt =>
+    });
+    ['controle-diario-saved', 'cd-saved', 'cd-bulk-saved', 'hc-refresh'].forEach(evt =>
         window.addEventListener(evt, () => scheduleRefresh(false))
     );
     ['colaborador-added'].forEach(evt =>
@@ -309,7 +350,8 @@ import {supabase} from '../supabaseClient.js';(function () {
         showBusy(true);
         try {
             ensureMounted();
-            await ensureChartLib();            const toISO = d => d.toISOString().split('T')[0];
+            await ensureChartLib();
+            const toISO = d => d.toISOString().split('T')[0];
             let startDate, endDate;
             if (state.inicioISO && state.fimISO) {
                 startDate = state.inicioISO;
@@ -321,37 +363,36 @@ import {supabase} from '../supabaseClient.js';(function () {
                 endDate = toISO(end);
                 state.inicioISO = startDate;
                 state.fimISO = endDate;
-            }            const cache = await getColaboradoresCache();
+            }
+            const cache = await getColaboradoresCache();
             const colabs = cache.list;
-            const colabMap = cache.map;            if (!colabs || colabs.length === 0) {
+            const colabMap = cache.map;
+            if (!colabs || colabs.length === 0) {
                 state.absenteeismData = [];
                 ensureChartsCreated();
                 applyFiltersAndUpdate();
                 return;
-            }            const allColabNames = colabs.map(c => c.Nome);
-            let allDiarioData = [];
-            const CHUNK_SIZE = 500;            for (let i = 0; i < allColabNames.length; i += CHUNK_SIZE) {
-                const nameChunk = allColabNames.slice(i, i + CHUNK_SIZE);                const {data: diarioChunk, error: diarioError} = await supabase
-                    .rpc('get_abs_para_analise', {
-                        nomes: nameChunk,
-                        data_inicio: startDate,
-                        data_fim: endDate
-                    });                if (diarioError) {                    throw diarioError;
-                }                if (diarioChunk && diarioChunk.length > 0) {
-                    allDiarioData = allDiarioData.concat(diarioChunk);
-                }
-            }            const diario = allDiarioData;            const mapped = (diario || []).map(record => ({
+            }
+            const allDiarioData = await fetchRawAbsences(startDate, endDate);
+            const diario = allDiarioData;
+            const mapped = (diario || []).map(record => ({
                 ...record,
                 colaborador: colabMap.get(norm(record.Nome)) || {}
-            })).filter(d => d.colaborador && d.colaborador.Nome);            const startDt = parseDateMaybe(startDate);
-            const endDt = parseDateMaybe(endDate);            if (!startDt || !endDt) {
+            })).filter(d => d.colaborador && d.colaborador.Nome);
+            const startDt = parseDateMaybe(startDate);
+            const endDt = parseDateMaybe(endDate);
+            if (!startDt || !endDt) {
                 console.error("Datas de filtro inválidas", startDate, endDate);
                 throw new Error("Datas de filtro inválidas.");
-            }            startDt.setHours(0, 0, 0, 0);
-            endDt.setHours(23, 59, 59, 999);            const inRange = (d) => {
+            }
+            startDt.setHours(0, 0, 0, 0);
+            endDt.setHours(23, 59, 59, 999);
+            const inRange = (d) => {
                 const dt = parseDateMaybe(d.Data);
                 return dt && dt >= startDt && dt <= endDt;
-            };            state.absenteeismData = mapped.filter(inRange);            ensureChartsCreated();
+            };
+            state.absenteeismData = mapped.filter(inRange);
+            ensureChartsCreated();
             state.interactiveFilters = {week: null, gender: null, contract: null, dow: null, age: null, turno: null};
             applyFiltersAndUpdate();
         } catch (e) {
@@ -361,7 +402,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             state.loading = false;
             showBusy(false);
         }
-    }    const animationConfig = {duration: 800, easing: 'easeOutQuart', delay: (ctx) => ctx.dataIndex * 25};    const baseChartOpts = (onClick) => ({
+    }    const animationConfig = {duration: 800, easing: 'easeOutQuart', delay: (ctx) => ctx.dataIndex * 25};
+    const baseChartOpts = (onClick) => ({
         animation: animationConfig,
         onClick: (evt, elements, chart) => {
             if (elements.length > 0 && onClick) onClick(chart, elements[0].index);
@@ -369,7 +411,8 @@ import {supabase} from '../supabaseClient.js';(function () {
         onHover: (evt, elements) => {
             evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
         },
-    });    const barLineOpts = (onClick) => ({
+    });
+    const barLineOpts = (onClick) => ({
         ...baseChartOpts(onClick),
         layout: {padding: {top: 25, left: 8, right: 8, bottom: 8}},
         plugins: {
@@ -389,7 +432,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             x: {grid: {display: false}},
             y: {beginAtZero: true, grid: {display: false}}
         }
-    });    const doughnutOpts = (onClick) => ({
+    });
+    const doughnutOpts = (onClick) => ({
         ...baseChartOpts(onClick),
         layout: {padding: 8},
         plugins: {
@@ -406,11 +450,12 @@ import {supabase} from '../supabaseClient.js';(function () {
             }
         },
         cutout: '40%'
-    });    const top5BarOpts = () => {
+    });
+    const top5BarOpts = () => {
         const opts = barLineOpts(() => {
         });
         opts.scales.x.ticks = {
-            callback: function (value ) {
+            callback: function (value) {
                 const label = this.getLabelForValue(value);
                 return label.length > 10 ? label.substring(0, 10) + '...' : label;
             }
@@ -419,7 +464,8 @@ import {supabase} from '../supabaseClient.js';(function () {
         opts.plugins.datalabels.anchor = 'end';
         opts.plugins.datalabels.formatter = v => v;
         return opts;
-    };    const dowHorizontalBarOpts = (onClick) => {
+    };
+    const dowHorizontalBarOpts = (onClick) => {
         const opts = baseChartOpts(onClick);
         opts.indexAxis = 'y';
         opts.layout = {padding: {top: 8, left: 8, right: 40, bottom: 8}};
@@ -462,43 +508,53 @@ import {supabase} from '../supabaseClient.js';(function () {
         const m = String(dt.getMonth() + 1).padStart(2, '0');
         return `${y}-${m}`;
     }    function ensureChartsCreated() {
-        if (state.charts.totalPorMes) return;        state.charts.totalPorMes = new Chart(document.getElementById('abs-mes-line').getContext('2d'), {
+        if (state.charts.totalPorMes) return;
+        state.charts.totalPorMes = new Chart(document.getElementById('abs-mes-line').getContext('2d'), {
             type: 'line',
             options: {
                 ...barLineOpts(() => {
                 }), elements: {line: {tension: 0.2}}
             }
-        });        state.charts.totalPorWeek = new Chart(document.getElementById('abs-week-bar').getContext('2d'), {
+        });
+        state.charts.totalPorWeek = new Chart(document.getElementById('abs-week-bar').getContext('2d'), {
             type: 'bar',
             options: barLineOpts((c, i) => handleChartClick(c, i, 'week'))
-        });        state.charts.diaDaSemana = new Chart(document.getElementById('abs-dow-doughnut').getContext('2d'), {
+        });
+        state.charts.diaDaSemana = new Chart(document.getElementById('abs-dow-doughnut').getContext('2d'), {
             type: 'bar',
             options: dowHorizontalBarOpts((c, i) => handleChartClick(c, i, 'dow'))
-        });        state.charts.genero = new Chart(document.getElementById('abs-genero-doughnut').getContext('2d'), {
+        });
+        state.charts.genero = new Chart(document.getElementById('abs-genero-doughnut').getContext('2d'), {
             type: 'doughnut',
             options: doughnutOpts((c, i) => handleChartClick(c, i, 'gender'))
-        });        state.charts.contrato = new Chart(document.getElementById('abs-contrato-doughnut').getContext('2d'), {
+        });
+        state.charts.contrato = new Chart(document.getElementById('abs-contrato-doughnut').getContext('2d'), {
             type: 'doughnut',
             options: doughnutOpts((c, i) => handleChartClick(c, i, 'contract'))
-        });        state.charts.turno = new Chart(document.getElementById('abs-turno-doughnut').getContext('2d'), {
+        });
+        state.charts.turno = new Chart(document.getElementById('abs-turno-doughnut').getContext('2d'), {
             type: 'doughnut',
             options: doughnutOpts((c, i) => handleChartClick(c, i, 'turno'))
-        });        state.charts.faixaEtaria = new Chart(document.getElementById('abs-idade-bar').getContext('2d'), {
+        });
+        state.charts.faixaEtaria = new Chart(document.getElementById('abs-idade-bar').getContext('2d'), {
             type: 'bar',
             options: barLineOpts((c, i) => handleChartClick(c, i, 'age'))
-        });        state.charts.top5 = new Chart(document.getElementById('abs-top5-bar').getContext('2d'), {
+        });
+        state.charts.top5 = new Chart(document.getElementById('abs-top5-bar').getContext('2d'), {
             type: 'bar',
             options: top5BarOpts()
         });
     }    function updateChartsNow(dataToRender) {
         const pal = palette();
         const totalAbs = dataToRender.length || 1;
-        const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');        const getSafeMax = (dataValues, multiplier = 1.15) => {
+        const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
+        const getSafeMax = (dataValues, multiplier = 1.15) => {
             if (!dataValues || dataValues.length === 0) return 10;
             const maxData = Math.max(...dataValues);
             if (maxData === 0) return 10;
             return maxData * multiplier;
-        };        {
+        };
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const dt = parseDateMaybe(d.Data);
@@ -529,7 +585,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             };
             ch.options.scales.y.max = getSafeMax(dataValues);
             ch.update();
-        }        {
+        }
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const dt = parseDateMaybe(d.Data);
@@ -547,7 +604,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             }];
             ch.options.scales.y.max = getSafeMax(weekData);
             ch.update();
-        }        {
+        }
+        {
             const counts = Array(7).fill(0);
             dataToRender.forEach(d => {
                 const dt = parseDateMaybe(d.Data);
@@ -563,7 +621,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             }];
             ch.options.scales.x.max = getSafeMax(counts, 1.20);
             ch.update();
-        }        {
+        }
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = mapGeneroLabel(d.colaborador.Genero);
@@ -586,7 +645,8 @@ import {supabase} from '../supabaseClient.js';(function () {
                 _rawCounts: rawCounts
             }];
             ch.update();
-        }        {
+        }
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = mapContratoAgg(d.colaborador.Contrato);
@@ -604,7 +664,8 @@ import {supabase} from '../supabaseClient.js';(function () {
                 _rawCounts: rawCounts
             }];
             ch.update();
-        }        {
+        }
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const key = mapTurnoLabel(d.colaborador.Escala);
@@ -622,7 +683,8 @@ import {supabase} from '../supabaseClient.js';(function () {
                 _rawCounts: rawCounts
             }];
             ch.update();
-        }        {
+        }
+        {
             const counts = new Map(AGE_BUCKETS.map(k => [k, 0]));
             dataToRender.forEach(d => {
                 const key = ageBucket(calcAgeFromStr(getNascimento(d.colaborador)));
@@ -638,7 +700,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             }];
             ch.options.scales.y.max = getSafeMax(ageData);
             ch.update();
-        }        {
+        }
+        {
             const counts = new Map();
             dataToRender.forEach(d => {
                 const nome = d.colaborador.Nome;
@@ -666,7 +729,8 @@ import {supabase} from '../supabaseClient.js';(function () {
         if (!state.mounted) ensureMounted();
         refresh();
     };
-    window.buildHCAnaliseABS.resetState = resetState;    window.destroyHCAnaliseABS = function () {
+    window.buildHCAnaliseABS.resetState = resetState;
+    window.destroyHCAnaliseABS = function () {
         if (state.mounted) {
             try {
                 console.log('Destruindo estado da Análise ABS.');

@@ -79,34 +79,25 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     let matrizesPermitidas = getMatrizesPermitidas();
     if (Array.isArray(matrizesPermitidas) && matrizesPermitidas.length === 0) {
         matrizesPermitidas = null;
-    }
-    let q = supabase
+    }    let q = supabase
         .from('Colaboradores')
         .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')
-        .eq('Ativo', 'SIM');
-    if (!turno || turno === 'GERAL') q = q.in('Escala', ['T1', 'T2', 'T3']);
-    else q = q.eq('Escala', turno);
-    if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);
-    q = q.order('Nome', {ascending: true});
-    try {
+        .eq('Ativo', 'SIM');    if (!turno || turno === 'GERAL') q = q.in('Escala', ['T1', 'T2', 'T3']);
+    else q = q.eq('Escala', turno);    if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);    q = q.order('Nome', {ascending: true});    try {
         const cols = await fetchAllWithPagination(q);
         const all = cols || [];
-        const nomesColabs = all.map(c => c.Nome);
-        const {data: feriasHoje} = await supabase
+        const nomesColabs = all.map(c => c.Nome);        const {data: feriasHoje} = await supabase
             .from('Ferias')
             .select('Nome')
             .lte('"Data Inicio"', dateISO)
             .gte('"Data Final"', dateISO);
-        const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
-        const {data: afastamentosHoje} = await supabase
+        const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));        const {data: afastamentosHoje} = await supabase
             .from('Afastamentos')
             .select('NOME')
             .lte('"DATA INICIO"', dateISO)
             .gt('"DATA RETORNO"', dateISO);
-        const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));
-        let dsrLogs = [];
-        const chunkSize = 200;
-        if (nomesColabs.length > 0) {
+        const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));        let dsrLogs = [];
+        const chunkSize = 200;        if (nomesColabs.length > 0) {
             const promises = [];
             for (let i = 0; i < nomesColabs.length; i += chunkSize) {
                 const chunk = nomesColabs.slice(i, i + chunkSize);
@@ -115,6 +106,7 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                         .from('LogDSR')
                         .select('Name, DsrAnterior, DsrAtual, DataAlteracao')
                         .in('Name', chunk)
+                        .lte('DataAlteracao', dateISO + ' 23:59:59')
                 );
             }
             const results = await Promise.all(promises);
@@ -122,48 +114,38 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                 if (error) throw error;
                 if (data) dsrLogs = dsrLogs.concat(data);
             }
-        }
-        const dsrHistoryMap = new Map();
+        }        const dsrHistoryMap = new Map();
         for (const log of dsrLogs) {
             const nameNorm = NORM(log.Name);
             if (!dsrHistoryMap.has(nameNorm)) dsrHistoryMap.set(nameNorm, []);
             dsrHistoryMap.get(nameNorm).push(log);
-        }
-        for (const history of dsrHistoryMap.values()) {
+        }        for (const history of dsrHistoryMap.values()) {
             history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-        }
-        const getDSRForDate = (colaborador) => {
+        }        const getDSRForDate = (colaborador) => {
             const nameNorm = NORM(colaborador.Nome);
             const history = dsrHistoryMap.get(nameNorm);
-            if (!history || history.length === 0) return colaborador.DSR;
-            let applicableDSR = null;
+            if (!history || history.length === 0) return colaborador.DSR;            let applicableDSR = null;
             for (let i = history.length - 1; i >= 0; i--) {
                 if (history[i].DataAlteracao.slice(0, 10) <= dateISO) {
                     applicableDSR = history[i].DsrAtual;
                     break;
                 }
-            }
-            if (applicableDSR === null) applicableDSR = history[0].DsrAnterior;
-            return applicableDSR;
-        };
-        const checkDSR = (colaborador) => {
+            }            if (applicableDSR === null) applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);            return applicableDSR;
+        };        const checkDSR = (colaborador) => {
             const historicalDSR = getDSRForDate(colaborador);
             const colaboradorDSRs = (historicalDSR || '').toString().toUpperCase().split(',').map(d => d.trim());
             return colaboradorDSRs.includes(dia);
-        };
-        const dsrList = all.filter(c => checkDSR(c)).map(c => c.Nome);
-        const elegiveis = all
-            .filter(c => {
-                const dataAdmissao = c['Data de admissão'];
-                if (dataAdmissao && dataAdmissao > dateISO) return false;
-                if (nomesEmFeriasHoje.has(c.Nome)) return false;
-                if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) return false;
-                const isDSR = checkDSR(c);
-                return !isDSR;
-            })
-            .sort((a, b) => collator.compare(a, b));
-        return {elegiveis, dsrList};
-    } catch (error) {
+        };        const dsrObjects = [];
+        const elegiveis = [];        for (const c of all) {
+            const dataAdmissao = c['Data de admissão'];            if (dataAdmissao && dataAdmissao > dateISO) continue;
+            if (nomesEmFeriasHoje.has(c.Nome)) continue;
+            if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) continue;            const isDSR = checkDSR(c);
+            if (isDSR) {
+                dsrObjects.push(c);
+            } else {
+                elegiveis.push(c);
+            }
+        }        elegiveis.sort((a, b) => collator.compare(a.Nome, b.Nome));        const dsrList = dsrObjects.map(c => c.Nome);        return {elegiveis, dsrList, dsrObjects};    } catch (error) {
         console.error("Erro ao buscar colaboradores elegíveis com paginação:", error);
         throw error;
     }
@@ -186,24 +168,30 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     return map;
 }async function fetchList(turno, dateISO) {
     const cacheHit = getFromCache(turno, dateISO);
-    if (cacheHit) return cacheHit;
-    if (turno === 'GERAL') {
+    if (cacheHit) return cacheHit;    if (turno === 'GERAL') {
         const parts = await Promise.all(['T1', 'T2', 'T3'].map(t => fetchList(t, dateISO)));
         const byName = new Map();
         const dsrSet = new Set();
-        parts.forEach(p => {
+        const dsrObjMap = new Map();        parts.forEach(p => {
             p.list.forEach(x => {
                 if (!byName.has(x.Nome)) byName.set(x.Nome, x);
             });
-            (p.meta.dsrList || []).forEach(n => dsrSet.add(n));
-        });
-        const combined = {list: Array.from(byName.values()), meta: {dsrList: Array.from(dsrSet)}};
+            (p.meta.dsrList || []).forEach(n => dsrSet.add(n));            if (p.meta.dsrObjects) {
+                p.meta.dsrObjects.forEach(obj => {
+                    if (!dsrObjMap.has(obj.Nome)) dsrObjMap.set(obj.Nome, obj);
+                });
+            }
+        });        const combined = {
+            list: Array.from(byName.values()),
+            meta: {
+                dsrList: Array.from(dsrSet),
+                dsrObjects: Array.from(dsrObjMap.values())
+            }
+        };
         setCache('GERAL', dateISO, combined);
         return combined;
-    }
-    const {elegiveis, dsrList} = await getColaboradoresElegiveis(turno, dateISO);
-    const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));
-    const list = elegiveis.map(c => ({
+    }    const {elegiveis, dsrList, dsrObjects} = await getColaboradoresElegiveis(turno, dateISO);
+    const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));    const list = elegiveis.map(c => ({
         Nome: c.Nome,
         LDAP: c.LDAP || '',
         Cargo: c.Cargo || '',
@@ -213,31 +201,46 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         Matriz: c.MATRIZ || '',
         Escala: c.Escala || '',
         Marcacao: markMap.get(c.Nome) || null
-    }));
-    const packed = {list, meta: {dsrList}};
+    }));    const packed = {
+        list,
+        meta: {
+            dsrList,
+            dsrObjects
+        }
+    };
     setCache(turno, dateISO, packed);
     return packed;
 }async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
-    const setOne = {...zeros};
-    if (tipo === 'PRESENCA') setOne['Presença'] = 1;
+    const setOne = {...zeros};    if (tipo === 'PRESENCA') setOne['Presença'] = 1;
     else if (tipo === 'FALTA') setOne['Falta'] = 1;
     else if (tipo === 'ATESTADO') setOne['Atestado'] = 1;
     else if (tipo === 'F_ESPECIAL') setOne['Folga Especial'] = 1;
     else if (tipo === 'FERIADO') setOne['Feriado'] = 1;
     else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1;
-    else throw new Error('Tipo inválido.');    const {data: colabInfo, error: colabErr} = await supabase
-        .from('Colaboradores')
-        .select('Escala, SVC, MATRIZ, Cargo')
-        .eq('Nome', nome)
-        .single();
-    if (colabErr) throw colabErr;    const turnoToUse = turno || colabInfo.Escala || null;    const {data: existing, error: findErr} = await supabase
+    else throw new Error('Tipo inválido.');    let colabInfo = null;    const inMemory = state.baseList.find(c => c.Nome === nome);
+    if (inMemory) {
+        colabInfo = {Escala: inMemory.Escala, SVC: inMemory.SVC, MATRIZ: inMemory.Matriz || inMemory.MATRIZ, Cargo: inMemory.Cargo};
+    }    else if (state.meta && state.meta.dsrObjects) {
+        const inDsr = state.meta.dsrObjects.find(c => c.Nome === nome);
+        if (inDsr) {
+            colabInfo = {Escala: inDsr.Escala, SVC: inDsr.SVC, MATRIZ: inDsr.MATRIZ, Cargo: inDsr.Cargo};
+        }
+    }    if (!colabInfo) {
+        const {data, error: colabErr} = await supabase
+            .from('Colaboradores')
+            .select('Escala, SVC, MATRIZ, Cargo')
+            .eq('Nome', nome)
+            .single();
+        if (colabErr) throw colabErr;
+        colabInfo = data;
+    }    const turnoToUse = turno || colabInfo.Escala || null;    const {data: existing, error: findErr} = await supabase
         .from('ControleDiario')
         .select('Numero')
         .eq('Nome', nome)
         .eq('Data', dateISO)
-        .limit(1);
-    if (findErr) throw findErr;    if (existing && existing.length > 0) {        const {error: updErr} = await supabase
+        .limit(1);    if (findErr) throw findErr;    if (existing && existing.length > 0) {
+        const {error: updErr} = await supabase
             .from('ControleDiario')
             .update({
                 ...zeros,
@@ -247,16 +250,13 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                 Cargo: colabInfo.Cargo
             })
             .eq('Nome', nome)
-            .eq('Data', dateISO);
-        if (updErr) throw updErr;
+            .eq('Data', dateISO);        if (updErr) throw updErr;
     } else {
         const {data: maxRow, error: maxErr} = await supabase
             .from('ControleDiario')
             .select('Numero')
             .order('Numero', {ascending: false})
-            .limit(1);
-        if (maxErr) throw maxErr;
-        const nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;        const row = {
+            .limit(1);        if (maxErr) throw maxErr;        const nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;        const row = {
             Numero: nextNumero,
             Nome: nome,
             Data: dateISO,
@@ -264,11 +264,11 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             ...setOne,
             MATRIZ: colabInfo.MATRIZ,
             Cargo: colabInfo.Cargo
-        };
-        const {error: insErr} = await supabase.from('ControleDiario').insert(row);
+        };        const {error: insErr} = await supabase.from('ControleDiario').insert(row);
         if (insErr) throw insErr;
     }    try {
-        if (window.absSyncForRow) {            await window.absSyncForRow({
+        if (window.absSyncForRow) {
+            await window.absSyncForRow({
                 Nome: nome,
                 Data: dateISO,
                 Falta: setOne['Falta'] || 0,
@@ -426,70 +426,39 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     fillPreserving(ui.selSVC, opts.svc, 'SVC', cur.svc, () => (state.filters.svc = ''));
     fillPreserving(ui.selMatriz, opts.matriz, 'Matriz', cur.matriz, () => (state.filters.matriz = ''));
 }async function renderRows(list) {
-    ui.tbody.innerHTML = '';
-    const dsrNamesRaw = (state.meta?.dsrList || []).slice();
-    if (!dsrNamesRaw.length && list.length === 0) {
+    ui.tbody.innerHTML = '';    const dsrNamesRaw = (state.meta?.dsrList || []).slice();    if (!dsrNamesRaw.length && list.length === 0) {
         ui.tbody.innerHTML = '<tr><td colspan="7">Nenhum colaborador previsto para hoje.</td></tr>';
         state.dsrInfoList = [];
         updateFooterCounts();
         return;
-    }
-    let dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
-    try {
-        if (dsrNamesRaw.length > 0) {
-            const {data: info} = await supabase
-                .from('Colaboradores')
-                .select('Nome, Cargo, SVC, Gestor, Contrato, MATRIZ, LDAP')
-                .in('Nome', dsrNamesRaw);
-            if (Array.isArray(info)) {
-                const byName = new Map(info.map(x => [x.Nome, x]));
-                dsrInfos = dsrNamesRaw.map(n => byName.get(n) || {Nome: n});
-            }
-        }
-    } catch {
-    }
-    state.dsrInfoList = dsrInfos;
-    const dsrFiltered = dsrInfos
+    }    let dsrInfos = [];    if (state.meta && state.meta.dsrObjects && state.meta.dsrObjects.length > 0) {        const dsrMap = new Map(state.meta.dsrObjects.map(d => [d.Nome, d]));
+        dsrInfos = dsrNamesRaw.map(n => dsrMap.get(n) || {Nome: n});
+    } else {        dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));    }    state.dsrInfoList = dsrInfos;    const dsrFiltered = dsrInfos
         .filter(passFilters)
         .map(x => x.Nome)
-        .sort((a, b) => collator.compare(a, b));
-    const maxLen = Math.max(list.length, dsrFiltered.length);
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < maxLen; i++) {
+        .sort((a, b) => collator.compare(a, b));    const maxLen = Math.max(list.length, dsrFiltered.length);
+    const frag = document.createDocumentFragment();    for (let i = 0; i < maxLen; i++) {
         const item = list[i] || null;
-        const dsrName = dsrFiltered[i] || '—';
-        const tr = document.createElement('tr');
-        if (item) {
+        const dsrName = dsrFiltered[i] || '—';        const tr = document.createElement('tr');        if (item) {
             tr.dataset.nome = item.Nome;
             tr.dataset.mark = item.Marcacao || 'NONE';
-            tr.classList.add(`row-${(item.Marcacao || 'NONE').toLowerCase()}`);
-            const tdNome = document.createElement('td');
-            tdNome.className = 'nome-col';
-            const ic = document.createElement('span');
+            tr.classList.add(`row-${(item.Marcacao || 'NONE').toLowerCase()}`);            const tdNome = document.createElement('td');
+            tdNome.className = 'nome-col';            const ic = document.createElement('span');
             ic.className = 'status-icon';
             ic.textContent = item.Marcacao ? '✅' : '⚠️';
-            ic.title = item.Marcacao ? 'Marcado' : 'Pendente';
-            tdNome.append(ic, document.createTextNode(` ${item.Nome}`));
-            if (item.Marcacao) {
+            ic.title = item.Marcacao ? 'Marcado' : 'Pendente';            tdNome.append(ic, document.createTextNode(` ${item.Nome}`));            if (item.Marcacao) {
                 const badge = document.createElement('span');
                 badge.className = `cd-badge badge-${item.Marcacao.toLowerCase()}`;
                 badge.textContent = label(item.Marcacao);
                 tdNome.append(' ', badge);
-            }
-            const tdAcoes = document.createElement('td');
+            }            const tdAcoes = document.createElement('td');
             tdAcoes.className = 'status-actions';
-            tdAcoes.innerHTML = btnsHTML(item);
-            const tdLDAP = document.createElement('td');
-            tdLDAP.textContent = item.LDAP || '—';
-            const tdCargo = document.createElement('td');
-            tdCargo.textContent = item.Cargo || '';
-            const tdSVC = document.createElement('td');
-            tdSVC.textContent = item.SVC || '';
-            const tdGestor = document.createElement('td');
-            tdGestor.textContent = item.Gestor || '';
-            const tdDSR = document.createElement('td');
-            tdDSR.textContent = dsrName;
-            tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
+            tdAcoes.innerHTML = btnsHTML(item);            const tdLDAP = document.createElement('td');
+            tdLDAP.textContent = item.LDAP || '—';            const tdCargo = document.createElement('td');
+            tdCargo.textContent = item.Cargo || '';            const tdSVC = document.createElement('td');
+            tdSVC.textContent = item.SVC || '';            const tdGestor = document.createElement('td');
+            tdGestor.textContent = item.Gestor || '';            const tdDSR = document.createElement('td');
+            tdDSR.textContent = dsrName;            tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
         } else {
             const dash = () => {
                 const td = document.createElement('td');
@@ -664,12 +633,14 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             .order('Numero', {ascending: false})
             .limit(1);
         if (maxErr) throw maxErr;
-        let nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;        const {data: colabsInfo, error: colabError} = await supabase
+        let nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;
+        const {data: colabsInfo, error: colabError} = await supabase
             .from('Colaboradores')
             .select('Nome, Escala, MATRIZ, Cargo')
             .in('Nome', nomes);
         if (colabError) throw colabError;
-        const colabInfoMap = new Map(colabsInfo.map(c => [c.Nome, c]));        const rowsToUpsert = nomes.map(nome => {
+        const colabInfoMap = new Map(colabsInfo.map(c => [c.Nome, c]));
+        const rowsToUpsert = nomes.map(nome => {
             const info = colabInfoMap.get(nome) || {};
             const newRow = {
                 Numero: nextNumero,
@@ -687,15 +658,18 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             };
             nextNumero++;
             return newRow;
-        });        const {error} = await supabase
+        });
+        const {error} = await supabase
             .from('ControleDiario')
             .upsert(rowsToUpsert, {onConflict: 'Nome, Data'});
-        if (error) throw error;        pendTrs.forEach(tr => {
+        if (error) throw error;
+        pendTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, 'PRESENCA');
             const item = state.baseList.find(x => x.Nome === nome);
             if (item) item.Marcacao = 'PRESENCA';
-        });        invalidateCacheForDate(dataISO);
+        });
+        invalidateCacheForDate(dataISO);
         await refresh();
         toast(`${nomes.length} colaboradores marcados como "Presente"!`, 'success');
     } catch (e) {
