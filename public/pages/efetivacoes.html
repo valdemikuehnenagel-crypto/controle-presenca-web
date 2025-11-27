@@ -477,6 +477,8 @@
                                 <th>Colaborador</th>
                                 <th>Nº Smart</th>
                                 <th>Data Solicitada</th>
+                                <th>Retorno RH</th>
+                                <th>SLA</th>
                                 <th>Solicitante (Gestão)</th>
                                 <th>Gestor Vinculado</th>
                                 <th>Motivo</th>
@@ -487,7 +489,7 @@
                             </thead>
                             <tbody id="desligamento-tbody">
                             <tr>
-                                <td colspan="9" class="text-center p-4">Carregando...</td>
+                                <td colspan="11" class="text-center p-4">Carregando...</td>
                             </tr>
                             </tbody>
                         </table>
@@ -571,9 +573,16 @@
                 <div class="form-group full-width" style="background: #f0f6ff; padding: 12px; border-radius: 8px;">
                     <p class="text-sm"><strong>Colaborador:</strong> <span id="approveNome"
                                                                            class="font-bold text-gray-800"></span></p>
-                    <p class="text-sm"><strong>Data Desligamento:</strong> <span id="approveData"
-                                                                                 class="font-bold text-gray-800"></span>
-                    </p>
+
+                    <div class="mt-2 mb-2">
+                        <label class="text-sm font-bold text-gray-700">Data Efetiva do Desligamento:</label>
+                        <input type="date" id="approveDataInput" required
+                               class="ml-2 p-1 border border-gray-300 rounded text-sm text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                        <p class="text-xs text-gray-500 mt-1">
+                            * Data calculada via SLA: <span id="approveDataSolicitacao" class="font-mono"></span>
+                        </p>
+                    </div>
+
                     <p class="text-sm"><strong>Gestor Vinculado:</strong> <span id="approveGestor"
                                                                                 class="font-bold text-gray-800"></span>
                     </p>
@@ -910,7 +919,13 @@
                     </div>
                 </div>
 
-                <div class="form-grid" style="grid-template-columns: 3fr 1fr 2fr 2fr; margin-bottom: 10px;">
+                <div class="form-grid" style="grid-template-columns: 1fr 2fr 1fr 2fr 2fr; margin-bottom: 10px;">
+
+                    <div class="form-group">
+                        <label>CEP</label>
+                        <input type="text" name="cep_candidato" maxlength="9" placeholder="00000-000">
+                    </div>
+
                     <div class="form-group">
                         <label>Endereço (Rua)</label>
                         <input type="text" name="endereco_candidato">

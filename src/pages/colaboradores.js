@@ -83,21 +83,17 @@ function mapearDadosRhParaFormulario(candidato) {
     else if (contratoFormatado.includes('POLLY')) contratoFormatado = 'POLLY';
     else if (contratoFormatado.includes('TSI')) contratoFormatado = 'TSI';
     else if (contratoFormatado.includes('GNX')) contratoFormatado = 'GNX';
-
     let cargoFormatado = (candidato.Cargo || '').toUpperCase();
     if (cargoFormatado.includes('AUXILIAR')) cargoFormatado = 'AUXILIAR';
     else if (cargoFormatado.includes('ASSISTENTE')) cargoFormatado = 'ASSISTENTE';
     else if (cargoFormatado.includes('LÍDER') || cargoFormatado.includes('LIDER')) cargoFormatado = 'LIDER';
     else if (cargoFormatado.includes('CONFERENTE')) cargoFormatado = 'CONFERENTE';
-
     return {
         Nome: candidato.CandidatoAprovado,
         CPF: candidato.CPFCandidato,
         Cargo: cargoFormatado,
         Contrato: contratoFormatado,
-        MATRIZ: candidato.MATRIZ,
-        // AJUSTE AQUI: Prioridade para DataAdmissaoReal
-        DataInicio: candidato.DataAdmissaoReal || candidato.DataInicioDesejado,
+        MATRIZ: candidato.MATRIZ, DataInicio: candidato.DataAdmissaoReal || candidato.DataInicioDesejado,
         rg: candidato.rg,
         telefone: candidato.telefone,
         email: candidato.email,
@@ -143,34 +139,44 @@ function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
 async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
     tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
+
     try {
         const matrizesPermitidas = getMatrizesPermitidas();
+
         let queryVagas = supabase
             .from('Vagas')
             .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataEncaminhadoAdmissao, DataAprovacao, rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato, DataNascimento')
-            .eq('Status', 'EM ADMISSÃO');
+            .eq('Status', 'EM ADMISSÃO')
+            // AJUSTE AQUI: Filtra apenas Conferente e Auxiliar de Operações (ilike ignora maiuscula/minuscula)
+            .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');
+
         if (matrizesPermitidas !== null) {
             queryVagas = queryVagas.in('MATRIZ', matrizesPermitidas);
         }
+
         const queryColabs = supabase
             .from('Colaboradores')
             .select('Nome')
             .eq('Ativo', 'SIM');
+
         const [resVagas, resColabs] = await Promise.all([
             queryVagas.order('DataInicioDesejado', {ascending: true}),
             queryColabs
         ]);
+
         if (resVagas.error) throw resVagas.error;
+
         rhState.dadosBrutos = resVagas.data || [];
         rhState.nomesExistentes = new Set(
             (resColabs.data || []).map(c => (c.Nome || '').toUpperCase().trim())
         );
+
         setupRhFilters();
         populateRhFilterOptions();
         aplicarFiltrosRh();
     } catch (err) {
         console.error('Erro RH:', err);
-        tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar.</td></tr>';
+        tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar ou filtrar dados.</td></tr>';
     }
 }
 
@@ -254,6 +260,89 @@ function populateRhFilterOptions() {
 function toggleRhDateMode() {
     rhState.modoVisualizacao = (rhState.modoVisualizacao === 'ATUAIS') ? 'FUTURAS' : 'ATUAIS';
     aplicarFiltrosRh();
+}
+
+async function buscarEnderecoPorCep(cep, prefixoId) {
+    // Limpa o CEP (deixa só números)
+    const cepLimpo = cep.replace(/\D/g, '');
+
+    // Verifica se tem 8 dígitos
+    if (cepLimpo.length !== 8) {
+        return;
+    }
+
+    // Referências aos campos (baseado no prefixo 'add' ou 'edit')
+    const campoEndereco = document.getElementById(`${prefixoId}Endereco`);
+    const campoBairro = document.getElementById(`${prefixoId}Bairro`);
+    const campoCidade = document.getElementById(`${prefixoId}Cidade`);
+    const campoNumero = document.getElementById(`${prefixoId}Numero`);
+
+    // Feedback visual (opcional: muda o placeholder ou cursor)
+    if (campoEndereco) campoEndereco.placeholder = "Buscando CEP...";
+
+    try {
+        const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+        const data = await response.json();
+
+        if (data.erro) {
+            await window.customAlert('CEP não encontrado.', 'Erro');
+            if (campoEndereco) campoEndereco.placeholder = "";
+            return;
+        }
+
+        // Preenche os campos e converte para Maiúsculas (padrão do seu sistema)
+        if (campoEndereco) {
+            campoEndereco.value = (data.logradouro || '').toUpperCase();
+            // Dispara evento de input para garantir que handlers de uppercase funcionem se houver
+            campoEndereco.dispatchEvent(new Event('input'));
+        }
+
+        if (campoBairro) {
+            campoBairro.value = (data.bairro || '').toUpperCase();
+            campoBairro.dispatchEvent(new Event('input'));
+        }
+
+        if (campoCidade) {
+            campoCidade.value = (data.localidade || '').toUpperCase(); // ViaCEP retorna cidade em 'localidade'
+            campoCidade.dispatchEvent(new Event('input'));
+        }
+
+        // Foca no campo número para agilizar
+        if (campoNumero) {
+            campoNumero.focus();
+        }
+
+    } catch (error) {
+        console.error("Erro ao buscar CEP:", error);
+        await window.customAlert('Erro ao buscar o endereço. Verifique sua conexão.', 'Erro de Rede');
+    } finally {
+        if (campoEndereco) campoEndereco.placeholder = "";
+    }
+}
+
+function wireCepEvents() {
+    // Configura para o formulário de Adicionar
+    const addCepInput = document.getElementById('addCEP');
+    if (addCepInput) {
+        addCepInput.addEventListener('input', (e) => {
+            // Remove letras enquanto digita
+            let val = e.target.value.replace(/\D/g, '');
+            // Máscara visual simples 00000-000 (opcional, mas bom pra UX)
+            if (val.length > 5) {
+                val = val.substring(0, 5) + '-' + val.substring(5, 8);
+            }
+            e.target.value = val;
+
+            // Se tiver 8 números (9 caracteres contando o hífen), busca
+            const numeros = val.replace(/\D/g, '');
+            if (numeros.length === 8) {
+                buscarEnderecoPorCep(numeros, 'add');
+            }
+        });
+    }
+
+    // Configura para o formulário de Editar será chamado dentro do wireEdit,
+    // mas deixamos a lógica pronta ou chamamos direto se o elemento já existir.
 }
 
 function aplicarFiltrosRh() {
@@ -361,25 +450,71 @@ async function showAvisoDesligamento() {
     });
 }
 
+function getLocalISOString(date) {
+    if (!(date instanceof Date)) {
+        date = new Date(date);
+    }
+    if (isNaN(date.getTime())) return null;
+    const pad = (n) => String(n).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hour = pad(date.getHours());
+    const minute = pad(date.getMinutes());
+    const second = pad(date.getSeconds());
+    const offsetMin = date.getTimezoneOffset();
+    const sign = offsetMin > 0 ? '-' : '+';
+    const absMin = Math.abs(offsetMin);
+    const offHour = pad(Math.floor(absMin / 60));
+    const offMin = pad(absMin % 60);
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}${sign}${offHour}:${offMin}`;
+}
+
+function formatDateTimeLocal(iso) {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+    } catch (e) {
+        return iso;
+    }
+}
+
 async function verificarPendencias(colab, dataDesligamentoStr) {
     const pendencias = [];
     const hoje = new Date();
-    const diaHoje = hoje.getDate();
     const trintaDiasAtras = new Date();
-    trintaDiasAtras.setDate(diaHoje - 30);
+    trintaDiasAtras.setDate(hoje.getDate() - 30);
     let dataLimite = new Date();
     dataLimite.setDate(dataLimite.getDate() - 1);
     if (dataDesligamentoStr) {
-        const partes = dataDesligamentoStr.split('-');
-        if (partes.length === 3) {
-            const dtDesligamento = new Date(partes[0], partes[1] - 1, partes[2]);
+        const dtDesligamento = new Date(dataDesligamentoStr);
+        if (!isNaN(dtDesligamento.getTime())) {
+            dtDesligamento.setHours(0, 0, 0, 0);
             if (dtDesligamento < dataLimite) {
                 dataLimite = dtDesligamento;
             }
         }
     }
-    if (dataLimite < trintaDiasAtras) return [];
-    const startISO = trintaDiasAtras.toISOString().split('T')[0];
+    let inicioVerificacao = new Date(trintaDiasAtras);
+    if (colab['Data de admissão']) {
+        const parts = colab['Data de admissão'].split('-');
+        const dtAdm = new Date(parts[0], parts[1] - 1, parts[2]);
+        if (dtAdm > inicioVerificacao) {
+            inicioVerificacao = dtAdm;
+        }
+        if (dtAdm > dataLimite) {
+            return [];
+        }
+    }
+    if (dataLimite < inicioVerificacao) return [];
+    const startISO = inicioVerificacao.toISOString().split('T')[0];
     const endISO = dataLimite.toISOString().split('T')[0];
     const {data: registros, error} = await supabase
         .from('ControleDiario')
@@ -414,18 +549,10 @@ async function verificarPendencias(colab, dataDesligamentoStr) {
         }
         return false;
     };
-    const cursor = new Date(trintaDiasAtras);
+    const cursor = new Date(inicioVerificacao);
+    cursor.setHours(0, 0, 0, 0);
     const limiteComparacao = new Date(dataLimite);
     limiteComparacao.setHours(0, 0, 0, 0);
-    if (colab['Data de admissão']) {
-        const partesAdm = colab['Data de admissão'].split('-');
-        const dtAdm = new Date(partesAdm[0], partesAdm[1] - 1, partesAdm[2]);
-        const cursorZerado = new Date(cursor);
-        cursorZerado.setHours(0, 0, 0, 0);
-        if (dtAdm > cursorZerado) {
-            cursor.setTime(dtAdm.getTime());
-        }
-    }
     const dsrString = (colab.DSR || '').toUpperCase();
     while (cursor <= limiteComparacao) {
         const y = cursor.getFullYear();
@@ -455,14 +582,15 @@ function renderTabelaRH(lista) {
 
     lista.forEach(cand => {
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group";
+        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group cursor-pointer"; // Adicionei cursor-pointer para indicar interatividade
 
         const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim();
         const jaExiste = rhState.nomesExistentes && rhState.nomesExistentes.has(nomeNormalizado);
 
         const nomeClass = jaExiste ? 'text-green-600 font-extrabold' : 'text-[#003369] font-bold';
-        const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔</span>' : '';
+        const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔ (Cadastrado)</span>' : '';
 
+        // Estilos do botão Fechar Vaga
         const btnFecharStyle = jaExiste
             ? 'background-color: #dcfce7; color: #166534; border: 1px solid #86efac; cursor: pointer;'
             : 'background-color: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; cursor: not-allowed; opacity: 0.7;';
@@ -471,14 +599,12 @@ function renderTabelaRH(lista) {
             ? "Colaborador já cadastrado! Clique para fechar a vaga."
             : "Ação bloqueada: Colaborador ainda não consta na base ativa.";
 
-        // AJUSTE AQUI: Prioridade para DataAdmissaoReal na exibição
         const rawInicio = cand.DataAdmissaoReal || cand.DataInicioDesejado;
         const dtInicio = rawInicio ? formatDateLocal(rawInicio) : '-';
 
         const cpf = cand.CPFCandidato || '-';
         const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;
 
-        // AJUSTE AQUI: Prioridade para DataAdmissaoReal no cálculo do SLA/Dias
         const dataRefStr = cand.DataAdmissaoReal || cand.DataInicioDesejado;
 
         let slaHtml = '<span class="text-gray-300">-</span>';
@@ -505,7 +631,7 @@ function renderTabelaRH(lista) {
 
         tr.innerHTML = `
             <td class="p-2 ${nomeClass} leading-tight">
-                ${cand.CandidatoAprovado || 'Sem Nome'}${iconCheck}
+                ${cand.CandidatoAprovado || 'Sem Nome'} ${iconCheck}
             </td>
             <td class="p-2 text-gray-500 text-[11px]">
                 ${cpf}
@@ -544,11 +670,21 @@ function renderTabelaRH(lista) {
             </td>
         `;
 
-        tr.addEventListener('dblclick', (e) => {
-            if (e.target.closest('button')) return;
+        // --- LÓGICA DE CLIQUE DUPLO AJUSTADA ---
+        tr.addEventListener('dblclick', async (e) => {
+            if (e.target.closest('button')) return; // Ignora se clicar nos botões
+
+            // BLOQUEIO RIGOROSO DE DUPLICIDADE
             if (jaExiste) {
-                if (!confirm('Este colaborador já consta na base. Deseja importar novamente (pode gerar duplicidade)?')) return;
+                await window.customAlert(
+                    `O colaborador <b>${cand.CandidatoAprovado}</b> já consta na base de ativos.<br><br>Não é possível importar novamente. Por favor, clique no botão <b>"Fechar Vaga"</b> para encerrar o processo no RH.`,
+                    'Ação Bloqueada',
+                    'warning'
+                );
+                return; // Para a execução aqui
             }
+
+            // Se não existe, prossegue com a importação
             selecionarCandidatoImportacao(cand);
         });
 
@@ -556,7 +692,7 @@ function renderTabelaRH(lista) {
         btnFechar.addEventListener('click', (e) => {
             e.stopPropagation();
             if (!jaExiste) {
-                return;
+                return; // Botão visualmente desabilitado
             }
             fecharVagaImportacao(cand);
         });
@@ -1282,12 +1418,28 @@ function hidePendingImportAlert() {
 
 async function fetchColaboradores() {
     const now = Date.now();
+
+    // Identifica o usuário atual para garantir que o cache pertence a ele
+    let currentUser = 'unknown';
+    try {
+        const sessionStr = localStorage.getItem('userSession');
+        if (sessionStr) {
+            const sess = JSON.parse(sessionStr);
+            currentUser = sess.Nome || sess.ID || 'unknown';
+        }
+    } catch (e) { console.warn('Erro ao ler userSession', e); }
+
     try {
         const cached = localStorage.getItem('knc:colaboradoresCache');
         if (cached) {
-            const {timestamp, data, ferias} = JSON.parse(cached);
-            if ((now - timestamp) < CACHE_DURATION_MS) {
-                console.log("Usando cache de colaboradores (localStorage).");
+            const {timestamp, data, ferias, owner} = JSON.parse(cached);
+
+            // CORREÇÃO CRÍTICA: Verifica se o cache pertence ao usuário logado atualmente
+            const isSameUser = owner === currentUser;
+            const isValidTime = (now - timestamp) < CACHE_DURATION_MS;
+
+            if (isSameUser && isValidTime) {
+                console.log("Usando cache de colaboradores (localStorage) - Usuário validado.");
                 cachedColaboradores = data;
                 cachedFeriasStatus = new Map(ferias);
                 lastFetchTimestamp = timestamp;
@@ -1298,7 +1450,9 @@ async function fetchColaboradores() {
                 checkPendingImports();
                 return;
             } else {
-                console.log("Cache do localStorage expirado.");
+                if (!isSameUser) console.log("Cache pertence a outro usuário. Invalidando...");
+                else console.log("Cache do localStorage expirado.");
+
                 localStorage.removeItem('knc:colaboradoresCache');
             }
         }
@@ -1306,12 +1460,14 @@ async function fetchColaboradores() {
         console.warn('Falha ao ler cache de colaboradores do localStorage', e);
         localStorage.removeItem('knc:colaboradoresCache');
     }
+
     if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
         console.log("Usando cache de colaboradores (memória).");
         state.colaboradoresData = cachedColaboradores;
         if (cachedFeriasStatus) {
             state.feriasAtivasMap = cachedFeriasStatus;
         } else {
+            // (Lógica de fallback mantida)
             try {
                 const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
                 state.feriasAtivasMap = new Map();
@@ -1335,10 +1491,12 @@ async function fetchColaboradores() {
         checkPendingImports();
         return;
     }
+
     console.log("Buscando dados frescos do banco (Colaboradores e Férias)...");
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando...</td></tr>';
     }
+
     try {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase
@@ -1346,11 +1504,14 @@ async function fetchColaboradores() {
             .select('Nome, CPF, DSR, Escala, Contrato, Cargo, Gestor, "ID GROOT", LDAP, SVC, REGIAO, MATRIZ, "Data de admissão", "Admissao KN", "FOLGA ESPECIAL", Ativo, StatusDesligamento, Ferias, Efetivacao, Fluxo, "Data Fluxo", "Observacao Fluxo", rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato')
             .neq('Ativo', 'NÃO')
             .order('Nome');
+
         if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
         }
+
         const data = await fetchAllWithPagination(query);
         state.colaboradoresData = data || [];
+
         const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
         if (nomes.length > 0) {
@@ -1362,18 +1523,23 @@ async function fetchColaboradores() {
                 state.feriasAtivasMap.set(f.Nome, Number.isFinite(dias) ? dias : null);
             });
         }
+
         cachedColaboradores = state.colaboradoresData;
         cachedFeriasStatus = state.feriasAtivasMap;
         lastFetchTimestamp = Date.now();
+
         try {
+            // CORREÇÃO CRÍTICA: Salva o "owner" (usuário atual) no cache
             localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
                 timestamp: lastFetchTimestamp,
                 data: cachedColaboradores,
-                ferias: Array.from(cachedFeriasStatus.entries())
+                ferias: Array.from(cachedFeriasStatus.entries()),
+                owner: currentUser
             }));
         } catch (e) {
             console.warn('Falha ao salvar cache no localStorage', e);
         }
+
         populateFilters();
         applyFiltersAndSearch();
         checkPendingImports();
@@ -1624,6 +1790,11 @@ async function handleAddSubmit(event) {
     const matrizSelecionada = nullIfEmpty(document.getElementById('addMatriz')?.value)
         || (svcSelecionado ? (state.serviceMatrizMap.get(String(svcSelecionado).toUpperCase()) || null) : null);
     const regiaoAuto = computeRegiaoFromSvcMatriz(svcSelecionado, matrizSelecionada);
+
+    // Captura o CEP e remove caracteres não numéricos
+    const cepValor = document.getElementById('addCEP')?.value || '';
+    const cepLimpo = cepValor.replace(/\D/g, '') || null;
+
     const newColaborador = toUpperObject({
         Nome: nomeUpper,
         CPF: cpf,
@@ -1644,10 +1815,15 @@ async function handleAddSubmit(event) {
         telefone: nullIfEmpty(document.getElementById('addTelefone')?.value),
         email: nullIfEmpty(document.getElementById('addEmail')?.value),
         pis: nullIfEmpty(document.getElementById('addPIS')?.value),
+
+        // --- Endereço e CEP ---
+        CEP: cepLimpo, // Salva só números
         endereco_completo: toUpperTrim(document.getElementById('addEndereco')?.value),
         numero: nullIfEmpty(document.getElementById('addNumero')?.value),
         bairro: toUpperTrim(document.getElementById('addBairro')?.value),
         cidade: toUpperTrim(document.getElementById('addCidade')?.value),
+        // ---------------------
+
         colete: nullIfEmpty(document.getElementById('addColete')?.value),
         sapato: nullIfEmpty(document.getElementById('addSapato')?.value),
         Ativo: 'SIM',
@@ -1743,6 +1919,10 @@ async function fillEditForm(colab) {
     const setVal = (el, v) => {
         if (el) el.value = v ?? '';
     };
+    const safeDate = (isoStr) => {
+        if (!isoStr) return '';
+        return isoStr.split('T')[0];
+    };
     if (editTitulo) editTitulo.textContent = colab.Nome || 'Colaborador';
     setVal(editInputs.Nome, colab.Nome || '');
     setVal(editInputs.CPF, colab.CPF || '');
@@ -1756,18 +1936,9 @@ async function fillEditForm(colab) {
     setVal(editInputs['FOLGA ESPECIAL'], colab['FOLGA ESPECIAL'] || '');
     setVal(editInputs.LDAP, colab.LDAP ?? '');
     setVal(editInputs['ID GROOT'], colab['ID GROOT'] ?? '');
-    setVal(
-        editInputs['Data de nascimento'],
-        colab['Data de nascimento'] ? new Date(colab['Data de nascimento']).toISOString().split('T')[0] : ''
-    );
-    setVal(
-        editInputs['Data de admissão'],
-        colab['Data de admissão'] ? new Date(colab['Data de admissão']).toISOString().split('T')[0] : ''
-    );
-    setVal(
-        editInputs['Admissao KN'],
-        colab['Admissao KN'] ? new Date(colab['Admissao KN']).toISOString().split('T')[0] : ''
-    );
+    setVal(editInputs['Data de nascimento'], safeDate(colab['Data de nascimento']));
+    setVal(editInputs['Data de admissão'], safeDate(colab['Data de admissão']));
+    setVal(editInputs['Admissao KN'], safeDate(colab['Admissao KN']));
     setVal(editInputs.rg, colab.rg);
     setVal(editInputs.telefone, colab.telefone);
     setVal(editInputs.email, colab.email);
@@ -2115,6 +2286,11 @@ async function onEditSubmit(e) {
         if (!gestorFinal && svc === editOriginal.SVC && editOriginal.Gestor) {
             gestorFinal = editOriginal.Gestor;
         }
+
+        // Captura e limpa o CEP da edição
+        const cepValor = document.getElementById('editCEP')?.value || '';
+        const cepLimpo = cepValor.replace(/\D/g, '') || null;
+
         const payload = {
             Nome,
             CPF,
@@ -2135,17 +2311,24 @@ async function onEditSubmit(e) {
             'Efetivacao': editOriginal.Efetivacao,
             'Fluxo': editOriginal.Fluxo,
             'Data Fluxo': editOriginal['Data Fluxo'],
-            'Observacao Fluxo': editOriginal['Observacao Fluxo'], rg: nullIfEmpty(editInputs.rg?.value),
+            'Observacao Fluxo': editOriginal['Observacao Fluxo'],
+            rg: nullIfEmpty(editInputs.rg?.value),
             telefone: nullIfEmpty(editInputs.telefone?.value),
             email: nullIfEmpty(editInputs.email?.value),
             pis: nullIfEmpty(editInputs.pis?.value),
+
+            // --- Endereço e CEP ---
+            CEP: cepLimpo, // Salva só números
             endereco_completo: toUpperTrim(editInputs.endereco_completo?.value),
             numero: nullIfEmpty(editInputs.numero?.value),
             bairro: toUpperTrim(editInputs.bairro?.value),
             cidade: toUpperTrim(editInputs.cidade?.value),
+            // ---------------------
+
             colete: nullIfEmpty(editInputs.colete?.value),
             sapato: nullIfEmpty(editInputs.sapato?.value)
         };
+
         const changes = [];
         if (payload.Nome !== editOriginal.Nome) changes.push(`Nome (de '${editOriginal.Nome}' para '${payload.Nome}')`);
         if (payload.DSR !== editOriginal.DSR) changes.push(`DSR`);
@@ -2158,6 +2341,9 @@ async function onEditSubmit(e) {
         if (payload.SVC !== editOriginal.SVC) changes.push(`SVC`);
         if (payload['Data de admissão'] !== editOriginal['Data de admissão']) changes.push(`Data de Admissão`);
         if (payload['Admissao KN'] !== editOriginal['Admissao KN']) changes.push(`Admissão KN`);
+        // Adiciona CEP ao log de mudanças se alterado
+        if (payload.CEP !== editOriginal.CEP) changes.push(`CEP`);
+
         const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             await window.customAlert(dupMsg, 'Duplicidade');
@@ -2394,22 +2580,44 @@ async function onDesligarSubmit(e) {
         return;
     }
     const nome = desligarColaborador.Nome;
-    const dataDesligamento = (desligarDataEl?.value || '').trim();
-    const motivo = (desligarMotivoEl?.value || '').trim();
+    const dataAgendadaInput = (desligarDataEl?.value || '').trim();
+    let motivo = (desligarMotivoEl?.value || '').trim();
     const isKN = (desligarColaborador.Contrato || '').trim().toUpperCase() === 'KN';
     const smartoffVal = desligarSmartoffEl ? desligarSmartoffEl.value.trim() : null;
-    if (isKN && !smartoffVal) {
-        await window.customAlert('Para colaboradores KN, o número do Smartoff é obrigatório.', 'Campo Obrigatório');
-        return;
+    if (isKN) {
+        if (!smartoffVal) {
+            await window.customAlert('Para colaboradores KN, o Número Smart é obrigatório.', 'Campo Obrigatório');
+            return;
+        }
+        if (/\D/.test(smartoffVal)) {
+            await window.customAlert('O Número Smart deve conter apenas números, sem letras ou símbolos.', 'Formato Inválido');
+            desligarSmartoffEl.value = smartoffVal.replace(/\D/g, '');
+            desligarSmartoffEl.focus();
+            return;
+        }
+        if (smartoffVal.length < 6 || smartoffVal.length > 10) {
+            await window.customAlert(`O Número Smart deve ter entre 6 e 10 dígitos. Atualmente tem ${smartoffVal.length}.`, 'Tamanho Inválido');
+            desligarSmartoffEl.focus();
+            return;
+        }
     }
-    if (!dataDesligamento) {
-        await window.customAlert('Informe a data de desligamento.', 'Campo Obrigatório');
+    if (!dataAgendadaInput) {
+        await window.customAlert('Informe a data prevista para o desligamento.', 'Campo Obrigatório');
         return;
     }
     if (!motivo) {
         await window.customAlert('Selecione o motivo.', 'Campo Obrigatório');
         return;
     }
+    let timestampSolicitacao;
+    try {
+        timestampSolicitacao = getLocalISOString(new Date());
+    } catch (err) {
+        console.error("Erro ao gerar timestamp:", err);
+        timestampSolicitacao = new Date().toISOString();
+    }
+    const dataAgendadaFormatada = dataAgendadaInput.split('-').reverse().join('/');
+    const motivoCompleto = `${motivo} (Data Prevista: ${dataAgendadaFormatada})`;
     const btnSubmit = desligarConfirmarBtn;
     const txtOriginal = btnSubmit.textContent;
     btnSubmit.textContent = 'Verificando pendências...';
@@ -2418,7 +2626,7 @@ async function onDesligarSubmit(e) {
     try {
         const colabAtualizado = await fetchColabByNome(nome);
         if (colabAtualizado) {
-            listaPendencias = await verificarPendencias(colabAtualizado, dataDesligamento);
+            listaPendencias = await verificarPendencias(colabAtualizado, dataAgendadaInput);
         }
     } catch (err) {
         console.error("Erro verificando pendencias:", err);
@@ -2430,7 +2638,7 @@ async function onDesligarSubmit(e) {
         const listaExibicao = listaPendencias.slice(0, 10).join('<br>');
         const mais = listaPendencias.length > 10 ? `<br>...e mais ${listaPendencias.length - 10} dias.` : '';
         await window.customAlert(
-            `Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário e ajuste antes de desliga-lo.<br><br><b>Datas pendentes:</b><br>${listaExibicao}${mais}`,
+            `Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário.<br><br><b>Datas pendentes:</b><br>${listaExibicao}${mais}`,
             'Pendências Encontradas'
         );
         return;
@@ -2442,9 +2650,10 @@ async function onDesligarSubmit(e) {
             solicitante = JSON.parse(userSession)?.Nome || solicitante;
         }
     } catch (e) {
+        console.warn('Erro ao ler sessão', e);
     }
     const ok = await window.customConfirm(
-        `Tem certeza que deseja <b>ENVIAR A SOLICITAÇÃO</b> de desligamento para <b>"${nome}"</b> na data <b>${formatDateLocal(dataDesligamento)}</b>?`,
+        `Confirmar solicitação de desligamento para <b>"${nome}"</b>?<br>Data Prevista: <b>${dataAgendadaFormatada}</b>`,
         'Confirmar Desligamento',
         'danger'
     );
@@ -2453,29 +2662,29 @@ async function onDesligarSubmit(e) {
         const payload = {
             Ativo: 'SIM',
             StatusDesligamento: 'PENDENTE',
-            DataDesligamentoSolicitada: dataDesligamento,
-            MotivoDesligamento: motivo,
-            SolicitanteDesligamento: solicitante
+            DataDesligamentoSolicitada: timestampSolicitacao,
+            DataRetorno: null,
+            MotivoDesligamento: motivoCompleto,
+            SolicitanteDesligamento: solicitante,
+            Smartoff: isKN ? smartoffVal : null
         };
-        if (isKN) {
-            payload.Smartoff = smartoffVal;
-        } else {
-            payload.Smartoff = null;
-        }
         const {error} = await supabase
             .from('Colaboradores')
             .update(payload)
             .eq('Nome', nome);
         if (error) throw error;
-        await window.customAlert('Solicitação de desligamento enviada para aprovação do RH!', 'Sucesso');
-        logAction(`Enviou solicitação de desligamento para: ${nome} (Data: ${formatDateLocal(dataDesligamento)}, Motivo: ${motivo}, Smartoff: ${isKN ? smartoffVal : 'N/A'})`);
+        await window.customAlert('Solicitação enviada com sucesso!', 'Sucesso');
+        logAction(
+            `Enviou solicitação de desligamento: ${nome} ` +
+            `(Solicitado em: ${formatDateTimeLocal(timestampSolicitacao)}, Para: ${dataAgendadaFormatada})`
+        );
         closeDesligarModal();
         hideEditModal();
         invalidateColaboradoresCache();
         await fetchColaboradores();
     } catch (err) {
         console.error('Erro desligamento:', err);
-        await window.customAlert(`Erro ao enviar solicitação: ${err.message || err}`, 'Erro');
+        await window.customAlert(`Erro ao enviar: ${err.message || err}`, 'Erro');
     }
 }
 
@@ -2924,6 +3133,7 @@ function wireEdit() {
     editModal = document.getElementById('editModal');
     if (!editModal || editModal.dataset.wired === '1') return;
     editModal.dataset.wired = '1';
+
     editForm = document.getElementById('editForm');
     editTitulo = document.getElementById('editTitulo');
     editSVC = document.getElementById('editSVC');
@@ -2937,9 +3147,15 @@ function wireEdit() {
     editEfetivarKnBtn = document.getElementById('editEfetivarKnBtn');
     editMatriz = document.getElementById('editMatriz');
     const editRegiao = document.getElementById('editRegiao');
+
+    // --- NOVO: Mapeamento do input CEP ---
+    const editCepInput = document.getElementById('editCEP');
+
     editInputs = {
         Nome: document.getElementById('editNome'),
         CPF: document.getElementById('editCPF'),
+        // Adicione o CEP ao objeto editInputs se você tiver uma coluna CEP no banco
+        // CEP: editCepInput,
         Contrato: document.getElementById('editContrato'),
         Cargo: document.getElementById('editCargo'),
         Gestor: document.getElementById('editGestor'),
@@ -2949,7 +3165,8 @@ function wireEdit() {
         'ID GROOT': document.getElementById('editIdGroot'),
         'Data de nascimento': document.getElementById('editDataNascimento'),
         'Data de admissão': document.getElementById('editDataAdmissao'),
-        'Admissao KN': document.getElementById('editAdmissaoKn'), rg: document.getElementById('editRG'),
+        'Admissao KN': document.getElementById('editAdmissaoKn'),
+        rg: document.getElementById('editRG'),
         telefone: document.getElementById('editTelefone'),
         email: document.getElementById('editEmail'),
         pis: document.getElementById('editPIS'),
@@ -2960,7 +3177,26 @@ function wireEdit() {
         colete: document.getElementById('editColete'),
         sapato: document.getElementById('editSapato')
     };
+
     attachUpperHandlersTo(editForm);
+
+    // --- NOVO: Lógica do CEP no Editar ---
+    if (editCepInput) {
+        editCepInput.addEventListener('input', (e) => {
+            let val = e.target.value.replace(/\D/g, '');
+            if (val.length > 5) {
+                val = val.substring(0, 5) + '-' + val.substring(5, 8);
+            }
+            e.target.value = val;
+
+            const numeros = val.replace(/\D/g, '');
+            if (numeros.length === 8) {
+                buscarEnderecoPorCep(numeros, 'edit');
+            }
+        });
+    }
+    // -------------------------------------
+
     if (editSVC) {
         editSVC.addEventListener('change', () => {
             const svc = (editSVC.value || '').toString().toUpperCase();
@@ -2971,16 +3207,19 @@ function wireEdit() {
             populateGestorSelectForEdit(editSVC.value);
         });
     }
+
     const editDSRBtn = document.getElementById('editDSRBtn');
     if (editDSRBtn) {
         editDSRBtn.addEventListener('click', () => {
             openDsrModal(document.getElementById('editDSR'));
         });
     }
+
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
     editAfastarBtn?.addEventListener('click', onAfastarClick);
     editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);
+
     editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
             await window.customAlert('Apenas administradores podem excluir colaboradores.', 'Acesso Negado');
@@ -2989,8 +3228,10 @@ function wireEdit() {
         if (!editOriginal) return;
         const ok1 = await window.customConfirm('Deseja excluir o colaborador? Só faça isso em caso de duplicidade ou erros.', 'Atenção', 'warning');
         if (!ok1) return;
+
         const ok2 = await window.customConfirm('Tem certeza que deseja excluir? <b>Ação irreversível.</b>', 'Exclusão Definitiva', 'danger');
         if (!ok2) return;
+
         try {
             editExcluirBtn.disabled = true;
             editExcluirBtn.textContent = 'Excluindo...';
@@ -3010,6 +3251,7 @@ function wireEdit() {
             editExcluirBtn.textContent = 'Excluir Colaborador';
         }
     });
+
     editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const continuar = await showAvisoDesligamento();
@@ -3021,6 +3263,7 @@ function wireEdit() {
         }
         openDesligarModalFromColab(colab);
     });
+
     editFeriasBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
@@ -3030,10 +3273,12 @@ function wireEdit() {
         }
         openFeriasModalFromColab(colab);
     });
+
     editHistoricoBtn?.addEventListener('click', () => {
         if (!editOriginal?.Nome) return;
         openHistorico(editOriginal.Nome);
     });
+
     document.addEventListener('open-edit-modal', async (evt) => {
         const nome = evt.detail?.nome;
         if (!nome) return;
@@ -3068,10 +3313,20 @@ function wireDesligar() {
     desligarCancelarBtn?.addEventListener('click', closeDesligarModal);
     desligarForm?.addEventListener('submit', onDesligarSubmit);
     if (desligarSmartoffEl) {
-        desligarSmartoffEl.addEventListener('input', () => {
-            const val = desligarSmartoffEl.value.trim();
-            if (desligarConfirmarBtn) {
-                desligarConfirmarBtn.disabled = !val;
+        desligarSmartoffEl.addEventListener('input', (e) => {
+            let val = e.target.value.replace(/\D/g, '');
+            if (val.length > 10) {
+                val = val.slice(0, 10);
+            }
+            e.target.value = val;
+            if (desligarConfirmarBtn && desligarSmartoffContainer && !desligarSmartoffContainer.classList.contains('hidden')) {
+                if (val.length >= 6 && val.length <= 10) {
+                    desligarConfirmarBtn.disabled = false;
+                } else {
+                    desligarConfirmarBtn.disabled = true;
+                }
+            } else if (desligarConfirmarBtn) {
+                desligarConfirmarBtn.disabled = false;
             }
         });
     }
@@ -3241,13 +3496,16 @@ function wireTabelaColaboradoresEventos() {
 export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
+
     searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
     limparFiltrosBtn = document.getElementById('limpar-filtros-btn');
+
     addColaboradorBtn = document.getElementById('add-colaborador-btn');
     mostrarMaisBtn = document.getElementById('mostrar-mais-btn');
     mostrarMenosBtn = document.getElementById('mostrar-menos-btn');
     contadorVisiveisEl = document.getElementById('contador-visiveis');
+
     addForm = document.getElementById('addForm');
     dropdownAdd = document.getElementById('dropdownAdd');
     btnAdicionarManual = document.getElementById('btnAdicionarManual');
@@ -3255,9 +3513,12 @@ export function init() {
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
     fecharModalRH = document.getElementById('fecharModalRH');
+
     checkUserAdminStatus();
     fetchColaboradores();
+
     if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
+
     if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
             selectEl.addEventListener('change', (event) => {
@@ -3268,6 +3529,7 @@ export function init() {
             });
         });
     }
+
     if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
@@ -3281,18 +3543,21 @@ export function init() {
             applyFiltersAndSearch();
         });
     }
+
     if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
             updateDisplay();
         });
     }
+
     if (mostrarMenosBtn) {
         mostrarMenosBtn.addEventListener('click', () => {
             itensVisiveis = Math.max(ITENS_POR_PAGINA, itensVisiveis - ITENS_POR_PAGINA);
             updateDisplay();
         });
     }
+
     if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -3300,11 +3565,13 @@ export function init() {
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
     }
+
     document.addEventListener('click', (event) => {
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
     });
+
     if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
@@ -3313,6 +3580,7 @@ export function init() {
             preencherFormularioAdicao({});
         });
     }
+
     if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
@@ -3320,17 +3588,21 @@ export function init() {
             fetchCandidatosAprovados();
         });
     }
+
     if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
     }
+
     window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
     });
+
     if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
+
         const svcSelect = document.getElementById('addSVC');
         const matrizInput = document.getElementById('addMatriz');
         if (svcSelect && matrizInput) {
@@ -3339,6 +3611,7 @@ export function init() {
                 populateGestorSelect(svcSelect.value);
             });
         }
+
         const addDSRBtn = document.getElementById('addDSRBtn');
         if (addDSRBtn) {
             addDSRBtn.addEventListener('click', () => {
@@ -3346,6 +3619,7 @@ export function init() {
             });
         }
     }
+
     if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
@@ -3369,6 +3643,7 @@ export function init() {
             }
         });
     }
+
     const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
@@ -3380,6 +3655,7 @@ export function init() {
             const hasFilters = Object.keys(state.filtrosAtivos).length > 0;
             const filteredDifferent = state.dadosFiltrados.length !== state.colaboradoresData.length;
             const useFiltered = hasSearch || hasFilters || filteredDifferent;
+
             exportColaboradoresBtn.disabled = true;
             try {
                 await exportColaboradoresXLSX(useFiltered);
@@ -3391,48 +3667,53 @@ export function init() {
             }
         });
     }
+
     const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
     }
+
     wireEdit();
     wireDesligar();
     wireFerias();
     wireFluxoEfetivacao();
     wireDsrModal();
+
+    // --- NOVO: Inicializa os eventos de CEP para o formulário de adição ---
+    wireCepEvents();
 }
 
 export function destroy() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
+
+    // Zera os estados locais
+    state.colaboradoresData = [];
+    state.dadosFiltrados = [];
+    state.filtrosAtivos = {};
+
     try {
         state.gestoresData = [];
-    } catch {
-    }
+    } catch { }
     try {
         state.matrizesData = [];
-    } catch {
-    }
+    } catch { }
     try {
         state.serviceMatrizMap?.clear?.();
-    } catch {
-    }
+    } catch { }
     try {
         state.serviceRegiaoMap?.clear?.();
-    } catch {
-    }
+    } catch { }
     try {
         state.matrizRegiaoMap?.clear?.();
-    } catch {
-    }
+    } catch { }
     try {
         state.selectedNames?.clear?.();
-    } catch {
-    }
+    } catch { }
     try {
         state.feriasAtivasMap?.clear?.();
-    } catch {
-    }
-    console.log("Cache de colaboradores destruído ao sair do módulo.");
+    } catch { }
+
+    console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
 }

@@ -1,32 +1,77 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {logAction} from '../../logAction.js';
-
-const _cache = new Map();
+import {logAction} from '../../logAction.js';const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
 const MIN_LABEL_FONT_PX = 12;
-const MIN_SEGMENT_PERCENT = 9;
-
-function cacheKeyForColabs() {
+const MIN_SEGMENT_PERCENT = 9;function cacheKeyForColabs() {
     return `colabs:ALL`;
-}
-
-function toUpperTrim(str) {
+}function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}
-
-function normalizeCPF(value) {
+}function normalizeCPF(value) {
     if (!value) return null;
     return value.replace(/\D/g, '');
-}
-
-function nullIfEmpty(value) {
-    if (!value) return null;
-    return value.trim() === '' ? null : value.trim();
-}
-
-function desligamento_getCurrentUserEmail() {
+}function formatDateTimeLocal(iso) {
+    if (!iso) return '-';
+    try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '-';
+        return d.toLocaleString('pt-BR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+    } catch (e) {
+        return iso;
+    }
+}function wireCepVagas() {
+    const form = document.getElementById('formVagas');
+    if (!form) return;    const inputCep = form.querySelector('[name="cep_candidato"]');    if (inputCep) {        const newClone = inputCep.cloneNode(true);
+        inputCep.parentNode.replaceChild(newClone, inputCep);        newClone.addEventListener('input', async (e) => {            let val = e.target.value.replace(/\D/g, '');
+            if (val.length > 5) {
+                val = val.substring(0, 5) + '-' + val.substring(5, 8);
+            }
+            e.target.value = val;            const cleanCep = val.replace(/\D/g, '');
+            if (cleanCep.length === 8) {                const inputEnd = form.querySelector('[name="endereco_candidato"]');
+                if (inputEnd) inputEnd.placeholder = "Buscando...";                try {
+                    const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+                    const data = await res.json();                    if (!data.erro) {                        const setVal = (name, valor) => {
+                            const el = form.querySelector(`[name="${name}"]`);
+                            if (el) el.value = (valor || '').toUpperCase();
+                        };                        setVal('endereco_candidato', data.logradouro);
+                        setVal('bairro_candidato', data.bairro);
+                        setVal('cidade_candidato', data.localidade);                         const elNum = form.querySelector('[name="numero_candidato"]');
+                        if (elNum) elNum.focus();
+                    } else {                        if (inputEnd) inputEnd.value = '';
+                    }
+                } catch (err) {
+                    console.error("Erro ViaCEP Vagas:", err);
+                } finally {
+                    if (inputEnd) inputEnd.placeholder = "";
+                }
+            }
+        });
+    }
+}function getLocalISOString(date) {
+    if (!date) date = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hour = pad(date.getHours());
+    const minute = pad(date.getMinutes());
+    const second = pad(date.getSeconds());
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+}function ymdToday() {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}function desligamento_getCurrentUserEmail() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -37,9 +82,15 @@ function desligamento_getCurrentUserEmail() {
         console.error('Erro ao ler e-mail do usuário:', e);
     }
     return '';
-}
-
-async function desligamento_fetchEmailsSugestao(contrato) {
+}function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
+    if (!dataSolicitada) return null;
+    const start = new Date(dataSolicitada);
+    const end = dataFinal ? new Date(dataFinal) : new Date();
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+    const diffMs = end - start;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    return diffDays < 0 ? 0 : diffDays;
+}async function desligamento_fetchEmailsSugestao(contrato) {
     const emailsSugestao = new Set();
     const myEmail = desligamento_getCurrentUserEmail();
     if (myEmail) {
@@ -50,7 +101,6 @@ async function desligamento_fetchEmailsSugestao(contrato) {
             .from('Consultoria')
             .select('EMAIL')
             .eq('CONTRATO', contrato);
-
         if (!error && data) {
             data.forEach(row => {
                 if (row.EMAIL) emailsSugestao.add(row.EMAIL.toLowerCase());
@@ -58,9 +108,7 @@ async function desligamento_fetchEmailsSugestao(contrato) {
         }
     }
     return Array.from(emailsSugestao).join(', ');
-}
-
-async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
+}async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
     if (hit && (now - hit.ts) < hit.ttl) return hit.value;
@@ -76,9 +124,7 @@ async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     })();
     _inflight.set(key, p);
     return p;
-}
-
-function invalidateCache(keys = []) {
+}function invalidateCache(keys = []) {
     if (!keys.length) {
         _cache.clear();
     } else {
@@ -89,14 +135,9 @@ function invalidateCache(keys = []) {
     } catch (e) {
         console.warn('Falha ao invalidar cache de colaboradores no localStorage', e);
     }
-}
-
-
-function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
     const selSapato = document.getElementById(idSelectSapato);
     const selColete = document.getElementById(idSelectColete);
-
-
     if (selSapato) {
         const valorAtual = selSapato.getAttribute('data-selected') || selSapato.value;
         selSapato.innerHTML = '<option value="">Selecione...</option>';
@@ -108,8 +149,6 @@ function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
         }
         if (valorAtual) selSapato.value = valorAtual;
     }
-
-
     if (selColete) {
         const valorAtual = selColete.getAttribute('data-selected') || selColete.value;
         const tamanhos = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG'];
@@ -122,9 +161,7 @@ function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
         });
         if (valorAtual) selColete.value = valorAtual;
     }
-}
-
-async function fetchAllWithPagination(queryBuilder) {
+}async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -140,9 +177,7 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
     return allData;
-}
-
-const HOST_SEL = '#hc-indice';
+}const HOST_SEL = '#hc-indice';
 const state = {
     mounted: false,
     loading: false,
@@ -187,9 +222,7 @@ const state = {
 };
 const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const root = () => document.documentElement;
-const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
-
-function parseRGB(str) {
+const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;function parseRGB(str) {
     if (!str) return {r: 0, g: 0, b: 0};
     const s = String(str).trim();
     if (s.startsWith('#')) {
@@ -202,9 +235,7 @@ function parseRGB(str) {
     }
     const m = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(s);
     return m ? {r: +m[1], g: +m[2], b: +m[3]} : {r: 30, g: 64, b: 124};
-}
-
-const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+}const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
 const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
 const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'N/D'];
@@ -213,38 +244,28 @@ const MONTH_ORDER = {
     'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
 };
 const sortMesAno = (a, b) => (a.ANO * 100 + a.mesOrder) - (b.ANO * 100 + b.mesOrder);
-const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;
-
-function parseDateMaybe(s) {
+const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDateMaybe(s) {
     const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(String(s || '').trim());
     if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function formatDateLocal(iso) {
+}function formatDateLocal(iso) {
     if (!iso) return '';
     const datePart = iso.split('T')[0];
     const [y, m, d] = datePart.split('-');
     if (!y || !m || !d) return '';
     return `${d}/${m}/${y}`;
-}
-
-function daysBetween(d1, d2) {
+}function daysBetween(d1, d2) {
     const ms = 24 * 60 * 60 * 1000;
     const a = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
     const b = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
     return Math.floor((b - a) / ms);
-}
-
-function daysSinceAdmission(c) {
+}function daysSinceAdmission(c) {
     const raw = c?.['Data de admissão'] ?? c?.['Data de admissao'] ?? c?.Admissao ?? c?.['Data Admissão'] ?? c?.['Data Admissao'] ?? '';
     const d = parseDateMaybe(raw);
     if (!d) return null;
     return daysBetween(d, new Date());
-}
-
-function calcAgeFromStr(s) {
+}function calcAgeFromStr(s) {
     const d = parseDateMaybe(s);
     if (!d) return null;
     const now = new Date();
@@ -252,9 +273,7 @@ function calcAgeFromStr(s) {
     const dm = now.getMonth() - d.getMonth();
     if (dm < 0 || (dm === 0 && now.getDate() < d.getDate())) a--;
     return a;
-}
-
-function ageBucket(a) {
+}function ageBucket(a) {
     if (a == null) return 'N/D';
     if (a < 20) return '<20';
     if (a < 30) return '20-29';
@@ -262,27 +281,14 @@ function ageBucket(a) {
     if (a < 50) return '40-49';
     if (a < 60) return '50-59';
     return '60+';
-}
-
-function getNascimento(c) {
+}function getNascimento(c) {
     return c?.['Data de Nascimento'] || c?.['Data de nascimento'] || c?.Nascimento || c?.['Nascimento'] || '';
-}
-
-function mapGeneroLabel(raw) {
+}function mapGeneroLabel(raw) {
     const n = norm(raw);
     if (n.startsWith('MASC')) return 'Masculino';
     if (n.startsWith('FEM')) return 'Feminino';
     return n ? 'Outros' : 'N/D';
-}
-
-function mapCargoLabel(raw) {
-    const n = norm(raw);
-    if (n === 'AUXILIAR') return 'Auxiliar';
-    if (n === 'CONFERENTE') return 'Conferente';
-    return 'Outros';
-}
-
-function mapSvcLabel(rawSvc) {
+}function mapSvcLabel(rawSvc) {
     const svc = String(rawSvc || 'N/D').toUpperCase();
     if (svc === 'SBA2' || svc === 'SBA4') {
         return 'SBA2/4';
@@ -291,9 +297,7 @@ function mapSvcLabel(rawSvc) {
         return 'SBA3/7';
     }
     return svc;
-}
-
-function mapDSR(raw) {
+}function mapDSR(raw) {
     const n = norm(raw);
     if (!n) return ['N/D'];
     const days = n.split(',').map(d => d.trim());
@@ -308,9 +312,7 @@ function mapDSR(raw) {
         return null;
     }).filter(Boolean);
     return mapped.length > 0 ? mapped : ['N/D'];
-}
-
-function palette() {
+}function palette() {
     const r = root();
     return [
         css(r, '--hcidx-p-1', '#02B1EE'),
@@ -322,11 +324,7 @@ function palette() {
         css(r, '--hcidx-p-7', '#7FB8EB'),
         css(r, '--hcidx-p-8', '#99CCFF')
     ];
-}
-
-let _resizeObs = null;
-
-function setResponsiveHeights() {
+}let _resizeObs = null;function setResponsiveHeights() {
     if (window.Chart) {
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
         Object.values(state.charts).forEach(ch => {
@@ -335,18 +333,14 @@ function setResponsiveHeights() {
             ch.resize();
         });
     }
-}
-
-function wireResizeObserver() {
+}function wireResizeObserver() {
     if (_resizeObs) return;
     const rootEl = document.querySelector('#hc-indice .hcidx-root');
     if (!rootEl) return;
     _resizeObs = new ResizeObserver(() => setResponsiveHeights());
     _resizeObs.observe(rootEl);
     window.addEventListener('resize', setResponsiveHeights);
-}
-
-function ensureMounted() {
+}function ensureMounted() {
     const host = document.querySelector(HOST_SEL);
     if (!host || state.mounted) return;
     ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
@@ -379,9 +373,7 @@ function ensureMounted() {
     state.mounted = true;
     setResponsiveHeights();
     wireResizeObserver();
-}
-
-async function ensureChartLib() {
+}async function ensureChartLib() {
     if (!window.Chart) await loadJs('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
     if (!window.ChartDataLabels) await loadJs('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js');
     try {
@@ -391,9 +383,7 @@ async function ensureChartLib() {
     Chart.defaults.responsive = true;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
-}
-
-function loadJs(src) {
+}function loadJs(src) {
     return new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = src;
@@ -401,22 +391,16 @@ function loadJs(src) {
         s.onerror = rej;
         document.head.appendChild(s);
     });
-}
-
-function showBusy(f) {
+}function showBusy(f) {
     const el = document.getElementById('hcidx-busy');
     if (el) el.style.display = f ? 'flex' : 'none';
-}
-
-const uniqueNonEmptySorted = (v) =>
+}const uniqueNonEmptySorted = (v) =>
     Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-let _filtersPopulated = false;
-
-function populateFilters(allColabs, matrizesMap) {
+let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     if (_filtersPopulated) return;
     const selM = document.getElementById('efet-filter-matriz');
     const selG = document.getElementById('efet-filter-gerencia');
@@ -437,16 +421,10 @@ function populateFilters(allColabs, matrizesMap) {
         if (state.regiao) selR.value = state.regiao;
     }
     _filtersPopulated = true;
-}
-
-async function loadColabsCached() {
+}async function loadColabsCached() {
     const key = cacheKeyForColabs();
     const now = Date.now();
-
-
-
     const CACHE_KEY_NAME = 'knc:hcIndiceCache';
-
     try {
         const cached = localStorage.getItem(CACHE_KEY_NAME);
         if (cached) {
@@ -462,19 +440,13 @@ async function loadColabsCached() {
         console.warn('Falha ao ler cache do RH', e);
         localStorage.removeItem(CACHE_KEY_NAME);
     }
-
     return fetchOnce(key, async () => {
-
-
         let query = supabase
             .from('Colaboradores')
             .select('Nome, Cargo, Contrato, MATRIZ, SVC, REGIAO, Escala, DSR, Ativo, Genero, "Data de nascimento", "Data de admissão", StatusDesligamento, Efetivacao, "Data Fluxo", Fluxo, "Observacao Fluxo", Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento');
-
         const data = await fetchAllWithPagination(query);
         const rows = Array.isArray(data) ? data.slice() : [];
-
         rows.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
-
         try {
             localStorage.setItem(CACHE_KEY_NAME, JSON.stringify({
                 timestamp: Date.now(),
@@ -483,12 +455,9 @@ async function loadColabsCached() {
         } catch (e) {
             console.warn('Falha ao salvar cache do RH', e);
         }
-
         return rows;
     });
-}
-
-async function loadSpamData() {
+}async function loadSpamData() {
     return fetchOnce('spamData', async () => {
         const {data, error} = await supabase.from('Spam').select('"HC Fixo", "HC PT", SVC, REGIAO, MÊS, ANO');
         if (error) throw error;
@@ -504,27 +473,23 @@ async function loadSpamData() {
             mesOrder: getMesOrder(r.MÊS)
         }));
     });
-}
-
-async function loadMatrizesData() {
+}async function loadMatrizesData() {
     return fetchOnce('matrizesData', async () => {
-                const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
+        const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
         if (error) throw error;
         const map = new Map();
         (data || []).forEach(r => {
             const svc = norm(r.SERVICE).replace(/\s+/g, '');
             if (svc) {
                 map.set(svc, {
-                    MATRIZ: String(r.MATRIZ || '').trim(),                     GERENCIA: String(r.GERENCIA || 'N/D').trim(),
+                    MATRIZ: String(r.MATRIZ || '').trim(), GERENCIA: String(r.GERENCIA || 'N/D').trim(),
                     REGIAO: norm(r.REGIAO || 'N/D')
                 });
             }
         });
         return map;
     });
-}
-
-function enforceMinSegmentPct(percs, minPct) {
+}function enforceMinSegmentPct(percs, minPct) {
     const arr = percs.map(v => Math.max(0, +v || 0));
     const nonZeroIdx = arr.map((v, i) => v > 0 ? i : -1).filter(i => i >= 0);
     const k = nonZeroIdx.length;
@@ -548,9 +513,7 @@ function enforceMinSegmentPct(percs, minPct) {
         out[maxIdx] += diff;
     }
     return out;
-}
-
-function applyMinWidthToStack(datasets, minPct) {
+}function applyMinWidthToStack(datasets, minPct) {
     if (!datasets || datasets.length === 0) return;
     const n = Math.max(...datasets.map(ds => ds.data?.length || 0));
     for (let j = 0; j < n; j++) {
@@ -566,9 +529,7 @@ function applyMinWidthToStack(datasets, minPct) {
     datasets.forEach(ds => {
         ds.data = ds._renderData;
     });
-}
-
-async function refresh() {
+}async function refresh() {
     if (!state.mounted || state.loading) {
         if (state.loading) console.warn("Refresh chamado enquanto já estava carregando.");
         return;
@@ -593,13 +554,10 @@ async function refresh() {
         }
         state.colabs = allRows.filter(c => {
             const isDesligamentoView = document.querySelector('#efet-desligamento.active');
-
             if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
                 return false;
             }
-
             if (isDesligamentoView && c.StatusDesligamento === 'CONCLUIDO') {
-
             } else if (isDesligamentoView && c.StatusDesligamento === 'RECUSADO' && norm(c?.Ativo) !== 'SIM') {
                 return false;
             } else if (isDesligamentoView && c.StatusDesligamento === 'PENDENTE' && norm(c?.Ativo) !== 'SIM') {
@@ -615,14 +573,12 @@ async function refresh() {
             if (state.regiao && (String(c?.REGIAO || 'N/D') !== state.regiao)) return false;
             return true;
         });
-
         const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
         const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
         const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
         const visaoSpamHcAtiva = document.querySelector('#spam-hc-view.active');
         const visaoDesligamentoAtiva = document.querySelector('#efet-desligamento.active');
         const visaoControleVagas = document.querySelector('#efet-controle-vagas.active');
-
         if (visaoServiceAtiva) {
             ensureChartsCreatedService();
             updateChartsNow();
@@ -633,10 +589,9 @@ async function refresh() {
             updateEmEfetivacaoTable();
         } else if (visaoSpamHcAtiva) {
             await updateSpamCharts(matrizesMap, svcsDoGerente);
-        } else if (visaoDesligamentoAtiva && state.isUserRH) {
+        } else if (visaoDesligamentoAtiva) {
             await desligamento_fetchPendentes();
         } else if (visaoControleVagas) {
-
             await fetchVagas();
         } else {
             console.log("Nenhuma sub-aba ativa ou permissão negada.");
@@ -648,9 +603,7 @@ async function refresh() {
         state.loading = false;
         showBusy(false);
     }
-}
-
-function wireSubtabs() {
+}function wireSubtabs() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
     const subButtons = host.querySelectorAll('.efet-subtab-btn');
@@ -661,13 +614,7 @@ function wireSubtabs() {
     subButtons.forEach(btn => {
         btn.dataset.wired = '1';
         btn.addEventListener('click', () => {
-
             const viewName = btn.dataset.view;
-            if (viewName === 'efet-desligamento' && !state.isUserRH) {
-                alert('Acesso restrito ao RH.');
-                return;
-            }
-
             const currentView = host.querySelector('.efet-view.active');
             const nextView = host.querySelector(`#${viewName}`);
             if (currentView === nextView) return;
@@ -684,15 +631,13 @@ function wireSubtabs() {
                     scrollContainer.classList.remove('travar-scroll-pagina');
                 }
             }
-            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao' || viewName === 'spam-hc-view' || (viewName === 'efet-desligamento' && state.isUserRH)) {
+            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao' || viewName === 'spam-hc-view' || viewName === 'efet-desligamento') {
                 refresh();
             }
             setResponsiveHeights();
         });
     });
-}
-
-function setDynamicChartHeight(chart, labels) {
+}function setDynamicChartHeight(chart, labels) {
     if (!chart || !chart.canvas || chart.options.indexAxis !== 'y') return;
     const pixelsPerBar = 32;
     const headerAndLegendHeight = 96;
@@ -706,9 +651,7 @@ function setDynamicChartHeight(chart, labels) {
             setTimeout(() => chart.resize(), 50);
         }
     }
-}
-
-function baseLegendConfig(pos, show) {
+}function baseLegendConfig(pos, show) {
     return {
         display: show,
         position: pos,
@@ -716,9 +659,7 @@ function baseLegendConfig(pos, show) {
         align: 'center',
         labels: {boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true}
     };
-}
-
-function forceLegendBottom(chart) {
+}function forceLegendBottom(chart) {
     if (!chart?.options) return;
     const leg = chart.options.plugins.legend || (chart.options.plugins.legend = {});
     const lbls = leg.labels || (leg.labels = {});
@@ -733,9 +674,7 @@ function forceLegendBottom(chart) {
     const w = chart.canvas?.parentElement?.clientWidth || 800;
     const size = Math.max(13, Math.min(16, Math.round(w / 48)));
     lbls.font = {size};
-}
-
-function baseOptsPercent(canvas, onClick, axis = 'x') {
+}function baseOptsPercent(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(13, Math.min(16, Math.round(w / 48)));
     const isHorizontal = axis === 'y';
@@ -807,9 +746,7 @@ function baseOptsPercent(canvas, onClick, axis = 'x') {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}
-
-function baseOptsNumber(canvas, onClick, axis = 'x') {
+}function baseOptsNumber(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(12, Math.min(14, Math.round(w / 55)));
     const isHorizontal = axis === 'y';
@@ -872,9 +809,7 @@ function baseOptsNumber(canvas, onClick, axis = 'x') {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}
-
-function createStackedBar(canvasId, onClick, axis = 'x') {
+}function createStackedBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsPercent(canvas, onClick, axis);
@@ -889,9 +824,7 @@ function createStackedBar(canvasId, onClick, axis = 'x') {
     });
     forceLegendBottom(chart);
     return chart;
-}
-
-function createBar(canvasId, onClick, axis = 'x') {
+}function createBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsNumber(canvas, onClick, axis);
@@ -903,16 +836,12 @@ function createBar(canvasId, onClick, axis = 'x') {
     });
     forceLegendBottom(chart);
     return chart;
-}
-
-function splitByTurno(colabs) {
+}function splitByTurno(colabs) {
     const t1 = colabs.filter(c => c.Escala === 'T1');
     const t2 = colabs.filter(c => c.Escala === 'T2');
     const t3 = colabs.filter(c => c.Escala === 'T3');
     return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, colabs]};
-}
-
-function splitByRegiao(colabs) {
+}function splitByRegiao(colabs) {
     const map = new Map();
     colabs.forEach(c => {
         const r = String(c?.REGIAO || 'N/D');
@@ -925,9 +854,7 @@ function splitByRegiao(colabs) {
     labels.push('GERAL');
     groups.push(colabs.slice());
     return {labels, groups};
-}
-
-function ensureChartsCreatedService() {
+}function ensureChartsCreatedService() {
     if (!state.charts.idade) {
         state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'x');
     }
@@ -941,7 +868,6 @@ function ensureChartsCreatedService() {
     if (!state.charts.dsr) {
         const canvas = document.getElementById('ind-dsr-pie');
         if (canvas) {
-
             const baseSize = Math.max(13, Math.min(15, Math.round((canvas?.parentElement?.clientWidth || 600) / 45)));
             const options = {
                 layout: {padding: 6},
@@ -985,15 +911,10 @@ function ensureChartsCreatedService() {
         const auxPrazoSvcId = document.getElementById('ind-aux-30-60-90-svc-bar') ? 'ind-aux-30-60-90-svc-bar' : 'ind-contrato-90d-svc-bar';
         state.charts.auxPrazoSvc = createStackedBar(auxPrazoSvcId, (chart, element) => toggleFilter('auxPrazoSvc', chart, element), 'y');
     }
-
-
     if (!state.charts.consultoriaSvc) {
-
         state.charts.consultoriaSvc = createStackedBar('ind-consultoria-svc-bar', null, 'y');
     }
-}
-
-function ensureChartsCreatedRegional() {
+}function ensureChartsCreatedRegional() {
     if (!state.charts.idadeRegiao) {
         const id = document.getElementById('reg-idade-bar') ? 'reg-idade-bar' : 'ind-idade-regiao-bar';
         state.charts.idadeRegiao = createStackedBar(id, null, 'x');
@@ -1010,9 +931,7 @@ function ensureChartsCreatedRegional() {
         const id = document.getElementById('reg-aux-30-60-90-bar') ? 'reg-aux-30-60-90-bar' : 'ind-contrato-90d-regiao-bar';
         state.charts.auxPrazoRegiao = createStackedBar(id, null, 'x');
     }
-}
-
-function toggleFilter(type, chart, element) {
+}function toggleFilter(type, chart, element) {
     const set = state.interactive[type];
     if (!set) return;
     let label = (type === 'dsr')
@@ -1024,9 +943,7 @@ function toggleFilter(type, chart, element) {
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}
-
-function applyInteractiveFilter(colabs) {
+}function applyInteractiveFilter(colabs) {
     let out = [...colabs];
     if (state.interactive.idade.size > 0) out = out.filter(c => state.interactive.idade.has(ageBucket(calcAgeFromStr(getNascimento(c)))));
     if (state.interactive.genero.size > 0) out = out.filter(c => state.interactive.genero.has(mapGeneroLabel(c.Genero)));
@@ -1037,31 +954,21 @@ function applyInteractiveFilter(colabs) {
         });
     }
     return out;
-}
-
-function clearAllFilters() {
+}function clearAllFilters() {
     Object.values(state.interactive).forEach(set => set.clear());
     const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}
-
-function updateChartsNow() {
+}function updateChartsNow() {
     if (!state.charts.idade) {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
     }
-
-
     const baseColabs = applyInteractiveFilter(state.colabs.filter(c => norm(c?.Ativo) === 'SIM'));
     const pal = palette();
     const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
-
-
     const colabsAuxiliares = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR');
-
-
     {
         const {labels, groups} = splitByTurno(colabsAuxiliares);
         const counts = groups.map(g => {
@@ -1088,8 +995,6 @@ function updateChartsNow() {
             state.charts.idade.update('none');
         }
     }
-
-
     {
         const {labels, groups} = splitByTurno(colabsAuxiliares);
         const cats = ['Masculino', 'Feminino', 'Outros', 'N/D'];
@@ -1119,8 +1024,6 @@ function updateChartsNow() {
             state.charts.genero.update('none');
         }
     }
-
-
     {
         const labels = DOW_LABELS.slice();
         const counts = new Map(labels.map(k => [k, 0]));
@@ -1141,8 +1044,6 @@ function updateChartsNow() {
             state.charts.dsr.update();
         }
     }
-
-
     {
         const {labels, groups} = splitByTurno(colabsAuxiliares);
         const cats = ['Efetivo', 'Em efetivação', 'Potencial (>90d)', 'Temporário (≤90d)'];
@@ -1188,8 +1089,6 @@ function updateChartsNow() {
             ch.update();
         }
     }
-
-
     {
         const bySvc = new Map();
         colabsAuxiliares.forEach(c => {
@@ -1294,8 +1193,6 @@ function updateChartsNow() {
             ch.update();
         }
     }
-
-
     {
         const colabsAuxNaoKN = colabsAuxiliares.filter(c => !norm(c?.Contrato).includes('KN'));
         const bySvc = new Map();
@@ -1381,56 +1278,39 @@ function updateChartsNow() {
             ch.update();
         }
     }
-
-
     {
-
         const colabsConsultoria = colabsAuxiliares.filter(c => !norm(c.Contrato).includes('KN'));
-
         const bySvc = new Map();
         const allContracts = new Set();
-
         colabsConsultoria.forEach(c => {
             const k = mapSvcLabel(c?.SVC);
             const contrato = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
-
             if (!bySvc.has(k)) bySvc.set(k, new Map());
             const svcMap = bySvc.get(k);
             svcMap.set(contrato, (svcMap.get(contrato) || 0) + 1);
-
             allContracts.add(contrato);
         });
-
         const contractTypes = Array.from(allContracts).sort();
         const svcs = Array.from(bySvc.keys()).sort();
-
-
         const globalCounts = new Map();
         colabsConsultoria.forEach(c => {
             const contrato = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
             globalCounts.set(contrato, (globalCounts.get(contrato) || 0) + 1);
         });
         const totalGlobal = colabsConsultoria.length || 1;
-
-
         const datasets = contractTypes.map((ctype, i) => {
             const dataPct = [];
             const dataRaw = [];
-
             svcs.forEach(svc => {
                 const svcMap = bySvc.get(svc);
                 const count = svcMap.get(ctype) || 0;
                 const totalSvc = Array.from(svcMap.values()).reduce((a, b) => a + b, 0) || 1;
-
                 dataPct.push((count * 100) / totalSvc);
                 dataRaw.push(count);
             });
-
-
             const countGeral = globalCounts.get(ctype) || 0;
             dataPct.push((countGeral * 100) / totalGlobal);
             dataRaw.push(countGeral);
-
             return {
                 label: ctype,
                 data: dataPct,
@@ -1439,9 +1319,7 @@ function updateChartsNow() {
                 borderWidth: 0
             };
         });
-
         svcs.push('GERAL');
-
         const ch = state.charts.consultoriaSvc;
         if (ch) {
             setDynamicChartHeight(ch, svcs);
@@ -1451,9 +1329,7 @@ function updateChartsNow() {
             ch.update();
         }
     }
-}
-
-function updateRegionalChartsNow() {
+}function updateRegionalChartsNow() {
     if (!state.charts.idadeRegiao) {
         console.warn("Tentando atualizar gráficos Regionais, mas eles não estão inicializados.");
         return;
@@ -1594,9 +1470,7 @@ function updateRegionalChartsNow() {
             ch.update();
         }
     }
-}
-
-function updateEmEfetivacaoTable() {
+}function updateEmEfetivacaoTable() {
     const tbody = document.getElementById('efet-table-tbody');
     if (!tbody) {
         console.warn("Elemento #efet-table-tbody não encontrado. A tabela 'Em Efetivação' não pode ser populada.");
@@ -1626,9 +1500,7 @@ function updateEmEfetivacaoTable() {
         `;
         tbody.appendChild(tr);
     });
-}
-
-function ensureChartsCreatedSpam() {
+}function ensureChartsCreatedSpam() {
     const pal = palette();
     if (!state.charts.spamHcEvolucaoSvc) {
         const chart = createBar('spam-chart-evolucao-svc', null, 'x');
@@ -1746,8 +1618,6 @@ function ensureChartsCreatedSpam() {
             state.charts.spamHcVsAux = chart;
         }
     }
-
-
     if (!state.charts.spamContractDonut) {
         const canvas = document.getElementById('spam-chart-contrato-donut');
         if (canvas) {
@@ -1785,40 +1655,29 @@ function ensureChartsCreatedSpam() {
             state.charts.spamContractDonut = chart;
         }
     }
-}
-
-async function updateSpamCharts(matrizesMap, svcsDoGerente) {
+}async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
-
     const [allSpamData] = await Promise.all([loadSpamData()]);
     const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
-
-        const spamData = allSpamData.filter(r => {
-                if (state.regiao && r.REGIAO !== state.regiao) return false;
-
-                const svcNorm = mapSvcLabel(r.SVC).replace(/\s+/g, '');
+    const spamData = allSpamData.filter(r => {
+        if (state.regiao && r.REGIAO !== state.regiao) return false;
+        const svcNorm = mapSvcLabel(r.SVC).replace(/\s+/g, '');
         const matrizInfo = matrizesMap.get(svcNorm);
-
-                if (state.matriz) {
+        if (state.matriz) {
             if (!matrizInfo || matrizInfo.MATRIZ !== state.matriz) return false;
         }
-
-                if (state.gerencia) {
+        if (state.gerencia) {
             if (!matrizInfo || matrizInfo.GERENCIA !== state.gerencia) return false;
         }
-
-                if (svcsDoGerente) {
+        if (svcsDoGerente) {
             if (!svcsDoGerente.has(r.SVC)) return false;
         }
-
         return true;
     });
-
     const pal = palette();
     const allMonths = [...spamData].sort(sortMesAno);
     const latestMonth = allMonths.pop();
-
     if (!latestMonth) {
         console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
@@ -1830,13 +1689,10 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         return;
     }
-
     const {MÊS: mesAtual, ANO: anoAtual} = latestMonth;
     const mesAtualLabel = `${mesAtual.slice(0, 3)}/${anoAtual}`;
     const previousMonth = allMonths.filter(m => m.ANO < anoAtual || (m.ANO === anoAtual && m.mesOrder < latestMonth.mesOrder)).pop();
     const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;
-
-
     if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
@@ -1860,7 +1716,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
             return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
-
         let maxHcParaEscala = 0;
         datasets.forEach(ds => {
             const max = ds.data.length > 0 ? Math.max(...ds.data) : 0;
@@ -1871,7 +1726,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
             if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
         }
-
         const datasetAtual = datasets.find(d => d.label === mesAtualLabel);
         if (datasetAtual && mesAnteriorLabel) {
             const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
@@ -1887,15 +1741,12 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         } else if (datasetAtual) {
             datasetAtual._deltas = labels.map(() => 0);
         }
-
         chart.data._mesAtualLabel = mesAtualLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
     }
-
-
     if (state.charts.spamHcEvolucaoRegiao) {
         const dadosPorRegiaoMes = new Map();
         const mesesSet = new Set();
@@ -1927,8 +1778,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         chart.data.datasets = datasets;
         chart.update();
     }
-
-
     if (state.charts.spamHcGerente) {
         const spamMesAtual = spamData.filter(r => r.MÊS === mesAtual && r.ANO === anoAtual);
         const hcPorGerente = new Map();
@@ -1940,29 +1789,23 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             hcPorGerente.set(gerente, totalAnterior + r.HC_Total);
         });
         const dataSorted = [...hcPorGerente.entries()].sort((a, b) => a[1] - b[1]);
-
         const labels = dataSorted.map(d => d[0]);
         const dataValues = dataSorted.map(d => d[1]);
-
         const totalGeral = dataValues.reduce((acc, val) => acc + val, 0);
         labels.push('GERAL');
         dataValues.push(totalGeral);
-
         const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;
         const chart = state.charts.spamHcGerente;
         if (chart.options.scales.x) chart.options.scales.x.max = maxHc * 1.25;
-
         chart.data.labels = labels;
         chart.data.datasets = [{label: `HC Total (${mesAtualLabel})`, data: dataValues, backgroundColor: pal[1]}];
         setDynamicChartHeight(chart, labels);
         chart.update();
     }
-
-
     if (state.charts.spamHcVsAux) {
         const auxPorSvc = new Map();
         colabsAtivos.forEach(c => {
-                        if (norm(c.Cargo) === 'AUXILIAR') {
+            if (norm(c.Cargo) === 'AUXILIAR') {
                 const svc = norm(c.SVC);
                 const svcAgrupado = mapSvcLabel(svc);
                 auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
@@ -1976,14 +1819,11 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
         const labels = [...allSvcs].sort();
-
         const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
         const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
-
         const maxSpam = dataHcTotalSpam.length > 0 ? Math.max(...dataHcTotalSpam) : 0;
         const maxReal = dataAuxAtivoReal.length > 0 ? Math.max(...dataAuxAtivoReal) : 0;
         const maxHcParaEscala = Math.max(maxSpam, maxReal);
-
         const chart = state.charts.spamHcVsAux;
         if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
@@ -1997,50 +1837,39 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         ];
         chart.update();
     }
-
-
     if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
         if (state.charts.spamContractDonut) {
             state.charts.spamContractDonut.destroy();
         }
         state.charts.spamContractDonut = createStackedBar('spam-chart-contrato-donut', null, 'x');
     }
-
     if (state.charts.spamContractDonut) {
         const targetColabs = colabsAtivos.filter(c => {
             const contrato = norm(c.Contrato || 'OUTROS');
             const cargo = norm(c.Cargo || '');
             return cargo.includes('AUXILIAR') && !contrato.includes('KN');
         });
-
         const dataMap = new Map();
         const globalCounts = new Map();
         const allContracts = new Set();
-
         targetColabs.forEach(c => {
             const reg = c.REGIAO || 'N/D';
             const cont = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
-
             if (!dataMap.has(reg)) dataMap.set(reg, new Map());
             const regMap = dataMap.get(reg);
-
             regMap.set(cont, (regMap.get(cont) || 0) + 1);
             globalCounts.set(cont, (globalCounts.get(cont) || 0) + 1);
             allContracts.add(cont);
         });
-
         const labels = Array.from(dataMap.keys()).sort();
         labels.push('GERAL');
         const contractTypes = Array.from(allContracts).sort();
-
         const datasets = contractTypes.map((ctype, i) => {
             const dataPct = [];
             const dataRaw = [];
-
             labels.forEach(reg => {
                 let count = 0;
                 let totalReg = 0;
-
                 if (reg === 'GERAL') {
                     count = globalCounts.get(ctype) || 0;
                     totalReg = Array.from(globalCounts.values()).reduce((a, b) => a + b, 0) || 1;
@@ -2051,12 +1880,10 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                         totalReg = Array.from(regMap.values()).reduce((a, b) => a + b, 0) || 1;
                     }
                 }
-
                 const pct = (count * 100) / totalReg;
                 dataPct.push(pct);
                 dataRaw.push(count);
             });
-
             return {
                 label: ctype,
                 data: dataPct,
@@ -2065,15 +1892,12 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                 borderWidth: 0
             };
         });
-
         applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         state.charts.spamContractDonut.data.labels = labels;
         state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
     }
-}
-
-function desligamento_getCurrentUser() {
+}function desligamento_getCurrentUser() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -2084,49 +1908,37 @@ function desligamento_getCurrentUser() {
         console.error('Erro ao ler sessão do usuário:', e);
     }
     return 'Usuário RH Desconhecido';
-}
-
-async function desligamento_fetchPendentes() {
+}async function desligamento_fetchPendentes() {
     const tbody = state.desligamentoModule.tbody;
-    if (!tbody) {
-        console.warn("Tabela de desligamento (tbody) não encontrada. A sub-aba foi iniciada?");
-        return;
-    }
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Carregando...</td></tr>';
-
-        const matrizesMap = await loadMatrizesData();
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">Carregando...</td></tr>';
+    const matrizesMap = await loadMatrizesData();
     const matrizesPermitidas = getMatrizesPermitidas();
-
-        let queryPendentes = supabase
+    const colunas = 'Nome, Smartoff, DataDesligamentoSolicitada, DataRetorno, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO';
+    let queryPendentes = supabase
         .from('Colaboradores')
-        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO')
+        .select(colunas)
         .in('StatusDesligamento', ['PENDENTE', 'RECUSADO'])
         .eq('Ativo', 'SIM');
-
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
     let queryConcluidos = supabase
         .from('Colaboradores')
-        .select('Nome, Smartoff, DataDesligamentoSolicitada, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO')
+        .select(colunas)
         .eq('StatusDesligamento', 'CONCLUIDO')
         .eq('Ativo', 'NÃO')
         .gte('DataDesligamentoSolicitada', sevenDaysAgo);
-
-        if (matrizesPermitidas) {
+    if (matrizesPermitidas) {
         queryPendentes = queryPendentes.in('MATRIZ', matrizesPermitidas);
         queryConcluidos = queryConcluidos.in('MATRIZ', matrizesPermitidas);
     }
-
-        if (state.matriz) {
+    if (state.matriz) {
         queryPendentes = queryPendentes.eq('MATRIZ', state.matriz);
         queryConcluidos = queryConcluidos.eq('MATRIZ', state.matriz);
     }
-
-        if (state.regiao) {
+    if (state.regiao) {
         queryPendentes = queryPendentes.eq('REGIAO', state.regiao);
         queryConcluidos = queryConcluidos.eq('REGIAO', state.regiao);
     }
-
     const [
         {data: pendentes, error: pendentesError},
         {data: concluidos, error: concluidosError}
@@ -2134,89 +1946,138 @@ async function desligamento_fetchPendentes() {
         queryPendentes.order('DataDesligamentoSolicitada', {ascending: true}),
         queryConcluidos.order('DataDesligamentoSolicitada', {ascending: false})
     ]);
-
     if (pendentesError || concluidosError) {
         const error = pendentesError || concluidosError;
         console.error('Erro ao buscar solicitações de desligamento:', error);
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
         return;
     }
-
     let allItems = [...(pendentes || []), ...(concluidos || [])];
-
-            if (state.gerencia) {
+    if (state.gerencia) {
         allItems = allItems.filter(c => {
             const svcNorm = norm(c.SVC).replace(/\s+/g, '');
             const mInfo = matrizesMap.get(svcNorm);
             return mInfo && mInfo.GERENCIA === state.gerencia;
         });
     }
-
-        if (state.regiao) {
-        allItems = allItems.filter(c => c.REGIAO === state.regiao);
-    }
-
     state.desligamentoModule.pendentes = allItems;
     desligamento_renderTable();
-}
-
-function desligamento_renderTable() {
+}function desligamento_renderTable() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
-
     if (state.desligamentoModule.pendentes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4">Nenhuma solicitação pendente ou recente encontrada.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">Nenhuma solicitação pendente ou recente encontrada.</td></tr>';
         return;
     }
-
     tbody.innerHTML = '';
     state.desligamentoModule.pendentes.forEach(colab => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colab.Nome);
-
         let actionsHtml = '';
         let statusClass = '';
-
         const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
-
-        switch (colab.StatusDesligamento) {
-            case 'PENDENTE':
-                statusClass = 'row-pending';
-                const btnAprovarAction = isKN ? 'approve-direct-kn' : 'approve';
-                const btnLabel = isKN ? 'Desligar KN' : 'Aprovar';
-                const btnColor = isKN ? 'background-color: #4338ca;' : '';
-
-                actionsHtml = `
-                    <button data-action="${btnAprovarAction}" data-nome="${colab.Nome}" style="${btnColor}" class="btn-salvar text-xs !px-2 !py-1">${btnLabel}</button>
-                    <button data-action="reject" data-nome="${colab.Nome}" class="btn-cancelar text-xs !px-2 !py-1 ml-1">Recusar</button>
-                `;
-                break;
-            case 'CONCLUIDO':
-                statusClass = 'row-completed';
-                if (!isKN) {
-                    actionsHtml = `
-                        <button data-action="resend" data-nome="${colab.Nome}" class="btn-neutral text-xs !px-2 !py-1" title="Reenviar e-mail de desligamento">Reenviar E-mail</button>
-                    `;
+        const diasSla = desligamento_calcularSLA(colab.DataDesligamentoSolicitada, colab.DataRetorno);
+        let slaDisplay = '-';
+        let slaStyle = '';
+        if (diasSla !== null) {
+            let sufixo = 'Dias';
+            if (diasSla === 0 || diasSla === 1) {
+                sufixo = diasSla === 0 ? 'dia' : 'Dia';
+            }
+            slaDisplay = `${diasSla} ${sufixo}`;
+            if (colab.StatusDesligamento === 'PENDENTE') {
+                if (diasSla >= 4) {
+                    slaStyle = 'color: #dc2626; font-weight: 800;';
+                } else if (diasSla >= 2) {
+                    slaStyle = 'color: #d97706; font-weight: 700;';
                 } else {
-                    actionsHtml = `<span class="text-gray-500 text-xs font-semibold">Concluído (KN)</span>`;
+                    slaStyle = 'color: #15803d; font-weight: 600;';
                 }
-                break;
-            case 'RECUSADO':
-                statusClass = 'row-rejected';
-                actionsHtml = `<span class="text-red-600 font-semibold text-xs">Recusado</span>`;
-                break;
-            default:
-                actionsHtml = 'N/A';
+            } else {
+                slaStyle = 'color: #4b5563; font-weight: 500; font-style: italic;';
+            }
         }
-
+        if (!state.isUserRH) {
+            switch (colab.StatusDesligamento) {
+                case 'PENDENTE':
+                    statusClass = 'row-pending';
+                    actionsHtml = '<span class="text-xs text-gray-500 italic">Aguardando RH</span>';
+                    break;
+                case 'CONCLUIDO':
+                    statusClass = 'row-completed';
+                    actionsHtml = '<span class="text-xs text-green-600 font-bold">Concluído</span>';
+                    break;
+                case 'RECUSADO':
+                    statusClass = 'row-rejected';
+                    actionsHtml = '<span class="text-xs text-red-600 font-bold">Recusado</span>';
+                    break;
+            }
+        } else {
+            const btnDeleteStyle = `
+                width: 28px; 
+                height: 28px; 
+                border-radius: 50%; 
+                background-color: #ef4444; 
+                color: white; 
+                border: none; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                cursor: pointer;
+                transition: background 0.2s;
+            `;
+            const btnDeleteIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+            switch (colab.StatusDesligamento) {
+                case 'PENDENTE':
+                    statusClass = 'row-pending';
+                    const btnAprovarAction = isKN ? 'approve-direct-kn' : 'approve';
+                    const btnLabel = isKN ? 'Desligar KN' : 'Aprovar';
+                    const btnColor = isKN ? 'background-color: #4338ca;' : '';
+                    actionsHtml = `
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button data-action="${btnAprovarAction}" data-nome="${colab.Nome}" style="${btnColor}" class="btn-salvar text-xs !px-2 !py-1">${btnLabel}</button>
+                            <button data-action="reject" data-nome="${colab.Nome}" class="btn-cancelar text-xs !px-2 !py-1">Recusar</button>
+                            <button data-action="delete-request" data-nome="${colab.Nome}" style="${btnDeleteStyle}" title="Excluir solicitação">
+                                ${btnDeleteIcon}
+                            </button>
+                        </div>
+                    `;
+                    break;
+                case 'CONCLUIDO':
+                    statusClass = 'row-completed';
+                    if (!isKN) {
+                        actionsHtml = `
+                            <button data-action="resend" data-nome="${colab.Nome}" class="btn-neutral text-xs !px-2 !py-1" title="Reenviar e-mail">Reenviar</button>
+                        `;
+                    } else {
+                        actionsHtml = `<span class="text-gray-500 text-xs font-semibold">Concluído (KN)</span>`;
+                    }
+                    break;
+                case 'RECUSADO':
+                    statusClass = 'row-rejected';
+                    actionsHtml = `
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span class="text-red-600 font-semibold text-xs mr-2">Recusado</span>
+                            <button data-action="delete-request" data-nome="${colab.Nome}" style="${btnDeleteStyle}" title="Excluir registro">
+                                ${btnDeleteIcon}
+                            </button>
+                        </div>
+                    `;
+                    break;
+                default:
+                    actionsHtml = 'N/A';
+            }
+        }
         if (statusClass) tr.classList.add(statusClass);
-
-
         const smartoffDisplay = colab.Smartoff ? `<span class="font-mono font-bold text-blue-700">${colab.Smartoff}</span>` : '-';
-
+        const dtSolicitada = formatDateTimeLocal(colab.DataDesligamentoSolicitada);
+        const dtRetornoRH = formatDateTimeLocal(colab.DataRetorno);
         tr.innerHTML = `
             <td data-label="Colaborador">${colab.Nome}</td>
-            <td data-label="Smartoff">${smartoffDisplay}</td> <td data-label="Data Solicitada">${formatDateLocal(colab.DataDesligamentoSolicitada)}</td>
+            <td data-label="Smartoff">${smartoffDisplay}</td> 
+            <td data-label="Data Solicitada" style="white-space: nowrap;">${dtSolicitada}</td>
+            <td data-label="Retorno RH" style="white-space: nowrap; font-weight:bold; color:#555;">${dtRetornoRH}</td>
+            <td data-label="SLA" style="${slaStyle}">${slaDisplay}</td>
             <td data-label="Solicitante">${colab.SolicitanteDesligamento || 'N/A'}</td>
             <td data-label="Gestor Vinculado">${colab.Gestor || 'N/A'}</td>
             <td data-label="Motivo">${colab.MotivoDesligamento || 'N/A'}</td>
@@ -2226,120 +2087,149 @@ function desligamento_renderTable() {
         `;
         tbody.appendChild(tr);
     });
-}
-
-function desligamento_handleTableClick(event) {
+}function desligamento_handleTableClick(event) {
     const target = event.target.closest('button');
     if (!target) return;
-
     const action = target.dataset.action;
     const nome = target.dataset.nome;
-
     state.desligamentoModule.colaboradorAtual = state.desligamentoModule.pendentes.find(c => c.Nome === nome);
-
     if (!state.desligamentoModule.colaboradorAtual) {
         alert('Erro: Colaborador não encontrado na lista de pendentes/recentes.');
         return;
     }
-
     if (action === 'approve' || action === 'resend') {
-
         desligamento_openApproveModal();
     } else if (action === 'approve-direct-kn') {
-
         desligamento_handleDirectKN();
     } else if (action === 'reject') {
         desligamento_handleReject();
+    } else if (action === 'delete-request') {
+        desligamento_handleDeleteRequest();
     }
-}
-
-async function desligamento_handleDirectKN() {
+}async function desligamento_handleDeleteRequest() {
+    const mod = state.desligamentoModule;
+    if (!mod.colaboradorAtual) return;
+    const ok = await window.customConfirm(
+        `Tem certeza que deseja <b>EXCLUIR</b> a solicitação de desligamento de <b>${mod.colaboradorAtual.Nome}</b>?<br><br>` +
+        `Isso irá limpar todos os dados do desligamento (Data, Motivo, Smartoff, etc) e o colaborador voltará ao status normal (ATIVO).`,
+        'Excluir Solicitação',
+        'danger'
+    );
+    if (!ok) return;
+    const {error} = await supabase
+        .from('Colaboradores')
+        .update({
+            StatusDesligamento: 'ATIVO',
+            DataDesligamentoSolicitada: null,
+            MotivoDesligamento: null,
+            SolicitanteDesligamento: null,
+            Smartoff: null,
+            DataRetorno: null
+        })
+        .eq('Nome', mod.colaboradorAtual.Nome);
+    if (error) {
+        console.error('Erro ao excluir solicitação:', error);
+        await window.customAlert('Erro ao excluir solicitação: ' + error.message, 'Erro');
+        return;
+    }
+    await window.customAlert('Solicitação excluída e dados limpos com sucesso!', 'Sucesso');
+    logAction(`Excluiu/Limpou solicitação de desligamento de: ${mod.colaboradorAtual.Nome}`);
+    invalidateCache();
+    desligamento_fetchPendentes();
+}async function desligamento_handleDirectKN() {
     const mod = state.desligamentoModule;
     const colab = mod.colaboradorAtual;
-
     if (!colab) return;
-
-    const confirmMsg = `ATENÇÃO: Colaborador <b>${colab.Nome}</b> possui contrato KN.<br><br>` +
-        `O desligamento será processado <b>IMEDIATAMENTE</b> no banco de dados.<br>` +
-        `Nenhum e-mail será enviado (fluxo interno).<br><br>` +
-        `Deseja confirmar o desligamento?`;
-
-    const ok = await window.customConfirm(confirmMsg, 'Confirmação de Desligamento Direto', 'danger');
+    let dataFinalParaBanco = ymdToday();
+    if (colab.MotivoDesligamento) {
+        const match = colab.MotivoDesligamento.match(/Data Prevista: (\d{2}\/\d{2}\/\d{4})/);
+        if (match && match[1]) {
+            dataFinalParaBanco = match[1].split('/').reverse().join('-');
+        } else if (colab.DataDesligamentoSolicitada) {
+            dataFinalParaBanco = colab.DataDesligamentoSolicitada.split('T')[0];
+        }
+    }
+    const confirmMsg = `Confirma o desligamento <b>IMEDIATO</b> de <b>${colab.Nome}</b>?<br><br>` +
+        `Data considerada: <b>${formatDateLocal(dataFinalParaBanco)}</b>`;
+    const ok = await window.customConfirm(confirmMsg, 'Desligar KN', 'danger');
     if (!ok) return;
-
-
-    const originalText = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`)?.textContent;
     const btn = document.querySelector(`button[data-action="approve-direct-kn"][data-nome="${colab.Nome}"]`);
+    const originalText = btn ? btn.textContent : '';
     if (btn) {
         btn.textContent = 'Processando...';
         btn.disabled = true;
     }
-
     try {
         const {data: colabCompleto, error: fetchError} = await supabase
             .from('Colaboradores')
             .select('*')
             .eq('Nome', colab.Nome)
             .single();
-
         if (fetchError || !colabCompleto) {
-            throw new Error('Erro ao buscar dados do colaborador KN: ' + (fetchError?.message || 'Não encontrado'));
+            throw new Error('Erro ao buscar dados do colaborador: ' + (fetchError?.message || 'Não encontrado'));
         }
-
-        const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], colab.DataDesligamentoSolicitada);
-
+        const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataFinalParaBanco);
+        const dataHoraDecisao = getLocalISOString(new Date());
         const desligadoData = {
             Nome: colab.Nome,
             Contrato: colab.Contrato || null,
             Cargo: colabCompleto.Cargo || null,
             'Data de Admissão': colabCompleto['Data de admissão'] || null,
             Gestor: colab.Gestor || null,
-            'Data de Desligamento': colab.DataDesligamentoSolicitada,
+            'Data de Desligamento': dataFinalParaBanco,
             'Período Trabalhado': periodoTrabalhado,
             Escala: colab.Escala || null,
             SVC: colab.SVC || null,
             MATRIZ: colab.MATRIZ || null,
             Motivo: colab.MotivoDesligamento || null,
             SolicitanteDesligamento: colab.SolicitanteDesligamento || null,
-            AprovadorDesligamento: mod.currentUser || 'RH (Sistema)'
+            AprovadorDesligamento: mod.currentUser || 'RH (Sistema)',
+            DataRetorno: dataHoraDecisao
         };
-
         const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
             p_nome: colab.Nome,
             p_payload_desligado: desligadoData
         });
-
         if (rpcError) {
-            throw new Error(`Erro RPC (KN): ${rpcError.message}`);
+            throw new Error(`Erro RPC: ${rpcError.message}`);
         }
-
         await window.customAlert(`Colaborador KN (${colab.Nome}) desligado com sucesso!`, 'Sucesso');
-        logAction(`Aprovou desligamento KN (Direto): ${colab.Nome}`);
+        logAction(`Aprovou desligamento KN (Direto): ${colab.Nome} (Data Saída: ${formatDateLocal(dataFinalParaBanco)})`);
         invalidateCache();
         desligamento_fetchPendentes();
-
     } catch (err) {
         console.error(err);
-        await window.customAlert('Falha ao desligar KN: ' + err.message, 'Erro');
+        await window.customAlert('Falha ao desligar: ' + err.message, 'Erro');
         if (btn) {
-            btn.textContent = originalText || 'Desligar KN';
+            btn.textContent = originalText;
             btn.disabled = false;
         }
     }
-}
-
-async function desligamento_openApproveModal() {
+}async function desligamento_openApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal || !mod.colaboradorAtual) return;
-
     const colab = mod.colaboradorAtual;
     const isResend = colab.StatusDesligamento === 'CONCLUIDO';
     document.getElementById('approveNome').textContent = colab.Nome;
-    document.getElementById('approveData').textContent = formatDateLocal(colab.DataDesligamentoSolicitada);
     document.getElementById('approveSolicitante').textContent = colab.SolicitanteDesligamento || 'N/A';
     document.getElementById('approveGestor').textContent = colab.Gestor || 'N/A';
     document.getElementById('approveSVC').textContent = colab.SVC || 'N/A';
-
+    document.getElementById('approveDataSolicitacao').textContent = formatDateTimeLocal(colab.DataDesligamentoSolicitada);
+    const dateInput = document.getElementById('approveDataInput');
+    let dataAlvo = ymdToday();
+    if (isResend) {
+        dateInput.value = '';
+    } else {
+        if (colab.MotivoDesligamento) {
+            const match = colab.MotivoDesligamento.match(/Data Prevista: (\d{2}\/\d{2}\/\d{4})/);
+            if (match && match[1]) {
+                dataAlvo = match[1].split('/').reverse().join('-');
+            }
+        } else if (colab.DataDesligamentoSolicitada) {
+            dataAlvo = colab.DataDesligamentoSolicitada.split('T')[0];
+        }
+        dateInput.value = dataAlvo;
+    }
     const rhInput = document.getElementById('approveRH');
     const emailInput = document.getElementById('approveEmails');
     const bodyInput = document.getElementById('approveBody');
@@ -2351,20 +2241,23 @@ async function desligamento_openApproveModal() {
         rhInput.value = mod.currentUser || '';
     }
     const nomeAprovador = rhInput.value || mod.currentUser || 'RH';
-    const templateBody = `Olá, prezado(a)
-
-KNConecta solicita o desligamento do colaborador abaixo:
-
-COLABORADOR: ${colab.Nome}
-PARA A DATA: ${formatDateLocal(colab.DataDesligamentoSolicitada)}
+    const dataVisual = dataAlvo ? formatDateLocal(dataAlvo) : 'DATA_A_DEFINIR';
+    const templateBody = `Olá, prezado(a)KNConecta solicita o desligamento do colaborador abaixo:COLABORADOR: ${colab.Nome}
+PARA A DATA: ${dataVisual}
 MOTIVO: ${colab.MotivoDesligamento || 'N/A'}
 SOLICITADO PELA GESTÃO: ${colab.Gestor || 'N/A'}
 APROVADO POR: ${nomeAprovador}
-MATRIZ: ${colab.MATRIZ || 'N/A'}
-
---
+MATRIZ: ${colab.MATRIZ || 'N/A'}--
 E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;
     bodyInput.value = templateBody;
+    dateInput.onchange = () => {
+        const novaData = dateInput.value;
+        if (novaData) {
+            const novaDataFmt = formatDateLocal(novaData);
+            let currentBody = bodyInput.value;
+            bodyInput.value = currentBody.replace(/PARA A DATA: .*/, `PARA A DATA: ${novaDataFmt}`);
+        }
+    };
     if (isResend) {
         submitBtn.textContent = 'Reenviar E-mail';
     } else {
@@ -2372,9 +2265,7 @@ E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o 
     }
     emailInput.value = 'Carregando e-mails sugeridos...';
     emailInput.disabled = true;
-
     try {
-
         const emailsAuto = await desligamento_fetchEmailsSugestao(colab.Contrato);
         emailInput.value = emailsAuto;
     } catch (error) {
@@ -2382,61 +2273,43 @@ E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o 
         emailInput.value = '';
     } finally {
         emailInput.disabled = false;
-
         if (isResend) emailInput.focus();
     }
-
     mod.modal.classList.remove('hidden');
-}
-
-function desligamento_closeApproveModal() {
+}function desligamento_closeApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal) return;
     mod.modal.classList.add('hidden');
     if (mod.form) mod.form.reset();
     mod.colaboradorAtual = null;
-}
-
-async function desligamento_handleReject() {
+}async function desligamento_handleReject() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
-
-
-
-
     const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
     if (motivoRecusa === null) return;
-
     const ok = await window.customConfirm(
         `Tem certeza que deseja <b>RECUSAR</b> o desligamento de <b>${mod.colaboradorAtual.Nome}</b>?`,
         'Confirmar Recusa',
         'warning'
     );
     if (!ok) return;
-
+    const dataHoraDecisao = getLocalISOString(new Date());
     const {error} = await supabase
         .from('Colaboradores')
         .update({
             StatusDesligamento: 'RECUSADO',
-            DataDesligamentoSolicitada: null,
-            MotivoDesligamento: null,
-            SolicitanteDesligamento: null
+            DataRetorno: dataHoraDecisao
         })
         .eq('Nome', mod.colaboradorAtual.Nome);
-
     if (error) {
         await window.customAlert('Erro ao recusar solicitação: ' + error.message, 'Erro');
         return;
     }
-
-    await window.customAlert('Solicitação recusada com sucesso. O colaborador permanece ativo.', 'Sucesso');
+    await window.customAlert('Solicitação recusada com sucesso.', 'Sucesso');
     logAction(`Recusou o desligamento de: ${mod.colaboradorAtual.Nome}. Motivo: ${motivoRecusa || 'N/A'}`);
-
     invalidateCache();
     desligamento_fetchPendentes();
-}
-
-function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+}function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -2456,118 +2329,89 @@ function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) 
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}
-
-async function desligamento_handleApproveSubmit(event) {
+}async function desligamento_handleApproveSubmit(event) {
     event.preventDefault();
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
-
     const submitBtn = mod.submitBtn;
     submitBtn.disabled = true;
-
     const colab = mod.colaboradorAtual;
     const nomeRH = document.getElementById('approveRH').value.trim();
     const emails = document.getElementById('approveEmails').value.trim();
     const emailBodyContent = document.getElementById('approveBody').value;
-
+    const dataEfetivaInput = document.getElementById('approveDataInput').value;
     const isResend = colab.StatusDesligamento === 'CONCLUIDO';
-
     submitBtn.textContent = isResend ? 'Enviando E-mail...' : 'Processando...';
-
     if (!nomeRH) {
         await window.customAlert('Por favor, preencha o campo "Aprovado por (RH)".', 'Campo Obrigatório');
         submitBtn.disabled = false;
-        submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
         return;
     }
-
+    if (!isResend && !dataEfetivaInput) {
+        await window.customAlert('Por favor, confirme a Data Efetiva do Desligamento.', 'Campo Obrigatório');
+        submitBtn.disabled = false;
+        return;
+    }
     if (!emails) {
         await window.customAlert('Por favor, preencha os E-mails para notificar.', 'Campo Obrigatório');
         submitBtn.disabled = false;
-        submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
         return;
     }
-    if (!emailBodyContent) {
-        await window.customAlert('O corpo do e-mail não pode estar vazio.', 'Campo Obrigatório');
-        submitBtn.disabled = false;
-        submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
-        return;
-    }
-
     try {
-        let dataDesligamento = colab.DataDesligamentoSolicitada;
-        let solicitante = colab.SolicitanteDesligamento;
-        let gestor = colab.Gestor;
-        let svc = colab.SVC;
-        let matriz = colab.MATRIZ;
-        let motivo = colab.MotivoDesligamento;
-
+        let dataDesligamentoFinal = dataEfetivaInput;
         if (isResend) {
             const {data: colabCompleto, error: fetchError} = await supabase
                 .from('Desligados')
                 .select('*')
                 .eq('Nome', colab.Nome)
                 .single();
-
             if (fetchError || !colabCompleto) {
-                throw fetchError || new Error('Não foi possível buscar dados do desligado para reenviar o e-mail.');
+                console.warn('Não achou em Desligados, usando input.');
+            } else {
+                dataDesligamentoFinal = colabCompleto['Data de Desligamento'];
             }
-
-            dataDesligamento = colabCompleto['Data de Desligamento'];
-            solicitante = colab.SolicitanteDesligamento;
-            gestor = colabCompleto.Gestor;
-            svc = colabCompleto.SVC;
-            matriz = colabCompleto.MATRIZ;
-            motivo = colabCompleto.Motivo;
         }
-
         if (!isResend) {
             submitBtn.textContent = 'Aprovando no banco...';
-
             const {data: colabCompleto, error: fetchError} = await supabase
                 .from('Colaboradores')
                 .select('*')
                 .eq('Nome', colab.Nome)
                 .single();
             if (fetchError || !colabCompleto) {
-                throw fetchError || new Error('Não foi possível buscar dados completos do colaborador.');
+                throw fetchError || new Error('Colaborador não encontrado.');
             }
-
-            const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamento);
+            const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamentoFinal);
+            const dataHoraDecisao = getLocalISOString(new Date());
             const desligadoData = {
                 Nome: colab.Nome,
                 Contrato: colab.Contrato || null,
                 Cargo: colabCompleto.Cargo || null,
                 'Data de Admissão': colabCompleto['Data de admissão'] || null,
                 Gestor: colab.Gestor || null,
-                'Data de Desligamento': dataDesligamento,
+                'Data de Desligamento': dataDesligamentoFinal,
                 'Período Trabalhado': periodoTrabalhado,
                 Escala: colab.Escala || null,
                 SVC: colab.SVC || null,
                 MATRIZ: colab.MATRIZ || null,
                 Motivo: colab.MotivoDesligamento || null,
                 SolicitanteDesligamento: colab.SolicitanteDesligamento || null,
-                AprovadorDesligamento: nomeRH
+                AprovadorDesligamento: nomeRH,
+                DataRetorno: dataHoraDecisao
             };
-
             const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
                 p_nome: colab.Nome,
                 p_payload_desligado: desligadoData
             });
             if (rpcError) {
-                throw new Error(`Erro ao processar desligamento no banco: ${rpcError.message}`);
+                throw new Error(`Erro ao processar no banco: ${rpcError.message}`);
             }
-
-            logAction(`Aprovou o desligamento de: ${colab.Nome} (Data: ${formatDateLocal(dataDesligamento)})`);
+            logAction(`Aprovou desligamento (E-mail): ${colab.Nome} (Data Saída: ${formatDateLocal(dataDesligamentoFinal)})`);
             invalidateCache();
         }
-
         submitBtn.textContent = 'Enviando e-mail...';
-
         const subject = `SOLICITAÇÃO DE DESLIGAMENTO - COLABORADOR: ${colab.Nome}`;
         const body = emailBodyContent;
-
         const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
             body: JSON.stringify({
                 to: emails,
@@ -2575,50 +2419,40 @@ async function desligamento_handleApproveSubmit(event) {
                 body: body
             })
         });
-
         if (emailError) {
             let errorMessage = emailError.message;
             try {
-                if (fnData) {
-                    const errorObj = typeof fnData === 'string' ? JSON.parse(fnData) : fnData;
+                if (fnData && typeof fnData === 'string') {
+                    const errorObj = JSON.parse(fnData);
                     if (errorObj.error) errorMessage = errorObj.error;
                 }
             } catch (e) {
             }
-
-            await window.customAlert(`Desligamento APROVADO no banco, mas FALHA AO ENVIAR E-MAIL AUTOMÁTICO: ${errorMessage}. Por favor, envie manualmente.`, 'Alerta de Envio');
+            await window.customAlert(`Desligamento salvo, mas erro ao enviar e-mail: ${errorMessage}`, 'Alerta');
         } else {
-            await window.customAlert(isResend ? 'E-mail reenviado com sucesso!' : 'Desligamento aprovado e e-mail enviado com sucesso!', 'Sucesso');
+            await window.customAlert('Processo concluído com sucesso!', 'Sucesso');
         }
-
         if (isResend) {
             logAction(`Reenviou e-mail de desligamento para: ${colab.Nome}`);
         }
-
         desligamento_closeApproveModal();
         desligamento_fetchPendentes();
-
     } catch (error) {
-        console.error('Erro no fluxo de aprovação/envio:', error);
+        console.error('Erro no fluxo:', error);
         await window.customAlert('Falha no processo: ' + error.message, 'Erro Crítico');
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
     }
-}
-
-function wireDesligamentoLogic() {
+}function wireDesligamentoLogic() {
     const mod = state.desligamentoModule;
-
     mod.tbody = document.getElementById('desligamento-tbody');
     mod.modal = document.getElementById('approveModal');
     mod.form = document.getElementById('approveForm');
     mod.submitBtn = document.getElementById('approveSubmitBtn');
     mod.cancelBtn = document.getElementById('approveCancelBtn');
     mod.refreshBtn = document.getElementById('refresh-desligamento-btn');
-
     mod.currentUser = desligamento_getCurrentUser();
-
     if (mod.tbody) {
         mod.tbody.addEventListener('click', desligamento_handleTableClick);
     }
@@ -2637,9 +2471,7 @@ function wireDesligamentoLogic() {
             rhInput.value = rhInput.value.toUpperCase();
         });
     }
-}
-
-function desligamento_destroy() {
+}function desligamento_destroy() {
     const mod = state.desligamentoModule;
     console.log('Destruindo módulo de Desligamento...');
     if (mod.tbody) {
@@ -2655,71 +2487,47 @@ function desligamento_destroy() {
     if (mod.refreshBtn) {
         mod.refreshBtn.removeEventListener('click', desligamento_fetchPendentes);
     }
-
     mod.pendentes = [];
     mod.colaboradorAtual = null;
     mod.tbody = null;
     mod.modal = null;
     mod.form = null;
-}
-
-function checkUserRHStatus() {
+}function checkUserRHStatus() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
             const user = JSON.parse(userDataString);
             const userType = (user?.Tipo || '').trim().toUpperCase();
-
             const allowedTypes = ['RH', 'GERENTE', 'MASTER'];
             state.isUserRH = allowedTypes.includes(userType);
-
             console.log(`Usuário é ${userType}. Permissão de desligamento: ${state.isUserRH}`);
-
         } else {
-
             state.isUserRH = false;
         }
     } catch (e) {
         console.warn('Erro ao verificar tipo de usuário (RH/Gerente/Master):', e);
         state.isUserRH = false;
     }
-}
-
-export async function init() {
+}export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         console.warn('Host #hc-indice não encontrado.');
         return;
     }
-
     checkUserRHStatus();
-
     if (!state.mounted) {
         ensureMounted();
         wireSubtabs();
-        if (state.isUserRH) {
-            wireDesligamentoLogic();
-        }
+        wireDesligamentoLogic();
         initControleVagas();
     }
     const desligamentoSubtab = document.querySelector('.efet-subtab-btn[data-view="efet-desligamento"]');
     if (desligamentoSubtab) {
-        if (!state.isUserRH) {
-            desligamentoSubtab.style.display = 'none';
-        } else {
-            desligamentoSubtab.style.display = '';
-        }
+        desligamentoSubtab.style.display = '';
     }
     const activeSubtabBtn = host.querySelector('.efet-subtab-btn.active') || host.querySelector('.efet-subtab-btn[data-view="efet-visao-service"]');
-
     if (activeSubtabBtn) {
         const viewName = activeSubtabBtn.dataset.view;
-        if (viewName === 'efet-desligamento' && !state.isUserRH) {
-            const defaultTab = host.querySelector('.efet-subtab-btn[data-view="efet-visao-service"]');
-            if (defaultTab) defaultTab.click();
-            return;
-        }
-
         const view = host.querySelector(`#${viewName}`);
         host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
         if (view) view.classList.add('active');
@@ -2736,9 +2544,7 @@ export async function init() {
     } else {
         await refresh();
     }
-}
-
-export function destroy() {
+}export function destroy() {
     if (state.mounted) {
         console.log('Destruindo estado de Efetivações.');
         Object.values(state.charts).forEach(chart => chart?.destroy());
@@ -2750,7 +2556,6 @@ export function destroy() {
         if (state.isUserRH) {
             desligamento_destroy();
         }
-
         state.charts = {
             idade: null, genero: null, dsr: null, contrato: null, contratoSvc: null,
             auxPrazoSvc: null, consultoriaSvc: null, idadeRegiao: null, generoRegiao: null, contratoRegiao: null,
@@ -2768,9 +2573,7 @@ export function destroy() {
         state.isUserRH = false;
         document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
     }
-}
-
-let vagasData = [];
+}let vagasData = [];
 let matrizesData = [];
 let gestoresData = [];
 let vagasModal;
@@ -2778,95 +2581,71 @@ let btnGerarVaga;
 let btnCancelarVaga;
 let formVagas;
 let tbodyVagas;
-
 let inputWcBc;
 let inputSla;
 let inputDataAprovacao;
 let inputPrazoRS;
-
 let selectFilial;
 let selectGestor;
 let inputSvc;
-
 let searchInput;
 let filterFilial;
 let filterStatus;
 let filterGestor;
 let filterRecrutadora;
-let inputCc;
-
-function initControleVagas() {
-    if (!document.getElementById('efet-controle-vagas')) return;
-
-    vagasModal = document.getElementById('vagasModal');
+let inputCc;function initControleVagas() {
+    if (!document.getElementById('efet-controle-vagas')) return;    vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     formVagas = document.getElementById('formVagas');
-    tbodyVagas = document.getElementById('vagas-tbody');
-
-
-    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
+    tbodyVagas = document.getElementById('vagas-tbody');    if (btnGerarVaga) {
+        if (!state.isUserRH) {
+            btnGerarVaga.style.display = 'none';
+        } else {
+            btnGerarVaga.style.display = '';
+            btnGerarVaga.addEventListener('click', () => openVagasModal());
+        }
+    }    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
     inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
-    inputCc = formVagas?.querySelector('[name="cc"]');
-
-    searchInput = document.getElementById('vagas-search');
+    inputCc = formVagas?.querySelector('[name="cc"]');    searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
-    filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
-
-    fetchMatrizes();
+    filterRecrutadora = document.getElementById('filter-vagas-recrutadora');    fetchMatrizes();
     fetchGestores();
-
-
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-
-    if (btnGerarVaga) btnGerarVaga.addEventListener('click', () => openVagasModal());
-    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
-    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
-
-    if (selectFilial) {
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
+    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);    if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
             atualizarSVC(matrizSelecionada);
             atualizarCC(matrizSelecionada);
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
-    }
-
-    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
+    }    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
     if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
     if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
-    if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
-
-    fetchVagas();
-}
-
-async function fetchMatrizes() {
+    if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);    fetchVagas();    wireCepVagas();
+}async function fetchMatrizes() {
     const {data, error} = await supabase
         .from('Matrizes')
         .select('MATRIZ, SERVICE, CC, GERENCIA, REGIAO')
         .order('MATRIZ', {ascending: true});
-
     if (error) {
         console.error('Erro ao buscar matrizes:', error);
         return;
     }
     matrizesData = data || [];
     populateFilialSelect();
-}
-
-
-function atualizarCC(nomeMatriz) {
+}function atualizarCC(nomeMatriz) {
     if (!inputCc) return;
     if (!nomeMatriz) {
         inputCc.value = '';
@@ -2874,42 +2653,27 @@ function atualizarCC(nomeMatriz) {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputCc.value = encontrada ? (encontrada.CC || '-') : '';
-}
-
-async function fetchGestores() {
-
+}async function fetchGestores() {
     const {data, error} = await supabase
         .from('Gestores')
         .select('NOME, MATRIZ')
         .order('NOME', {ascending: true});
-
     if (error) {
         console.error('Erro ao buscar gestores:', error);
         return;
     }
     gestoresData = data || [];
-
-}
-
-function populateFilialSelect() {
+}function populateFilialSelect() {
     if (!selectFilial) return;
     selectFilial.innerHTML = '<option value="">- Selecione uma Matriz -</option>';
-
-
-
-
-
     const matrizesUnicas = [...new Set(matrizesData.map(item => item.MATRIZ).filter(Boolean))].sort();
-
     matrizesUnicas.forEach(matrizNome => {
         const option = document.createElement('option');
         option.value = matrizNome;
         option.textContent = matrizNome;
         selectFilial.appendChild(option);
     });
-}
-
-function atualizarSVC(nomeMatriz) {
+}function atualizarSVC(nomeMatriz) {
     if (!inputSvc) return;
     if (!nomeMatriz) {
         inputSvc.value = '';
@@ -2917,17 +2681,13 @@ function atualizarSVC(nomeMatriz) {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputSvc.value = encontrada ? (encontrada.SERVICE || '-') : '';
-}
-
-function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
+}function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (!selectGestor) return;
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
-
     if (!nomeMatriz) return;
     const gestoresFiltrados = gestoresData.filter(g =>
         g.MATRIZ && g.MATRIZ.toUpperCase() === nomeMatriz.toUpperCase()
     );
-
     gestoresFiltrados.forEach(g => {
         const option = document.createElement('option');
         option.value = g.NOME;
@@ -2937,9 +2697,7 @@ function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (gestorPreSelecionado) {
         selectGestor.value = gestorPreSelecionado;
     }
-}
-
-function formatCargo(cargo) {
+}function formatCargo(cargo) {
     if (!cargo) return '-';
     return cargo
         .replace('OPERADOR DE EMPILHADEIRA', 'OP. EMPILHADEIRA')
@@ -2949,17 +2707,13 @@ function formatCargo(cargo) {
         .replace('SEGURANÇA DO TRABALHO', 'SEG. TRAB.')
         .replace('ADMINISTRATIVO', 'ADM.')
         .replace('PLANEJAMENTO DE LOGÍSTICA', 'PLAN. LOG.');
-}
-
-function calcularSLA() {
+}function calcularSLA() {
     const tipo = inputWcBc.value;
     if (tipo === 'WC') inputSla.value = 17;
     else if (tipo === 'BC') inputSla.value = 12;
     else inputSla.value = 12;
     calcularPrazoEntrega();
-}
-
-function calcularPrazoEntrega() {
+}function calcularPrazoEntrega() {
     const dataAprov = inputDataAprovacao.value;
     const diasSla = parseInt(inputSla.value);
     if (dataAprov && !isNaN(diasSla)) {
@@ -2970,54 +2724,30 @@ function calcularPrazoEntrega() {
         const dd = String(data.getDate()).padStart(2, '0');
         inputPrazoRS.value = `${yyyy}-${mm}-${dd}`;
     }
-}
-
-function openVagasModal(vagaData = null) {
-    if (!vagasModal) return;
-
-    vagasModal.classList.remove('hidden');
-    formVagas.reset();
-
-
-    formVagas.querySelectorAll('select').forEach(sel => {
+}function openVagasModal(vagaData = null) {
+    if (!vagasModal) return;    vagasModal.classList.remove('hidden');
+    formVagas.reset();    formVagas.querySelectorAll('select').forEach(sel => {
         if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
             sel.value = "";
         }
-    });
-
-    selectFilial.value = "";
+    });    selectFilial.value = "";
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
     inputSvc.value = "";
-    if(inputCc) inputCc.value = "";
-
-
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-
-    if (document.getElementById('div-substituido')) {
+    if(inputCc) inputCc.value = "";    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (document.getElementById('div-substituido')) {
         document.getElementById('div-substituido').classList.add('hidden');
-    }
-
-    if (vagaData) {
+    }    if (vagaData) {
         document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
         formVagas.dataset.mode = 'edit';
-        formVagas.dataset.id = vagaData.ID_Vaga;
-
-        const f = formVagas.elements;
-
-        if (f.status) f.status.value = vagaData.Status || '';
+        formVagas.dataset.id = vagaData.ID_Vaga;        const f = formVagas.elements;        if (f.status) f.status.value = vagaData.Status || '';
         if (f.data_aprovacao) f.data_aprovacao.value = vagaData.DataAprovacao || '';
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
-        if (f.cargo) f.cargo.value = vagaData.Cargo || '';
-
-        if (f.filial) {
+        if (f.cargo) f.cargo.value = vagaData.Cargo || '';        if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
             atualizarCC(vagaData.MATRIZ);
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
-        }
-
-        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
+        }        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
         if (f.setor) f.setor.value = vagaData.Setor || '';
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
         if (f.recrutadora) f.recrutadora.value = vagaData.Recrutadora || '';
@@ -3030,64 +2760,39 @@ function openVagasModal(vagaData = null) {
         if (f.hora_entrada) f.hora_entrada.value = vagaData.HoraEntrada || '';
         if (f.hora_saida) f.hora_saida.value = vagaData.HoraSaida || '';
         if (f.dias_semana) f.dias_semana.value = vagaData.DiasSemana || '';
-        if (f.jornada_tipo) f.jornada_tipo.value = vagaData.JornadaTipo || '';
-
-        if (f.sla_acordada) f.sla_acordada.value = vagaData.SLA_Acordada || '';
+        if (f.jornada_tipo) f.jornada_tipo.value = vagaData.JornadaTipo || '';        if (f.sla_acordada) f.sla_acordada.value = vagaData.SLA_Acordada || '';
         if (f.prazo_entrega_rs) f.prazo_entrega_rs.value = vagaData.PrazoEntregaRS || '';
         if (f.data_encaminhado_admissao) f.data_encaminhado_admissao.value = vagaData.DataEncaminhadoAdmissao || '';
-        if (f.data_admissao_real) f.data_admissao_real.value = vagaData.DataAdmissaoReal || '';
-
-
-        if (f.candidato_aprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado || '';
-
-
-        if (f.data_nascimento_candidato) f.data_nascimento_candidato.value = vagaData.DataNascimento || '';
-
-
+        if (f.data_admissao_real) f.data_admissao_real.value = vagaData.DataAdmissaoReal || '';        if (f.candidato_aprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado || '';        if (f.data_nascimento_candidato) f.data_nascimento_candidato.value = vagaData.DataNascimento || '';
         if (f.cpf_candidato) f.cpf_candidato.value = vagaData.CPFCandidato || '';
         if (f.rg_candidato) f.rg_candidato.value = vagaData.rg || '';
         if (f.telefone_candidato) f.telefone_candidato.value = vagaData.telefone || '';
         if (f.email_candidato) f.email_candidato.value = vagaData.email || '';
-        if (f.pis_candidato) f.pis_candidato.value = vagaData.pis || '';
-        if (f.endereco_candidato) f.endereco_candidato.value = vagaData.endereco_completo || '';
+        if (f.pis_candidato) f.pis_candidato.value = vagaData.pis || '';        if (f.cep_candidato) f.cep_candidato.value = vagaData.CEP || '';        if (f.endereco_candidato) f.endereco_candidato.value = vagaData.endereco_completo || '';
         if (f.numero_candidato) f.numero_candidato.value = vagaData.numero || '';
         if (f.bairro_candidato) f.bairro_candidato.value = vagaData.bairro || '';
-        if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';
-
-
-        if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
-        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';
-
-        toggleSubstituicao(vagaData.Motivo);
-
-    } else {
+        if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';        if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
+        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';        toggleSubstituicao(vagaData.Motivo);    } else {
         document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
         formVagas.dataset.mode = 'create';
         delete formVagas.dataset.id;
     }
-}
-
-function closeVagasModal() {
+}function closeVagasModal() {
     if (vagasModal) vagasModal.classList.add('hidden');
-}
-
-window.toggleSubstituicao = function (val) {
+}window.toggleSubstituicao = function (val) {
     const div = document.getElementById('div-substituido');
     if (div) {
         if (val === 'SUBSTITUIÇÃO') div.classList.remove('hidden');
         else div.classList.add('hidden');
     }
 }
-
 async function fetchVagas() {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando vagas...</td></tr>';
-
     const {data, error} = await supabase
         .from('Vagas')
         .select('*')
         .order('ID_Vaga', {ascending: false});
-
     if (error) {
         console.error('Erro ao buscar vagas:', error);
         tbodyVagas.innerHTML = `<tr><td colspan="12" class="text-center text-red-500 p-4">Erro: ${error.message}</td></tr>`;
@@ -3096,17 +2801,12 @@ async function fetchVagas() {
     vagasData = data || [];
     populateFilterOptions();
     filtrarVagas();
-}
-
-async function handleVagaSubmit(e) {
+}async function handleVagaSubmit(e) {
     e.preventDefault();
     const formData = new FormData(formVagas);
     const raw = Object.fromEntries(formData.entries());
     const mode = formVagas.dataset.mode;
-    const id = formVagas.dataset.id;
-
-
-    const payload = {
+    const id = formVagas.dataset.id;    const payload = {
         Status: raw.status,
         DataAprovacao: raw.data_aprovacao || null,
         DataInicioDesejado: raw.data_inicio_desejado || null,
@@ -3128,67 +2828,43 @@ async function handleVagaSubmit(e) {
         HoraEntrada: raw.hora_entrada || null,
         HoraSaida: raw.hora_saida || null,
         DiasSemana: raw.dias_semana,
-        JornadaTipo: raw.jornada_tipo,
-
-
-        CandidatoAprovado: toUpperTrim(raw.candidato_aprovado),
-
-
-        DataNascimento: raw.data_nascimento_candidato || null,
-
-
+        JornadaTipo: raw.jornada_tipo,        CandidatoAprovado: toUpperTrim(raw.candidato_aprovado),        DataNascimento: raw.data_nascimento_candidato || null,
         CPFCandidato: normalizeCPF(raw.cpf_candidato),
         rg: raw.rg_candidato || null,
         telefone: raw.telefone_candidato || null,
         email: raw.email_candidato || null,
-        pis: raw.pis_candidato || null,
+        pis: raw.pis_candidato || null,        CEP: raw.cep_candidato ? raw.cep_candidato.replace(/\D/g, '') : null,
         endereco_completo: toUpperTrim(raw.endereco_candidato),
         numero: raw.numero_candidato || null,
         bairro: toUpperTrim(raw.bairro_candidato),
-        cidade: toUpperTrim(raw.cidade_candidato),
-        colete: raw.vaga_colete || null,
-        sapato: raw.vaga_sapato || null,
-
-        SLA_Acordada: raw.sla_acordada ? parseInt(raw.sla_acordada) : null,
+        cidade: toUpperTrim(raw.cidade_candidato),        colete: raw.vaga_colete || null,
+        sapato: raw.vaga_sapato || null,        SLA_Acordada: raw.sla_acordada ? parseInt(raw.sla_acordada) : null,
         PrazoEntregaRS: raw.prazo_entrega_rs || null,
         DataEncaminhadoAdmissao: raw.data_encaminhado_admissao || null,
         DataAdmissaoReal: raw.data_admissao_real || null
-    };
-
-    const btn = formVagas.querySelector('.btn-salvar');
+    };    const btn = formVagas.querySelector('.btn-salvar');
     const txt = btn.textContent;
     btn.textContent = 'Salvando...';
-    btn.disabled = true;
-
-    let error;
-
-    if (mode === 'edit' && id) {
+    btn.disabled = true;    let error;    if (mode === 'edit' && id) {
         const res = await supabase.from('Vagas').update(payload).eq('ID_Vaga', id);
         error = res.error;
     } else {
         const res = await supabase.from('Vagas').insert([payload]);
         error = res.error;
-    }
-
-    if (error) {
+    }    if (error) {
         alert('Erro: ' + error.message);
         btn.textContent = txt;
         btn.disabled = false;
         return;
-    }
-
-    alert(mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada!');
+    }    alert(mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada!');
     btn.textContent = txt;
     btn.disabled = false;
     closeVagasModal();
     fetchVagas();
-}
-
-function populateFilterOptions() {
+}function populateFilterOptions() {
     const matrizes = [...new Set(vagasData.map(v => v.MATRIZ).filter(Boolean))].sort();
     const gestores = [...new Set(vagasData.map(v => v.Gestor).filter(Boolean))].sort();
     const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();
-
     const populate = (el, list, label) => {
         if (!el) return;
         const valorAtual = el.value;
@@ -3196,77 +2872,68 @@ function populateFilterOptions() {
         list.forEach(i => el.insertAdjacentHTML('beforeend', `<option value="${i}">${i}</option>`));
         if (list.includes(valorAtual) || valorAtual === "") el.value = valorAtual;
     };
-
     populate(filterFilial, matrizes, 'Todas as Filiais');
     populate(filterGestor, gestores, 'Todos Gestores');
     populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');
-}
-
-function filtrarVagas() {
+}function filtrarVagas() {
     const termo = searchInput.value.toLowerCase();
     const fFilial = filterFilial.value;
     const fStatus = filterStatus.value;
     const fGestor = filterGestor.value;
     const fRecrut = filterRecrutadora.value;
-
     const filtrados = vagasData.filter(vaga => {
-                const txt = (
+        const txt = (
             (vaga.CandidatoAprovado || '') +
             (vaga.CPFCandidato || '') +
             (vaga.FluxoSmart || '') +
             (vaga.ID_Vaga || '') +
             (vaga.MATRIZ || '')
         ).toLowerCase();
-
         const matchLocal = txt.includes(termo) &&
             (!fFilial || vaga.MATRIZ === fFilial) &&
             (!fStatus || vaga.Status === fStatus) &&
             (!fGestor || vaga.Gestor === fGestor) &&
             (!fRecrut || vaga.Recrutadora === fRecrut);
-
         if (!matchLocal) return false;
-
-
-                if (state.matriz && vaga.MATRIZ !== state.matriz) {
+        if (state.matriz && vaga.MATRIZ !== state.matriz) {
             return false;
         }
-
-                        if (state.gerencia || state.regiao) {
+        if (state.gerencia || state.regiao) {
             const dadosMatriz = matrizesData.find(m => m.MATRIZ === vaga.MATRIZ);
-
             if (!dadosMatriz) {
-                                return false;
+                return false;
             }
-
             if (state.gerencia && dadosMatriz.GERENCIA !== state.gerencia) return false;
             if (state.regiao && dadosMatriz.REGIAO !== state.regiao) return false;
         }
-
         return true;
     });
-
     renderVagasTable(filtrados);
-}
-
-function renderVagasTable(lista) {
+}function renderVagasTable(lista) {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '';
-
     if (lista.length === 0) {
         tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Nenhum registro encontrado.</td></tr>';
         return;
     }
-
     lista.forEach(vaga => {
         const tr = document.createElement('tr');
         let badgeClass = 'badge-default';
         const st = (vaga.Status || '').trim().toUpperCase();
-
         if (st === 'ABERTA') badgeClass = 'badge-aberta';
         else if (st === 'EM ADMISSÃO') badgeClass = 'badge-admissao';
         else if (st === 'FECHADA') badgeClass = 'badge-fechada';
         else if (st === 'CANCELADA') badgeClass = 'badge-cancelada';
-
+        let actionsHtml = '';
+        if (state.isUserRH) {
+            actionsHtml = `
+                <button class="btn-edit-vaga btn-neutral text-xs !px-2 !py-1" title="Editar">
+                     ✏️
+                </button>
+            `;
+        } else {
+            actionsHtml = `<span class="text-gray-400" title="Visualização apenas">👁️</span>`;
+        }
         tr.innerHTML = `
              <td style="font-weight:bold; color:#555;">#${vaga.ID_Vaga}</td>
              <td><span class="status-badge ${badgeClass}">${vaga.Status}</span></td>
@@ -3278,14 +2945,14 @@ function renderVagasTable(lista) {
              <td>${vaga.MATRIZ || '-'}</td> <td>${vaga.Gestor || '-'}</td>
              <td>${vaga.EmpresaContratante || '-'}</td>
              <td style="color:#d97706; font-weight:600;">${formatDateLocal(vaga.PrazoEntregaRS)}</td>
-             <td>
-                 <button class="btn-edit-vaga btn-neutral text-xs !px-2 !py-1" title="Editar">
-                     ✏️
-                 </button>
-             </td>
+             <td>${actionsHtml}</td>
          `;
-        const editBtn = tr.querySelector('.btn-edit-vaga');
-        editBtn.addEventListener('click', () => openVagasModal(vaga));
+        if (state.isUserRH) {
+            const editBtn = tr.querySelector('.btn-edit-vaga');
+            if (editBtn) {
+                editBtn.addEventListener('click', () => openVagasModal(vaga));
+            }
+        }
         tbodyVagas.appendChild(tr);
     });
 }
