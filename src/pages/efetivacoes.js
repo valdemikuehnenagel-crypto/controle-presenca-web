@@ -29,23 +29,36 @@ const MIN_SEGMENT_PERCENT = 9;function cacheKeyForColabs() {
     }
 }function wireCepVagas() {
     const form = document.getElementById('formVagas');
-    if (!form) return;    const inputCep = form.querySelector('[name="cep_candidato"]');    if (inputCep) {        const newClone = inputCep.cloneNode(true);
-        inputCep.parentNode.replaceChild(newClone, inputCep);        newClone.addEventListener('input', async (e) => {            let val = e.target.value.replace(/\D/g, '');
+    if (!form) return;
+    const inputCep = form.querySelector('[name="cep_candidato"]');
+    if (inputCep) {
+        const newClone = inputCep.cloneNode(true);
+        inputCep.parentNode.replaceChild(newClone, inputCep);
+        newClone.addEventListener('input', async (e) => {
+            let val = e.target.value.replace(/\D/g, '');
             if (val.length > 5) {
                 val = val.substring(0, 5) + '-' + val.substring(5, 8);
             }
-            e.target.value = val;            const cleanCep = val.replace(/\D/g, '');
-            if (cleanCep.length === 8) {                const inputEnd = form.querySelector('[name="endereco_candidato"]');
-                if (inputEnd) inputEnd.placeholder = "Buscando...";                try {
+            e.target.value = val;
+            const cleanCep = val.replace(/\D/g, '');
+            if (cleanCep.length === 8) {
+                const inputEnd = form.querySelector('[name="endereco_candidato"]');
+                if (inputEnd) inputEnd.placeholder = "Buscando...";
+                try {
                     const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
-                    const data = await res.json();                    if (!data.erro) {                        const setVal = (name, valor) => {
+                    const data = await res.json();
+                    if (!data.erro) {
+                        const setVal = (name, valor) => {
                             const el = form.querySelector(`[name="${name}"]`);
                             if (el) el.value = (valor || '').toUpperCase();
-                        };                        setVal('endereco_candidato', data.logradouro);
+                        };
+                        setVal('endereco_candidato', data.logradouro);
                         setVal('bairro_candidato', data.bairro);
-                        setVal('cidade_candidato', data.localidade);                         const elNum = form.querySelector('[name="numero_candidato"]');
+                        setVal('cidade_candidato', data.localidade);
+                        const elNum = form.querySelector('[name="numero_candidato"]');
                         if (elNum) elNum.focus();
-                    } else {                        if (inputEnd) inputEnd.value = '';
+                    } else {
+                        if (inputEnd) inputEnd.value = '';
                     }
                 } catch (err) {
                     console.error("Erro ViaCEP Vagas:", err);
@@ -1657,76 +1670,74 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     }
 }async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
-    ensureChartsCreatedSpam();
-    const [allSpamData] = await Promise.all([loadSpamData()]);
-    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
-    const spamData = allSpamData.filter(r => {
-        if (state.regiao && r.REGIAO !== state.regiao) return false;
-        const svcNorm = mapSvcLabel(r.SVC).replace(/\s+/g, '');
-        const matrizInfo = matrizesMap.get(svcNorm);
-        if (state.matriz) {
+    ensureChartsCreatedSpam();    const [allSpamData] = await Promise.all([loadSpamData()]);    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');    const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');    const spamData = allSpamData.filter(r => {
+        if (state.regiao && r.REGIAO !== state.regiao) return false;        const svcLabel = mapSvcLabel(r.SVC);
+        const svcNorm = norm(svcLabel).replace(/\s+/g, '');
+        const matrizInfo = matrizesMap.get(svcNorm);        if (state.matriz) {
             if (!matrizInfo || matrizInfo.MATRIZ !== state.matriz) return false;
         }
         if (state.gerencia) {
             if (!matrizInfo || matrizInfo.GERENCIA !== state.gerencia) return false;
         }
-        if (svcsDoGerente) {
-            if (!svcsDoGerente.has(r.SVC)) return false;
+        if (svcsDoGerente) {            if (!svcsDoGerente.has(r.SVC)) return false;
         }
         return true;
-    });
-    const pal = palette();
+    });    const pal = palette();
     const allMonths = [...spamData].sort(sortMesAno);
-    const latestMonth = allMonths.pop();
-    if (!latestMonth) {
+    const latestMonth = allMonths.pop();    if (!latestMonth) {
         console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
-            if (chart && chart.canvas.id.startsWith('spam-')) {
+            if (chart && chart.canvas?.id?.startsWith('spam-')) {
                 chart.data.labels = [];
                 chart.data.datasets = [];
                 chart.update();
             }
         });
         return;
-    }
-    const {MÊS: mesAtual, ANO: anoAtual} = latestMonth;
-    const mesAtualLabel = `${mesAtual.slice(0, 3)}/${anoAtual}`;
-    const previousMonth = allMonths.filter(m => m.ANO < anoAtual || (m.ANO === anoAtual && m.mesOrder < latestMonth.mesOrder)).pop();
-    const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;
-    if (state.charts.spamHcEvolucaoSvc) {
+    }    const { MÊS: mesUltimo, ANO: anoUltimo } = latestMonth;
+    const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;
+    const previousMonth = allMonths
+        .filter(m => m.ANO < anoUltimo || (m.ANO === anoUltimo && m.mesOrder < latestMonth.mesOrder))
+        .pop();
+    const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;    const hoje = new Date();
+    const anoSistema = hoje.getFullYear();
+    const mesSistemaOrder = hoje.getMonth() + 1;     const spamMesAtualSistema = spamData.filter(r =>
+        r.ANO === anoSistema && r.mesOrder === mesSistemaOrder
+    );    let mesReferenciaSpamVsReal = mesUltimo;
+    let anoReferenciaSpamVsReal = anoUltimo;    if (spamMesAtualSistema.length > 0) {
+        mesReferenciaSpamVsReal = spamMesAtualSistema[0].MÊS;
+        anoReferenciaSpamVsReal = spamMesAtualSistema[0].ANO;
+    }    if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
-        const svcsSet = new Set();
-        spamData.forEach(r => {
+        const svcsSet = new Set();        spamData.forEach(r => {
             const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
             const svcAgrupado = mapSvcLabel(r.SVC);
             const key = `${svcAgrupado}__${mesLabel}`;
-            const totalAnterior = dadosPorSvcMes.get(key) || 0;
-            dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
+            const totalAnterior = dadosPorSvcMes.get(key) || 0;            dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
             mesesSet.add(mesLabel);
             svcsSet.add(svcAgrupado);
-        });
-        const labels = [...svcsSet].sort();
+        });        const labels = [...svcsSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });
-        const datasets = meses.map((mesLabel, i) => {
+        });        const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
-            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
-        });
-        let maxHcParaEscala = 0;
+            return {
+                label: mesLabel,
+                data,
+                backgroundColor: pal[i % pal.length]
+            };
+        });        let maxHcParaEscala = 0;
         datasets.forEach(ds => {
             const max = ds.data.length > 0 ? Math.max(...ds.data) : 0;
             if (max > maxHcParaEscala) maxHcParaEscala = max;
-        });
-        const chart = state.charts.spamHcEvolucaoSvc;
+        });        const chart = state.charts.spamHcEvolucaoSvc;
         if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
             if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
-        }
-        const datasetAtual = datasets.find(d => d.label === mesAtualLabel);
+        }        const datasetAtual = datasets.find(d => d.label === mesUltimoLabel);
         if (datasetAtual && mesAnteriorLabel) {
             const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
             if (datasetAnterior) {
@@ -1740,137 +1751,134 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         } else if (datasetAtual) {
             datasetAtual._deltas = labels.map(() => 0);
-        }
-        chart.data._mesAtualLabel = mesAtualLabel;
+        }        chart.data._mesAtualLabel = mesUltimoLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
-    }
-    if (state.charts.spamHcEvolucaoRegiao) {
+    }    if (state.charts.spamHcEvolucaoRegiao) {
         const dadosPorRegiaoMes = new Map();
         const mesesSet = new Set();
-        const regioesSet = new Set();
-        spamData.forEach(r => {
+        const regioesSet = new Set();        spamData.forEach(r => {
             const regiao = r.REGIAO || 'N/D';
             const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
-            const key = `${regiao}__${mesLabel}`;
-            mesesSet.add(mesLabel);
-            regioesSet.add(regiao);
-            const totalAnterior = dadosPorRegiaoMes.get(key) || 0;
+            const key = `${regiao}__${mesLabel}`;            mesesSet.add(mesLabel);
+            regioesSet.add(regiao);            const totalAnterior = dadosPorRegiaoMes.get(key) || 0;
             dadosPorRegiaoMes.set(key, totalAnterior + r.HC_Total);
-        });
-        const labels = [...regioesSet].sort();
+        });        const labels = [...regioesSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });
-        const datasets = meses.map((mesLabel, i) => {
+        });        const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);
             const totalMes = data.reduce((a, b) => a + b, 0);
             data.push(totalMes);
-            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
-        });
-        labels.push('GERAL');
+            return {
+                label: mesLabel,
+                data,
+                backgroundColor: pal[i % pal.length]
+            };
+        });        labels.push('GERAL');
         const chart = state.charts.spamHcEvolucaoRegiao;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
-    }
-    if (state.charts.spamHcGerente) {
-        const spamMesAtual = spamData.filter(r => r.MÊS === mesAtual && r.ANO === anoAtual);
-        const hcPorGerente = new Map();
-        spamMesAtual.forEach(r => {
-            const svc = r.SVC;
-            const mapSvc = mapSvcLabel(svc).replace(/\s+/g, '');
-            const gerente = matrizesMap.get(mapSvc)?.GERENCIA || 'SEM GERENTE';
-            const totalAnterior = hcPorGerente.get(gerente) || 0;
-            hcPorGerente.set(gerente, totalAnterior + r.HC_Total);
-        });
-        const dataSorted = [...hcPorGerente.entries()].sort((a, b) => a[1] - b[1]);
-        const labels = dataSorted.map(d => d[0]);
-        const dataValues = dataSorted.map(d => d[1]);
-        const totalGeral = dataValues.reduce((acc, val) => acc + val, 0);
-        labels.push('GERAL');
-        dataValues.push(totalGeral);
-        const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;
-        const chart = state.charts.spamHcGerente;
-        if (chart.options.scales.x) chart.options.scales.x.max = maxHc * 1.25;
-        chart.data.labels = labels;
-        chart.data.datasets = [{label: `HC Total (${mesAtualLabel})`, data: dataValues, backgroundColor: pal[1]}];
-        setDynamicChartHeight(chart, labels);
-        chart.update();
-    }
-    if (state.charts.spamHcVsAux) {
-        const auxPorSvc = new Map();
-        colabsAtivos.forEach(c => {
-            if (norm(c.Cargo) === 'AUXILIAR') {
-                const svc = norm(c.SVC);
-                const svcAgrupado = mapSvcLabel(svc);
-                auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
-            }
-        });
-        const hcPorSvc = new Map();
-        spamData.filter(r => r.MÊS === mesAtual && r.ANO === anoAtual).forEach(r => {
-            const svcAgrupado = mapSvcLabel(r.SVC);
-            const totalAnterior = hcPorSvc.get(svcAgrupado) || 0;
-            hcPorSvc.set(svcAgrupado, totalAnterior + r.HC_Total);
-        });
-        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
-        const labels = [...allSvcs].sort();
-        const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
-        const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
-        const maxSpam = dataHcTotalSpam.length > 0 ? Math.max(...dataHcTotalSpam) : 0;
+    }    if (state.charts.spamHcGerente) {
+        const hcPorGerente = new Map();        colabsAuxiliaresAtivos.forEach(c => {
+            let gerente = 'SEM GERENTE';            if (c.SVC) {
+                const rawSvc = mapSvcLabel(c.SVC);
+                const svcNorm = norm(rawSvc).replace(/\s+/g, '');
+                const infoSvc = matrizesMap.get(svcNorm);
+                if (infoSvc && infoSvc.GERENCIA) {
+                    gerente = infoSvc.GERENCIA;
+                }
+            }            if (gerente === 'SEM GERENTE' && c.MATRIZ) {
+                const matrizColab = String(c.MATRIZ).trim();
+                for (const info of matrizesMap.values()) {
+                    if (info.MATRIZ === matrizColab && info.GERENCIA) {
+                        gerente = info.GERENCIA;
+                        break;
+                    }
+                }
+            }            hcPorGerente.set(gerente, (hcPorGerente.get(gerente) || 0) + 1);
+        });        const chart = state.charts.spamHcGerente;        if (hcPorGerente.size === 0) {
+            chart.data.labels = [];
+            chart.data.datasets = [];
+            chart.update();
+        } else {
+            const dataSorted = [...hcPorGerente.entries()].sort((a, b) => b[1] - a[1]);
+            const labels = dataSorted.map(d => d[0]);
+            const dataValues = dataSorted.map(d => d[1]);
+            const totalGeral = dataValues.reduce((acc, val) => acc + val, 0);            labels.push('GERAL');
+            dataValues.push(totalGeral);            const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;            if (chart.options.scales.x) {
+                chart.options.scales.x.max = maxHc * 1.25;
+            }            setDynamicChartHeight(chart, labels);            chart.data.labels = labels;
+            chart.data.datasets = [{
+                label: 'HC Real (Auxiliares Ativos)',
+                data: dataValues,
+                backgroundColor: pal[1]
+            }];
+            chart.update();
+        }
+    }    if (state.charts.spamHcVsAux) {        const auxPorSvc = new Map();
+        colabsAuxiliaresAtivos.forEach(c => {
+            const svcAgrupado = mapSvcLabel(c.SVC || '');
+            auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
+        });        const hcPorSvc = new Map();
+        spamData
+            .filter(r => r.MÊS === mesReferenciaSpamVsReal && r.ANO === anoReferenciaSpamVsReal)
+            .forEach(r => {
+                const svcAgrupado = mapSvcLabel(r.SVC);
+                const totalAnterior = hcPorSvc.get(svcAgrupado) || 0;
+                hcPorSvc.set(svcAgrupado, totalAnterior + r.HC_Total);
+            });        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
+        const labels = [...allSvcs].sort();        const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
+        const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);        const maxSpam = dataHcTotalSpam.length > 0 ? Math.max(...dataHcTotalSpam) : 0;
         const maxReal = dataAuxAtivoReal.length > 0 ? Math.max(...dataAuxAtivoReal) : 0;
-        const maxHcParaEscala = Math.max(maxSpam, maxReal);
-        const chart = state.charts.spamHcVsAux;
+        const maxHcParaEscala = Math.max(maxSpam, maxReal);        const chart = state.charts.spamHcVsAux;
         if (chart.options.scales.y) {
             chart.options.scales.y.max = maxHcParaEscala + 100;
             if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
-        }
-        const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);
-        chart.data.labels = labels;
+        }        const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);        chart.data.labels = labels;
         chart.data.datasets = [
-            {label: `HC Total (SPAM)`, data: dataHcTotalSpam, backgroundColor: pal[1], _deltas: deltas.map(d => 0)},
-            {label: 'HC Real (Auxiliares Ativos)', data: dataAuxAtivoReal, backgroundColor: pal[0], _deltas: deltas}
+            {
+                label: `HC Total (SPAM - ${mesReferenciaSpamVsReal.slice(0, 3)}/${anoReferenciaSpamVsReal})`,
+                data: dataHcTotalSpam,
+                backgroundColor: pal[1],
+                _deltas: deltas.map(() => 0)
+            },
+            {
+                label: 'HC Real (Auxiliares Ativos)',
+                data: dataAuxAtivoReal,
+                backgroundColor: pal[0],
+                _deltas: deltas
+            }
         ];
         chart.update();
-    }
-    if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
+    }    if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
         if (state.charts.spamContractDonut) {
             state.charts.spamContractDonut.destroy();
         }
         state.charts.spamContractDonut = createStackedBar('spam-chart-contrato-donut', null, 'x');
-    }
-    if (state.charts.spamContractDonut) {
-        const targetColabs = colabsAtivos.filter(c => {
+    }    if (state.charts.spamContractDonut) {
+        const targetColabs = colabsAuxiliaresAtivos.filter(c => {
             const contrato = norm(c.Contrato || 'OUTROS');
-            const cargo = norm(c.Cargo || '');
-            return cargo.includes('AUXILIAR') && !contrato.includes('KN');
-        });
-        const dataMap = new Map();
+            return !contrato.includes('KN');
+        });        const dataMap = new Map();
         const globalCounts = new Map();
-        const allContracts = new Set();
-        targetColabs.forEach(c => {
+        const allContracts = new Set();        targetColabs.forEach(c => {
             const reg = c.REGIAO || 'N/D';
-            const cont = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
-            if (!dataMap.has(reg)) dataMap.set(reg, new Map());
-            const regMap = dataMap.get(reg);
-            regMap.set(cont, (regMap.get(cont) || 0) + 1);
+            const cont = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';            if (!dataMap.has(reg)) dataMap.set(reg, new Map());
+            const regMap = dataMap.get(reg);            regMap.set(cont, (regMap.get(cont) || 0) + 1);
             globalCounts.set(cont, (globalCounts.get(cont) || 0) + 1);
             allContracts.add(cont);
-        });
-        const labels = Array.from(dataMap.keys()).sort();
-        labels.push('GERAL');
-        const contractTypes = Array.from(allContracts).sort();
-        const datasets = contractTypes.map((ctype, i) => {
+        });        const labels = Array.from(dataMap.keys()).sort();
+        labels.push('GERAL');        const contractTypes = Array.from(allContracts).sort();        const datasets = contractTypes.map((ctype, i) => {
             const dataPct = [];
-            const dataRaw = [];
-            labels.forEach(reg => {
+            const dataRaw = [];            labels.forEach(reg => {
                 let count = 0;
-                let totalReg = 0;
-                if (reg === 'GERAL') {
+                let totalReg = 0;                if (reg === 'GERAL') {
                     count = globalCounts.get(ctype) || 0;
                     totalReg = Array.from(globalCounts.values()).reduce((a, b) => a + b, 0) || 1;
                 } else {
@@ -1879,21 +1887,17 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                         count = regMap.get(ctype) || 0;
                         totalReg = Array.from(regMap.values()).reduce((a, b) => a + b, 0) || 1;
                     }
-                }
-                const pct = (count * 100) / totalReg;
+                }                const pct = (count * 100) / totalReg;
                 dataPct.push(pct);
                 dataRaw.push(count);
-            });
-            return {
+            });            return {
                 label: ctype,
                 data: dataPct,
                 backgroundColor: pal[i % pal.length],
                 _rawCounts: dataRaw,
                 borderWidth: 0
             };
-        });
-        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
-        state.charts.spamContractDonut.data.labels = labels;
+        });        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);        state.charts.spamContractDonut.data.labels = labels;
         state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
     }
@@ -2594,46 +2598,56 @@ let filterStatus;
 let filterGestor;
 let filterRecrutadora;
 let inputCc;function initControleVagas() {
-    if (!document.getElementById('efet-controle-vagas')) return;    vagasModal = document.getElementById('vagasModal');
+    if (!document.getElementById('efet-controle-vagas')) return;
+    vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     formVagas = document.getElementById('formVagas');
-    tbodyVagas = document.getElementById('vagas-tbody');    if (btnGerarVaga) {
+    tbodyVagas = document.getElementById('vagas-tbody');
+    if (btnGerarVaga) {
         if (!state.isUserRH) {
             btnGerarVaga.style.display = 'none';
         } else {
             btnGerarVaga.style.display = '';
             btnGerarVaga.addEventListener('click', () => openVagasModal());
         }
-    }    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
+    }
+    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
     inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
-    inputCc = formVagas?.querySelector('[name="cc"]');    searchInput = document.getElementById('vagas-search');
+    inputCc = formVagas?.querySelector('[name="cc"]');
+    searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
-    filterRecrutadora = document.getElementById('filter-vagas-recrutadora');    fetchMatrizes();
+    filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
+    fetchMatrizes();
     fetchGestores();
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
-    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);    if (selectFilial) {
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
+    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
+    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
+    if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
             atualizarSVC(matrizSelecionada);
             atualizarCC(matrizSelecionada);
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
-    }    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
+    }
+    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
     if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
     if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
-    if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);    fetchVagas();    wireCepVagas();
+    if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
+    fetchVagas();
+    wireCepVagas();
 }async function fetchMatrizes() {
     const {data, error} = await supabase
         .from('Matrizes')
@@ -2725,29 +2739,39 @@ let inputCc;function initControleVagas() {
         inputPrazoRS.value = `${yyyy}-${mm}-${dd}`;
     }
 }function openVagasModal(vagaData = null) {
-    if (!vagasModal) return;    vagasModal.classList.remove('hidden');
-    formVagas.reset();    formVagas.querySelectorAll('select').forEach(sel => {
+    if (!vagasModal) return;
+    vagasModal.classList.remove('hidden');
+    formVagas.reset();
+    formVagas.querySelectorAll('select').forEach(sel => {
         if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
             sel.value = "";
         }
-    });    selectFilial.value = "";
+    });
+    selectFilial.value = "";
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
     inputSvc.value = "";
-    if(inputCc) inputCc.value = "";    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (document.getElementById('div-substituido')) {
+    if (inputCc) inputCc.value = "";
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
+    if (document.getElementById('div-substituido')) {
         document.getElementById('div-substituido').classList.add('hidden');
-    }    if (vagaData) {
+    }
+    if (vagaData) {
         document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
         formVagas.dataset.mode = 'edit';
-        formVagas.dataset.id = vagaData.ID_Vaga;        const f = formVagas.elements;        if (f.status) f.status.value = vagaData.Status || '';
+        formVagas.dataset.id = vagaData.ID_Vaga;
+        const f = formVagas.elements;
+        if (f.status) f.status.value = vagaData.Status || '';
         if (f.data_aprovacao) f.data_aprovacao.value = vagaData.DataAprovacao || '';
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
-        if (f.cargo) f.cargo.value = vagaData.Cargo || '';        if (f.filial) {
+        if (f.cargo) f.cargo.value = vagaData.Cargo || '';
+        if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
             atualizarCC(vagaData.MATRIZ);
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
-        }        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
+        }
+        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
         if (f.setor) f.setor.value = vagaData.Setor || '';
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
         if (f.recrutadora) f.recrutadora.value = vagaData.Recrutadora || '';
@@ -2760,19 +2784,27 @@ let inputCc;function initControleVagas() {
         if (f.hora_entrada) f.hora_entrada.value = vagaData.HoraEntrada || '';
         if (f.hora_saida) f.hora_saida.value = vagaData.HoraSaida || '';
         if (f.dias_semana) f.dias_semana.value = vagaData.DiasSemana || '';
-        if (f.jornada_tipo) f.jornada_tipo.value = vagaData.JornadaTipo || '';        if (f.sla_acordada) f.sla_acordada.value = vagaData.SLA_Acordada || '';
+        if (f.jornada_tipo) f.jornada_tipo.value = vagaData.JornadaTipo || '';
+        if (f.sla_acordada) f.sla_acordada.value = vagaData.SLA_Acordada || '';
         if (f.prazo_entrega_rs) f.prazo_entrega_rs.value = vagaData.PrazoEntregaRS || '';
         if (f.data_encaminhado_admissao) f.data_encaminhado_admissao.value = vagaData.DataEncaminhadoAdmissao || '';
-        if (f.data_admissao_real) f.data_admissao_real.value = vagaData.DataAdmissaoReal || '';        if (f.candidato_aprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado || '';        if (f.data_nascimento_candidato) f.data_nascimento_candidato.value = vagaData.DataNascimento || '';
+        if (f.data_admissao_real) f.data_admissao_real.value = vagaData.DataAdmissaoReal || '';
+        if (f.candidato_aprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado || '';
+        if (f.data_nascimento_candidato) f.data_nascimento_candidato.value = vagaData.DataNascimento || '';
         if (f.cpf_candidato) f.cpf_candidato.value = vagaData.CPFCandidato || '';
         if (f.rg_candidato) f.rg_candidato.value = vagaData.rg || '';
         if (f.telefone_candidato) f.telefone_candidato.value = vagaData.telefone || '';
         if (f.email_candidato) f.email_candidato.value = vagaData.email || '';
-        if (f.pis_candidato) f.pis_candidato.value = vagaData.pis || '';        if (f.cep_candidato) f.cep_candidato.value = vagaData.CEP || '';        if (f.endereco_candidato) f.endereco_candidato.value = vagaData.endereco_completo || '';
+        if (f.pis_candidato) f.pis_candidato.value = vagaData.pis || '';
+        if (f.cep_candidato) f.cep_candidato.value = vagaData.CEP || '';
+        if (f.endereco_candidato) f.endereco_candidato.value = vagaData.endereco_completo || '';
         if (f.numero_candidato) f.numero_candidato.value = vagaData.numero || '';
         if (f.bairro_candidato) f.bairro_candidato.value = vagaData.bairro || '';
-        if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';        if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
-        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';        toggleSubstituicao(vagaData.Motivo);    } else {
+        if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';
+        if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
+        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';
+        toggleSubstituicao(vagaData.Motivo);
+    } else {
         document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
         formVagas.dataset.mode = 'create';
         delete formVagas.dataset.id;
@@ -2806,7 +2838,8 @@ async function fetchVagas() {
     const formData = new FormData(formVagas);
     const raw = Object.fromEntries(formData.entries());
     const mode = formVagas.dataset.mode;
-    const id = formVagas.dataset.id;    const payload = {
+    const id = formVagas.dataset.id;
+    const payload = {
         Status: raw.status,
         DataAprovacao: raw.data_aprovacao || null,
         DataInicioDesejado: raw.data_inicio_desejado || null,
@@ -2828,35 +2861,45 @@ async function fetchVagas() {
         HoraEntrada: raw.hora_entrada || null,
         HoraSaida: raw.hora_saida || null,
         DiasSemana: raw.dias_semana,
-        JornadaTipo: raw.jornada_tipo,        CandidatoAprovado: toUpperTrim(raw.candidato_aprovado),        DataNascimento: raw.data_nascimento_candidato || null,
+        JornadaTipo: raw.jornada_tipo,
+        CandidatoAprovado: toUpperTrim(raw.candidato_aprovado),
+        DataNascimento: raw.data_nascimento_candidato || null,
         CPFCandidato: normalizeCPF(raw.cpf_candidato),
         rg: raw.rg_candidato || null,
         telefone: raw.telefone_candidato || null,
         email: raw.email_candidato || null,
-        pis: raw.pis_candidato || null,        CEP: raw.cep_candidato ? raw.cep_candidato.replace(/\D/g, '') : null,
+        pis: raw.pis_candidato || null,
+        CEP: raw.cep_candidato ? raw.cep_candidato.replace(/\D/g, '') : null,
         endereco_completo: toUpperTrim(raw.endereco_candidato),
         numero: raw.numero_candidato || null,
         bairro: toUpperTrim(raw.bairro_candidato),
-        cidade: toUpperTrim(raw.cidade_candidato),        colete: raw.vaga_colete || null,
-        sapato: raw.vaga_sapato || null,        SLA_Acordada: raw.sla_acordada ? parseInt(raw.sla_acordada) : null,
+        cidade: toUpperTrim(raw.cidade_candidato),
+        colete: raw.vaga_colete || null,
+        sapato: raw.vaga_sapato || null,
+        SLA_Acordada: raw.sla_acordada ? parseInt(raw.sla_acordada) : null,
         PrazoEntregaRS: raw.prazo_entrega_rs || null,
         DataEncaminhadoAdmissao: raw.data_encaminhado_admissao || null,
         DataAdmissaoReal: raw.data_admissao_real || null
-    };    const btn = formVagas.querySelector('.btn-salvar');
+    };
+    const btn = formVagas.querySelector('.btn-salvar');
     const txt = btn.textContent;
     btn.textContent = 'Salvando...';
-    btn.disabled = true;    let error;    if (mode === 'edit' && id) {
+    btn.disabled = true;
+    let error;
+    if (mode === 'edit' && id) {
         const res = await supabase.from('Vagas').update(payload).eq('ID_Vaga', id);
         error = res.error;
     } else {
         const res = await supabase.from('Vagas').insert([payload]);
         error = res.error;
-    }    if (error) {
+    }
+    if (error) {
         alert('Erro: ' + error.message);
         btn.textContent = txt;
         btn.disabled = false;
         return;
-    }    alert(mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada!');
+    }
+    alert(mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada!');
     btn.textContent = txt;
     btn.disabled = false;
     closeVagasModal();
