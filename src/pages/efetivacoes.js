@@ -68,6 +68,72 @@ const MIN_SEGMENT_PERCENT = 9;function cacheKeyForColabs() {
             }
         });
     }
+}async function loadSheetJS() {
+    if (window.XLSX) return;
+    try {
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    } catch (error) {
+        console.error("Falha ao carregar a biblioteca XLSX:", error);
+    }
+}async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
+    console.log(`[DEBUG] Iniciando busca de absenteísmo (apenas ocorrências) para: ${nomeColaborador}`);
+    if (!nomeColaborador) return null;
+    const dataCorte = new Date();
+    dataCorte.setDate(dataCorte.getDate() - 45);
+    const dataCorteISO = dataCorte.toISOString().split('T')[0];
+    const {data: registros, error} = await supabase
+        .from('ControleDiario')
+        .select('Data, Turno, Falta, Atestado, Observacao, TipoAtestado, CID')
+        .eq('Nome', nomeColaborador)
+        .gte('Data', dataCorteISO)
+        .or('Falta.gt.0,Atestado.gt.0')
+        .order('Data', {ascending: false});
+    if (error || !registros) {
+        console.error('[DEBUG] Erro ao buscar absenteísmo:', error);
+        return null;
+    }
+    let injustificado = 0;
+    let justificado = 0;
+    registros.forEach(row => {
+        if (row.Atestado > 0) justificado++;
+        else if (row.Falta > 0) injustificado++;
+    });
+    let attachment = null;
+    try {
+        await loadSheetJS();
+        if (window.XLSX) {
+            const rowsExcel = registros.map(r => ({
+                Data: r.Data ? r.Data.split('-').reverse().join('/') : '-',
+                Turno: r.Turno || '-',
+                Status: (r.Atestado > 0 ? 'Atestado/Justificado' : 'Falta Injustificada'),
+                TipoAtestado: r.TipoAtestado || '',
+                CID: r.CID || '',
+                Observacao: r.Observacao || ''
+            }));
+            const ws = XLSX.utils.json_to_sheet(rowsExcel);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Absenteísmo 45 Dias");
+            const excelBase64 = XLSX.write(wb, {bookType: 'xlsx', type: 'base64'});
+            attachment = {
+                filename: `Relatorio_Absenteismo_${nomeColaborador.replace(/\s+/g, '_')}.xlsx`,
+                content: excelBase64,
+                encoding: 'base64'
+            };
+            console.log('[DEBUG] Excel gerado (apenas absenteísmo). Linhas:', rowsExcel.length);
+        }
+    } catch (err) {
+        console.warn('[DEBUG] Erro ao gerar Excel:', err);
+    }
+    return {
+        stats: {justificado, injustificado},
+        attachment: attachment
+    };
 }function getLocalISOString(date) {
     if (!date) date = new Date();
     const pad = (n) => String(n).padStart(2, '0');
@@ -347,12 +413,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         });
     }
 }function wireResizeObserver() {
-    if (_resizeObs) return;
-    const rootEl = document.querySelector('#hc-indice .hcidx-root');
-    if (!rootEl) return;
-    _resizeObs = new ResizeObserver(() => setResponsiveHeights());
-    _resizeObs.observe(rootEl);
-    window.addEventListener('resize', setResponsiveHeights);
+    if (_resizeObs) return;    const rootEl = document.querySelector(HOST_SEL);     if (!rootEl) return;    _resizeObs = new ResizeObserver(() => {
+        setResponsiveHeights();
+    });    _resizeObs.observe(rootEl);    window.addEventListener('resize', setResponsiveHeights);
 }function ensureMounted() {
     const host = document.querySelector(HOST_SEL);
     if (!host || state.mounted) return;
@@ -615,39 +678,36 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     } finally {
         state.loading = false;
         showBusy(false);
+        setTimeout(() => setResponsiveHeights(), 100);
     }
 }function wireSubtabs() {
     const host = document.querySelector(HOST_SEL);
-    if (!host) return;
-    const subButtons = host.querySelectorAll('.efet-subtab-btn');
-    if (subButtons.length > 0 && subButtons[0].dataset.wired === '1') {
+    if (!host) return;    const subButtons = host.querySelectorAll('.efet-subtab-btn');    if (subButtons.length > 0 && subButtons[0].dataset.wired === '1') {
         return;
-    }
-    const scrollContainer = document.querySelector('.container');
-    subButtons.forEach(btn => {
+    }    const scrollContainer = document.querySelector('.container');    let layoutCorrectionInterval = null;    subButtons.forEach(btn => {
         btn.dataset.wired = '1';
         btn.addEventListener('click', () => {
             const viewName = btn.dataset.view;
             const currentView = host.querySelector('.efet-view.active');
-            const nextView = host.querySelector(`#${viewName}`);
-            if (currentView === nextView) return;
-            subButtons.forEach(b => b.classList.remove('active'));
-            host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
-            btn.classList.add('active');
+            const nextView = host.querySelector(`#${viewName}`);            if (currentView === nextView) return;            subButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');            host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
             if (nextView) {
                 nextView.classList.add('active');
-            }
-            if (scrollContainer) {
+            }            if (scrollContainer) {
                 if (viewName === 'efet-em-efetivacao' || viewName === 'efet-desligamento') {
                     scrollContainer.classList.add('travar-scroll-pagina');
                 } else {
                     scrollContainer.classList.remove('travar-scroll-pagina');
                 }
-            }
-            if (viewName === 'efet-visao-service' || viewName === 'efet-visao-regional' || viewName === 'efet-em-efetivacao' || viewName === 'spam-hc-view' || viewName === 'efet-desligamento') {
+            }            if (['efet-visao-service', 'efet-visao-regional', 'efet-em-efetivacao', 'spam-hc-view', 'efet-desligamento'].includes(viewName)) {
                 refresh();
-            }
-            setResponsiveHeights();
+            }            if (layoutCorrectionInterval) clearInterval(layoutCorrectionInterval);            let attempts = 0;            layoutCorrectionInterval = setInterval(() => {                Object.values(state.charts).forEach(ch => {
+                    if (ch && typeof ch.resize === 'function') {
+                        ch.resize();
+                        ch.update('none');
+                    }
+                });                window.dispatchEvent(new Event('resize'));                attempts++;                if (attempts >= 12) clearInterval(layoutCorrectionInterval);
+            }, 50);
         });
     });
 }function setDynamicChartHeight(chart, labels) {
@@ -1670,23 +1730,15 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     }
 }async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
-    ensureChartsCreatedSpam();    const [allSpamData] = await Promise.all([loadSpamData()]);    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');    const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');    const spamData = allSpamData.filter(r => {
-        if (state.regiao && r.REGIAO !== state.regiao) return false;        const svcLabel = mapSvcLabel(r.SVC);
-        const svcNorm = norm(svcLabel).replace(/\s+/g, '');
-        const matrizInfo = matrizesMap.get(svcNorm);        if (state.matriz) {
-            if (!matrizInfo || matrizInfo.MATRIZ !== state.matriz) return false;
-        }
-        if (state.gerencia) {
-            if (!matrizInfo || matrizInfo.GERENCIA !== state.gerencia) return false;
-        }
-        if (svcsDoGerente) {            if (!svcsDoGerente.has(r.SVC)) return false;
-        }
-        return true;
-    });    const pal = palette();
-    const allMonths = [...spamData].sort(sortMesAno);
+    ensureChartsCreatedSpam();    const [allSpamData] = await Promise.all([loadSpamData()]);    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
+    const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');    const spamData = allSpamData.filter(r => {        if (state.regiao && r.REGIAO !== state.regiao) return false;        const matrizInfo = matrizesMap.get(r.SVC);        if (state.matriz) {            if (!matrizInfo || matrizInfo.MATRIZ !== state.matriz) return false;
+        }        if (state.gerencia) {            if (!matrizInfo || matrizInfo.GERENCIA !== state.gerencia) return false;
+        }        if (svcsDoGerente) {
+            if (!svcsDoGerente.has(r.SVC)) return false;
+        }        return true;
+    });    const pal = palette();    const allMonths = [...spamData].sort(sortMesAno);
     const latestMonth = allMonths.pop();    if (!latestMonth) {
-        console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
-        Object.values(state.charts).forEach(chart => {
+        console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");        Object.values(state.charts).forEach(chart => {
             if (chart && chart.canvas?.id?.startsWith('spam-')) {
                 chart.data.labels = [];
                 chart.data.datasets = [];
@@ -1694,14 +1746,14 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         });
         return;
-    }    const { MÊS: mesUltimo, ANO: anoUltimo } = latestMonth;
-    const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;
-    const previousMonth = allMonths
+    }    const {MÊS: mesUltimo, ANO: anoUltimo} = latestMonth;
+    const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;    const previousMonth = allMonths
         .filter(m => m.ANO < anoUltimo || (m.ANO === anoUltimo && m.mesOrder < latestMonth.mesOrder))
         .pop();
     const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;    const hoje = new Date();
     const anoSistema = hoje.getFullYear();
-    const mesSistemaOrder = hoje.getMonth() + 1;     const spamMesAtualSistema = spamData.filter(r =>
+    const mesSistemaOrder = hoje.getMonth() + 1;
+    const spamMesAtualSistema = spamData.filter(r =>
         r.ANO === anoSistema && r.mesOrder === mesSistemaOrder
     );    let mesReferenciaSpamVsReal = mesUltimo;
     let anoReferenciaSpamVsReal = anoUltimo;    if (spamMesAtualSistema.length > 0) {
@@ -1711,11 +1763,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
         const svcsSet = new Set();        spamData.forEach(r => {
-            const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
-            const svcAgrupado = mapSvcLabel(r.SVC);
-            const key = `${svcAgrupado}__${mesLabel}`;
-            const totalAnterior = dadosPorSvcMes.get(key) || 0;            dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
-            mesesSet.add(mesLabel);
+            const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;            const svcAgrupado = mapSvcLabel(r.SVC);            const key = `${svcAgrupado}__${mesLabel}`;
+            const totalAnterior = dadosPorSvcMes.get(key) || 0;
+            dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);            mesesSet.add(mesLabel);
             svcsSet.add(svcAgrupado);
         });        const labels = [...svcsSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
@@ -1771,10 +1821,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
         });        const datasets = meses.map((mesLabel, i) => {
-            const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);
-            const totalMes = data.reduce((a, b) => a + b, 0);
-            data.push(totalMes);
-            return {
+            const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);            const totalMes = data.reduce((a, b) => a + b, 0);
+            data.push(totalMes);            return {
                 label: mesLabel,
                 data,
                 backgroundColor: pal[i % pal.length]
@@ -1788,9 +1836,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const hcPorGerente = new Map();        colabsAuxiliaresAtivos.forEach(c => {
             let gerente = 'SEM GERENTE';            if (c.SVC) {
                 const rawSvc = mapSvcLabel(c.SVC);
-                const svcNorm = norm(rawSvc).replace(/\s+/g, '');
-                const infoSvc = matrizesMap.get(svcNorm);
-                if (infoSvc && infoSvc.GERENCIA) {
+                const svcNorm = norm(rawSvc).replace(/\s+/g, '');                 let infoSvc = matrizesMap.get(norm(c.SVC).replace(/\s+/g, ''));
+                if (!infoSvc) {                    infoSvc = matrizesMap.get(svcNorm);
+                }                if (infoSvc && infoSvc.GERENCIA) {
                     gerente = infoSvc.GERENCIA;
                 }
             }            if (gerente === 'SEM GERENTE' && c.MATRIZ) {
@@ -1802,16 +1850,18 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                     }
                 }
             }            hcPorGerente.set(gerente, (hcPorGerente.get(gerente) || 0) + 1);
-        });        const chart = state.charts.spamHcGerente;        if (hcPorGerente.size === 0) {
+        });        const chart = state.charts.spamHcGerente;
+        if (hcPorGerente.size === 0) {
             chart.data.labels = [];
             chart.data.datasets = [];
             chart.update();
         } else {
             const dataSorted = [...hcPorGerente.entries()].sort((a, b) => b[1] - a[1]);
             const labels = dataSorted.map(d => d[0]);
-            const dataValues = dataSorted.map(d => d[1]);
-            const totalGeral = dataValues.reduce((acc, val) => acc + val, 0);            labels.push('GERAL');
-            dataValues.push(totalGeral);            const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;            if (chart.options.scales.x) {
+            const dataValues = dataSorted.map(d => d[1]);            const totalGeral = dataValues.reduce((acc, val) => acc + val, 0);
+            labels.push('GERAL');
+            dataValues.push(totalGeral);            const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;
+            if (chart.options.scales.x) {
                 chart.options.scales.x.max = maxHc * 1.25;
             }            setDynamicChartHeight(chart, labels);            chart.data.labels = labels;
             chart.data.datasets = [{
@@ -1861,8 +1911,7 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             state.charts.spamContractDonut.destroy();
         }
         state.charts.spamContractDonut = createStackedBar('spam-chart-contrato-donut', null, 'x');
-    }    if (state.charts.spamContractDonut) {
-        const targetColabs = colabsAuxiliaresAtivos.filter(c => {
+    }    if (state.charts.spamContractDonut) {        const targetColabs = colabsAuxiliaresAtivos.filter(c => {
             const contrato = norm(c.Contrato || 'OUTROS');
             return !contrato.includes('KN');
         });        const dataMap = new Map();
@@ -2211,75 +2260,67 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     }
 }async function desligamento_openApproveModal() {
     const mod = state.desligamentoModule;
-    if (!mod.modal || !mod.colaboradorAtual) return;
-    const colab = mod.colaboradorAtual;
-    const isResend = colab.StatusDesligamento === 'CONCLUIDO';
-    document.getElementById('approveNome').textContent = colab.Nome;
+    if (!mod.modal || !mod.colaboradorAtual) return;    const colab = mod.colaboradorAtual;
+    const isResend = colab.StatusDesligamento === 'CONCLUIDO';    mod.currentAttachment = null;     document.getElementById('approveNome').textContent = colab.Nome;
     document.getElementById('approveSolicitante').textContent = colab.SolicitanteDesligamento || 'N/A';
     document.getElementById('approveGestor').textContent = colab.Gestor || 'N/A';
     document.getElementById('approveSVC').textContent = colab.SVC || 'N/A';
-    document.getElementById('approveDataSolicitacao').textContent = formatDateTimeLocal(colab.DataDesligamentoSolicitada);
-    const dateInput = document.getElementById('approveDataInput');
-    let dataAlvo = ymdToday();
-    if (isResend) {
-        dateInput.value = '';
-    } else {
-        if (colab.MotivoDesligamento) {
-            const match = colab.MotivoDesligamento.match(/Data Prevista: (\d{2}\/\d{2}\/\d{4})/);
-            if (match && match[1]) {
-                dataAlvo = match[1].split('/').reverse().join('-');
-            }
-        } else if (colab.DataDesligamentoSolicitada) {
-            dataAlvo = colab.DataDesligamentoSolicitada.split('T')[0];
-        }
-        dateInput.value = dataAlvo;
-    }
+    document.getElementById('approveDataSolicitacao').textContent = formatDateTimeLocal(colab.DataDesligamentoSolicitada);    const dateInput = document.getElementById('approveDataInput');
     const rhInput = document.getElementById('approveRH');
     const emailInput = document.getElementById('approveEmails');
     const bodyInput = document.getElementById('approveBody');
-    const submitBtn = mod.submitBtn;
-    if (!isResend && rhInput) {
-        rhInput.value = mod.currentUser || '';
-    }
-    if (isResend && rhInput && !rhInput.value) {
-        rhInput.value = mod.currentUser || '';
-    }
-    const nomeAprovador = rhInput.value || mod.currentUser || 'RH';
-    const dataVisual = dataAlvo ? formatDateLocal(dataAlvo) : 'DATA_A_DEFINIR';
-    const templateBody = `Olá, prezado(a)KNConecta solicita o desligamento do colaborador abaixo:COLABORADOR: ${colab.Nome}
-PARA A DATA: ${dataVisual}
-MOTIVO: ${colab.MotivoDesligamento || 'N/A'}
-SOLICITADO PELA GESTÃO: ${colab.Gestor || 'N/A'}
-APROVADO POR: ${nomeAprovador}
-MATRIZ: ${colab.MATRIZ || 'N/A'}--
-E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;
-    bodyInput.value = templateBody;
-    dateInput.onchange = () => {
-        const novaData = dateInput.value;
-        if (novaData) {
-            const novaDataFmt = formatDateLocal(novaData);
-            let currentBody = bodyInput.value;
-            bodyInput.value = currentBody.replace(/PARA A DATA: .*/, `PARA A DATA: ${novaDataFmt}`);
-        }
-    };
-    if (isResend) {
-        submitBtn.textContent = 'Reenviar E-mail';
-    } else {
-        submitBtn.textContent = 'Confirmar e Enviar E-mail';
-    }
-    emailInput.value = 'Carregando e-mails sugeridos...';
+    const submitBtn = mod.submitBtn;    let dataAlvo = null;    if (isResend) {
+        dateInput.value = '';
+    } else {        if (colab.MotivoDesligamento) {
+            const match = colab.MotivoDesligamento.match(/Data Prevista:\s*(\d{2}\/\d{2}\/\d{4})/i);
+            if (match && match[1]) {
+                dataAlvo = match[1].split('/').reverse().join('-');
+            }
+        }        if (!dataAlvo && colab.DataDesligamentoSolicitada) {
+            dataAlvo = colab.DataDesligamentoSolicitada.split('T')[0];
+        }        if (!dataAlvo) {
+            dataAlvo = ymdToday();
+        }        dateInput.value = dataAlvo;
+    }    if (!isResend && rhInput) rhInput.value = mod.currentUser || '';
+    if (isResend && rhInput && !rhInput.value) rhInput.value = mod.currentUser || '';    const nomeAprovador = rhInput.value || mod.currentUser || 'RH';
+    const dataVisual = dataAlvo ? formatDateLocal(dataAlvo) : 'DATA_A_DEFINIR';    let templateBody = `Olá, prezado(a)\n\nKNConecta solicita o desligamento do colaborador abaixo:\n\n` +
+        `COLABORADOR: ${colab.Nome}\n` +
+        `PARA A DATA: ${dataVisual}\n` +
+        `MOTIVO: ${colab.MotivoDesligamento || 'N/A'}\n` +
+        `SOLICITADO PELA GESTÃO: ${colab.Gestor || 'N/A'}\n` +
+        `APROVADO POR: ${nomeAprovador}\n` +
+        `MATRIZ: ${colab.MATRIZ || 'N/A'}\n\n`;    bodyInput.value = templateBody + "Carregando dados de absenteísmo...";    if (isResend) submitBtn.textContent = 'Reenviar E-mail';
+    else submitBtn.textContent = 'Confirmar e Enviar E-mail';    emailInput.value = 'Carregando e-mails sugeridos...';
     emailInput.disabled = true;
-    try {
-        const emailsAuto = await desligamento_fetchEmailsSugestao(colab.Contrato);
-        emailInput.value = emailsAuto;
-    } catch (error) {
-        console.error("Erro ao carregar e-mails:", error);
+    submitBtn.disabled = true;    try {
+        const [emailsAuto, absData] = await Promise.all([
+            desligamento_fetchEmailsSugestao(colab.Contrato),
+            desligamento_prepararDadosAbsenteismo(colab.Nome)
+        ]);        emailInput.value = emailsAuto;        let absTexto = "";
+        if (absData && absData.stats) {
+            absTexto = `Resumo Absenteísmo (Últimos 45 dias):\n` +
+                       `Injustificado: ${absData.stats.injustificado}\n` +
+                       `Justificado: ${absData.stats.justificado}\n\n` +
+                       `*Segue em anexo o relatório detalhado de absenteísmo.*`;            if (absData.attachment) {
+                mod.currentAttachment = absData.attachment;
+            }
+        } else {
+            absTexto = "Não foi possível recuperar dados de absenteísmo recentes.";
+        }        bodyInput.value = templateBody + absTexto +
+                          `\n\n--\nE-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;    } catch (error) {
+        console.error("Erro ao carregar dados:", error);
         emailInput.value = '';
+        bodyInput.value = templateBody + `\n\n--\nE-mail gerado automático.`;
     } finally {
         emailInput.disabled = false;
+        submitBtn.disabled = false;
         if (isResend) emailInput.focus();
-    }
-    mod.modal.classList.remove('hidden');
+    }    dateInput.onchange = () => {
+        if (dateInput.value) {
+            const novaDataFmt = formatDateLocal(dateInput.value);
+            bodyInput.value = bodyInput.value.replace(/PARA A DATA: .*/, `PARA A DATA: ${novaDataFmt}`);
+        }
+    };    mod.modal.classList.remove('hidden');
 }function desligamento_closeApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal) return;
@@ -2364,27 +2405,16 @@ E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o 
     try {
         let dataDesligamentoFinal = dataEfetivaInput;
         if (isResend) {
-            const {data: colabCompleto, error: fetchError} = await supabase
-                .from('Desligados')
-                .select('*')
-                .eq('Nome', colab.Nome)
-                .single();
-            if (fetchError || !colabCompleto) {
-                console.warn('Não achou em Desligados, usando input.');
-            } else {
-                dataDesligamentoFinal = colabCompleto['Data de Desligamento'];
-            }
+            const {data: colabCompleto} = await supabase.from('Desligados').select('*').eq('Nome', colab.Nome).single();
+            if (colabCompleto) dataDesligamentoFinal = colabCompleto['Data de Desligamento'];
         }
         if (!isResend) {
             submitBtn.textContent = 'Aprovando no banco...';
-            const {data: colabCompleto, error: fetchError} = await supabase
-                .from('Colaboradores')
-                .select('*')
-                .eq('Nome', colab.Nome)
-                .single();
-            if (fetchError || !colabCompleto) {
-                throw fetchError || new Error('Colaborador não encontrado.');
-            }
+            const {
+                data: colabCompleto,
+                error: fetchError
+            } = await supabase.from('Colaboradores').select('*').eq('Nome', colab.Nome).single();
+            if (fetchError || !colabCompleto) throw fetchError || new Error('Colaborador não encontrado.');
             const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamentoFinal);
             const dataHoraDecisao = getLocalISOString(new Date());
             const desligadoData = {
@@ -2407,38 +2437,33 @@ E-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o 
                 p_nome: colab.Nome,
                 p_payload_desligado: desligadoData
             });
-            if (rpcError) {
-                throw new Error(`Erro ao processar no banco: ${rpcError.message}`);
-            }
-            logAction(`Aprovou desligamento (E-mail): ${colab.Nome} (Data Saída: ${formatDateLocal(dataDesligamentoFinal)})`);
+            if (rpcError) throw new Error(`Erro ao processar no banco: ${rpcError.message}`);
+            logAction(`Aprovou desligamento (E-mail): ${colab.Nome}`);
             invalidateCache();
         }
         submitBtn.textContent = 'Enviando e-mail...';
-        const subject = `SOLICITAÇÃO DE DESLIGAMENTO - COLABORADOR: ${colab.Nome}`;
-        const body = emailBodyContent;
+        const emailPayload = {
+            to: emails,
+            subject: `SOLICITAÇÃO DE DESLIGAMENTO - COLABORADOR: ${colab.Nome}`,
+            body: emailBodyContent
+        };
+        if (mod.currentAttachment) {
+            emailPayload.attachments = [mod.currentAttachment];
+        }
         const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
-            body: JSON.stringify({
-                to: emails,
-                subject: subject,
-                body: body
-            })
+            body: JSON.stringify(emailPayload)
         });
         if (emailError) {
-            let errorMessage = emailError.message;
+            let msg = emailError.message;
             try {
-                if (fnData && typeof fnData === 'string') {
-                    const errorObj = JSON.parse(fnData);
-                    if (errorObj.error) errorMessage = errorObj.error;
-                }
+                if (fnData && JSON.parse(fnData).error) msg = JSON.parse(fnData).error;
             } catch (e) {
             }
-            await window.customAlert(`Desligamento salvo, mas erro ao enviar e-mail: ${errorMessage}`, 'Alerta');
+            await window.customAlert(`Salvo, mas erro ao enviar e-mail: ${msg}`, 'Alerta');
         } else {
             await window.customAlert('Processo concluído com sucesso!', 'Sucesso');
         }
-        if (isResend) {
-            logAction(`Reenviou e-mail de desligamento para: ${colab.Nome}`);
-        }
+        if (isResend) logAction(`Reenviou e-mail de desligamento para: ${colab.Nome}`);
         desligamento_closeApproveModal();
         desligamento_fetchPendentes();
     } catch (error) {
