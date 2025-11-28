@@ -1,4 +1,3 @@
-
 function simplifyKpiName(kpiName) {
     const lowerKpi = (kpiName || '').toLowerCase();
     if (lowerKpi.includes('fechamento automático de gaiolas')) return 'Fechamento de Gaiola';
@@ -9,6 +8,7 @@ function simplifyKpiName(kpiName) {
     if (lowerKpi.includes('opsclock')) return 'OOT SVC';
     if (lowerKpi.includes('volume forecast')) return 'Volume Forecast';
     if (lowerKpi.includes('volume delivered')) return 'Volume Delivered';
+    if (lowerKpi.includes('volume processado')) return 'Volume Processado';
     if (lowerKpi.includes('t & a')) return 'T & A';
     return kpiName;
 }function formatValue(value, kpiName) {
@@ -31,9 +31,9 @@ function simplifyKpiName(kpiName) {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         }).format(numberValue);
-    }
-    const isVolume = simplifiedKpi.includes('volume delivered') || simplifiedKpi.includes('volume forecast');
-    if (isVolume) {
+    }    const isVolume = simplifiedKpi.includes('volume delivered') ||
+        simplifiedKpi.includes('volume forecast') ||
+        simplifiedKpi.includes('volume processado');    if (isVolume) {
         return new Intl.NumberFormat('pt-BR', {
             maximumFractionDigits: 0
         }).format(numberValue);
@@ -139,7 +139,8 @@ let IS_LOADING = false;function _pad2(n) {
     }
 }function openPeriodModal() {
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';    overlay.innerHTML = `
+    overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
+    overlay.innerHTML = `
     <div class="container !h-auto !w-auto max-w-md" style="background:#fff;border-radius:12px;padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.18);">
       <h3 style="font-weight:800;color:#003369;margin:0 0 10px;">Selecionar Período</h3>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
@@ -162,9 +163,12 @@ let IS_LOADING = false;function _pad2(n) {
         <button type="button" class="btn-salvar" data-action="apply" style="padding:8px 12px;border-radius:8px;border:1px solid #003369;background:#003369;color:#fff;">Aplicar</button>
       </div>
     </div>`;
-    document.body.appendChild(overlay);    const startInput = overlay.querySelector('#modal-start-date');
-    const endInput = overlay.querySelector('#modal-end-date');    overlay.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;        if (e.target === overlay || action === 'cancel') {
+    document.body.appendChild(overlay);
+    const startInput = overlay.querySelector('#modal-start-date');
+    const endInput = overlay.querySelector('#modal-end-date');
+    overlay.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        if (e.target === overlay || action === 'cancel') {
             document.body.removeChild(overlay);
         } else if (action === 'apply') {
             if (!startInput.value || !endInput.value) {
@@ -175,7 +179,9 @@ let IS_LOADING = false;function _pad2(n) {
             PERIOD.end = endInput.value;
             const btn = document.getElementById('dr-period-btn');
             _updatePeriodBtnLabel(btn);
-            document.body.removeChild(overlay);            fetchAndRenderData();        } else if (action === 'hoje') {
+            document.body.removeChild(overlay);
+            fetchAndRenderData();
+        } else if (action === 'hoje') {
             const today = new Date();
             const ymd = _ymdLocal(today);
             startInput.value = ymd;
@@ -200,19 +206,23 @@ let IS_LOADING = false;function _pad2(n) {
     filterState.service = '';
     filterState.gerente = '';
     PERIOD.start = '';
-    PERIOD.end = '';    ['dr-filter-macro', 'dr-filter-service', 'dr-filter-gerente']
+    PERIOD.end = '';
+    ['dr-filter-macro', 'dr-filter-service', 'dr-filter-gerente']
         .forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
-        });    const periodBtn = document.getElementById('dr-period-btn');
-    _updatePeriodBtnLabel(periodBtn);    fetchAndRenderData();
+        });
+    const periodBtn = document.getElementById('dr-period-btn');
+    _updatePeriodBtnLabel(periodBtn);
+    fetchAndRenderData();
 }function renderFilters({days, kpis, gerentes, codigoToGerente, macros, codigoToMacro, months, dayToMonth}) {
     const headerEl = document.getElementById('dr-header');
     const filtersEl = document.getElementById('dr-filters');
     if (!headerEl || !filtersEl) {
         console.error('Elementos #dr-header ou #dr-filters não encontrados.');
         return;
-    }    let actionsEl = headerEl.querySelector('.action-buttons');
+    }
+    let actionsEl = headerEl.querySelector('.action-buttons');
     if (!actionsEl) {
         console.warn('Container ".action-buttons" não encontrado. Criando "dr-actions" como fallback.');
         actionsEl = document.createElement('div');
@@ -221,7 +231,8 @@ let IS_LOADING = false;function _pad2(n) {
         actionsEl.style.gap = '8px';
         actionsEl.style.alignItems = 'center';
         headerEl.appendChild(actionsEl);
-    }    let periodBtn = document.getElementById('dr-period-btn');
+    }
+    let periodBtn = document.getElementById('dr-period-btn');
     if (!periodBtn) {
         periodBtn = document.createElement('button');
         periodBtn.id = 'dr-period-btn';
@@ -236,11 +247,13 @@ let IS_LOADING = false;function _pad2(n) {
         periodBtn.addEventListener('click', openPeriodModal);
         actionsEl.prepend(periodBtn);
     }
-    _updatePeriodBtnLabel(periodBtn);    let clearBtn = document.getElementById('dr-clear-all');
+    _updatePeriodBtnLabel(periodBtn);
+    let clearBtn = document.getElementById('dr-clear-all');
     if (clearBtn) {
         clearBtn.removeEventListener('click', handleClearFilters);
         clearBtn.addEventListener('click', handleClearFilters);
-    } else {        clearBtn = document.createElement('button');
+    } else {
+        clearBtn = document.createElement('button');
         clearBtn.id = 'dr-clear-all';
         clearBtn.type = 'button';
         clearBtn.textContent = 'Limpar';
@@ -253,15 +266,18 @@ let IS_LOADING = false;function _pad2(n) {
         clearBtn.style.cursor = 'pointer';
         clearBtn.addEventListener('click', handleClearFilters);
         actionsEl.appendChild(clearBtn);
-    }    const gerenteOptions = (gerentes || []).map(g => `<option value="${g}">${g}</option>`).join('');
-    const macroOptions = (macros || []).map(m => `<option value="${m}">${m}</option>`).join('');    const allCodes = new Set();
+    }
+    const gerenteOptions = (gerentes || []).map(g => `<option value="${g}">${g}</option>`).join('');
+    const macroOptions = (macros || []).map(m => `<option value="${m}">${m}</option>`).join('');
+    const allCodes = new Set();
     if (codigoToGerente) Object.keys(codigoToGerente).forEach(c => allCodes.add(c));
     if (DATA_MODEL?.codigosByKpi) {
         Object.values(DATA_MODEL.codigosByKpi).forEach(codeList => {
             (codeList || []).forEach(c => allCodes.add(c));
         });
     }
-    const serviceOptions = Array.from(allCodes).sort().map(c => `<option value="${c}">${c}</option>`).join('');    filtersEl.innerHTML = `
+    const serviceOptions = Array.from(allCodes).sort().map(c => `<option value="${c}">${c}</option>`).join('');
+    filtersEl.innerHTML = `
     <select id="dr-filter-macro">
       <option value="">Macro</option>
       ${macroOptions}
@@ -274,7 +290,9 @@ let IS_LOADING = false;function _pad2(n) {
       <option value="">Gerente</option>
       ${gerenteOptions}
     </select>
-  `;    headerEl.style.display = 'flex';    document.getElementById('dr-filter-macro').addEventListener('change', (e) => {
+  `;
+    headerEl.style.display = 'flex';
+    document.getElementById('dr-filter-macro').addEventListener('change', (e) => {
         filterState.macro = e.target.value || '';
         applyFiltersAndRender();
     });
@@ -285,21 +303,23 @@ let IS_LOADING = false;function _pad2(n) {
     document.getElementById('dr-filter-gerente').addEventListener('change', (e) => {
         filterState.gerente = e.target.value || '';
         applyFiltersAndRender();
-    });}function applyFiltersAndRender() {    if (!DATA_MODEL) {
+    });
+}function applyFiltersAndRender() {
+    if (!DATA_MODEL) {
         console.warn('Cache (DATA_MODEL) ainda não está pronto.');
         return;
     }
     const {
         days, kpis, codigosByKpi, data,
         codigoToGerente, macros, codigoToMacro
-    } = DATA_MODEL;    const filteredDays = days.slice();    const kpiTaNormalName = 't & a';
-    const kpiInventarioNormalName = 'inventário';
-    const masterOrder = [
+    } = DATA_MODEL;
+    const filteredDays = days.slice();
+    const kpiTaNormalName = 't & a';
+    const kpiInventarioNormalName = 'inventário';    const masterOrder = [
         '%cia', '%coa', '%utilização lms', 'absenteísmo fatura', 'inventário',
         'dit svc', 'delay', 'fechamento de gaiola', 'oot svc', 'phh', 'tmc',
-        'volume delivered', 'volume forecast'
-    ];
-    const taKpi = kpis.find(k => simplifyKpiName(k).toLowerCase() === kpiTaNormalName);
+        'volume delivered', 'volume forecast', 'volume processado'
+    ];    const taKpi = kpis.find(k => simplifyKpiName(k).toLowerCase() === kpiTaNormalName);
     const firstTableKpis = kpis
         .filter(k => simplifyKpiName(k).toLowerCase() !== kpiTaNormalName)
         .sort((a, b) => {
@@ -311,15 +331,19 @@ let IS_LOADING = false;function _pad2(n) {
             if (orderA === -1) return 1;
             if (orderB === -1) return -1;
             return orderA - orderB;
-        });    const allCodesMaster = new Set();
+        });
+    const allCodesMaster = new Set();
     kpis.forEach(kpi => {
         (codigosByKpi[kpi] || []).forEach(c => allCodesMaster.add(c));
     });
-    let filteredCodes = Array.from(allCodesMaster).sort();    if (filterState.macro) filteredCodes = filteredCodes.filter(c => (codigoToMacro?.[c] || '') === filterState.macro);
+    let filteredCodes = Array.from(allCodesMaster).sort();
+    if (filterState.macro) filteredCodes = filteredCodes.filter(c => (codigoToMacro?.[c] || '') === filterState.macro);
     if (filterState.service) filteredCodes = filteredCodes.filter(c => c === filterState.service);
-    if (filterState.gerente) filteredCodes = filteredCodes.filter(c => (codigoToGerente?.[c] || '') === filterState.gerente);    const container = document.getElementById('daily-regional-table-container');
+    if (filterState.gerente) filteredCodes = filteredCodes.filter(c => (codigoToGerente?.[c] || '') === filterState.gerente);
+    const container = document.getElementById('daily-regional-table-container');
     if (!container) return;
-    let tableHTML = '';    if (firstTableKpis.length > 0 && filteredCodes.length > 0) {
+    let tableHTML = '';
+    if (firstTableKpis.length > 0 && filteredCodes.length > 0) {
         let totalStandardColumns = 2;
         firstTableKpis.forEach(kpi => {
             totalStandardColumns += (simplifyKpiName(kpi).toLowerCase() === kpiInventarioNormalName ? 3 : 2);
@@ -407,7 +431,8 @@ let IS_LOADING = false;function _pad2(n) {
         </table>
       </div>
     </div>`;
-    }    if (taKpi && filteredCodes.length > 0) {
+    }
+    if (taKpi && filteredCodes.length > 0) {
         const taCodes = filteredCodes.filter(c => codigosByKpi[taKpi] && codigosByKpi[taKpi].includes(c));
         if (taCodes.length > 0) {
             tableHTML += `
@@ -456,24 +481,30 @@ let IS_LOADING = false;function _pad2(n) {
       </div>
     </div>`;
         }
-    }    if (tableHTML === '') {
+    }
+    if (tableHTML === '') {
         container.innerHTML = '<p style="text-align:center;padding:20px;">Nenhum dado encontrado para os filtros selecionados.</p>';
     } else {
         container.innerHTML = tableHTML;
     }
 }async function fetchAndRenderData() {
     const container = document.getElementById('daily-regional-table-container');
-    const loadingIndicator = document.getElementById('daily-regional-loading');    if (IS_LOADING) return;
-    IS_LOADING = true;    if (!container) {
+    const loadingIndicator = document.getElementById('daily-regional-loading');
+    if (IS_LOADING) return;
+    IS_LOADING = true;
+    if (!container) {
         IS_LOADING = false;
         return;
     }
     if (loadingIndicator) loadingIndicator.style.display = 'flex';
-    container.innerHTML = '';    try {
+    container.innerHTML = '';
+    try {
         const edgeFunctionUrl = `https://tzbqdjwgbisntzljwbqp.supabase.co/functions/v1/get-google-sheet-data-daily`;
-        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';        const body = (PERIOD.start && PERIOD.end)
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ';
+        const body = (PERIOD.start && PERIOD.end)
             ? {periodStart: PERIOD.start, periodEnd: PERIOD.end}
-            : {};        const response = await fetch(edgeFunctionUrl, {
+            : {};
+        const response = await fetch(edgeFunctionUrl, {
             method: 'POST',
             headers: {
                 'apikey': supabaseAnonKey,
@@ -481,30 +512,38 @@ let IS_LOADING = false;function _pad2(n) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(body)
-        });        if (!response.ok) {
+        });
+        if (!response.ok) {
             const errorData = await response.json().catch(() => ({error: 'Erro desconhecido.'}));
             throw new Error(`API (${response.status}): ${errorData.error || response.statusText}`);
         }
-        const result = await response.json();        const {
+        const result = await response.json();
+        const {
             days, kpis, codigosByKpi, data,
             gerentes, codigoToGerente,
             macros, codigoToMacro,
             months, dayToMonth
-        } = result;        if (!days?.length || !kpis?.length) {
-            container.innerHTML = '<p style="text-align:center;padding:20px;">Nenhum dado diário encontrado para este período.</p>';            DATA_MODEL = {
+        } = result;
+        if (!days?.length || !kpis?.length) {
+            container.innerHTML = '<p style="text-align:center;padding:20px;">Nenhum dado diário encontrado para este período.</p>';
+            DATA_MODEL = {
                 days: [], kpis: [], codigosByKpi: {}, data: {},
                 gerentes, codigoToGerente, macros, codigoToMacro, months, dayToMonth
             };
-            renderFilters(DATA_MODEL);            if (loadingIndicator) loadingIndicator.style.display = 'none';
+            renderFilters(DATA_MODEL);
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
             IS_LOADING = false;
             return;
-        }        DATA_MODEL = {
+        }
+        DATA_MODEL = {
             days, kpis, codigosByKpi, data,
             gerentes, codigoToGerente,
             macros, codigoToMacro,
             months, dayToMonth
-        };        renderFilters(DATA_MODEL);
-        applyFiltersAndRender();    } catch (error) {
+        };
+        renderFilters(DATA_MODEL);
+        applyFiltersAndRender();
+    } catch (error) {
         console.error('Erro ao buscar ou renderizar dados diários:', error);
         container.innerHTML = `<p style="color:red; text-align:center;">Erro ao carregar dados: ${error.message}</p>`;
     } finally {
@@ -512,18 +551,26 @@ let IS_LOADING = false;function _pad2(n) {
         IS_LOADING = false;
     }
 }export function init() {
-    destroy();    fetchAndRenderData();
+    destroy();
+    fetchAndRenderData();
 }export function destroy() {
     const c = document.getElementById('daily-regional-table-container');
-    if (c) c.innerHTML = '';    DATA_MODEL = null;
-    IS_LOADING = false;    PERIOD.start = '';
+    if (c) c.innerHTML = '';
+    DATA_MODEL = null;
+    IS_LOADING = false;
+    PERIOD.start = '';
     PERIOD.end = '';
     filterState.macro = '';
     filterState.service = '';
-    filterState.gerente = '';    const filtersEl = document.getElementById('dr-filters');
-    if (filtersEl) filtersEl.innerHTML = '';    document.getElementById('dr-period-btn')?.remove();    const clearBtn = document.getElementById('dr-clear-all');
+    filterState.gerente = '';
+    const filtersEl = document.getElementById('dr-filters');
+    if (filtersEl) filtersEl.innerHTML = '';
+    document.getElementById('dr-period-btn')?.remove();
+    const clearBtn = document.getElementById('dr-clear-all');
     if (clearBtn) {
         clearBtn.removeEventListener('click', handleClearFilters);
-    }    const headerEl = document.getElementById('dr-header');
-    if (headerEl) headerEl.style.display = 'none';    document.querySelectorAll('.fixed.inset-0.bg-black\\/60')?.forEach(n => n.remove());
+    }
+    const headerEl = document.getElementById('dr-header');
+    if (headerEl) headerEl.style.display = 'none';
+    document.querySelectorAll('.fixed.inset-0.bg-black\\/60')?.forEach(n => n.remove());
 }
