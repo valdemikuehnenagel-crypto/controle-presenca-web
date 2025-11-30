@@ -16,6 +16,7 @@ const SUPPORTED_FORMATS = [
 const BRASILIA_TIMEZONE = "America/Sao_Paulo";
 let state = {
     cacheData: [],
+    allUsersList: [],
     idPacoteMap: new Map(),
     isSeparaçãoProcessing: false,
     isCarregamentoProcessing: false,
@@ -126,24 +127,87 @@ let outbox = {
     } catch (e) {
         return isoString ? isoString.split("T")[0] : null;
     }
-}function ensureCarUserDatalist() {    if (document.getElementById("car-user-list")) return;    const inputUser = document.getElementById("car-user-name");
-    if (!inputUser) return;    inputUser.setAttribute("list", "car-user-list");
-    inputUser.setAttribute("autocomplete", "off");     const datalist = document.createElement("datalist");
-    datalist.id = "car-user-list";
-    document.body.appendChild(datalist);
-}function populateCarUserDatalist() {
-    const datalist = document.getElementById("car-user-list");
-    if (!datalist) return;    const nomesSet = new Set();
-    state.cacheData.forEach(item => {
-        if (item["BIPADO SAIDA"] && item["BIPADO SAIDA"].trim() !== "---") {
-            nomesSet.add(item["BIPADO SAIDA"].trim());
+}async function fetchHistoricalUsers() {
+    try {        const { data, error } = await supabase
+            .from("Carregamento")
+            .select('"BIPADO SAIDA"')
+            .neq("BIPADO SAIDA", null)            .order("DATA", { ascending: false })
+            .limit(5000);        if (error) {
+            console.error("Erro Supabase:", error);
+            throw error;
+        }        if (data) {
+            const uniqueNames = new Set();
+            data.forEach(row => {
+                const name = row["BIPADO SAIDA"];
+                if (name && typeof name === 'string' && name.trim().length > 0 && name !== "---") {
+                    uniqueNames.add(name.trim());
+                }
+            });            state.allUsersList = Array.from(uniqueNames).sort();            if (dom.carUserSelect && !dom.carUserSelect.classList.contains("hidden")) {
+                populateCarUserSelect();
+            }
         }
-    });    const nomesOrdenados = Array.from(nomesSet).sort();    datalist.innerHTML = "";
-    nomesOrdenados.forEach(nome => {
-        const option = document.createElement("option");
-        option.value = nome;
-        datalist.appendChild(option);
+    } catch (err) {
+        console.error("Erro ao buscar histórico de usuários:", err);
+    }
+}function ensureCarUserSelect() {
+    if (dom.carUserSelect) return;     const inputOriginal = document.getElementById("car-user-name");
+    if (!inputOriginal) return;    const select = document.createElement("select");
+    select.id = "car-user-select";
+    select.className = "w-full px-3 py-2 border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white text-gray-700";    const btnVoltar = document.createElement("button");
+    btnVoltar.type = "button";
+    btnVoltar.innerHTML = "↺ Voltar para Lista";
+    btnVoltar.className = "text-xs text-blue-600 hover:text-blue-800 font-bold mt-2 hidden";    inputOriginal.parentNode.insertBefore(select, inputOriginal);
+    inputOriginal.parentNode.appendChild(btnVoltar);    dom.carUserSelect = select;
+    dom.carUserBackBtn = btnVoltar;    inputOriginal.classList.add("hidden");    select.addEventListener("change", () => {
+        const valor = select.value;        if (valor === "__MANUAL__") {            select.classList.add("hidden");
+            inputOriginal.classList.remove("hidden");
+            btnVoltar.classList.remove("hidden");
+            inputOriginal.value = "";
+            inputOriginal.focus();
+        } else {            inputOriginal.value = valor;            if (!state.selectedDock && dom.carDockSelect) {
+                dom.carDockSelect.focus();
+            }
+        }
+    });    btnVoltar.addEventListener("click", () => {
+        inputOriginal.classList.add("hidden");
+        btnVoltar.classList.add("hidden");
+        select.classList.remove("hidden");        select.value = "";
+        inputOriginal.value = "";
     });
+}function populateCarUserSelect() {
+    if (!dom.carUserSelect) return;    let sourceList = state.allUsersList || [];    if (sourceList.length === 0 && state.cacheData && state.cacheData.length > 0) {
+        const tempSet = new Set();
+        state.cacheData.forEach(item => {
+            const val = item["BIPADO SAIDA"];
+            if (val && val.trim() !== "---") {
+                tempSet.add(val.trim());
+            }
+        });
+        sourceList = Array.from(tempSet).sort();
+    }    dom.carUserSelect.innerHTML = "";    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Selecione o Colaborador...";
+    dom.carUserSelect.appendChild(defaultOpt);    if (sourceList.length > 0) {
+        sourceList.forEach(nome => {
+            const opt = document.createElement("option");
+            opt.value = nome;
+            opt.textContent = nome;
+            dom.carUserSelect.appendChild(opt);
+        });
+    } else {
+        const emptyOpt = document.createElement("option");
+        emptyOpt.disabled = true;
+        emptyOpt.textContent = "(Carregando lista...)";
+        dom.carUserSelect.appendChild(emptyOpt);
+    }    const separator = document.createElement("option");
+    separator.disabled = true;
+    separator.textContent = "──────────────────";
+    dom.carUserSelect.appendChild(separator);    const manualOpt = document.createElement("option");
+    manualOpt.value = "__MANUAL__";
+    manualOpt.textContent = "✐ Digitar Manualmente...";
+    manualOpt.style.fontWeight = "bold";
+    manualOpt.style.color = "#003369";
+    dom.carUserSelect.appendChild(manualOpt);
 }function switchTab(tabName) {
     if (!dom.subtabSeparacao || !dom.subtabAnalise) return;
     const activeBtnClass = ["bg-white", "text-blue-700", "shadow"];
@@ -180,10 +244,13 @@ let outbox = {
 }async function renderAnalysisTab() {
     await ensureApexCharts();
     const data = state.cacheData;
-    if (!data) return;    const rotasMap = new Map();
+    if (!data) return;
+    const rotasMap = new Map();
     const docasMap = new Map();
     const timeMap = new Map();
-    const bipadorMap = new Map();    data.forEach((item) => {        const r = item.ROTA || "N/A";
+    const bipadorMap = new Map();
+    data.forEach((item) => {
+        const r = item.ROTA || "N/A";
         if (!rotasMap.has(r)) rotasMap.set(r, {
             total: 0,
             ok: 0,
@@ -192,7 +259,8 @@ let outbox = {
         const rStats = rotasMap.get(r);
         rStats.total++;
         if (item.VALIDACAO === "BIPADO") rStats.ok++;
-        else rStats.pending++;        const d = item.DOCA ? String(item.DOCA).trim() : null;
+        else rStats.pending++;
+        const d = item.DOCA ? String(item.DOCA).trim() : null;
         const labelDoca = d || "S/D";
         if (!docasMap.has(labelDoca))
             docasMap.set(labelDoca, {
@@ -201,7 +269,8 @@ let outbox = {
             });
         const dStats = docasMap.get(labelDoca);
         dStats.total++;
-        if (item.VALIDACAO !== "BIPADO") dStats.pending++;        const dateKey = getBrazilDateKey(item.DATA);
+        if (item.VALIDACAO !== "BIPADO") dStats.pending++;
+        const dateKey = getBrazilDateKey(item.DATA);
         if (dateKey) {
             if (!timeMap.has(dateKey)) timeMap.set(dateKey, {
                 total: 0,
@@ -210,35 +279,42 @@ let outbox = {
             const tStats = timeMap.get(dateKey);
             tStats.total++;
             if (item.VALIDACAO === "BIPADO") tStats.ok++;
-        }        if (item.VALIDACAO === "BIPADO" && item["BIPADO SAIDA"]) {
+        }
+        if (item.VALIDACAO === "BIPADO" && item["BIPADO SAIDA"]) {
             const nome = item["BIPADO SAIDA"].trim();
             if (nome) {
                 bipadorMap.set(nome, (bipadorMap.get(nome) || 0) + 1);
             }
         }
-    });    const rotasArr = Array.from(rotasMap.entries()).map(([rota, st]) => ({
+    });
+    const rotasArr = Array.from(rotasMap.entries()).map(([rota, st]) => ({
         rota,
         ...st,
         assertividade: st.total > 0 ? (st.ok / st.total) * 100 : 0,
-    }));    const timeArr = Array.from(timeMap.entries()).sort((a, b) =>
+    }));
+    const timeArr = Array.from(timeMap.entries()).sort((a, b) =>
         a[0].localeCompare(b[0]),
-    );    const totalGeral = rotasArr.reduce((acc, r) => acc + r.total, 0);
+    );
+    const totalGeral = rotasArr.reduce((acc, r) => acc + r.total, 0);
     const totalOk = rotasArr.reduce((acc, r) => acc + r.ok, 0);
     const percentualGeral =
-        totalGeral > 0 ? ((totalOk / totalGeral) * 100).toFixed(1) : 0;    const elKpiPerc = document.getElementById("kpi-percentual");
+        totalGeral > 0 ? ((totalOk / totalGeral) * 100).toFixed(1) : 0;
+    const elKpiPerc = document.getElementById("kpi-percentual");
     const elKpiBar = document.getElementById("kpi-percentual-bar");
     if (elKpiPerc) elKpiPerc.innerText = `${percentualGeral}%`;
-    if (elKpiBar) elKpiBar.style.width = `${percentualGeral}%`;    const sortedByAssert = [...rotasArr]
+    if (elKpiBar) elKpiBar.style.width = `${percentualGeral}%`;
+    const sortedByAssert = [...rotasArr]
         .filter((r) => r.total > 5)
         .sort((a, b) => b.assertividade - a.assertividade);
     const bestRoute =
         sortedByAssert.length > 0 ?
-        sortedByAssert[0] :
-        rotasArr[0] || {
-            rota: "---"
-        };
+            sortedByAssert[0] :
+            rotasArr[0] || {
+                rota: "---"
+            };
     const elKpiBest = document.getElementById("kpi-best-route");
-    if (elKpiBest) elKpiBest.innerText = `Rota ${bestRoute.rota}`;    const sortedByPending = [...rotasArr]
+    if (elKpiBest) elKpiBest.innerText = `Rota ${bestRoute.rota}`;
+    const sortedByPending = [...rotasArr]
         .filter((r) => r.pending > 0)
         .sort((a, b) => b.pending - a.pending);
     const worstRoute = sortedByPending.length > 0 ? sortedByPending[0] : null;
@@ -248,7 +324,8 @@ let outbox = {
         elKpiWorst.className = worstRoute ?
             "text-xl font-bold text-red-600 truncate mt-0.5" :
             "text-xl font-bold text-green-600 truncate mt-0.5";
-    }    const validDockIssues = Array.from(docasMap.entries())
+    }
+    const validDockIssues = Array.from(docasMap.entries())
         .map(([doca, st]) => ({
             doca,
             ...st
@@ -262,7 +339,8 @@ let outbox = {
         elKpiDock.className = worstDock ?
             "text-xl font-bold text-red-600 truncate mt-0.5" :
             "text-xl font-bold text-green-600 truncate mt-0.5";
-    }    let bestBipadorName = "---";
+    }
+    let bestBipadorName = "---";
     let bestBipadorCount = 0;
     const bipadoresArr = Array.from(bipadorMap.entries()).map(
         ([nome, count]) => ({
@@ -278,14 +356,15 @@ let outbox = {
     const elKpiBipador = document.getElementById("kpi-best-bipador");
     if (elKpiBipador)
         elKpiBipador.innerText =
-        bestBipadorName !== "---" ?
-        `${bestBipadorName} (${bestBipadorCount})` :
-        "---";    renderChart("chart-timeline", "timeline", {
+            bestBipadorName !== "---" ?
+                `${bestBipadorName} (${bestBipadorCount})` :
+                "---";
+    renderChart("chart-timeline", "timeline", {
         series: [{
-                name: "Volume",
-                type: "column",
-                data: timeArr.map((t) => t[1].total)
-            },
+            name: "Volume",
+            type: "column",
+            data: timeArr.map((t) => t[1].total)
+        },
             {
                 name: "Assertividade (%)",
                 type: "line",
@@ -316,10 +395,10 @@ let outbox = {
             width: [0, 4]
         },
         yaxis: [{
-                title: {
-                    text: "Volume"
-                }
-            },
+            title: {
+                text: "Volume"
+            }
+        },
             {
                 opposite: true,
                 title: {
@@ -328,12 +407,13 @@ let outbox = {
                 max: 100
             },
         ],
-    });    const top5Assert = sortedByAssert.slice(0, 5);
+    });
+    const top5Assert = sortedByAssert.slice(0, 5);
     renderChart("chart-top-routes", "topRoutes", {
         series: [{
             name: "Assertividade (%)",
             data: top5Assert.map((r) => r.assertividade.toFixed(1)),
-        }, ],
+        },],
         xaxis: {
             categories: top5Assert.map((r) => r.rota)
         },
@@ -355,7 +435,8 @@ let outbox = {
                 horizontal: true
             }
         },
-    });    const top5Pending = sortedByPending.slice(0, 5);
+    });
+    const top5Pending = sortedByPending.slice(0, 5);
     renderChart("chart-pending-routes", "pendingRoutes", {
         series: [{
             name: "Pendentes",
@@ -381,14 +462,17 @@ let outbox = {
                 horizontal: false
             }
         },
-    });    const top5Bipadores = bipadoresArr.slice(0, 5);
+    });
+    const top5Bipadores = bipadoresArr.slice(0, 5);
     renderChart("chart-top-bipadores", "dockIssues", {
         series: [{
             name: "Volume Saída",
             data: top5Bipadores.map((b) => b.count)
         }],
         xaxis: {
-            categories: top5Bipadores.map((b) => {                const parts = b.nome.trim().split(/\s+/);                if (parts.length > 1) {
+            categories: top5Bipadores.map((b) => {
+                const parts = b.nome.trim().split(/\s+/);
+                if (parts.length > 1) {
                     return `${parts[0]} ${parts[1]}`;
                 }
                 return parts[0];
@@ -2245,7 +2329,64 @@ let outbox = {
     if (document.getElementById("auditoria-styles")) return;
     const style = document.createElement("style");
     style.id = "auditoria-styles";
-    style.textContent = `        :root {            --auditoria-primary: #003369;            --auditoria-accent: #02B1EE;            --auditoria-border: #eceff5;            --auditoria-shadow: 0 6px 16px rgba(0, 0, 0, .08);            --auditoria-muted: #6b7280;        }        .text-auditoria-accent { color: var(--auditoria-accent) !important; }        .text-auditoria-primary { color: var(--auditoria-primary) !important; }        #auditoria-summary-container .bg-white,        .rota-card { border-radius: 14px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; }        #auditoria-summary-container .text-blue-600 { color: var(--auditoria-primary) !important; }        .rota-card h5 { color: var(--auditoria-primary) !important; }        .rota-card .text-gray-500, .rota-card .text-xs, #auditoria-summary-container .text-gray-500 { color: var(--auditoria-muted) !important; }        #auditoria-controls-bar button {            border-radius: 12px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; transition: all .2s ease;        }        #auditoria-controls-bar button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12) !important; }        #btn-iniciar-separacao { background-color: var(--auditoria-primary) !important; color: white !important; }        #btn-iniciar-carregamento { background-color: var(--auditoria-accent) !important; color: white !important; }        #auditoria-period-btn { background-color: #fff !important; color: var(--auditoria-primary) !important; font-weight: 600; }        #btn-importar-consolidado:hover { background-color: #5b21b6 !important; }        .auditoria-main-container { display: flex; flex-direction: column; height: 100%; }        #auditoria-controls-bar { flex-shrink: 0; background: #f9fafb; position: sticky; top: 0; z-index: 10; }        #auditoria-summary-container { flex-shrink: 0; padding: 0 16px; background: #f9fafb; position: sticky; top: 110px; z-index: 9; }        #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }    `;
+    style.textContent = `
+        :root {
+            --auditoria-primary: #003369;
+            --auditoria-accent: #02B1EE;
+            --auditoria-border: #eceff5;
+            --auditoria-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+            --auditoria-muted: #6b7280;
+        }
+        .text-auditoria-accent { color: var(--auditoria-accent) !important; }
+        .text-auditoria-primary { color: var(--auditoria-primary) !important; }
+        #auditoria-summary-container .bg-white,
+        .rota-card { border-radius: 14px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; }
+        #auditoria-summary-container .text-blue-600 { color: var(--auditoria-primary) !important; }
+        .rota-card h5 { color: var(--auditoria-primary) !important; }
+        .rota-card .text-gray-500, .rota-card .text-xs, #auditoria-summary-container .text-gray-500 { color: var(--auditoria-muted) !important; }
+        #auditoria-controls-bar button {
+            border-radius: 12px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; transition: all .2s ease;
+        }
+        #auditoria-controls-bar button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12) !important; }
+        #btn-iniciar-separacao { background-color: var(--auditoria-primary) !important; color: white !important; }
+        #btn-iniciar-carregamento { background-color: var(--auditoria-accent) !important; color: white !important; }
+        #auditoria-period-btn { background-color: #fff !important; color: var(--auditoria-primary) !important; font-weight: 600; }
+        #btn-importar-consolidado:hover { background-color: #5b21b6 !important; }
+        .auditoria-main-container { display: flex; flex-direction: column; height: 100%; }
+        #auditoria-controls-bar { flex-shrink: 0; background: #f9fafb; position: sticky; top: 0; z-index: 10; }
+        #auditoria-summary-container { flex-shrink: 0; padding: 0 16px; background: #f9fafb; position: sticky; top: 110px; z-index: 9; }
+        #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }        /* --- CSS DO AUTOCOMPLETE (NOVO) --- */
+        .autocomplete-items {
+            position: absolute;
+            border: 1px solid #d4d4d4;
+            border-bottom: none;
+            border-top: none;
+            z-index: 9999;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: #fff;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .autocomplete-item {
+            padding: 12px;
+            cursor: pointer;
+            background-color: #fff;
+            border-bottom: 1px solid #d4d4d4;
+            font-size: 14px;
+            color: #374151;
+        }
+        .autocomplete-item:hover {
+            background-color: #e9e9e9;
+        }
+        .autocomplete-active {
+            background-color: DodgerBlue !important;
+            color: #ffffff;
+        }
+    `;
     document.head.appendChild(style);
 }let initOnce = false;export function init() {
     if (initOnce) return;
@@ -2255,10 +2396,8 @@ let outbox = {
     dom.subtabSeparacao = document.getElementById("subtab-separacao");
     dom.subtabAnalise = document.getElementById("subtab-analise");
     dom.summaryContainer = document.getElementById("auditoria-summary");
-    dom.routesContainer = document.getElementById("auditoria-routes");    if (!dom.summaryContainer)
-        dom.summaryContainer = document.getElementById("dashboard-stats");
-    if (!dom.routesContainer)
-        dom.routesContainer = document.getElementById("dashboard-stats");    dom.btnSeparação = document.getElementById("btn-iniciar-separacao");
+    dom.routesContainer = document.getElementById("auditoria-routes");    if (!dom.summaryContainer) dom.summaryContainer = document.getElementById("dashboard-stats");
+    if (!dom.routesContainer) dom.routesContainer = document.getElementById("dashboard-stats");    dom.btnSeparação = document.getElementById("btn-iniciar-separacao");
     dom.btnCarregamento = document.getElementById("btn-iniciar-carregamento");
     dom.periodBtn = document.getElementById("auditoria-period-btn");    dom.modalSeparação = document.getElementById("modal-separacao");
     dom.modalSepClose = dom.modalSeparação?.querySelector(".modal-close");
@@ -2281,7 +2420,8 @@ let outbox = {
     createImportarModal();
     injectScannerButtons();
     ensureDockSelect();
-    ensureIlhaSelect();    ensureCarUserDatalist();    dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
+    ensureIlhaSelect();    ensureCarUserSelect();
+    fetchHistoricalUsers();        dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
     dom.tabBtnAnalise?.addEventListener("click", () => switchTab("analise"));    reorderControlsOverDashboard();
     dom.periodBtn?.addEventListener("click", openPeriodModal);    dom.btnImportarConsolidado?.addEventListener("click", () => {
         if (dom.importStatus) dom.importStatus.textContent = "";
@@ -2293,9 +2433,7 @@ let outbox = {
         }
         openModal(dom.modalImportar);
     });
-    dom.importCloseBtn?.addEventListener("click", () =>
-        closeModal(dom.modalImportar),
-    );
+    dom.importCloseBtn?.addEventListener("click", () => closeModal(dom.modalImportar));
     dom.importSubmitBtn?.addEventListener("click", handleImportarConsolidado);    dom.btnSeparação?.addEventListener("click", () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
@@ -2305,11 +2443,31 @@ let outbox = {
         resetCarregamentoModal({
             preserveUser: true,
             preserveDock: true
-        });        populateIlhaSelect();        populateCarUserDatalist();        openModal(dom.modalCarregamento);        if (dom.carUser && !dom.carUser.value) dom.carUser.focus();
-        else if (!state.selectedDock) dom.carDockSelect?.focus();
-        else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
-        else if (dom.carScan)
+        });        populateIlhaSelect();        populateCarUserSelect();        if (dom.carUserSelect && dom.carUser && dom.carUserBackBtn) {
+            const currentVal = dom.carUser.value;            if (!currentVal) {                dom.carUser.classList.add("hidden");
+                dom.carUserBackBtn.classList.add("hidden");
+                dom.carUserSelect.classList.remove("hidden");
+                dom.carUserSelect.value = "";
+            } else {                dom.carUserSelect.value = currentVal;                if (dom.carUserSelect.value !== currentVal) {
+                    dom.carUserSelect.classList.add("hidden");
+                    dom.carUser.classList.remove("hidden");
+                    dom.carUserBackBtn.classList.remove("hidden");
+                } else {                    dom.carUser.classList.add("hidden");
+                    dom.carUserBackBtn.classList.add("hidden");
+                    dom.carUserSelect.classList.remove("hidden");
+                }
+            }
+        }        openModal(dom.modalCarregamento);        if (dom.carUserSelect && !dom.carUserSelect.classList.contains("hidden") && !dom.carUserSelect.value) {
+            dom.carUserSelect.focus();
+        } else if (dom.carUser && !dom.carUser.classList.contains("hidden") && !dom.carUser.value) {
+            dom.carUser.focus();
+        } else if (!state.selectedDock) {
+            dom.carDockSelect?.focus();
+        } else if (!state.selectedIlha) {
+            dom.carIlhaSelect?.focus();
+        } else {
             dom.carScan.value ? dom.carScan.select() : dom.carScan.focus();
+        }
     });    dom.modalSepClose?.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2320,10 +2478,7 @@ let outbox = {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
-        resetCarregamentoModal({
-            preserveUser: true,
-            preserveDock: true
-        });
+        resetCarregamentoModal({ preserveUser: true, preserveDock: true });
     });    dom.sepUser?.addEventListener("keydown", handleSepUserKeydown);
     dom.carUser?.addEventListener("keydown", handleCarUserKeydown);
     dom.sepScan?.addEventListener("keydown", handleSeparaçãoSubmit);
@@ -2339,15 +2494,11 @@ let outbox = {
                 await printCurrentQr();
                 setSepStatus("Etiqueta reimpressa.");
             } else {
-                setSepStatus("Gere um QR Code primeiro para reimprimir.", {
-                    error: true,
-                });
+                setSepStatus("Gere um QR Code primeiro para reimprimir.", { error: true });
             }
         } catch (e) {
             console.error("Falha ao reimprimir etiqueta:", e);
-            setSepStatus(`Erro ao reimprimir: ${e.message}`, {
-                error: true
-            });
+            setSepStatus(`Erro ao reimprimir: ${e.message}`, { error: true });
         }
     });    document.addEventListener("keydown", (e) => {
         if (e.key === "F6") {
@@ -2371,18 +2522,9 @@ let outbox = {
     loadOutbox();    eventHandlers.onOnline = () => processOutbox(true);
     eventHandlers.onSepSuccess = (ev) => handleOutboxSepSuccess(ev);
     eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);    window.addEventListener("online", eventHandlers.onOnline);
-    window.addEventListener(
-        "outbox:separacao:success",
-        eventHandlers.onSepSuccess,
-    );
-    window.addEventListener(
-        "outbox:carregamento:success",
-        eventHandlers.onCarSuccess,
-    );    if (outbox.queue.length > 0)
-        showNetBanner("Itens pendentes: tentando enviar…");
-    setTimeout(() => processOutbox(), 2000);    console.log(
-        "Módulo de Auditoria (Dashboard) inicializado [V30 - DataFix + Separated Containers + AutoComplete].",
-    );
+    window.addEventListener("outbox:separacao:success", eventHandlers.onSepSuccess);
+    window.addEventListener("outbox:carregamento:success", eventHandlers.onCarSuccess);    if (outbox.queue.length > 0) showNetBanner("Itens pendentes: tentando enviar…");
+    setTimeout(() => processOutbox(), 2000);    console.log("Módulo de Auditoria (Dashboard) inicializado [V33 - Historical User List].");
 }export function destroy() {
     console.log("Módulo de Auditoria (Dashboard) destruído.");
     if (state.globalScannerInstance) stopGlobalScanner();
@@ -2419,6 +2561,7 @@ let outbox = {
     };
     state = {
         cacheData: [],
+        allUsersList: [],
         idPacoteMap: new Map(),
         isSeparaçãoProcessing: false,
         isCarregamentoProcessing: false,
