@@ -1,8 +1,6 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from "html5-qrcode";
 import qrcode from "qrcode-generator";
-import {createClient} from "@supabase/supabase-js";
-
-const SUPABASE_URL = "https://tzbqdjwgbisntzljwbqp.supabase.co";
+import {createClient} from "@supabase/supabase-js";const SUPABASE_URL = "https://tzbqdjwgbisntzljwbqp.supabase.co";
 const SUPABASE_ANON_KEY =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ";
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
@@ -101,9 +99,7 @@ const OUTBOX_KEY = "auditoriaOutboxV1";
 let outbox = {
     queue: [],
     sending: false
-};
-
-async function ensureApexCharts() {
+};async function ensureApexCharts() {
     if (window.ApexCharts) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement("script");
@@ -112,9 +108,7 @@ async function ensureApexCharts() {
         s.onerror = () => reject(new Error("Falha ao carregar ApexCharts"));
         document.head.appendChild(s);
     });
-}
-
-function getBrazilDateKey(isoString) {
+}function getBrazilDateKey(isoString) {
     if (!isoString) return null;
     try {
         let dateToParse = isoString;
@@ -132,9 +126,25 @@ function getBrazilDateKey(isoString) {
     } catch (e) {
         return isoString ? isoString.split("T")[0] : null;
     }
-}
-
-function switchTab(tabName) {
+}function ensureCarUserDatalist() {    if (document.getElementById("car-user-list")) return;    const inputUser = document.getElementById("car-user-name");
+    if (!inputUser) return;    inputUser.setAttribute("list", "car-user-list");
+    inputUser.setAttribute("autocomplete", "off");     const datalist = document.createElement("datalist");
+    datalist.id = "car-user-list";
+    document.body.appendChild(datalist);
+}function populateCarUserDatalist() {
+    const datalist = document.getElementById("car-user-list");
+    if (!datalist) return;    const nomesSet = new Set();
+    state.cacheData.forEach(item => {
+        if (item["BIPADO SAIDA"] && item["BIPADO SAIDA"].trim() !== "---") {
+            nomesSet.add(item["BIPADO SAIDA"].trim());
+        }
+    });    const nomesOrdenados = Array.from(nomesSet).sort();    datalist.innerHTML = "";
+    nomesOrdenados.forEach(nome => {
+        const option = document.createElement("option");
+        option.value = nome;
+        datalist.appendChild(option);
+    });
+}function switchTab(tabName) {
     if (!dom.subtabSeparacao || !dom.subtabAnalise) return;
     const activeBtnClass = ["bg-white", "text-blue-700", "shadow"];
     const inactiveBtnClass = [
@@ -167,18 +177,13 @@ function switchTab(tabName) {
         }
         renderAnalysisTab();
     }
-}
-
-async function renderAnalysisTab() {
+}async function renderAnalysisTab() {
     await ensureApexCharts();
     const data = state.cacheData;
-    if (!data) return;
-    const rotasMap = new Map();
+    if (!data) return;    const rotasMap = new Map();
     const docasMap = new Map();
     const timeMap = new Map();
-    const bipadorMap = new Map();
-    data.forEach((item) => {
-        const r = item.ROTA || "N/A";
+    const bipadorMap = new Map();    data.forEach((item) => {        const r = item.ROTA || "N/A";
         if (!rotasMap.has(r)) rotasMap.set(r, {
             total: 0,
             ok: 0,
@@ -187,8 +192,7 @@ async function renderAnalysisTab() {
         const rStats = rotasMap.get(r);
         rStats.total++;
         if (item.VALIDACAO === "BIPADO") rStats.ok++;
-        else rStats.pending++;
-        const d = item.DOCA ? String(item.DOCA).trim() : null;
+        else rStats.pending++;        const d = item.DOCA ? String(item.DOCA).trim() : null;
         const labelDoca = d || "S/D";
         if (!docasMap.has(labelDoca))
             docasMap.set(labelDoca, {
@@ -197,8 +201,7 @@ async function renderAnalysisTab() {
             });
         const dStats = docasMap.get(labelDoca);
         dStats.total++;
-        if (item.VALIDACAO !== "BIPADO") dStats.pending++;
-        const dateKey = getBrazilDateKey(item.DATA);
+        if (item.VALIDACAO !== "BIPADO") dStats.pending++;        const dateKey = getBrazilDateKey(item.DATA);
         if (dateKey) {
             if (!timeMap.has(dateKey)) timeMap.set(dateKey, {
                 total: 0,
@@ -207,42 +210,35 @@ async function renderAnalysisTab() {
             const tStats = timeMap.get(dateKey);
             tStats.total++;
             if (item.VALIDACAO === "BIPADO") tStats.ok++;
-        }
-        if (item.VALIDACAO === "BIPADO" && item["BIPADO SAIDA"]) {
+        }        if (item.VALIDACAO === "BIPADO" && item["BIPADO SAIDA"]) {
             const nome = item["BIPADO SAIDA"].trim();
             if (nome) {
                 bipadorMap.set(nome, (bipadorMap.get(nome) || 0) + 1);
             }
         }
-    });
-    const rotasArr = Array.from(rotasMap.entries()).map(([rota, st]) => ({
+    });    const rotasArr = Array.from(rotasMap.entries()).map(([rota, st]) => ({
         rota,
         ...st,
         assertividade: st.total > 0 ? (st.ok / st.total) * 100 : 0,
-    }));
-    const timeArr = Array.from(timeMap.entries()).sort((a, b) =>
+    }));    const timeArr = Array.from(timeMap.entries()).sort((a, b) =>
         a[0].localeCompare(b[0]),
-    );
-    const totalGeral = rotasArr.reduce((acc, r) => acc + r.total, 0);
+    );    const totalGeral = rotasArr.reduce((acc, r) => acc + r.total, 0);
     const totalOk = rotasArr.reduce((acc, r) => acc + r.ok, 0);
     const percentualGeral =
-        totalGeral > 0 ? ((totalOk / totalGeral) * 100).toFixed(1) : 0;
-    const elKpiPerc = document.getElementById("kpi-percentual");
+        totalGeral > 0 ? ((totalOk / totalGeral) * 100).toFixed(1) : 0;    const elKpiPerc = document.getElementById("kpi-percentual");
     const elKpiBar = document.getElementById("kpi-percentual-bar");
     if (elKpiPerc) elKpiPerc.innerText = `${percentualGeral}%`;
-    if (elKpiBar) elKpiBar.style.width = `${percentualGeral}%`;
-    const sortedByAssert = [...rotasArr]
+    if (elKpiBar) elKpiBar.style.width = `${percentualGeral}%`;    const sortedByAssert = [...rotasArr]
         .filter((r) => r.total > 5)
         .sort((a, b) => b.assertividade - a.assertividade);
     const bestRoute =
         sortedByAssert.length > 0 ?
-            sortedByAssert[0] :
-            rotasArr[0] || {
-                rota: "---"
-            };
+        sortedByAssert[0] :
+        rotasArr[0] || {
+            rota: "---"
+        };
     const elKpiBest = document.getElementById("kpi-best-route");
-    if (elKpiBest) elKpiBest.innerText = `Rota ${bestRoute.rota}`;
-    const sortedByPending = [...rotasArr]
+    if (elKpiBest) elKpiBest.innerText = `Rota ${bestRoute.rota}`;    const sortedByPending = [...rotasArr]
         .filter((r) => r.pending > 0)
         .sort((a, b) => b.pending - a.pending);
     const worstRoute = sortedByPending.length > 0 ? sortedByPending[0] : null;
@@ -252,8 +248,7 @@ async function renderAnalysisTab() {
         elKpiWorst.className = worstRoute ?
             "text-xl font-bold text-red-600 truncate mt-0.5" :
             "text-xl font-bold text-green-600 truncate mt-0.5";
-    }
-    const validDockIssues = Array.from(docasMap.entries())
+    }    const validDockIssues = Array.from(docasMap.entries())
         .map(([doca, st]) => ({
             doca,
             ...st
@@ -267,8 +262,7 @@ async function renderAnalysisTab() {
         elKpiDock.className = worstDock ?
             "text-xl font-bold text-red-600 truncate mt-0.5" :
             "text-xl font-bold text-green-600 truncate mt-0.5";
-    }
-    let bestBipadorName = "---";
+    }    let bestBipadorName = "---";
     let bestBipadorCount = 0;
     const bipadoresArr = Array.from(bipadorMap.entries()).map(
         ([nome, count]) => ({
@@ -284,15 +278,14 @@ async function renderAnalysisTab() {
     const elKpiBipador = document.getElementById("kpi-best-bipador");
     if (elKpiBipador)
         elKpiBipador.innerText =
-            bestBipadorName !== "---" ?
-                `${bestBipadorName} (${bestBipadorCount})` :
-                "---";
-    renderChart("chart-timeline", "timeline", {
+        bestBipadorName !== "---" ?
+        `${bestBipadorName} (${bestBipadorCount})` :
+        "---";    renderChart("chart-timeline", "timeline", {
         series: [{
-            name: "Volume",
-            type: "column",
-            data: timeArr.map((t) => t[1].total)
-        },
+                name: "Volume",
+                type: "column",
+                data: timeArr.map((t) => t[1].total)
+            },
             {
                 name: "Assertividade (%)",
                 type: "line",
@@ -323,10 +316,10 @@ async function renderAnalysisTab() {
             width: [0, 4]
         },
         yaxis: [{
-            title: {
-                text: "Volume"
-            }
-        },
+                title: {
+                    text: "Volume"
+                }
+            },
             {
                 opposite: true,
                 title: {
@@ -335,13 +328,12 @@ async function renderAnalysisTab() {
                 max: 100
             },
         ],
-    });
-    const top5Assert = sortedByAssert.slice(0, 5);
+    });    const top5Assert = sortedByAssert.slice(0, 5);
     renderChart("chart-top-routes", "topRoutes", {
         series: [{
             name: "Assertividade (%)",
             data: top5Assert.map((r) => r.assertividade.toFixed(1)),
-        },],
+        }, ],
         xaxis: {
             categories: top5Assert.map((r) => r.rota)
         },
@@ -363,8 +355,7 @@ async function renderAnalysisTab() {
                 horizontal: true
             }
         },
-    });
-    const top5Pending = sortedByPending.slice(0, 5);
+    });    const top5Pending = sortedByPending.slice(0, 5);
     renderChart("chart-pending-routes", "pendingRoutes", {
         series: [{
             name: "Pendentes",
@@ -390,16 +381,16 @@ async function renderAnalysisTab() {
                 horizontal: false
             }
         },
-    });
-    const top5Bipadores = bipadoresArr.slice(0, 5);
+    });    const top5Bipadores = bipadoresArr.slice(0, 5);
     renderChart("chart-top-bipadores", "dockIssues", {
         series: [{
             name: "Volume Saída",
             data: top5Bipadores.map((b) => b.count)
         }],
         xaxis: {
-            categories: top5Bipadores.map((b) => {
-                const parts = b.nome.split(" ");
+            categories: top5Bipadores.map((b) => {                const parts = b.nome.trim().split(/\s+/);                if (parts.length > 1) {
+                    return `${parts[0]} ${parts[1]}`;
+                }
                 return parts[0];
             }),
         },
@@ -426,9 +417,7 @@ async function renderAnalysisTab() {
             },
         },
     });
-}
-
-function renderChart(domId, chartKey, options) {
+}function renderChart(domId, chartKey, options) {
     const defaultOpts = {
         chart: {
             toolbar: {
@@ -472,60 +461,20 @@ function renderChart(domId, chartKey, options) {
             state.charts[chartKey].render();
         }
     }
-}
-
-function createImportarModal() {
+}function createImportarModal() {
     if (document.getElementById("modal-importar-consolidado")) return;
     const modal = document.createElement("div");
     modal.id = "modal-importar-consolidado";
     modal.className = "modal-overlay hidden";
     modal.style.zIndex = "1200";
-    modal.innerHTML = `
-
-        <div class="modal-content" style="width: 95vw; max-width: 800px;">
-
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-
-                <h3 class="text-xl font-semibold">Importar Consolidado SBA7</h3>
-
-                <button id="importar-consolidado-close" class="modal-close" type="button">&times;</button>
-
-            </div>
-
-            <div id="importar-consolidado-body">
-
-                <p class="text-sm text-gray-600 mb-2">Cole os dados (CTRL+V) do seu consolidado no formato <strong>ID_PACOTE [espaço/tab] ROTA</strong>, um por linha.</p>
-
-                <p class="text-xs text-red-600 mb-4"><strong>ATENÇÃO:</strong> Isso vai apagar TODOS os dados antigos e substituir pelos novos.</p>
-
-                <textarea id="importar-textarea" class="w-full h-64 p-2 border border-gray-300 rounded-md font-mono text-sm" placeholder="45662053071 G22_PM1\n45662604505 L21_PM1\n..."></textarea>
-
-                <div id="importar-status" class="mt-2 text-sm font-medium text-gray-700 h-6"></div>
-
-                <div class="mt-4 flex justify-end">
-
-                    <button id="importar-submit-btn" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow hover:bg-green-700">
-
-                        Importar Dados
-
-                    </button>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    `;
+    modal.innerHTML = `        <div class="modal-content" style="width: 95vw; max-width: 800px;">            <div class="flex justify-between items-center mb-4 border-b pb-2">                <h3 class="text-xl font-semibold">Importar Consolidado SBA7</h3>                <button id="importar-consolidado-close" class="modal-close" type="button">&times;</button>            </div>            <div id="importar-consolidado-body">                <p class="text-sm text-gray-600 mb-2">Cole os dados (CTRL+V) do seu consolidado no formato <strong>ID_PACOTE [espaço/tab] ROTA</strong>, um por linha.</p>                <p class="text-xs text-red-600 mb-4"><strong>ATENÇÃO:</strong> Isso vai apagar TODOS os dados antigos e substituir pelos novos.</p>                <textarea id="importar-textarea" class="w-full h-64 p-2 border border-gray-300 rounded-md font-mono text-sm" placeholder="45662053071 G22_PM1\n45662604505 L21_PM1\n..."></textarea>                <div id="importar-status" class="mt-2 text-sm font-medium text-gray-700 h-6"></div>                <div class="mt-4 flex justify-end">                    <button id="importar-submit-btn" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow hover:bg-green-700">                        Importar Dados                    </button>                </div>            </div>        </div>    `;
     document.body.appendChild(modal);
     dom.modalImportar = modal;
     dom.importCloseBtn = modal.querySelector("#importar-consolidado-close");
     dom.importTextarea = modal.querySelector("#importar-textarea");
     dom.importSubmitBtn = modal.querySelector("#importar-submit-btn");
     dom.importStatus = modal.querySelector("#importar-status");
-}
-
-async function handleImportarConsolidado() {
+}async function handleImportarConsolidado() {
     if (state.isImporting) return;
     const rawText = dom.importTextarea.value;
     if (!rawText || !rawText.trim()) {
@@ -605,9 +554,7 @@ async function handleImportarConsolidado() {
         dom.importSubmitBtn.disabled = false;
         dom.importSubmitBtn.textContent = "Importar Dados";
     }
-}
-
-function loadOutbox() {
+}function loadOutbox() {
     try {
         const raw = localStorage.getItem(OUTBOX_KEY);
         outbox = raw ? JSON.parse(raw) : {
@@ -621,31 +568,17 @@ function loadOutbox() {
             sending: false
         };
     }
-}
-
-function saveOutbox() {
+}function saveOutbox() {
     try {
         localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
     } catch {
     }
-}
-
-function installNetworkBanner() {
+}function installNetworkBanner() {
     if (document.getElementById("net-banner")) return;
     const wrap = document.createElement("div");
     wrap.id = "net-banner";
     wrap.className = "fixed bottom-4 left-1/2 -translate-x-1/2 z-[1200] hidden";
-    wrap.innerHTML = `
-
-    <div class="px-4 py-3 rounded-lg shadow-lg border border-yellow-300 bg-yellow-50 text-yellow-900 flex items-center gap-3">
-
-      <span id="net-msg" class="text-sm font-medium">Falha na conexão com a rede… Tentando registrar</span>
-
-      <button id="net-force" class="px-3 py-1 rounded-md bg-yellow-600 text-white text-sm font-semibold hover:bg-yellow-700">Forçar envio</button>
-
-      <button id="net-close" class="px-2 py-1 rounded-md border text-sm">Fechar</button>
-
-    </div>`;
+    wrap.innerHTML = `    <div class="px-4 py-3 rounded-lg shadow-lg border border-yellow-300 bg-yellow-50 text-yellow-900 flex items-center gap-3">      <span id="net-msg" class="text-sm font-medium">Falha na conexão com a rede… Tentando registrar</span>      <button id="net-force" class="px-3 py-1 rounded-md bg-yellow-600 text-white text-sm font-semibold hover:bg-yellow-700">Forçar envio</button>      <button id="net-close" class="px-2 py-1 rounded-md border text-sm">Fechar</button>    </div>`;
     document.body.appendChild(wrap);
     dom.netBanner = wrap;
     dom.netMsg = wrap.querySelector("#net-msg");
@@ -653,32 +586,22 @@ function installNetworkBanner() {
     dom.netCloseBtn = wrap.querySelector("#net-close");
     dom.netForceBtn.addEventListener("click", () => processOutbox(true));
     dom.netCloseBtn.addEventListener("click", () => hideNetBanner());
-}
-
-function showNetBanner(msg) {
+}function showNetBanner(msg) {
     if (!dom.netBanner) installNetworkBanner();
     if (dom.netMsg && msg) dom.netMsg.textContent = msg;
     dom.netBanner.classList.remove("hidden");
-}
-
-function updateNetBannerCount() {
+}function updateNetBannerCount() {
     const n = outbox.queue.length;
     showNetBanner(
         `Falha na conexão com a rede… Tentando registrar (${n} na fila)`,
     );
-}
-
-function hideNetBannerSoon(okMsg = "Tudo certo: itens enviados") {
+}function hideNetBannerSoon(okMsg = "Tudo certo: itens enviados") {
     if (!dom.netBanner) return;
     if (dom.netMsg) dom.netMsg.textContent = okMsg;
     setTimeout(() => dom.netBanner.classList.add("hidden"), 1500);
-}
-
-function hideNetBanner() {
+}function hideNetBanner() {
     dom.netBanner?.classList.add("hidden");
-}
-
-function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
+}function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const merged = {
@@ -686,9 +609,7 @@ function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
         signal: ctrl.signal
     };
     return fetch(url, merged).finally(() => clearTimeout(t));
-}
-
-function isNetworkLikeError(err) {
+}function isNetworkLikeError(err) {
     const s = String(err?.message || err || "").toLowerCase();
     return (
         s.includes("network") ||
@@ -696,17 +617,13 @@ function isNetworkLikeError(err) {
         s.includes("abort") ||
         s.includes("timeout")
     );
-}
-
-function enqueueTask(task) {
+}function enqueueTask(task) {
     loadOutbox();
     outbox.queue.push(task);
     saveOutbox();
     updateNetBannerCount();
     setTimeout(() => processOutbox(), 1200);
-}
-
-async function processOutbox(force = false) {
+}async function processOutbox(force = false) {
     loadOutbox();
     if (outbox.sending) return;
     if (!force && !navigator.onLine) {
@@ -786,9 +703,7 @@ async function processOutbox(force = false) {
         if (outbox.queue.length === 0) hideNetBannerSoon();
         else updateNetBannerCount();
     }
-}
-
-async function tryPostOrQueue(kind, url, body) {
+}async function tryPostOrQueue(kind, url, body) {
     try {
         const res = await fetchWithTimeout(url, {
             method: "POST",
@@ -822,9 +737,7 @@ async function tryPostOrQueue(kind, url, body) {
         }
         throw err;
     }
-}
-
-function handleOutboxSepSuccess(ev) {
+}function handleOutboxSepSuccess(ev) {
     const {
         json
     } = ev.detail || {};
@@ -865,9 +778,7 @@ function handleOutboxSepSuccess(ev) {
     } catch (e) {
         console.error("[Outbox] pós-sucesso separação falhou:", e);
     }
-}
-
-function handleOutboxCarSuccess(ev) {
+}function handleOutboxCarSuccess(ev) {
     const {
         json
     } = ev.detail || {};
@@ -904,9 +815,7 @@ function handleOutboxCarSuccess(ev) {
     } catch (e) {
         console.error("[Outbox] pós-sucesso carregamento falhou:", e);
     }
-}
-
-function getBrasiliaDate(asDateObject = false) {
+}function getBrasiliaDate(asDateObject = false) {
     const date = new Date();
     const formatter = new Intl.DateTimeFormat("sv-SE", {
         timeZone: BRASILIA_TIMEZONE,
@@ -919,37 +828,27 @@ function getBrasiliaDate(asDateObject = false) {
         return new Date(parts[0], parts[1] - 1, parts[2]);
     }
     return formatter.format(date);
-}
-
-function clampEndToToday(startStr, endStr) {
+}function clampEndToToday(startStr, endStr) {
     const todayISO = getBrasiliaDate(false);
     if (endStr > todayISO) endStr = todayISO;
     if (startStr > endStr) startStr = endStr;
     return [startStr, endStr];
-}
-
-function toast(message, type = "info") {
+}function toast(message, type = "info") {
     console.warn(`TOAST (${type}):`, message);
     alert(message);
-}
-
-function buildFunctionHeaders() {
+}function buildFunctionHeaders() {
     return {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}
-
-function buildSelectHeaders() {
+}function buildSelectHeaders() {
     return {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}
-
-function formatarDataHack(isoString, formatOptions) {
+}function formatarDataHack(isoString, formatOptions) {
     if (!isoString) return "---";
     try {
         let dt;
@@ -963,9 +862,7 @@ function formatarDataHack(isoString, formatOptions) {
     } catch {
         return "---";
     }
-}
-
-function formatarDataHora(isoString) {
+}function formatarDataHora(isoString) {
     const options = {
         day: "2-digit",
         month: "2-digit",
@@ -975,9 +872,7 @@ function formatarDataHora(isoString) {
         second: "2-digit",
     };
     return formatarDataHack(isoString, options);
-}
-
-function formatarDataInicio(isoString) {
+}function formatarDataInicio(isoString) {
     if (!isoString) return "---";
     const options = {
         day: "2-digit",
@@ -990,19 +885,13 @@ function formatarDataInicio(isoString) {
     } catch {
         return "---";
     }
-}
-
-function waitForPaint() {
+}function waitForPaint() {
     return new Promise((r) => {
         requestAnimationFrame(() => requestAnimationFrame(r));
     });
-}
-
-function sleep(ms) {
+}function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
-}
-
-async function printCurrentQr() {
+}async function printCurrentQr() {
     if (!dom.sepQrArea || dom.sepQrArea.style.display === "none") {
         setSepStatus("Primeiro gere um QR Code para imprimir.", {
             error: true
@@ -1014,16 +903,12 @@ async function printCurrentQr() {
     await waitForPaint();
     await sleep(400);
     window.print();
-}
-
-function extractElevenDigits(str) {
+}function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, "");
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}
-
-function normalizeScanned(input) {
+}function normalizeScanned(input) {
     if (!input) return "";
     const s = String(input).trim();
     if (s.startsWith("{") && s.endsWith("}")) {
@@ -1039,9 +924,7 @@ function normalizeScanned(input) {
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}
-
-function openModal(modal) {
+}function openModal(modal) {
     if (!modal || !modal.classList.contains("hidden")) return;
     modal.classList.remove("hidden");
     modal.setAttribute("aria-hidden", "false");
@@ -1073,9 +956,7 @@ function openModal(modal) {
         'input, button, textarea, [tabindex]:not([tabindex="-1"])',
     );
     if (first) setTimeout(() => first.focus(), 50);
-}
-
-function closeModal(modal) {
+}function closeModal(modal) {
     if (!modal || modal.classList.contains("hidden")) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add("hidden");
@@ -1085,16 +966,12 @@ function closeModal(modal) {
     if (modal._bound?.onOverlayClick)
         modal.removeEventListener("click", modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}
-
-function resetSeparacaoModal() {
+}function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = "";
     setSepStatus("");
     clearSepQrCanvas();
-}
-
-function resetCarregamentoModal({
+}function resetCarregamentoModal({
                                     preserveUser = true,
                                     preserveDock = true,
                                 } = {}) {
@@ -1108,9 +985,7 @@ function resetCarregamentoModal({
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = "";
     if (dom.carScan) dom.carScan.value = "";
     setCarStatus("");
-}
-
-function showScannerFeedback(type, message, sticky = false) {
+}function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector("span");
     if (textEl) textEl.textContent = message;
@@ -1132,9 +1007,7 @@ function showScannerFeedback(type, message, sticky = false) {
                 1500,
             );
     }
-}
-
-function showScannerConfirm(decodedText, onYes, onNo) {
+}function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -1153,9 +1026,7 @@ function showScannerConfirm(decodedText, onYes, onNo) {
     };
     dom.scannerConfirmYesBtn.addEventListener("click", yesHandler);
     dom.scannerConfirmNoBtn.addEventListener("click", noHandler);
-}
-
-function createGlobalScannerModal() {
+}function createGlobalScannerModal() {
     if (document.getElementById("auditoria-scanner-modal")) return;
     const modal = document.createElement("div");
     modal.id = "auditoria-scanner-modal";
@@ -1165,81 +1036,7 @@ function createGlobalScannerModal() {
     content.className = "modal-content relative";
     content.style.width = "90vw";
     content.style.maxWidth = "600px";
-    content.innerHTML = `
-
-    <div class="flex justify-between items-center mb-4 border-b pb-2">
-
-      <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>
-
-    </div>
-
-    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
-
-    <button id="auditoria-scanner-cancel" type="button"
-
-      class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">
-
-      Cancelar
-
-    </button>
-
-    <div id="scanner-feedback-overlay"
-
-      class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"
-
-      style="z-index: 10;">
-
-      <span class="text-white text-2xl font-bold text-center"></span>
-
-      <button id="scanner-feedback-close" type="button"
-
-        class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"
-
-        style="display: none;">
-
-        Fechar
-
-      </button>
-
-    </div>
-
-    <div id="scanner-confirm-overlay"
-
-      class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"
-
-      style="z-index: 20;">
-
-      <div class="text-white text-center">
-
-        <div class="text-lg opacity-80 mb-1">Confirmar código lido?</div>
-
-        <div id="scanner-confirm-text" class="text-2xl font-bold break-all"></div>
-
-      </div>
-
-      <div class="flex gap-3">
-
-        <button id="scanner-confirm-yes" type="button"
-
-          class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow hover:bg-green-700">
-
-          Confirmar (Enter)
-
-        </button>
-
-        <button id="scanner-confirm-no" type="button"
-
-          class="px-5 py-2 rounded-md bg-gray-300 text-gray-800 font-semibold shadow hover:bg-gray-400">
-
-          Reescanear (Esc)
-
-        </button>
-
-      </div>
-
-    </div>
-
-  `;
+    content.innerHTML = `    <div class="flex justify-between items-center mb-4 border-b pb-2">      <h3 class="text-xl font-semibold">Escanear QR/Barra</h3>    </div>    <div id="auditoria-scanner-container" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>    <button id="auditoria-scanner-cancel" type="button"      class="w-full mt-4 px-4 py-2 bg-gray-600 text-white font-semibold rounded-md shadow hover:bg-gray-700">      Cancelar    </button>    <div id="scanner-feedback-overlay"      class="hidden absolute inset-0 bg-green-500 bg-opacity-95 flex flex-col items-center justify-center p-4"      style="z-index: 10;">      <span class="text-white text-2xl font-bold text-center"></span>      <button id="scanner-feedback-close" type="button"        class="mt-4 px-4 py-2 bg-white text-red-600 font-semibold rounded shadow-lg"        style="display: none;">        Fechar      </button>    </div>    <div id="scanner-confirm-overlay"      class="hidden absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center p-6 space-y-4"      style="z-index: 20;">      <div class="text-white text-center">        <div class="text-lg opacity-80 mb-1">Confirmar código lido?</div>        <div id="scanner-confirm-text" class="text-2xl font-bold break-all"></div>      </div>      <div class="flex gap-3">        <button id="scanner-confirm-yes" type="button"          class="px-5 py-2 rounded-md bg-green-600 text-white font-semibold shadow hover:bg-green-700">          Confirmar (Enter)        </button>        <button id="scanner-confirm-no" type="button"          class="px-5 py-2 rounded-md bg-gray-300 text-gray-800 font-semibold shadow hover:bg-gray-400">          Reescanear (Esc)        </button>      </div>    </div>  `;
     modal.appendChild(content);
     document.body.appendChild(modal);
     dom.scannerModal = modal;
@@ -1267,9 +1064,7 @@ function createGlobalScannerModal() {
             }
         }
     });
-}
-
-function injectScannerButtons() {
+}function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [{
         input: dom.sepScan,
@@ -1303,9 +1098,7 @@ function injectScannerButtons() {
     dom.carCamBtn?.addEventListener("click", () =>
         startGlobalScanner("carregamento"),
     );
-}
-
-function startGlobalScanner(targetModal) {
+}function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -1381,9 +1174,7 @@ function startGlobalScanner(targetModal) {
         });
         stopGlobalScanner();
     }
-}
-
-function stopGlobalScanner() {
+}function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add("hidden");
         if (dom._currentModal) {
@@ -1412,9 +1203,7 @@ function stopGlobalScanner() {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}
-
-async function onGlobalScanSuccess(decodedText) {
+}async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -1442,12 +1231,8 @@ async function onGlobalScanSuccess(decodedText) {
             state.globalScannerInstance?.resume();
         },
     );
-}
-
-function onGlobalScanError(_) {
-}
-
-async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+}function onGlobalScanError(_) {
+}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {
         id_pacote: idPacote,
         data_scan: dataScan,
@@ -1463,9 +1248,7 @@ async function processarPacote(idPacote, dataScan, usuarioEntrada) {
         throw new Error(json?.error || "Erro desconhecido");
     }
     return json;
-}
-
-async function handleSeparacaoFromScanner(idPacote) {
+}async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
     const usuarioEntrada = dom.sepUser?.value?.trim();
     if (!usuarioEntrada) {
@@ -1570,24 +1353,18 @@ async function handleSeparacaoFromScanner(idPacote) {
     } finally {
         state.isSeparaçãoProcessing = false;
     }
-}
-
-function handleSepUserKeydown(e) {
+}function handleSepUserKeydown(e) {
     if (e.key === "Enter") {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}
-
-function parseBulkEntries(raw) {
+}function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
-}
-
-async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
     let ok = 0,
         fail = 0,
@@ -1682,9 +1459,7 @@ async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}
-
-async function handleSeparaçãoSubmit(e) {
+}async function handleSeparaçãoSubmit(e) {
     if (e.key !== "Enter") return;
     if (state.isSeparaçãoProcessing) return;
     e.preventDefault();
@@ -1785,9 +1560,7 @@ async function handleSeparaçãoSubmit(e) {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}
-
-function setCarStatus(message, {
+}function setCarStatus(message, {
     error = false
 } = {}) {
     if (!dom.carStatus) return;
@@ -1798,13 +1571,9 @@ function setCarStatus(message, {
         "text-gray-500",
     );
     dom.carStatus.classList.add(error ? "text-red-600" : "text-green-600");
-}
-
-function formatDockLabel(n) {
+}function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, "0")}`;
-}
-
-function ensureDockSelect() {
+}function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById("car-dock-select");
     if (!dom.carDockSelect) {
@@ -1812,17 +1581,7 @@ function ensureDockSelect() {
         if (!userInput) return;
         const wrap = document.createElement("div");
         wrap.className = "mt-4";
-        wrap.innerHTML = `
-
-    <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>
-
-    <div class="mt-1">
-
-      <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>
-
-    </div>
-
-  `;
+        wrap.innerHTML = `    <label for="car-dock-select" class="block text-sm font-medium text-gray-700">DOCA</label>    <div class="mt-1">      <select id="car-dock-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white"></select>    </div>  `;
         const sel = wrap.querySelector("#car-dock-select");
         const opt0 = document.createElement("option");
         opt0.value = "";
@@ -1849,9 +1608,7 @@ function ensureDockSelect() {
     dom.carDockSelect.addEventListener("change", () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}
-
-function ensureIlhaSelect() {
+}function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById("car-ilha-select");
     if (!dom.carIlhaSelect) {
@@ -1859,21 +1616,7 @@ function ensureIlhaSelect() {
         if (!dockSelect) return;
         const wrap = document.createElement("div");
         wrap.className = "mt-4";
-        wrap.innerHTML = `
-
-    <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>
-
-    <div class="mt-1">
-
-      <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">
-
-        <option value="">Carregando ilhas...</option>
-
-      </select>
-
-    </div>
-
-  `;
+        wrap.innerHTML = `    <label for="car-ilha-select" class="block text-sm font-medium text-gray-700">ILHA (ROTA)</label>    <div class="mt-1">      <select id="car-ilha-select" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white">        <option value="">Carregando ilhas...</option>      </select>    </div>  `;
         const dockBlock = dockSelect.closest(".mt-4");
         if (dockBlock && dockBlock.parentElement) {
             dockBlock.parentElement.insertBefore(wrap, dockBlock.nextSibling);
@@ -1883,9 +1626,7 @@ function ensureIlhaSelect() {
     dom.carIlhaSelect.addEventListener("change", () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}
-
-function populateIlhaSelect() {
+}function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [
         ...new Set(state.cacheData.map((item) => item.ROTA).filter(Boolean)),
@@ -1906,9 +1647,7 @@ function populateIlhaSelect() {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}
-
-async function processarValidacao(
+}async function processarValidacao(
     idPacoteScaneado,
     rotaSelecionada,
     usuarioSaida,
@@ -1935,9 +1674,7 @@ async function processarValidacao(
         throw new Error(msg);
     }
     return json || {};
-}
-
-function handleCarUserKeydown(e) {
+}function handleCarUserKeydown(e) {
     if (e.key === "Enter") {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -1948,9 +1685,7 @@ function handleCarUserKeydown(e) {
             dom.carScan.focus();
         }
     }
-}
-
-async function runCarregamentoValidation(
+}async function runCarregamentoValidation(
     idPacoteScaneado,
     usuarioSaida,
     doca,
@@ -2037,9 +1772,7 @@ async function runCarregamentoValidation(
             message: `Erro: ${msg}`
         };
     }
-}
-
-async function handleCarregamentoFromScanner(decodedText) {
+}async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
     const cleaned = normalizeScanned(decodedText);
     try {
@@ -2068,9 +1801,7 @@ async function handleCarregamentoFromScanner(decodedText) {
     } finally {
         state.isCarregamentoProcessing = false;
     }
-}
-
-async function handleCarregamentoSubmit(e) {
+}async function handleCarregamentoSubmit(e) {
     if (e.key !== "Enter" || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -2119,9 +1850,7 @@ async function handleCarregamentoSubmit(e) {
             dom.carScan.focus();
         }
     }
-}
-
-async function fetchDashboardData() {
+}async function fetchDashboardData() {
     if (!state.period.start || !state.period.end) {
         const today = new Date();
         const endISO = getBrasiliaDate(false);
@@ -2176,9 +1905,7 @@ async function fetchDashboardData() {
             dom.summaryContainer.innerHTML = `<p class="text-red-500 text-xs p-2">Erro ao carregar dados.</p>`;
         }
     }
-}
-
-function processDashboardData(data) {
+}function processDashboardData(data) {
     if (!data || data.length === 0) return [];
     const rotasMap = new Map();
     for (const item of data) {
@@ -2237,9 +1964,7 @@ function processDashboardData(data) {
     }
     rotasConsolidadas.sort((a, b) => a.percentual - b.percentual);
     return rotasConsolidadas;
-}
-
-function renderDashboard() {
+}function renderDashboard() {
     const summaryContainer = dom.summaryContainer;
     const routesContainer = dom.routesContainer;
     if (!summaryContainer || !routesContainer) return;
@@ -2265,86 +1990,10 @@ function renderDashboard() {
             0;
     const percPendentes =
         totalGeralPacotes > 0 ? (totalGeralPendentes / totalGeralPacotes) * 100 : 0;
-    let resumoHtml = `
-
-    <div class="flex items-center justify-between mb-2">
-
-         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-
-            Visão: ${todayFormatted}
-
-         </span>
-
-         <span class="text-[10px] text-gray-400">${state.cacheData.length} regs</span>
-
-    </div>
-
-    <div class="grid grid-cols-3 gap-3 mb-2">
-
-        <!-- Carregamentos -->
-
-        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
-
-            <span class="text-[10px] font-bold text-gray-400 uppercase">Carregamentos</span>
-
-            <span class="text-xl font-bold text-auditoria-primary leading-none mt-1">
-
-                ${totalGeralVerificados}
-
-            </span>
-
-            <span class="text-[10px] text-gray-400">de ${totalGeralPacotes}</span>
-
-        </div>        <!-- Concluído -->
-
-        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
-
-            <span class="text-[10px] font-bold text-gray-400 uppercase">Concluído</span>
-
-            <span class="text-xl font-bold text-green-600 leading-none mt-1">
-
-                ${percVerificados.toFixed(2)}%
-
-            </span>
-
-            <span class="text-[10px] text-gray-400">
-
-                (${totalGeralVerificados} concluídos)
-
-            </span>
-
-        </div>        <!-- Em Andamento -->
-
-        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
-
-            <span class="text-[10px] font-bold text-gray-400 uppercase">Em Andamento</span>
-
-            <span class="text-xl font-bold text-yellow-600 leading-none mt-1">
-
-                ${percPendentes.toFixed(2)}%
-
-            </span>
-
-            <span class="text-[10px] text-gray-400">
-
-                (${totalGeralPendentes} pendentes)
-
-            </span>
-
-        </div>
-
-    </div>
-
-    `;
+    let resumoHtml = `    <div class="flex items-center justify-between mb-2">         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">            Visão: ${todayFormatted}         </span>         <span class="text-[10px] text-gray-400">${state.cacheData.length} regs</span>    </div>    <div class="grid grid-cols-3 gap-3 mb-2">        <!-- Carregamentos -->        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">            <span class="text-[10px] font-bold text-gray-400 uppercase">Carregamentos</span>            <span class="text-xl font-bold text-auditoria-primary leading-none mt-1">                ${totalGeralVerificados}            </span>            <span class="text-[10px] text-gray-400">de ${totalGeralPacotes}</span>        </div>        <!-- Concluído -->        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">            <span class="text-[10px] font-bold text-gray-400 uppercase">Concluído</span>            <span class="text-xl font-bold text-green-600 leading-none mt-1">                ${percVerificados.toFixed(2)}%            </span>            <span class="text-[10px] text-gray-400">                (${totalGeralVerificados} concluídos)            </span>        </div>        <!-- Em Andamento -->        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">            <span class="text-[10px] font-bold text-gray-400 uppercase">Em Andamento</span>            <span class="text-xl font-bold text-yellow-600 leading-none mt-1">                ${percPendentes.toFixed(2)}%            </span>            <span class="text-[10px] text-gray-400">                (${totalGeralPendentes} pendentes)            </span>        </div>    </div>    `;
     summaryContainer.innerHTML = resumoHtml;
     if (rotasConsolidadas.length === 0) {
-        routesContainer.innerHTML = `
-
-            <div class="text-center py-8 bg-white rounded-lg border border-dashed border-gray-200">
-
-                <p class="text-sm text-gray-400">Sem movimentação hoje.</p>
-
-            </div>`;
+        routesContainer.innerHTML = `            <div class="text-center py-8 bg-white rounded-lg border border-dashed border-gray-200">                <p class="text-sm text-gray-400">Sem movimentação hoje.</p>            </div>`;
         return;
     }
     const concluidaIcon = `<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
@@ -2356,77 +2005,7 @@ function renderDashboard() {
             `<div class="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 text-[10px] font-bold border border-yellow-100">${rota.pendentes} pend</div>`;
         const circleColor =
             rota.percentual === 100 ? "text-green-500" : "text-blue-500";
-        rotasHtml += `
-
-        <div class="rota-card bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:border-blue-300 transition-colors" data-rota="${rota.rota}">
-
-            <div class="flex items-center justify-between">
-
-                <div class="flex items-center gap-3">
-
-                    <div class="bg-gray-100 h-10 w-10 rounded-full flex items-center justify-center font-bold text-gray-600 text-sm border border-gray-200">
-
-                        ${rota.rota}
-
-                    </div>
-
-                    <div>
-
-                        <div class="flex items-center gap-2">
-
-                            <span class="text-sm font-bold text-gray-800">Rota ${rota.rota}</span>
-
-                            ${statusHtml}
-
-                        </div>
-
-                        <div class="text-[10px] text-gray-400 mt-0.5 flex gap-2">
-
-                             <span>Início: ${rota.inicio.split(" ")[1] || "--:--"}</span>
-
-                             <span>•</span>
-
-                             <span>Ult: ${rota.ultimoCarregamento.split(" ")[1] || "--:--"}</span>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-                <div class="flex items-center gap-3">
-
-                    <div class="text-right hidden sm:block">
-
-                        <div class="text-xs font-bold text-gray-700">${rota.verificados}/${rota.total}</div>
-
-                        <div class="text-[10px] text-gray-400">Verificados</div>
-
-                    </div>
-
-                    <div class="relative w-10 h-10">
-
-                         <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
-
-                            <path class="text-gray-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke="currentColor" />
-
-                            <path class="${circleColor}" stroke-dasharray="${rota.percentual}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke-linecap="round" stroke="currentColor" />
-
-                        </svg>
-
-                        <div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-600">
-
-                            ${rota.percentual}%
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>`;
+        rotasHtml += `        <div class="rota-card bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:border-blue-300 transition-colors" data-rota="${rota.rota}">            <div class="flex items-center justify-between">                <div class="flex items-center gap-3">                    <div class="bg-gray-100 h-10 w-10 rounded-full flex items-center justify-center font-bold text-gray-600 text-sm border border-gray-200">                        ${rota.rota}                    </div>                    <div>                        <div class="flex items-center gap-2">                            <span class="text-sm font-bold text-gray-800">Rota ${rota.rota}</span>                            ${statusHtml}                        </div>                        <div class="text-[10px] text-gray-400 mt-0.5 flex gap-2">                             <span>Início: ${rota.inicio.split(" ")[1] || "--:--"}</span>                             <span>•</span>                             <span>Ult: ${rota.ultimoCarregamento.split(" ")[1] || "--:--"}</span>                        </div>                    </div>                </div>                <div class="flex items-center gap-3">                    <div class="text-right hidden sm:block">                        <div class="text-xs font-bold text-gray-700">${rota.verificados}/${rota.total}</div>                        <div class="text-[10px] text-gray-400">Verificados</div>                    </div>                    <div class="relative w-10 h-10">                         <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">                            <path class="text-gray-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke="currentColor" />                            <path class="${circleColor}" stroke-dasharray="${rota.percentual}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke-linecap="round" stroke="currentColor" />                        </svg>                        <div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-600">                            ${rota.percentual}%                        </div>                    </div>                </div>            </div>        </div>`;
     }
     rotasHtml += "</div>";
     routesContainer.innerHTML = rotasHtml;
@@ -2436,17 +2015,13 @@ function renderDashboard() {
             openRelatorioModal(rota);
         });
     });
-}
-
-async function fetchAndRenderDashboard() {
+}async function fetchAndRenderDashboard() {
     await fetchDashboardData();
     renderDashboard();
     if (!dom.subtabAnalise.classList.contains("hidden")) {
         renderAnalysisTab();
     }
-}
-
-function reorderControlsOverDashboard() {
+}function reorderControlsOverDashboard() {
     const container = document.getElementById("extra-controls-container");
     if (!container) return;
     if (!dom.btnImportarConsolidado) {
@@ -2454,27 +2029,7 @@ function reorderControlsOverDashboard() {
         btn3.id = "btn-importar-consolidado";
         btn3.className =
             "group relative overflow-hidden bg-white border border-purple-200 hover:border-purple-400 p-3 rounded-lg shadow-sm hover:shadow-md transition-all text-left flex items-center gap-3 h-full w-full";
-        btn3.innerHTML = `
-
-            <div class="bg-purple-50 p-2 rounded-lg group-hover:bg-purple-600 transition-colors flex-shrink-0">
-
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-
-                </svg>
-
-            </div>
-
-            <div class="flex-grow">
-
-                <span class="block text-sm font-bold text-gray-800">3. Importar</span>
-
-                <span class="block text-[10px] text-gray-500 leading-tight">Consolidado SBA7</span>
-
-            </div>
-
-        `;
+        btn3.innerHTML = `            <div class="bg-purple-50 p-2 rounded-lg group-hover:bg-purple-600 transition-colors flex-shrink-0">                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />                </svg>            </div>            <div class="flex-grow">                <span class="block text-sm font-bold text-gray-800">3. Importar</span>                <span class="block text-[10px] text-gray-500 leading-tight">Consolidado SBA7</span>            </div>        `;
         dom.btnImportarConsolidado = btn3;
         container.appendChild(btn3);
         btn3.addEventListener("click", () => {
@@ -2488,9 +2043,7 @@ function reorderControlsOverDashboard() {
             openModal(dom.modalImportar);
         });
     }
-}
-
-function setSepStatus(message, {
+}function setSepStatus(message, {
     error = false
 } = {}) {
     if (!dom.sepStatus) return;
@@ -2501,16 +2054,12 @@ function setSepStatus(message, {
         "text-gray-500",
     );
     dom.sepStatus.classList.add(error ? "text-red-600" : "text-green-600");
-}
-
-function clearSepQrCanvas() {
+}function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = "";
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = "";
     if (dom.sepQrArea) dom.sepQrArea.style.display = "none";
     state.lastPrintData = null;
-}
-
-function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
             console.warn("DOM do QR Code não encontrado, pulando geração.");
@@ -2561,33 +2110,13 @@ function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
             reject(err);
         }
     });
-}
-
-function createRelatorioModal() {
+}function createRelatorioModal() {
     if (document.getElementById("modal-relatorio-rota")) return;
     const modal = document.createElement("div");
     modal.id = "modal-relatorio-rota";
     modal.className = "modal-overlay hidden";
     modal.style.zIndex = "1200";
-    modal.innerHTML = `
-
-        <div class="modal-content" style="width: 95vw; max-width: 1200px;">
-
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-
-                <h3 id="relatorio-rota-title" class="text-xl font-semibold">Relatório - Rota</h3>
-
-                <button id="relatorio-rota-close" class="modal-close" type="button">&times;</button>
-
-            </div>
-
-            <div id="relatorio-rota-body" style="max-height: 70vh; overflow-y: auto;">
-
-                </div>
-
-        </div>
-
-    `;
+    modal.innerHTML = `        <div class="modal-content" style="width: 95vw; max-width: 1200px;">            <div class="flex justify-between items-center mb-4 border-b pb-2">                <h3 id="relatorio-rota-title" class="text-xl font-semibold">Relatório - Rota</h3>                <button id="relatorio-rota-close" class="modal-close" type="button">&times;</button>            </div>            <div id="relatorio-rota-body" style="max-height: 70vh; overflow-y: auto;">                </div>        </div>    `;
     document.body.appendChild(modal);
     dom.relatorioModal = modal;
     dom.relatorioTitle = modal.querySelector("#relatorio-rota-title");
@@ -2596,78 +2125,22 @@ function createRelatorioModal() {
     dom.relatorioModalClose?.addEventListener("click", () => {
         closeModal(dom.relatorioModal);
     });
-}
-
-function openRelatorioModal(rota) {
+}function openRelatorioModal(rota) {
     if (!dom.relatorioModal || !rota) return;
     const items = state.cacheData.filter((item) => item.ROTA === rota);
     dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;
-    let tableHtml = `
-
-        <table class="min-w-full divide-y divide-gray-200">
-
-            <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">
-
-                <tr>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Pacote</th>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Numeração</th>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Separado Por</th>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data Separação</th>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Carregado Por</th>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data Carregamento</th>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Doca</th>
-
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-
-                </tr>
-
-            </thead>
-
-            <tbody class="bg-white divide-y divide-gray-200">
-
-    `;
+    let tableHtml = `        <table class="min-w-full divide-y divide-gray-200">            <thead class="bg-gray-50" style="position: sticky; top: 0; z-index: 1;">                <tr>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Pacote</th>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Numeração</th>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Separado Por</th>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data Separação</th>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Carregado Por</th>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data Carregamento</th>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Doca</th>                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>                </tr>            </thead>            <tbody class="bg-white divide-y divide-gray-200">    `;
     items.sort((a, b) => new Date(a.DATA) - new Date(b.DATA));
     for (const item of items) {
         const isBipado = item.VALIDACAO === "BIPADO";
         const statusClass = isBipado ? "text-green-600" : "text-yellow-600";
         const statusText = isBipado ? "Carregado" : "Aguardando";
-        tableHtml += `
-
-            <tr class="text-sm text-gray-700">
-
-                <td class="px-4 py-3 whitespace-nowrap">${item["ID PACOTE"] || "---"}</td>
-
-                <td class="px-4 py-3 whitespace-nowrap font-medium">${item.NUMERACAO || "---"}</td>
-
-                <td class="px-4 py-3 whitespace-nowrap">${item["BIPADO ENTRADA"] || "---"}</td>
-
-                <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>
-
-                <td class="px-4 py-3 whitespace-nowrap">${item["BIPADO SAIDA"] || "---"}</td>
-
-                <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item["DATA SAIDA"])}</td>
-
-                <td class="px-4 py-3 whitespace-nowrap">${item.DOCA || "---"}</td>
-
-                <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>
-
-            </tr>
-
-        `;
+        tableHtml += `            <tr class="text-sm text-gray-700">                <td class="px-4 py-3 whitespace-nowrap">${item["ID PACOTE"] || "---"}</td>                <td class="px-4 py-3 whitespace-nowrap font-medium">${item.NUMERACAO || "---"}</td>                <td class="px-4 py-3 whitespace-nowrap">${item["BIPADO ENTRADA"] || "---"}</td>                <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item.DATA)}</td>                <td class="px-4 py-3 whitespace-nowrap">${item["BIPADO SAIDA"] || "---"}</td>                <td class="px-4 py-3 whitespace-nowrap">${formatarDataHora(item["DATA SAIDA"])}</td>                <td class="px-4 py-3 whitespace-nowrap">${item.DOCA || "---"}</td>                <td class="px-4 py-3 whitespace-nowrap font-semibold ${statusClass}">${statusText}</td>            </tr>        `;
     }
     tableHtml += `</tbody></table>`;
     dom.relatorioBody.innerHTML = tableHtml;
     openModal(dom.relatorioModal);
-}
-
-function updatePeriodLabel() {
+}function updatePeriodLabel() {
     if (!dom.periodBtn) return;
     if (!state.period.start || !state.period.end) {
         dom.periodBtn.textContent = "Selecionar Período";
@@ -2685,9 +2158,7 @@ function updatePeriodLabel() {
     const end = format(state.period.end);
     dom.periodBtn.textContent =
         start === end ? `Período: ${start}` : `Período: ${start} - ${end}`;
-}
-
-function openPeriodModal() {
+}function openPeriodModal() {
     const today = getBrasiliaDate(true);
     const pad2 = (n) => String(n).padStart(2, "0");
     const toISO = (d) =>
@@ -2704,70 +2175,12 @@ function openPeriodModal() {
     const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const overlay = document.createElement("div");
     overlay.id = "cd-period-overlay";
-    overlay.innerHTML = `
-
-      <div class="cdp-card">
-
-        <h3>Selecionar Período</h3>
-
-        <div class="cdp-shortcuts">
-
-          <button id="cdp-today"   class="btn-salvar">Hoje</button>
-
-          <button id="cdp-yday"    class="btn-salvar">Ontem</button>
-
-          <button id="cdp-curmo"   class="btn-salvar">Mês Atual</button>
-
-          <button id="cdp-prevmo"  class="btn-salvar">Mês anterior</button>
-
-        </div>
-
-        <div class="dates-grid">
-
-          <div><label>Início</label><input id="cdp-period-start" type="date" value="${curStart}"></div>
-
-          <div><label>Fim</label><input id="cdp-period-end"      type="date" value="${curEnd}"></div>
-
-        </div>
-
-        <div class="form-actions">
-
-          <button id="cdp-cancel" class="btn">Cancelar</button>
-
-          <button id="cdp-apply"  class="btn-add">Aplicar</button>
-
-        </div>
-
-      </div>`;
+    overlay.innerHTML = `      <div class="cdp-card">        <h3>Selecionar Período</h3>        <div class="cdp-shortcuts">          <button id="cdp-today"   class="btn-salvar">Hoje</button>          <button id="cdp-yday"    class="btn-salvar">Ontem</button>          <button id="cdp-curmo"   class="btn-salvar">Mês Atual</button>          <button id="cdp-prevmo"  class="btn-salvar">Mês anterior</button>        </div>        <div class="dates-grid">          <div><label>Início</label><input id="cdp-period-start" type="date" value="${curStart}"></div>          <div><label>Fim</label><input id="cdp-period-end"      type="date" value="${curEnd}"></div>        </div>        <div class="form-actions">          <button id="cdp-cancel" class="btn">Cancelar</button>          <button id="cdp-apply"  class="btn-add">Aplicar</button>        </div>      </div>`;
     const cssId = "cdp-style";
     if (!document.getElementById(cssId)) {
         const st = document.createElement("style");
         st.id = cssId;
-        st.textContent = `
-
-            #cd-period-overlay, #cd-period-overlay * { box-sizing: border-box; }
-
-            #cd-period-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-
-            #cd-period-overlay .cdp-card { background: #fff; border-radius: 12px; padding: 16px; min-width: 480px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
-
-            #cd-period-overlay h3 { margin: 0 0 12px; text-align: center; color: #003369; }
-
-            #cd-period-overlay .cdp-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
-
-            #cd-period-overlay .dates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-
-            #cd-period-overlay .form-actions { display: flex; justify-content: flex-end; gap: 8px; }
-
-            #cd-period-overlay .btn { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; background: #f0f0f0; cursor: pointer; }
-
-            #cd-period-overlay .btn-salvar, #cd-period-overlay .btn-add { padding: 8px 12px; border-radius: 6px; border: none; color: white; cursor: pointer; }
-
-            #cd-period-overlay .btn-salvar { background-color: #0284c7; }
-
-            #cd-period-overlay .btn-add { background-color: #16a34a; }
-
-          `;
+        st.textContent = `            #cd-period-overlay, #cd-period-overlay * { box-sizing: border-box; }            #cd-period-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }            #cd-period-overlay .cdp-card { background: #fff; border-radius: 12px; padding: 16px; min-width: 480px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }            #cd-period-overlay h3 { margin: 0 0 12px; text-align: center; color: #003369; }            #cd-period-overlay .cdp-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }            #cd-period-overlay .dates-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }            #cd-period-overlay .form-actions { display: flex; justify-content: flex-end; gap: 8px; }            #cd-period-overlay .btn { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; background: #f0f0f0; cursor: pointer; }            #cd-period-overlay .btn-salvar, #cd-period-overlay .btn-add { padding: 8px 12px; border-radius: 6px; border: none; color: white; cursor: pointer; }            #cd-period-overlay .btn-salvar { background-color: #0284c7; }            #cd-period-overlay .btn-add { background-color: #16a34a; }          `;
         document.head.appendChild(st);
     }
     document.body.appendChild(overlay);
@@ -2828,88 +2241,26 @@ function openPeriodModal() {
         close();
         fetchAndRenderDashboard();
     };
-}
-
-function injectAuditoriaStyles() {
+}function injectAuditoriaStyles() {
     if (document.getElementById("auditoria-styles")) return;
     const style = document.createElement("style");
     style.id = "auditoria-styles";
-    style.textContent = `
-
-        :root {
-
-            --auditoria-primary: #003369;
-
-            --auditoria-accent: #02B1EE;
-
-            --auditoria-border: #eceff5;
-
-            --auditoria-shadow: 0 6px 16px rgba(0, 0, 0, .08);
-
-            --auditoria-muted: #6b7280;
-
-        }
-
-        .text-auditoria-accent { color: var(--auditoria-accent) !important; }
-
-        .text-auditoria-primary { color: var(--auditoria-primary) !important; }
-
-        #auditoria-summary-container .bg-white,
-
-        .rota-card { border-radius: 14px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; }
-
-        #auditoria-summary-container .text-blue-600 { color: var(--auditoria-primary) !important; }
-
-        .rota-card h5 { color: var(--auditoria-primary) !important; }
-
-        .rota-card .text-gray-500, .rota-card .text-xs, #auditoria-summary-container .text-gray-500 { color: var(--auditoria-muted) !important; }
-
-        #auditoria-controls-bar button {
-
-            border-radius: 12px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; transition: all .2s ease;
-
-        }
-
-        #auditoria-controls-bar button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12) !important; }
-
-        #btn-iniciar-separacao { background-color: var(--auditoria-primary) !important; color: white !important; }
-
-        #btn-iniciar-carregamento { background-color: var(--auditoria-accent) !important; color: white !important; }
-
-        #auditoria-period-btn { background-color: #fff !important; color: var(--auditoria-primary) !important; font-weight: 600; }
-
-        #btn-importar-consolidado:hover { background-color: #5b21b6 !important; }        .auditoria-main-container { display: flex; flex-direction: column; height: 100%; }
-
-        #auditoria-controls-bar { flex-shrink: 0; background: #f9fafb; position: sticky; top: 0; z-index: 10; }
-
-        #auditoria-summary-container { flex-shrink: 0; padding: 0 16px; background: #f9fafb; position: sticky; top: 110px; z-index: 9; }
-
-        #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }
-
-    `;
+    style.textContent = `        :root {            --auditoria-primary: #003369;            --auditoria-accent: #02B1EE;            --auditoria-border: #eceff5;            --auditoria-shadow: 0 6px 16px rgba(0, 0, 0, .08);            --auditoria-muted: #6b7280;        }        .text-auditoria-accent { color: var(--auditoria-accent) !important; }        .text-auditoria-primary { color: var(--auditoria-primary) !important; }        #auditoria-summary-container .bg-white,        .rota-card { border-radius: 14px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; }        #auditoria-summary-container .text-blue-600 { color: var(--auditoria-primary) !important; }        .rota-card h5 { color: var(--auditoria-primary) !important; }        .rota-card .text-gray-500, .rota-card .text-xs, #auditoria-summary-container .text-gray-500 { color: var(--auditoria-muted) !important; }        #auditoria-controls-bar button {            border-radius: 12px !important; border: 1px solid var(--auditoria-border) !important; box-shadow: var(--auditoria-shadow) !important; transition: all .2s ease;        }        #auditoria-controls-bar button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.12) !important; }        #btn-iniciar-separacao { background-color: var(--auditoria-primary) !important; color: white !important; }        #btn-iniciar-carregamento { background-color: var(--auditoria-accent) !important; color: white !important; }        #auditoria-period-btn { background-color: #fff !important; color: var(--auditoria-primary) !important; font-weight: 600; }        #btn-importar-consolidado:hover { background-color: #5b21b6 !important; }        .auditoria-main-container { display: flex; flex-direction: column; height: 100%; }        #auditoria-controls-bar { flex-shrink: 0; background: #f9fafb; position: sticky; top: 0; z-index: 10; }        #auditoria-summary-container { flex-shrink: 0; padding: 0 16px; background: #f9fafb; position: sticky; top: 110px; z-index: 9; }        #auditoria-routes-container { flex-grow: 1; overflow-y: auto; min-height: 0; }    `;
     document.head.appendChild(style);
-}
-
-let initOnce = false;
-
-export function init() {
+}let initOnce = false;export function init() {
     if (initOnce) return;
-    initOnce = true;
-    dom.dashboard = document.getElementById("dashboard-stats");
+    initOnce = true;    dom.dashboard = document.getElementById("dashboard-stats");
     dom.tabBtnSeparacao = document.getElementById("tab-btn-separacao");
     dom.tabBtnAnalise = document.getElementById("tab-btn-analise");
     dom.subtabSeparacao = document.getElementById("subtab-separacao");
     dom.subtabAnalise = document.getElementById("subtab-analise");
     dom.summaryContainer = document.getElementById("auditoria-summary");
-    dom.routesContainer = document.getElementById("auditoria-routes");
-    if (!dom.summaryContainer)
+    dom.routesContainer = document.getElementById("auditoria-routes");    if (!dom.summaryContainer)
         dom.summaryContainer = document.getElementById("dashboard-stats");
     if (!dom.routesContainer)
-        dom.routesContainer = document.getElementById("dashboard-stats");
-    dom.btnSeparação = document.getElementById("btn-iniciar-separacao");
+        dom.routesContainer = document.getElementById("dashboard-stats");    dom.btnSeparação = document.getElementById("btn-iniciar-separacao");
     dom.btnCarregamento = document.getElementById("btn-iniciar-carregamento");
-    dom.periodBtn = document.getElementById("auditoria-period-btn");
-    dom.modalSeparação = document.getElementById("modal-separacao");
+    dom.periodBtn = document.getElementById("auditoria-period-btn");    dom.modalSeparação = document.getElementById("modal-separacao");
     dom.modalSepClose = dom.modalSeparação?.querySelector(".modal-close");
     dom.sepUser = document.getElementById("sep-user-name");
     dom.sepScan = document.getElementById("sep-scan-input");
@@ -2917,28 +2268,22 @@ export function init() {
     dom.sepQrArea = document.getElementById("sep-qr-area");
     dom.sepQrTitle = document.getElementById("sep-qr-title");
     dom.sepQrCanvas = document.getElementById("sep-qr-canvas");
-    dom.sepPrintBtn = document.getElementById("sep-print-btn");
-    dom.modalCarregamento = document.getElementById("modal-carregamento");
+    dom.sepPrintBtn = document.getElementById("sep-print-btn");    dom.modalCarregamento = document.getElementById("modal-carregamento");
     dom.modalCarClose = dom.modalCarregamento?.querySelector(".modal-close");
     dom.carUser = document.getElementById("car-user-name");
     dom.carScan = document.getElementById("car-scan-input");
-    dom.carStatus = document.getElementById("car-status");
-    injectAuditoriaStyles();
+    dom.carStatus = document.getElementById("car-status");    injectAuditoriaStyles();
     const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
-    updatePeriodLabel();
-    createGlobalScannerModal();
+    updatePeriodLabel();    createGlobalScannerModal();
     createRelatorioModal();
     createImportarModal();
     injectScannerButtons();
     ensureDockSelect();
-    ensureIlhaSelect();
-    dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
-    dom.tabBtnAnalise?.addEventListener("click", () => switchTab("analise"));
-    reorderControlsOverDashboard();
-    dom.periodBtn?.addEventListener("click", openPeriodModal);
-    dom.btnImportarConsolidado?.addEventListener("click", () => {
+    ensureIlhaSelect();    ensureCarUserDatalist();    dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
+    dom.tabBtnAnalise?.addEventListener("click", () => switchTab("analise"));    reorderControlsOverDashboard();
+    dom.periodBtn?.addEventListener("click", openPeriodModal);    dom.btnImportarConsolidado?.addEventListener("click", () => {
         if (dom.importStatus) dom.importStatus.textContent = "";
         if (dom.importTextarea) dom.importTextarea.value = "";
         state.isImporting = false;
@@ -2951,27 +2296,21 @@ export function init() {
     dom.importCloseBtn?.addEventListener("click", () =>
         closeModal(dom.modalImportar),
     );
-    dom.importSubmitBtn?.addEventListener("click", handleImportarConsolidado);
-    dom.btnSeparação?.addEventListener("click", () => {
+    dom.importSubmitBtn?.addEventListener("click", handleImportarConsolidado);    dom.btnSeparação?.addEventListener("click", () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) dom.sepUser.focus();
         else dom.sepScan?.focus();
-    });
-    dom.btnCarregamento?.addEventListener("click", () => {
+    });    dom.btnCarregamento?.addEventListener("click", () => {
         resetCarregamentoModal({
             preserveUser: true,
             preserveDock: true
-        });
-        populateIlhaSelect();
-        openModal(dom.modalCarregamento);
-        if (dom.carUser && !dom.carUser.value) dom.carUser.focus();
+        });        populateIlhaSelect();        populateCarUserDatalist();        openModal(dom.modalCarregamento);        if (dom.carUser && !dom.carUser.value) dom.carUser.focus();
         else if (!state.selectedDock) dom.carDockSelect?.focus();
         else if (!state.selectedIlha) dom.carIlhaSelect?.focus();
         else if (dom.carScan)
             dom.carScan.value ? dom.carScan.select() : dom.carScan.focus();
-    });
-    dom.modalSepClose?.addEventListener("click", (ev) => {
+    });    dom.modalSepClose?.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalSeparação);
@@ -2985,12 +2324,10 @@ export function init() {
             preserveUser: true,
             preserveDock: true
         });
-    });
-    dom.sepUser?.addEventListener("keydown", handleSepUserKeydown);
+    });    dom.sepUser?.addEventListener("keydown", handleSepUserKeydown);
     dom.carUser?.addEventListener("keydown", handleCarUserKeydown);
     dom.sepScan?.addEventListener("keydown", handleSeparaçãoSubmit);
-    dom.carScan?.addEventListener("keydown", handleCarregamentoSubmit);
-    dom.sepPrintBtn?.addEventListener("click", async () => {
+    dom.carScan?.addEventListener("keydown", handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener("click", async () => {
         try {
             if (state.lastPrintData) {
                 setSepStatus("Reimprimindo...");
@@ -3012,8 +2349,7 @@ export function init() {
                 error: true
             });
         }
-    });
-    document.addEventListener("keydown", (e) => {
+    });    document.addEventListener("keydown", (e) => {
         if (e.key === "F6") {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
                 e.preventDefault();
@@ -3023,22 +2359,18 @@ export function init() {
                 dom.sepScan.focus();
             }
         }
-    });
-    [dom.sepScan, dom.carScan].forEach((inp) => {
+    });    [dom.sepScan, dom.carScan].forEach((inp) => {
         if (!inp) return;
         inp.addEventListener("paste", () => {
             setTimeout(() => {
                 inp.value = normalizeScanned(inp.value);
             }, 0);
         });
-    });
-    fetchAndRenderDashboard();
+    });    fetchAndRenderDashboard();
     installNetworkBanner();
-    loadOutbox();
-    eventHandlers.onOnline = () => processOutbox(true);
+    loadOutbox();    eventHandlers.onOnline = () => processOutbox(true);
     eventHandlers.onSepSuccess = (ev) => handleOutboxSepSuccess(ev);
-    eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);
-    window.addEventListener("online", eventHandlers.onOnline);
+    eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);    window.addEventListener("online", eventHandlers.onOnline);
     window.addEventListener(
         "outbox:separacao:success",
         eventHandlers.onSepSuccess,
@@ -3046,16 +2378,12 @@ export function init() {
     window.addEventListener(
         "outbox:carregamento:success",
         eventHandlers.onCarSuccess,
-    );
-    if (outbox.queue.length > 0)
+    );    if (outbox.queue.length > 0)
         showNetBanner("Itens pendentes: tentando enviar…");
-    setTimeout(() => processOutbox(), 2000);
-    console.log(
-        "Módulo de Auditoria (Dashboard) inicializado [V30 - DataFix + Separated Containers].",
+    setTimeout(() => processOutbox(), 2000);    console.log(
+        "Módulo de Auditoria (Dashboard) inicializado [V30 - DataFix + Separated Containers + AutoComplete].",
     );
-}
-
-export function destroy() {
+}export function destroy() {
     console.log("Módulo de Auditoria (Dashboard) destruído.");
     if (state.globalScannerInstance) stopGlobalScanner();
     const styleTag = document.getElementById("auditoria-styles");
@@ -3114,9 +2442,7 @@ export function destroy() {
     };
     dom = {};
     initOnce = false;
-}
-
-if (typeof document !== "undefined") {
+}if (typeof document !== "undefined") {
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => {
             try {
