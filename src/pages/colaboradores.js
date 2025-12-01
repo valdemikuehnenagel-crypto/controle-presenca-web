@@ -128,22 +128,30 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
 }async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
-    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';    try {
-        const matrizesPermitidas = getMatrizesPermitidas();        let queryVagas = supabase
+    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
+    try {
+        const matrizesPermitidas = getMatrizesPermitidas();
+        let queryVagas = supabase
             .from('Vagas')
             .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataEncaminhadoAdmissao, DataAprovacao, rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato, DataNascimento')
-            .eq('Status', 'EM ADMISSÃO')            .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');        if (matrizesPermitidas !== null) {
+            .eq('Status', 'EM ADMISSÃO').or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');
+        if (matrizesPermitidas !== null) {
             queryVagas = queryVagas.in('MATRIZ', matrizesPermitidas);
-        }        const queryColabs = supabase
+        }
+        const queryColabs = supabase
             .from('Colaboradores')
             .select('Nome')
-            .eq('Ativo', 'SIM');        const [resVagas, resColabs] = await Promise.all([
+            .eq('Ativo', 'SIM');
+        const [resVagas, resColabs] = await Promise.all([
             queryVagas.order('DataInicioDesejado', {ascending: true}),
             queryColabs
-        ]);        if (resVagas.error) throw resVagas.error;        rhState.dadosBrutos = resVagas.data || [];
+        ]);
+        if (resVagas.error) throw resVagas.error;
+        rhState.dadosBrutos = resVagas.data || [];
         rhState.nomesExistentes = new Set(
             (resColabs.data || []).map(c => (c.Nome || '').toUpperCase().trim())
-        );        setupRhFilters();
+        );
+        setupRhFilters();
         populateRhFilterOptions();
         aplicarFiltrosRh();
     } catch (err) {
@@ -226,44 +234,61 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
 }function toggleRhDateMode() {
     rhState.modoVisualizacao = (rhState.modoVisualizacao === 'ATUAIS') ? 'FUTURAS' : 'ATUAIS';
     aplicarFiltrosRh();
-}async function buscarEnderecoPorCep(cep, prefixoId) {    const cepLimpo = cep.replace(/\D/g, '');    if (cepLimpo.length !== 8) {
+}async function buscarEnderecoPorCep(cep, prefixoId) {
+    const cepLimpo = cep.replace(/\D/g, '');
+    if (cepLimpo.length !== 8) {
         return;
-    }    const campoEndereco = document.getElementById(`${prefixoId}Endereco`);
+    }
+    const campoEndereco = document.getElementById(`${prefixoId}Endereco`);
     const campoBairro = document.getElementById(`${prefixoId}Bairro`);
     const campoCidade = document.getElementById(`${prefixoId}Cidade`);
-    const campoNumero = document.getElementById(`${prefixoId}Numero`);    if (campoEndereco) campoEndereco.placeholder = "Buscando CEP...";    try {
+    const campoNumero = document.getElementById(`${prefixoId}Numero`);
+    if (campoEndereco) campoEndereco.placeholder = "Buscando CEP...";
+    try {
         const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-        const data = await response.json();        if (data.erro) {
+        const data = await response.json();
+        if (data.erro) {
             await window.customAlert('CEP não encontrado.', 'Erro');
             if (campoEndereco) campoEndereco.placeholder = "";
             return;
-        }        if (campoEndereco) {
-            campoEndereco.value = (data.logradouro || '').toUpperCase();            campoEndereco.dispatchEvent(new Event('input'));
-        }        if (campoBairro) {
+        }
+        if (campoEndereco) {
+            campoEndereco.value = (data.logradouro || '').toUpperCase();
+            campoEndereco.dispatchEvent(new Event('input'));
+        }
+        if (campoBairro) {
             campoBairro.value = (data.bairro || '').toUpperCase();
             campoBairro.dispatchEvent(new Event('input'));
-        }        if (campoCidade) {
+        }
+        if (campoCidade) {
             campoCidade.value = (data.localidade || '').toUpperCase();
             campoCidade.dispatchEvent(new Event('input'));
-        }        if (campoNumero) {
+        }
+        if (campoNumero) {
             campoNumero.focus();
-        }    } catch (error) {
+        }
+    } catch (error) {
         console.error("Erro ao buscar CEP:", error);
         await window.customAlert('Erro ao buscar o endereço. Verifique sua conexão.', 'Erro de Rede');
     } finally {
         if (campoEndereco) campoEndereco.placeholder = "";
     }
-}function wireCepEvents() {    const addCepInput = document.getElementById('addCEP');
+}function wireCepEvents() {
+    const addCepInput = document.getElementById('addCEP');
     if (addCepInput) {
-        addCepInput.addEventListener('input', (e) => {            let val = e.target.value.replace(/\D/g, '');            if (val.length > 5) {
+        addCepInput.addEventListener('input', (e) => {
+            let val = e.target.value.replace(/\D/g, '');
+            if (val.length > 5) {
                 val = val.substring(0, 5) + '-' + val.substring(5, 8);
             }
-            e.target.value = val;            const numeros = val.replace(/\D/g, '');
+            e.target.value = val;
+            const numeros = val.replace(/\D/g, '');
             if (numeros.length === 8) {
                 buscarEnderecoPorCep(numeros, 'add');
             }
         });
-    }}function aplicarFiltrosRh() {
+    }
+}function aplicarFiltrosRh() {
     const hoje = new Date().toISOString().split('T')[0];
     const lblMode = document.getElementById('lblDateMode');
     const badge = document.getElementById('countRhBadges');
@@ -484,17 +509,26 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
 }function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);    lista.forEach(cand => {
+    hoje.setHours(0, 0, 0, 0);
+    lista.forEach(cand => {
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group cursor-pointer";         const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim();
-        const jaExiste = rhState.nomesExistentes && rhState.nomesExistentes.has(nomeNormalizado);        const nomeClass = jaExiste ? 'text-green-600 font-extrabold' : 'text-[#003369] font-bold';
-        const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔ (Cadastrado)</span>' : '';        const btnFecharStyle = jaExiste
+        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group cursor-pointer";
+        const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim();
+        const jaExiste = rhState.nomesExistentes && rhState.nomesExistentes.has(nomeNormalizado);
+        const nomeClass = jaExiste ? 'text-green-600 font-extrabold' : 'text-[#003369] font-bold';
+        const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔ (Cadastrado)</span>' : '';
+        const btnFecharStyle = jaExiste
             ? 'background-color: #dcfce7; color: #166534; border: 1px solid #86efac; cursor: pointer;'
-            : 'background-color: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; cursor: not-allowed; opacity: 0.7;';        const btnFecharTitle = jaExiste
+            : 'background-color: #f3f4f6; color: #9ca3af; border: 1px solid #e5e7eb; cursor: not-allowed; opacity: 0.7;';
+        const btnFecharTitle = jaExiste
             ? "Colaborador já cadastrado! Clique para fechar a vaga."
-            : "Ação bloqueada: Colaborador ainda não consta na base ativa.";        const rawInicio = cand.DataAdmissaoReal || cand.DataInicioDesejado;
-        const dtInicio = rawInicio ? formatDateLocal(rawInicio) : '-';        const cpf = cand.CPFCandidato || '-';
-        const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;        const dataRefStr = cand.DataAdmissaoReal || cand.DataInicioDesejado;        let slaHtml = '<span class="text-gray-300">-</span>';
+            : "Ação bloqueada: Colaborador ainda não consta na base ativa.";
+        const rawInicio = cand.DataAdmissaoReal || cand.DataInicioDesejado;
+        const dtInicio = rawInicio ? formatDateLocal(rawInicio) : '-';
+        const cpf = cand.CPFCandidato || '-';
+        const cargoCurto = typeof formatCargoShort === 'function' ? formatCargoShort(cand.Cargo) : cand.Cargo;
+        const dataRefStr = cand.DataAdmissaoReal || cand.DataInicioDesejado;
+        let slaHtml = '<span class="text-gray-300">-</span>';
         if (dataRefStr) {
             const dataRef = new Date(dataRefStr);
             dataRef.setHours(0, 0, 0, 0);
@@ -514,7 +548,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 slaTexto = `${slaDias}d`;
             }
             slaHtml = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${slaClass}">${slaTexto}</span>`;
-        }        tr.innerHTML = `
+        }
+        tr.innerHTML = `
             <td class="p-2 ${nomeClass} leading-tight">
                 ${cand.CandidatoAprovado || 'Sem Nome'} ${iconCheck}
             </td>
@@ -553,31 +588,38 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                     </button>
                 </div>
             </td>
-        `;        tr.addEventListener('dblclick', async (e) => {
-            if (e.target.closest('button')) return;             if (jaExiste) {
+        `;
+        tr.addEventListener('dblclick', async (e) => {
+            if (e.target.closest('button')) return;
+            if (jaExiste) {
                 await window.customAlert(
                     `O colaborador <b>${cand.CandidatoAprovado}</b> já consta na base de ativos.<br><br>Não é possível importar novamente. Por favor, clique no botão <b>"Fechar Vaga"</b> para encerrar o processo no RH.`,
                     'Ação Bloqueada',
                     'warning'
                 );
                 return;
-            }            selecionarCandidatoImportacao(cand);
-        });        const btnFechar = tr.querySelector('.btn-fechar-vaga');
+            }
+            selecionarCandidatoImportacao(cand);
+        });
+        const btnFechar = tr.querySelector('.btn-fechar-vaga');
         btnFechar.addEventListener('click', (e) => {
             e.stopPropagation();
             if (!jaExiste) {
                 return;
             }
             fecharVagaImportacao(cand);
-        });        const btnDesistencia = tr.querySelector('.btn-desistencia');
+        });
+        const btnDesistencia = tr.querySelector('.btn-desistencia');
         btnDesistencia.addEventListener('click', (e) => {
             e.stopPropagation();
             confirmarDesistenciaVaga(cand);
-        });        const btnNoShow = tr.querySelector('.btn-noshow');
+        });
+        const btnNoShow = tr.querySelector('.btn-noshow');
         btnNoShow.addEventListener('click', (e) => {
             e.stopPropagation();
             confirmarNoShowVaga(cand);
-        });        tbodyCandidatosRH.appendChild(tr);
+        });
+        tbodyCandidatosRH.appendChild(tr);
     });
 }async function fecharVagaImportacao(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
@@ -953,10 +995,13 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     return out;
 }function renderTable(dataToRender) {
-    if (!colaboradoresTbody) return;    colaboradoresTbody.innerHTML = '';    if (!dataToRender || dataToRender.length === 0) {
+    if (!colaboradoresTbody) return;
+    colaboradoresTbody.innerHTML = '';
+    if (!dataToRender || dataToRender.length === 0) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Nenhum colaborador encontrado.</td></tr>';
         return;
-    }    const formatarNomeColaborador = (colaborador) => {
+    }
+    const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
         if (colaborador.StatusDesligamento === 'PENDENTE') {
             return `${nomeBase} ⚠️ (Desligamento Pendente)`;
@@ -964,22 +1009,27 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (colaborador.StatusDesligamento === 'RECUSADO') {
             return `${nomeBase} ❌ (Desligamento Recusado)`;
         }
-        if (colaborador.Ativo === 'AFAS') return `${nomeBase} (Afastado)`;        const diasRest = state?.feriasAtivasMap?.get?.(nomeBase);
+        if (colaborador.Ativo === 'AFAS') return `${nomeBase} (Afastado)`;
+        const diasRest = state?.feriasAtivasMap?.get?.(nomeBase);
         if (diasRest != null && !isNaN(diasRest)) {
             if (diasRest === 0) return `${nomeBase} 🏖️ (Termina hoje)`;
             const sufixo = diasRest === 1 ? 'dia' : 'dias';
             return `${nomeBase} 🏖️ (Faltam ${diasRest} ${sufixo})`;
         }
         return nomeBase;
-    };    dataToRender.forEach((colaborador) => {
+    };
+    dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
-        tr.setAttribute('data-nome', colaborador.Nome || '');        if (colaborador.StatusDesligamento === 'PENDENTE') {
+        tr.setAttribute('data-nome', colaborador.Nome || '');
+        if (colaborador.StatusDesligamento === 'PENDENTE') {
             tr.classList.add('row-pending');
         } else if (colaborador.StatusDesligamento === 'RECUSADO') {
             tr.classList.add('row-rejected');
-        }        const nomeCelula = formatarNomeColaborador(colaborador);
+        }
+        const nomeCelula = formatarNomeColaborador(colaborador);
         const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);
-        const admissaoKN = formatDateLocal(colaborador['Admissao KN']);        tr.innerHTML = `
+        const admissaoKN = formatDateLocal(colaborador['Admissao KN']);
+        tr.innerHTML = `
                 <td class="nome-col">${nomeCelula}</td>
                 <td>${colaborador.DSR || ''}</td>
                 <td>${colaborador.Escala || ''}</td>
@@ -1194,7 +1244,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         alertDiv.classList.add('hidden');
     }
 }async function fetchColaboradores() {
-    const now = Date.now();    let currentUser = 'unknown';
+    const now = Date.now();
+    let currentUser = 'unknown';
     try {
         const sessionStr = localStorage.getItem('userSession');
         if (sessionStr) {
@@ -1203,11 +1254,14 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     } catch (e) {
         console.warn('Erro ao ler userSession', e);
-    }    try {
+    }
+    try {
         const cached = localStorage.getItem('knc:colaboradoresCache');
         if (cached) {
-            const {timestamp, data, ferias, owner} = JSON.parse(cached);            const isSameUser = owner === currentUser;
-            const isValidTime = (now - timestamp) < CACHE_DURATION_MS;            if (isSameUser && isValidTime) {
+            const {timestamp, data, ferias, owner} = JSON.parse(cached);
+            const isSameUser = owner === currentUser;
+            const isValidTime = (now - timestamp) < CACHE_DURATION_MS;
+            if (isSameUser && isValidTime) {
                 console.log("Usando cache de colaboradores (localStorage) - Usuário validado.");
                 cachedColaboradores = data;
                 cachedFeriasStatus = new Map(ferias);
@@ -1220,18 +1274,21 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 return;
             } else {
                 if (!isSameUser) console.log("Cache pertence a outro usuário. Invalidando...");
-                else console.log("Cache do localStorage expirado.");                localStorage.removeItem('knc:colaboradoresCache');
+                else console.log("Cache do localStorage expirado.");
+                localStorage.removeItem('knc:colaboradoresCache');
             }
         }
     } catch (e) {
         console.warn('Falha ao ler cache de colaboradores do localStorage', e);
         localStorage.removeItem('knc:colaboradoresCache');
-    }    if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
+    }
+    if (cachedColaboradores && (now - lastFetchTimestamp < CACHE_DURATION_MS)) {
         console.log("Usando cache de colaboradores (memória).");
         state.colaboradoresData = cachedColaboradores;
         if (cachedFeriasStatus) {
             state.feriasAtivasMap = cachedFeriasStatus;
-        } else {            try {
+        } else {
+            try {
                 const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
                 state.feriasAtivasMap = new Map();
                 if (nomes.length > 0) {
@@ -1253,19 +1310,24 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         applyFiltersAndSearch();
         checkPendingImports();
         return;
-    }    console.log("Buscando dados frescos do banco (Colaboradores e Férias)...");
+    }
+    console.log("Buscando dados frescos do banco (Colaboradores e Férias)...");
     if (colaboradoresTbody) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando...</td></tr>';
-    }    try {
+    }
+    try {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase
             .from('Colaboradores')
             .select('Nome, CPF, DSR, Escala, Contrato, Cargo, Gestor, "ID GROOT", LDAP, SVC, REGIAO, MATRIZ, "Data de admissão", "Admissao KN", "FOLGA ESPECIAL", Ativo, StatusDesligamento, Ferias, Efetivacao, Fluxo, "Data Fluxo", "Observacao Fluxo", rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato')
             .neq('Ativo', 'NÃO')
-            .order('Nome');        if (matrizesPermitidas !== null) {
+            .order('Nome');
+        if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
-        }        const data = await fetchAllWithPagination(query);
-        state.colaboradoresData = data || [];        const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
+        }
+        const data = await fetchAllWithPagination(query);
+        state.colaboradoresData = data || [];
+        const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
         if (nomes.length > 0) {
             const {data: feriasAtivas, error: ferErr} = await supabase
@@ -1275,9 +1337,12 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 const dias = Number(f['Dias para finalizar']);
                 state.feriasAtivasMap.set(f.Nome, Number.isFinite(dias) ? dias : null);
             });
-        }        cachedColaboradores = state.colaboradoresData;
+        }
+        cachedColaboradores = state.colaboradoresData;
         cachedFeriasStatus = state.feriasAtivasMap;
-        lastFetchTimestamp = Date.now();        try {            localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
+        lastFetchTimestamp = Date.now();
+        try {
+            localStorage.setItem('knc:colaboradoresCache', JSON.stringify({
                 timestamp: lastFetchTimestamp,
                 data: cachedColaboradores,
                 ferias: Array.from(cachedFeriasStatus.entries()),
@@ -1285,7 +1350,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }));
         } catch (e) {
             console.warn('Falha ao salvar cache no localStorage', e);
-        }        populateFilters();
+        }
+        populateFilters();
         applyFiltersAndSearch();
         checkPendingImports();
     } catch (error) {
@@ -1522,8 +1588,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const svcSelecionado = nullIfEmpty(document.getElementById('addSVC')?.value);
     const matrizSelecionada = nullIfEmpty(document.getElementById('addMatriz')?.value)
         || (svcSelecionado ? (state.serviceMatrizMap.get(String(svcSelecionado).toUpperCase()) || null) : null);
-    const regiaoAuto = computeRegiaoFromSvcMatriz(svcSelecionado, matrizSelecionada);    const cepValor = document.getElementById('addCEP')?.value || '';
-    const cepLimpo = cepValor.replace(/\D/g, '') || null;    const newColaborador = toUpperObject({
+    const regiaoAuto = computeRegiaoFromSvcMatriz(svcSelecionado, matrizSelecionada);
+    const cepValor = document.getElementById('addCEP')?.value || '';
+    const cepLimpo = cepValor.replace(/\D/g, '') || null;
+    const newColaborador = toUpperObject({
         Nome: nomeUpper,
         CPF: cpf,
         'Data de nascimento': document.getElementById('addDataNascimento')?.value || null,
@@ -1542,11 +1610,13 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         rg: nullIfEmpty(document.getElementById('addRG')?.value),
         telefone: nullIfEmpty(document.getElementById('addTelefone')?.value),
         email: nullIfEmpty(document.getElementById('addEmail')?.value),
-        pis: nullIfEmpty(document.getElementById('addPIS')?.value),        CEP: cepLimpo,
+        pis: nullIfEmpty(document.getElementById('addPIS')?.value),
+        CEP: cepLimpo,
         endereco_completo: toUpperTrim(document.getElementById('addEndereco')?.value),
         numero: nullIfEmpty(document.getElementById('addNumero')?.value),
         bairro: toUpperTrim(document.getElementById('addBairro')?.value),
-        cidade: toUpperTrim(document.getElementById('addCidade')?.value),        colete: nullIfEmpty(document.getElementById('addColete')?.value),
+        cidade: toUpperTrim(document.getElementById('addCidade')?.value),
+        colete: nullIfEmpty(document.getElementById('addColete')?.value),
         sapato: nullIfEmpty(document.getElementById('addSapato')?.value),
         Ativo: 'SIM',
         Ferias: 'NAO',
@@ -1985,8 +2055,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         let gestorFinal = toUpperTrim(nullIfEmpty(editInputs.Gestor?.value));
         if (!gestorFinal && svc === editOriginal.SVC && editOriginal.Gestor) {
             gestorFinal = editOriginal.Gestor;
-        }        const cepValor = document.getElementById('editCEP')?.value || '';
-        const cepLimpo = cepValor.replace(/\D/g, '') || null;        const payload = {
+        }
+        const cepValor = document.getElementById('editCEP')?.value || '';
+        const cepLimpo = cepValor.replace(/\D/g, '') || null;
+        const payload = {
             Nome,
             CPF,
             Contrato: toUpperTrim(editInputs.Contrato.value || ''),
@@ -2010,13 +2082,14 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             rg: nullIfEmpty(editInputs.rg?.value),
             telefone: nullIfEmpty(editInputs.telefone?.value),
             email: nullIfEmpty(editInputs.email?.value),
-            pis: nullIfEmpty(editInputs.pis?.value),            CEP: cepLimpo,
+            pis: nullIfEmpty(editInputs.pis?.value), CEP: cepLimpo,
             endereco_completo: toUpperTrim(editInputs.endereco_completo?.value),
             numero: nullIfEmpty(editInputs.numero?.value),
             bairro: toUpperTrim(editInputs.bairro?.value),
-            cidade: toUpperTrim(editInputs.cidade?.value),            colete: nullIfEmpty(editInputs.colete?.value),
+            cidade: toUpperTrim(editInputs.cidade?.value), colete: nullIfEmpty(editInputs.colete?.value),
             sapato: nullIfEmpty(editInputs.sapato?.value)
-        };        const changes = [];
+        };
+        const changes = [];
         if (payload.Nome !== editOriginal.Nome) changes.push(`Nome (de '${editOriginal.Nome}' para '${payload.Nome}')`);
         if (payload.DSR !== editOriginal.DSR) changes.push(`DSR`);
         if (payload.Cargo !== editOriginal.Cargo) changes.push(`Cargo`);
@@ -2027,7 +2100,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (payload['ID GROOT'] !== editOriginal['ID GROOT']) changes.push(`ID GROOT`);
         if (payload.SVC !== editOriginal.SVC) changes.push(`SVC`);
         if (payload['Data de admissão'] !== editOriginal['Data de admissão']) changes.push(`Data de Admissão`);
-        if (payload['Admissao KN'] !== editOriginal['Admissao KN']) changes.push(`Admissão KN`);        if (payload.CEP !== editOriginal.CEP) changes.push(`CEP`);        const dupMsg = await validateEditDuplicates(payload);
+        if (payload['Admissao KN'] !== editOriginal['Admissao KN']) changes.push(`Admissão KN`);
+        if (payload.CEP !== editOriginal.CEP) changes.push(`CEP`);
+        const dupMsg = await validateEditDuplicates(payload);
         if (dupMsg) {
             await window.customAlert(dupMsg, 'Duplicidade');
             isSubmittingEdit = false;
@@ -2769,7 +2844,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
 }function wireEdit() {
     editModal = document.getElementById('editModal');
     if (!editModal || editModal.dataset.wired === '1') return;
-    editModal.dataset.wired = '1';    editForm = document.getElementById('editForm');
+    editModal.dataset.wired = '1';
+    editForm = document.getElementById('editForm');
     editTitulo = document.getElementById('editTitulo');
     editSVC = document.getElementById('editSVC');
     editExcluirBtn = document.getElementById('editExcluirBtn');
@@ -2781,9 +2857,11 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     editAfastarBtn = document.getElementById('editAfastarBtn');
     editEfetivarKnBtn = document.getElementById('editEfetivarKnBtn');
     editMatriz = document.getElementById('editMatriz');
-    const editRegiao = document.getElementById('editRegiao');    const editCepInput = document.getElementById('editCEP');    editInputs = {
+    const editRegiao = document.getElementById('editRegiao');
+    const editCepInput = document.getElementById('editCEP');
+    editInputs = {
         Nome: document.getElementById('editNome'),
-        CPF: document.getElementById('editCPF'),        Contrato: document.getElementById('editContrato'),
+        CPF: document.getElementById('editCPF'), Contrato: document.getElementById('editContrato'),
         Cargo: document.getElementById('editCargo'),
         Gestor: document.getElementById('editGestor'),
         Escala: document.getElementById('editEscala'),
@@ -2803,18 +2881,22 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         cidade: document.getElementById('editCidade'),
         colete: document.getElementById('editColete'),
         sapato: document.getElementById('editSapato')
-    };    attachUpperHandlersTo(editForm);    if (editCepInput) {
+    };
+    attachUpperHandlersTo(editForm);
+    if (editCepInput) {
         editCepInput.addEventListener('input', (e) => {
             let val = e.target.value.replace(/\D/g, '');
             if (val.length > 5) {
                 val = val.substring(0, 5) + '-' + val.substring(5, 8);
             }
-            e.target.value = val;            const numeros = val.replace(/\D/g, '');
+            e.target.value = val;
+            const numeros = val.replace(/\D/g, '');
             if (numeros.length === 8) {
                 buscarEnderecoPorCep(numeros, 'edit');
             }
         });
-    }    if (editSVC) {
+    }
+    if (editSVC) {
         editSVC.addEventListener('change', () => {
             const svc = (editSVC.value || '').toString().toUpperCase();
             const matrizAuto = svc ? (state.serviceMatrizMap.get(svc) || '') : '';
@@ -2823,23 +2905,28 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             if (editRegiao) editRegiao.value = regAuto || '';
             populateGestorSelectForEdit(editSVC.value);
         });
-    }    const editDSRBtn = document.getElementById('editDSRBtn');
+    }
+    const editDSRBtn = document.getElementById('editDSRBtn');
     if (editDSRBtn) {
         editDSRBtn.addEventListener('click', () => {
             openDsrModal(document.getElementById('editDSR'));
         });
-    }    editForm?.addEventListener('submit', onEditSubmit);
+    }
+    editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
     editAfastarBtn?.addEventListener('click', onAfastarClick);
-    editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);    editExcluirBtn?.addEventListener('click', async () => {
+    editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);
+    editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
             await window.customAlert('Apenas administradores podem excluir colaboradores.', 'Acesso Negado');
             return;
         }
         if (!editOriginal) return;
         const ok1 = await window.customConfirm('Deseja excluir o colaborador? Só faça isso em caso de duplicidade ou erros.', 'Atenção', 'warning');
-        if (!ok1) return;        const ok2 = await window.customConfirm('Tem certeza que deseja excluir? <b>Ação irreversível.</b>', 'Exclusão Definitiva', 'danger');
-        if (!ok2) return;        try {
+        if (!ok1) return;
+        const ok2 = await window.customConfirm('Tem certeza que deseja excluir? <b>Ação irreversível.</b>', 'Exclusão Definitiva', 'danger');
+        if (!ok2) return;
+        try {
             editExcluirBtn.disabled = true;
             editExcluirBtn.textContent = 'Excluindo...';
             const {error} = await supabase.from('Colaboradores').delete().eq('Nome', editOriginal.Nome);
@@ -2857,7 +2944,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             editExcluirBtn.disabled = false;
             editExcluirBtn.textContent = 'Excluir Colaborador';
         }
-    });    editDesligarBtn?.addEventListener('click', async () => {
+    });
+    editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const continuar = await showAvisoDesligamento();
         if (!continuar) return;
@@ -2867,7 +2955,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             return;
         }
         openDesligarModalFromColab(colab);
-    });    editFeriasBtn?.addEventListener('click', async () => {
+    });
+    editFeriasBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const colab = await fetchColabByNome(editOriginal.Nome);
         if (!colab) {
@@ -2875,10 +2964,12 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             return;
         }
         openFeriasModalFromColab(colab);
-    });    editHistoricoBtn?.addEventListener('click', () => {
+    });
+    editHistoricoBtn?.addEventListener('click', () => {
         if (!editOriginal?.Nome) return;
         openHistorico(editOriginal.Nome);
-    });    document.addEventListener('open-edit-modal', async (evt) => {
+    });
+    document.addEventListener('open-edit-modal', async (evt) => {
         const nome = evt.detail?.nome;
         if (!nome) return;
         try {
@@ -3034,7 +3125,43 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
 }function wireTabelaColaboradoresEventos() {
     if (!colaboradoresTbody) return;
     if (colaboradoresTbody.dataset.wired === '1') return;
-    colaboradoresTbody.dataset.wired = '1';    colaboradoresTbody.addEventListener('click', (event) => {    });    colaboradoresTbody.addEventListener('dblclick', (event) => {
+    colaboradoresTbody.dataset.wired = '1';    // --- CORREÇÃO: Lógica de Seleção (Ctrl e Shift) ---
+    colaboradoresTbody.addEventListener('click', (event) => {
+        const tr = event.target.closest('tr[data-nome]');
+        if (!tr) return;        const nome = tr.dataset.nome;
+        if (!nome) return;        // 1. CTRL + CLIQUE (Selecionar/Desmarcar um por um)
+        if (event.ctrlKey || event.metaKey) {
+            // Evita seleção de texto nativa do navegador
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();            if (state.selectedNames.has(nome)) {
+                state.selectedNames.delete(nome);
+                tr.classList.remove('selecionado');
+            } else {
+                state.selectedNames.add(nome);
+                tr.classList.add('selecionado');
+            }
+        }
+        // 2. SHIFT + CLIQUE (Selecionar em lote/range)
+        else if (event.shiftKey) {
+            event.preventDefault(); // Evita selecionar texto azul
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();            const rows = Array.from(colaboradoresTbody.querySelectorAll('tr[data-nome]'));
+            const currentIndex = rows.indexOf(tr);            // Tenta achar o primeiro item que já estava selecionado para servir de âncora
+            let startIndex = rows.findIndex(r => r.classList.contains('selecionado'));            // Se não tiver ninguém selecionado antes, o range começa onde clicou
+            if (startIndex === -1) startIndex = currentIndex;            // Define o intervalo (do menor para o maior índice)
+            const min = Math.min(startIndex, currentIndex);
+            const max = Math.max(startIndex, currentIndex);            // Marca todos nesse intervalo
+            for (let i = min; i <= max; i++) {
+                const row = rows[i];
+                const n = row.dataset.nome;
+                if (n) {
+                    state.selectedNames.add(n);
+                    row.classList.add('selecionado');
+                }
+            }
+        }
+    });    // Evento de Duplo Clique (Edição)
+    colaboradoresTbody.addEventListener('dblclick', (event) => {
         if (document.body.classList.contains('user-level-visitante')) return;        const tr = event.target.closest('tr[data-nome]');
         if (!tr) return;        const nome = (tr.dataset.nome || '').trim();
         if (!nome) return;        const sel = window.getSelection && window.getSelection();
@@ -3049,19 +3176,25 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     });
 }export function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
-    wireTabelaColaboradoresEventos();    searchInput = document.getElementById('search-input');
+    wireTabelaColaboradoresEventos();
+    searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
-    limparFiltrosBtn = document.getElementById('limpar-filtros-btn');    addColaboradorBtn = document.getElementById('add-colaborador-btn');
+    limparFiltrosBtn = document.getElementById('limpar-filtros-btn');
+    addColaboradorBtn = document.getElementById('add-colaborador-btn');
     mostrarMaisBtn = document.getElementById('mostrar-mais-btn');
     mostrarMenosBtn = document.getElementById('mostrar-menos-btn');
-    contadorVisiveisEl = document.getElementById('contador-visiveis');    addForm = document.getElementById('addForm');
+    contadorVisiveisEl = document.getElementById('contador-visiveis');
+    addForm = document.getElementById('addForm');
     dropdownAdd = document.getElementById('dropdownAdd');
     btnAdicionarManual = document.getElementById('btnAdicionarManual');
     btnImportarRH = document.getElementById('btnImportarRH');
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
-    fecharModalRH = document.getElementById('fecharModalRH');    checkUserAdminStatus();
-    fetchColaboradores();    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);    if (filtrosSelect && filtrosSelect.length) {
+    fecharModalRH = document.getElementById('fecharModalRH');
+    checkUserAdminStatus();
+    fetchColaboradores();
+    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
+    if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
             selectEl.addEventListener('change', (event) => {
                 const filterKey = selectEl.dataset.filterKey;
@@ -3070,7 +3203,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 applyFiltersAndSearch();
             });
         });
-    }    if (limparFiltrosBtn) {
+    }
+    if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
@@ -3082,61 +3216,73 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
             applyFiltersAndSearch();
         });
-    }    if (mostrarMaisBtn) {
+    }
+    if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
             updateDisplay();
         });
-    }    if (mostrarMenosBtn) {
+    }
+    if (mostrarMenosBtn) {
         mostrarMenosBtn.addEventListener('click', () => {
             itensVisiveis = Math.max(ITENS_POR_PAGINA, itensVisiveis - ITENS_POR_PAGINA);
             updateDisplay();
         });
-    }    if (addColaboradorBtn) {
+    }
+    if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
-    }    document.addEventListener('click', (event) => {
+    }
+    document.addEventListener('click', (event) => {
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
-    });    if (btnAdicionarManual) {
+    });
+    if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
             await prepararFormularioAdicao();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
             preencherFormularioAdicao({});
         });
-    }    if (btnImportarRH) {
+    }
+    if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
             modalListaRH.classList.remove('hidden');
             fetchCandidatosAprovados();
         });
-    }    if (fecharModalRH) {
+    }
+    if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
-    }    window.addEventListener('click', (e) => {
+    }
+    window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
-    });    if (addForm) {
+    });
+    if (addForm) {
         attachUppercaseHandlers();
-        addForm.addEventListener('submit', handleAddSubmit);        const svcSelect = document.getElementById('addSVC');
+        addForm.addEventListener('submit', handleAddSubmit);
+        const svcSelect = document.getElementById('addSVC');
         const matrizInput = document.getElementById('addMatriz');
         if (svcSelect && matrizInput) {
             svcSelect.addEventListener('change', () => {
                 matrizInput.value = state.serviceMatrizMap.get(String(svcSelect.value)) || '';
                 populateGestorSelect(svcSelect.value);
             });
-        }        const addDSRBtn = document.getElementById('addDSRBtn');
+        }
+        const addDSRBtn = document.getElementById('addDSRBtn');
         if (addDSRBtn) {
             addDSRBtn.addEventListener('click', () => {
                 openDsrModal(document.getElementById('addDSR'));
             });
         }
-    }    if (colaboradoresTbody) {
+    }
+    if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
@@ -3158,7 +3304,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 invalidateColaboradoresCache();
             }
         });
-    }    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
+    }
+    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
             if (!state.colaboradoresData.length) {
@@ -3168,7 +3315,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             const hasSearch = !!(searchInput && searchInput.value && searchInput.value.trim() !== '');
             const hasFilters = Object.keys(state.filtrosAtivos).length > 0;
             const filteredDifferent = state.dadosFiltrados.length !== state.colaboradoresData.length;
-            const useFiltered = hasSearch || hasFilters || filteredDifferent;            exportColaboradoresBtn.disabled = true;
+            const useFiltered = hasSearch || hasFilters || filteredDifferent;
+            exportColaboradoresBtn.disabled = true;
             try {
                 await exportColaboradoresXLSX(useFiltered);
             } catch (e) {
@@ -3178,20 +3326,25 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 exportColaboradoresBtn.disabled = false;
             }
         });
-    }    const gerarQRBtn = document.getElementById('gerar-qr-btn');
+    }
+    const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
-    }    wireEdit();
+    }
+    wireEdit();
     wireDesligar();
     wireFerias();
     wireFluxoEfetivacao();
-    wireDsrModal();    wireCepEvents();
+    wireDsrModal();
+    wireCepEvents();
 }export function destroy() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
-    lastFetchTimestamp = 0;    state.colaboradoresData = [];
+    lastFetchTimestamp = 0;
+    state.colaboradoresData = [];
     state.dadosFiltrados = [];
-    state.filtrosAtivos = {};    try {
+    state.filtrosAtivos = {};
+    try {
         state.gestoresData = [];
     } catch {
     }
@@ -3218,5 +3371,6 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     try {
         state.feriasAtivasMap?.clear?.();
     } catch {
-    }    console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
+    }
+    console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
 }
