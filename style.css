@@ -5299,3 +5299,41 @@ html, body {
     display: none !important;
 }
 
+/* Menu de Contexto do Histórico */
+#hist-context-menu {
+    position: absolute;
+    z-index: 10000; /* Bem alto para ficar acima do modal */
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-radius: 6px;
+    padding: 4px;
+    min-width: 150px;
+    animation: fadeIn 0.1s ease-out;
+}
+
+#hist-context-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: #374151;
+    border-radius: 4px;
+    transition: background-color 0.1s;
+}
+
+#hist-context-menu button:hover {
+    background-color: #f3f4f6;
+    color: #111827;
+}
+
+#hist-context-menu .icon-excel {
+    color: #166534; /* Verde Excel */
+    font-size: 16px;
+}
