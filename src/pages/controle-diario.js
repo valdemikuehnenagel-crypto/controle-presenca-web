@@ -1,7 +1,7 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';let state;
 let ui;
-const collator = new Intl.Collator('pt-BR', {sensitivity: 'base'});
+let realtimeChannel = null;const collator = new Intl.Collator('pt-BR', {sensitivity: 'base'});
 const NORM = (s) => (s || '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const pick = (o, ...keys) => {
     for (const k of keys) {
@@ -10,8 +10,7 @@ const pick = (o, ...keys) => {
     }
     return '';
 };
-const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();
-const CACHE_DURATION_MS = 5 * 60 * 1000;
+const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();const CACHE_DURATION_MS = 5 * 60 * 1000;
 const cachedDailyData = new Map();
 const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getFromCache(turno, dateISO) {
     const k = cacheKey(turno, dateISO);
@@ -39,8 +38,7 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     el.style.display = on ? 'flex' : 'none';
 }function toast(msg, type = 'info', timeout = 2500) {
     const root = document.getElementById('toast-root');
-    if (!root) {
-        alert(msg);
+    if (!root) {        console.log(msg);
         return;
     }
     const div = document.createElement('div');
@@ -137,7 +135,8 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             return colaboradorDSRs.includes(dia);
         };        const dsrObjects = [];
         const elegiveis = [];        for (const c of all) {
-            const dataAdmissao = c['Data de admissão'];            if (dataAdmissao && dataAdmissao > dateISO) continue;
+            const dataAdmissao = c['Data de admissão'];
+            if (dataAdmissao && dataAdmissao > dateISO) continue;
             if (nomesEmFeriasHoje.has(c.Nome)) continue;
             if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) continue;            const isDSR = checkDSR(c);
             if (isDSR) {
@@ -220,8 +219,13 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1;
     else throw new Error('Tipo inválido.');    let colabInfo = null;    const inMemory = state.baseList.find(c => c.Nome === nome);
     if (inMemory) {
-        colabInfo = {Escala: inMemory.Escala, SVC: inMemory.SVC, MATRIZ: inMemory.Matriz || inMemory.MATRIZ, Cargo: inMemory.Cargo};
-    }    else if (state.meta && state.meta.dsrObjects) {
+        colabInfo = {
+            Escala: inMemory.Escala,
+            SVC: inMemory.SVC,
+            MATRIZ: inMemory.Matriz || inMemory.MATRIZ,
+            Cargo: inMemory.Cargo
+        };
+    } else if (state.meta && state.meta.dsrObjects) {
         const inDsr = state.meta.dsrObjects.find(c => c.Nome === nome);
         if (inDsr) {
             colabInfo = {Escala: inDsr.Escala, SVC: inDsr.SVC, MATRIZ: inDsr.MATRIZ, Cargo: inDsr.Cargo};
@@ -431,9 +435,13 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         state.dsrInfoList = [];
         updateFooterCounts();
         return;
-    }    let dsrInfos = [];    if (state.meta && state.meta.dsrObjects && state.meta.dsrObjects.length > 0) {        const dsrMap = new Map(state.meta.dsrObjects.map(d => [d.Nome, d]));
+    }    let dsrInfos = [];
+    if (state.meta && state.meta.dsrObjects && state.meta.dsrObjects.length > 0) {
+        const dsrMap = new Map(state.meta.dsrObjects.map(d => [d.Nome, d]));
         dsrInfos = dsrNamesRaw.map(n => dsrMap.get(n) || {Nome: n});
-    } else {        dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));    }    state.dsrInfoList = dsrInfos;    const dsrFiltered = dsrInfos
+    } else {
+        dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
+    }    state.dsrInfoList = dsrInfos;    const dsrFiltered = dsrInfos
         .filter(passFilters)
         .map(x => x.Nome)
         .sort((a, b) => collator.compare(a, b));    const maxLen = Math.max(list.length, dsrFiltered.length);
@@ -948,6 +956,42 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         }
     `;
     document.head.appendChild(style);
+}function getStatusFromRow(row) {
+    if (!row) return null;
+    if (row['Presença']) return 'PRESENCA';
+    if (row['Falta']) return 'FALTA';
+    if (row['Atestado']) return 'ATESTADO';
+    if (row['Folga Especial']) return 'F_ESPECIAL';
+    if (row['Feriado']) return 'FERIADO';
+    if (row['Suspensao']) return 'SUSPENSAO';
+    return null;
+}function setupRealtimeListener() {
+    if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+    }    realtimeChannel = supabase
+        .channel('controle-diario-sync')
+        .on(
+            'postgres_changes',
+            {event: '*', schema: 'public', table: 'ControleDiario'},
+            (payload) => {
+                const currentDate = ui.date?.value;
+                if (!currentDate) return;                const rowDate = payload.new?.Data || payload.old?.Data;
+                if (rowDate !== currentDate) return;                const eventType = payload.eventType;
+                const newRow = payload.new;
+                const oldRow = payload.old;
+                const nome = newRow?.Nome || oldRow?.Nome;                if (!nome) return;                const updateInMemory = (list) => {
+                    const item = list.find(x => x.Nome === nome);
+                    if (item) {
+                        if (eventType === 'DELETE') {
+                            item.Marcacao = null;
+                        } else {
+                            item.Marcacao = getStatusFromRow(newRow);
+                        }
+                    }
+                };                updateInMemory(state.baseList);                refresh();                invalidateCacheForDate(currentDate);
+            }
+        )
+        .subscribe();
 }export async function init() {
     const pad2 = (n) => String(n).padStart(2, '0');
     const localISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -988,8 +1032,7 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         isProcessing: false,
         dsrInfoList: [],
     };
-    if (!ui.date.value) ui.date.value = hoje;
-    document.querySelectorAll('.subtab-btn').forEach(btn => {
+    if (!ui.date.value) ui.date.value = hoje;    setupRealtimeListener();    document.querySelectorAll('.subtab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -1039,4 +1082,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     updatePeriodLabel();
     await carregar(true);
 }export function destroy() {
+    if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+    }
+    cachedDailyData.clear();
 }
