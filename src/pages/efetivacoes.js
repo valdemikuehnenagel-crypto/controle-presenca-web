@@ -727,15 +727,27 @@ async function refresh() {
         }
         state.colabs = allRows.filter(c => {
             const isDesligamentoView = document.querySelector('#efet-desligamento.active');
+
+
             if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
                 return false;
             }
-            if (isDesligamentoView && c.StatusDesligamento === 'CONCLUIDO') {
-            } else if (isDesligamentoView && c.StatusDesligamento === 'RECUSADO' && norm(c?.Ativo) !== 'SIM') {
-                return false;
-            } else if (isDesligamentoView && c.StatusDesligamento === 'PENDENTE' && norm(c?.Ativo) !== 'SIM') {
-                return false;
+
+
+
+            const ativoNormalizado = norm(c?.Ativo);
+            const isAtivoOuPen = (ativoNormalizado === 'SIM' || ativoNormalizado === 'PEN');
+
+            if (isDesligamentoView) {
+                if (c.StatusDesligamento === 'CONCLUIDO') {
+
+                } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
+                    return false;
+                } else if (c.StatusDesligamento === 'PENDENTE' && !isAtivoOuPen) {
+                    return false;
+                }
             }
+
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
@@ -2204,18 +2216,23 @@ async function desligamento_fetchPendentes() {
     const matrizesMap = await loadMatrizesData();
     const matrizesPermitidas = getMatrizesPermitidas();
     const colunas = 'Nome, Smartoff, DataDesligamentoSolicitada, DataRetorno, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO';
+
+
     let queryPendentes = supabase
         .from('Colaboradores')
         .select(colunas)
         .in('StatusDesligamento', ['PENDENTE', 'RECUSADO'])
-        .eq('Ativo', 'SIM');
+        .in('Ativo', ['SIM', 'PEN']);
+
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
     let queryConcluidos = supabase
         .from('Colaboradores')
         .select(colunas)
         .eq('StatusDesligamento', 'CONCLUIDO')
         .eq('Ativo', 'NÃO')
         .gte('DataDesligamentoSolicitada', sevenDaysAgo);
+
     if (matrizesPermitidas) {
         queryPendentes = queryPendentes.in('MATRIZ', matrizesPermitidas);
         queryConcluidos = queryConcluidos.in('MATRIZ', matrizesPermitidas);
@@ -2228,20 +2245,37 @@ async function desligamento_fetchPendentes() {
         queryPendentes = queryPendentes.eq('REGIAO', state.regiao);
         queryConcluidos = queryConcluidos.eq('REGIAO', state.regiao);
     }
+
     const [
-        {data: pendentes, error: pendentesError},
+        {data: pendentesRaw, error: pendentesError},
         {data: concluidos, error: concluidosError}
     ] = await Promise.all([
-        queryPendentes.order('DataDesligamentoSolicitada', {ascending: true}),
+        queryPendentes,
         queryConcluidos.order('DataDesligamentoSolicitada', {ascending: false})
     ]);
+
     if (pendentesError || concluidosError) {
         const error = pendentesError || concluidosError;
         console.error('Erro ao buscar solicitações de desligamento:', error);
         tbody.innerHTML = `<tr><td colspan="11" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
         return;
     }
-    let allItems = [...(pendentes || []), ...(concluidos || [])];
+
+
+    let pendentes = pendentesRaw || [];
+    pendentes.sort((a, b) => {
+
+        if (a.StatusDesligamento === 'PENDENTE' && b.StatusDesligamento !== 'PENDENTE') return -1;
+        if (a.StatusDesligamento !== 'PENDENTE' && b.StatusDesligamento === 'PENDENTE') return 1;
+
+
+        const dateA = new Date(a.DataDesligamentoSolicitada || 0);
+        const dateB = new Date(b.DataDesligamentoSolicitada || 0);
+        return dateA - dateB;
+    });
+
+    let allItems = [...pendentes, ...(concluidos || [])];
+
     if (state.gerencia) {
         allItems = allItems.filter(c => {
             const svcNorm = norm(c.SVC).replace(/\s+/g, '');
