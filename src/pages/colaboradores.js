@@ -22,7 +22,7 @@ let rhState = {
         matriz: '',
         cargo: ''
     },
-    modoVisualizacao: 'ATUAIS',
+    activeTab: 'ATUAIS',
     somenteParaFechar: false
 };
 let cachedColaboradores = null;
@@ -102,6 +102,34 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         sapato: candidato.sapato,
         DataNascimento: candidato.DataNascimento
     };
+}function injectRhTabsStyles() {
+    const styleId = 'rh-tabs-style';
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+        /* Removemos a borda inferior do container para ficar limpo na barra */
+        .rh-tabs-container { 
+            display: flex; 
+            gap: 0; 
+            padding-right: 15px; /* Espaço entre abas e o busca */
+        }
+        .rh-tab-btn {
+            background: transparent; 
+            border: none; 
+            padding: 8px 12px;
+            font-size: 13px; 
+            font-weight: 600; 
+            color: #6b7280;
+            cursor: pointer; 
+            border-bottom: 2px solid transparent; 
+            transition: all 0.2s;
+            white-space: nowrap; /* Impede quebra de texto */
+        }
+        .rh-tab-btn:hover { color: #003369; background: #f9fafb; border-radius: 4px 4px 0 0; }
+        .rh-tab-btn.active { color: #003369; border-bottom: 2px solid #003369; font-weight: 800; }
+    `;
+    document.head.appendChild(style);
 }function ensureHistContextMenu() {
     if (document.getElementById('hist-context-menu')) return;
     const menu = document.createElement('div');
@@ -167,70 +195,63 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
 }async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
-    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';    try {
-        const matrizesPermitidas = getMatrizesPermitidas();        let queryVagas = supabase
+    tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
+    try {
+        const matrizesPermitidas = getMatrizesPermitidas();
+        let queryVagas = supabase
             .from('Vagas')
             .select('ID_Vaga, CandidatoAprovado, CPFCandidato, Cargo, EmpresaContratante, MATRIZ, Gestor, DataInicioDesejado, DataAdmissaoReal, DataEncaminhadoAdmissao, DataAprovacao, rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato, DataNascimento')
             .eq('Status', 'EM ADMISSÃO')
-            .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');        if (matrizesPermitidas !== null) {
+            .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');
+        if (matrizesPermitidas !== null) {
             queryVagas = queryVagas.in('MATRIZ', matrizesPermitidas);
-        }        const queryColabsBuilder = supabase
+        }
+        const queryColabsBuilder = supabase
             .from('Colaboradores')
             .select('Nome')
-            .neq('Ativo', 'NÃO');        const [resVagas, todosNomesData] = await Promise.all([            queryVagas.order('DataInicioDesejado', {ascending: true}),
+            .neq('Ativo', 'NÃO');
+        const [resVagas, todosNomesData] = await Promise.all([queryVagas.order('DataInicioDesejado', {ascending: true}),
             fetchAllWithPagination(queryColabsBuilder)
-        ]);        if (resVagas.error) throw resVagas.error;
-        rhState.dadosBrutos = resVagas.data || [];        rhState.nomesExistentes = new Set(
+        ]);
+        if (resVagas.error) throw resVagas.error;
+        rhState.dadosBrutos = resVagas.data || [];
+        rhState.nomesExistentes = new Set(
             (todosNomesData || []).map(c => {
                 return (c.Nome || '')
                     .toUpperCase()
                     .trim()
                     .replace(/\s+/g, ' ');
             })
-        );        setupRhFilters();
+        );
+        setupRhFilters();
         populateRhFilterOptions();
-        aplicarFiltrosRh();    } catch (err) {
+        aplicarFiltrosRh();
+    } catch (err) {
         console.error('Erro RH:', err);
         tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar ou filtrar dados.</td></tr>';
     }
 }function setupRhFilters() {
-    const inputSearch = document.getElementById('filterRhSearch');
+    injectRhTabsStyles();    const inputSearch = document.getElementById('filterRhSearch');
     const selectMatriz = document.getElementById('filterRhMatriz');
-    const selectCargo = document.getElementById('filterRhCargo');
-    let btnToggleDate = document.getElementById('btnToggleFutureDates');
-    if (btnToggleDate) {
-        const newBtnDate = btnToggleDate.cloneNode(true);
-        btnToggleDate.parentNode.replaceChild(newBtnDate, btnToggleDate);
-        btnToggleDate = newBtnDate;
-        btnToggleDate.addEventListener('click', toggleRhDateMode);
-        let wrapper = btnToggleDate.parentNode.querySelector('.rh-buttons-wrapper');
-        if (!wrapper) {
-            wrapper = document.createElement('div');
-            wrapper.className = 'rh-buttons-wrapper';
-            wrapper.style.display = 'flex';
-            wrapper.style.flexDirection = 'row';
-            wrapper.style.gap = '8px';
-            wrapper.style.alignItems = 'center';
-            wrapper.style.justifyContent = 'flex-end';
-            btnToggleDate.parentNode.insertBefore(wrapper, btnToggleDate);
-            wrapper.appendChild(btnToggleDate);
-        }
-        let btnParaFechar = document.getElementById('btnToggleParaFechar');
-        if (!btnParaFechar) {
-            btnParaFechar = document.createElement('button');
-            btnParaFechar.id = 'btnToggleParaFechar';
-            btnParaFechar.className = "px-3 py-1 rounded-full border text-xs font-bold transition-colors bg-gray-100 border-gray-300 text-gray-500 hover:bg-gray-200";
-            btnParaFechar.innerHTML = "🔒 Vagas p/ Fechar";
-            wrapper.appendChild(btnParaFechar);
-        }
-        const newBtnFechar = btnParaFechar.cloneNode(true);
-        btnParaFechar.parentNode.replaceChild(newBtnFechar, btnParaFechar);
-        newBtnFechar.addEventListener('click', () => {
-            rhState.somenteParaFechar = !rhState.somenteParaFechar;
-            aplicarFiltrosRh();
+    const selectCargo = document.getElementById('filterRhCargo');    const oldBtnDate = document.getElementById('btnToggleFutureDates');
+    if (oldBtnDate) oldBtnDate.style.display = 'none';
+    const oldBtnClose = document.getElementById('btnToggleParaFechar');
+    if (oldBtnClose) oldBtnClose.style.display = 'none';    const filterContainer = inputSearch?.closest('.flex-wrap') || inputSearch?.parentElement;    if (filterContainer && !document.getElementById('rh-tabs-container')) {
+        const tabsDiv = document.createElement('div');
+        tabsDiv.id = 'rh-tabs-container';
+        tabsDiv.className = 'rh-tabs-container';        tabsDiv.style.cssText = "display: flex; gap: 4px; align-items: center; margin-right: auto;";        tabsDiv.innerHTML = `
+            <button type="button" class="rh-tab-btn active" data-tab="ATUAIS">🔥 Vagas Atuais</button>
+            <button type="button" class="rh-tab-btn" data-tab="FUTURAS">🚀 Vagas Futuras</button>
+            <button type="button" class="rh-tab-btn" data-tab="PARA_FECHAR">🔒 Vagas p/ Fechar</button>
+        `;        filterContainer.insertBefore(tabsDiv, filterContainer.firstChild);        tabsDiv.querySelectorAll('.rh-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                tabsDiv.querySelectorAll('.rh-tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                rhState.activeTab = btn.dataset.tab;
+                aplicarFiltrosRh();
+            });
         });
-    }
-    if (inputSearch) inputSearch.oninput = (e) => {
+    }    if (inputSearch) inputSearch.oninput = (e) => {
         rhState.filtros.termo = e.target.value.toUpperCase();
         aplicarFiltrosRh();
     };
@@ -266,9 +287,6 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     });
     if (matrizes.includes(valMatriz)) selMatriz.value = valMatriz;
     if (cargos.includes(valCargo)) selCargo.value = valCargo;
-}function toggleRhDateMode() {
-    rhState.modoVisualizacao = (rhState.modoVisualizacao === 'ATUAIS') ? 'FUTURAS' : 'ATUAIS';
-    aplicarFiltrosRh();
 }async function buscarEnderecoPorCep(cep, prefixoId) {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) {
@@ -325,54 +343,20 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
 }function aplicarFiltrosRh() {
     const hoje = new Date().toISOString().split('T')[0];
-    const lblMode = document.getElementById('lblDateMode');
-    const badge = document.getElementById('countRhBadges');
-    const btnDate = document.getElementById('btnToggleFutureDates');
-    const btnFechar = document.getElementById('btnToggleParaFechar');
-    const filtrados = rhState.dadosBrutos.filter(item => {
-        const dataInicio = item.DataInicioDesejado || '1900-01-01';
-        const isFuture = dataInicio > hoje;
-        if (rhState.modoVisualizacao === 'ATUAIS' && isFuture) return false;
-        if (rhState.modoVisualizacao === 'FUTURAS' && !isFuture) return false;
-        if (rhState.somenteParaFechar) {
-            const nomeNorm = (item.CandidatoAprovado || '').toUpperCase().trim();
-            if (!rhState.nomesExistentes.has(nomeNorm)) return false;
-        }
-        const termo = (rhState.filtros.termo || '').toUpperCase().trim();
+    const badge = document.getElementById('countRhBadges');    const filtrados = rhState.dadosBrutos.filter(item => {        const termo = (rhState.filtros.termo || '').toUpperCase().trim();
         if (termo) {
             const nomeC = (item.CandidatoAprovado || '').toUpperCase();
             const cpfC = (item.CPFCandidato || '').toUpperCase();
             if (!nomeC.includes(termo) && !cpfC.includes(termo)) return false;
         }
         if (rhState.filtros.matriz && item.MATRIZ !== rhState.filtros.matriz) return false;
-        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;
-        return true;
-    });
-    if (rhState.modoVisualizacao === 'ATUAIS') {
-        if (lblMode) lblMode.textContent = '📅 Vencidas / Hoje';
-        if (btnDate) {
-            btnDate.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
-            btnDate.classList.add('bg-blue-100', 'text-blue-800', 'border-blue-300');
-        }
-    } else {
-        if (lblMode) lblMode.textContent = '🚀 Vagas Futuras';
-        if (btnDate) {
-            btnDate.classList.remove('bg-blue-100', 'text-blue-800', 'border-blue-300');
-            btnDate.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
-        }
-    }
-    if (btnFechar) {
-        if (rhState.somenteParaFechar) {
-            btnFechar.classList.remove('bg-gray-100', 'text-gray-500', 'border-gray-300');
-            btnFechar.classList.add('bg-purple-100', 'text-purple-800', 'border-purple-300');
-            btnFechar.innerHTML = "🔒 Mostrando Vagas p/ Fechar (X)";
-        } else {
-            btnFechar.classList.remove('bg-purple-100', 'text-purple-800', 'border-purple-300');
-            btnFechar.classList.add('bg-gray-100', 'text-gray-500', 'border-gray-300');
-            btnFechar.innerHTML = "🔒 Vagas p/ Fechar";
-        }
-    }
-    if (badge) badge.textContent = filtrados.length;
+        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;        const dataInicio = item.DataInicioDesejado || '1900-01-01';
+        const isFuture = dataInicio > hoje;        const nomeNorm = (item.CandidatoAprovado || '').toUpperCase().trim();
+        const jaExiste = rhState.nomesExistentes.has(nomeNorm);        if (rhState.activeTab === 'PARA_FECHAR') {            if (!jaExiste) return false;
+        } else if (rhState.activeTab === 'FUTURAS') {            if (!isFuture) return false;
+        } else {            if (isFuture) return false;
+        }        return true;
+    });    if (badge) badge.textContent = filtrados.length;
     renderTabelaRH(filtrados);
 }function formatCargoShort(cargo) {
     if (!cargo) return '';
@@ -547,7 +531,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     hoje.setHours(0, 0, 0, 0);
     lista.forEach(cand => {
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group cursor-pointer";        const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim().replace(/\s+/g, ' ');
+        tr.className = "hover:bg-blue-50 transition-colors border-b border-gray-100 group cursor-pointer";
+        const nomeNormalizado = (cand.CandidatoAprovado || '').toUpperCase().trim().replace(/\s+/g, ' ');
         const jaExiste = rhState.nomesExistentes && rhState.nomesExistentes.has(nomeNormalizado);
         const nomeClass = jaExiste ? 'text-green-600 font-extrabold' : 'text-[#003369] font-bold';
         const iconCheck = jaExiste ? '<span style="color:green; margin-left:4px;">✔ (Cadastrado)</span>' : '';
@@ -1224,27 +1209,21 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
 }async function checkPendingImports() {
-    const matrizesPermitidas = getMatrizesPermitidas();
-    let query = supabase
+    const matrizesPermitidas = getMatrizesPermitidas();    let query = supabase
         .from('Vagas')
         .select('CandidatoAprovado, MATRIZ')
-        .eq('Status', 'EM ADMISSÃO');
-    if (matrizesPermitidas !== null) {
+        .eq('Status', 'EM ADMISSÃO')
+        .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');     if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
-    }
-    const {data: vagasCandidatos, error} = await query;
-    if (error || !vagasCandidatos || vagasCandidatos.length === 0) {
+    }    const {data: vagasCandidatos, error} = await query;    if (error || !vagasCandidatos || vagasCandidatos.length === 0) {
         hidePendingImportAlert();
         return;
-    }
-    const nomesCadastrados = new Set(
+    }    const nomesCadastrados = new Set(
         state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
-    );
-    const pendentes = vagasCandidatos.filter(vaga => {
+    );    const pendentes = vagasCandidatos.filter(vaga => {
         const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
         return nomeCandidato && !nomesCadastrados.has(nomeCandidato);
-    });
-    if (pendentes.length > 0) {
+    });    if (pendentes.length > 0) {
         showPendingImportAlert(pendentes.length);
     } else {
         hidePendingImportAlert();

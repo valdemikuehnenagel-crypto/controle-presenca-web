@@ -7,20 +7,22 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // 1. Agora desestruturamos também 'attachments'
+
     const { to, subject, body, attachments } = await req.json();
 
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPass = Deno.env.get("SMTP_PASS");
 
     if (!smtpUser || !smtpPass) {
-      throw new Error("Credenciais SMTP não configuradas.");
+      throw new Error("Credenciais SMTP (SMTP_USER ou SMTP_PASS) não configuradas.");
     }
+
 
     const transporter = nodemailer.createTransport({
       host: "smtppro.zoho.com",
@@ -29,14 +31,14 @@ serve(async (req) => {
       auth: { user: smtpUser, pass: smtpPass }
     });
 
-    // 2. Passamos 'attachments' para o nodemailer
     await transporter.sendMail({
       from: `"KNConecta" <${smtpUser}>`,
       to: to,
       subject: subject,
       text: body,
-      attachments: attachments // O array de anexos entra aqui
+      attachments: attachments
     });
+
 
     return new Response(JSON.stringify({ message: "E-mail enviado com sucesso!" }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -45,9 +47,11 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Erro na Edge Function:", error);
+
+
     return new Response(JSON.stringify({ error: `Falha ao enviar e-mail: ${error.message}` }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
+      status: 200
     });
   }
 });

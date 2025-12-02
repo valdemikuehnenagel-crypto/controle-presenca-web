@@ -1,5 +1,7 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let ui;
+import {getMatrizesPermitidas} from '../session.js';
+
+let ui;
 const state = {
     turnoAtual: 'GERAL',
     detailedResults: new Map(),
@@ -13,16 +15,26 @@ const state = {
     _inited: false,
     _handlers: null,
     _runId: 0,
+    // NOVO: Cache para armazenar dados brutos do período
+    cache: {
+        key: '', // Identificador do cache (ex: "2023-01-01|2023-01-31")
+        data: null // Dados brutos
+    }
 };
+
 const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
-};function _ymdLocal(dateObj) {
+};
+
+function _ymdLocal(dateObj) {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}async function copyTableToClipboard(tableElement) {
+}
+
+async function copyTableToClipboard(tableElement) {
     if (!tableElement) {
         console.warn('Função copyTableToClipboard chamada sem um elemento de tabela.');
         return;
@@ -47,7 +59,9 @@ const normalizeString = (str) => {
         console.error('Falha ao copiar tabela: ', err);
         alert('FALHA AO COPIAR TEXTO:\n\nErro: ' + err.message);
     }
-}async function exportModalAsPNG(fileName) {
+}
+
+async function exportModalAsPNG(fileName) {
     const modalContent = document.getElementById('efetividade-details-modal');
     if (!modalContent) return;
     const exportButton = document.getElementById('export-png-btn');
@@ -83,7 +97,9 @@ const normalizeString = (str) => {
             scrollableContent.style.border = originalStyles.border || '';
         }
     }
-}async function copyTableAsImage() {
+}
+
+async function copyTableAsImage() {
     const resultContainer = document.getElementById('efet-result');
     if (!resultContainer) return;
     const tableElement = resultContainer.querySelector('.main-table');
@@ -113,7 +129,9 @@ const normalizeString = (str) => {
     } finally {
         showLoading(false);
     }
-}function ensureEfetividadeModalStyles() {
+}
+
+function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
     const css = `
  .filter-bar.efetividade-filters { display:flex; justify-content:space-between; align-items:center; width:100%; }
@@ -150,7 +168,9 @@ const normalizeString = (str) => {
     style.id = 'efetividade-details-modal-style';
     style.textContent = css;
     document.head.appendChild(style);
-}function showDetailsModal(groupKey, date) {
+}
+
+function showDetailsModal(groupKey, date) {
     ensureEfetividadeModalStyles();
     const details = (groupKey === 'TODAS')
         ? state.totalGeralDetailedResults.get(date)
@@ -209,13 +229,19 @@ const normalizeString = (str) => {
         const fileName = `pendentes_${groupKey.replace(/\s+/g, '_')}_${date.replace(/-/g, '')}`;
         exportModalAsPNG(fileName);
     });
-}function showLoading(on = true) {
+}
+
+function showLoading(on = true) {
     if (ui?.loader) ui.loader.style.display = on ? 'flex' : 'none';
-}function weekdayPT(iso) {
+}
+
+function weekdayPT(iso) {
     const d = new Date(iso + 'T00:00:00');
     const dias = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
     return dias[d.getDay()];
-}function listDates(startISO, endISO) {
+}
+
+function listDates(startISO, endISO) {
     const [y1, m1, d1] = startISO.split('-').map(Number);
     const [y2, m2, d2] = endISO.split('-').map(Number);
     let start = new Date(y1, m1 - 1, d1);
@@ -224,9 +250,13 @@ const normalizeString = (str) => {
     const out = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(_ymdLocal(d));
     return out;
-}function updatePeriodLabel() {
+}
+
+function updatePeriodLabel() {
     if (ui?.periodBtn) ui.periodBtn.textContent = 'Selecionar Período';
-}function openPeriodModal() {
+}
+
+function openPeriodModal() {
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
     overlay.innerHTML = `
@@ -283,11 +313,15 @@ const normalizeString = (str) => {
             endInput.value = _ymdLocal(ultimoDiaMesAnterior);
         }
     });
-}function chunkArray(arr, size) {
+}
+
+function chunkArray(arr, size) {
     const chunks = [];
     for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
     return chunks;
-}async function fetchAllPages(query) {
+}
+
+async function fetchAllPages(query) {
     const pageSize = 1000;
     let allData = [];
     let page = 0;
@@ -304,7 +338,9 @@ const normalizeString = (str) => {
         if (data && data.length < pageSize) keep = false;
     }
     return allData;
-}async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
+}
+
+async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
     if (!names || names.length === 0) return [];
     const chunks = chunkArray(names, chunkSize);
     const results = await Promise.all(chunks.map(async (subset, idx) => {
@@ -334,38 +370,40 @@ const normalizeString = (str) => {
         }
     }
     return merged;
-}function endOfLocalDayISO(dateYMD) {
+}
+
+function endOfLocalDayISO(dateYMD) {
     return new Date(`${dateYMD}T23:59:59-03:00`);
-}async function fetchData(startDate, endDate, turno) {
+}
+
+// OTIMIZAÇÃO: Removemos 'turno' e filtros de UI daqui.
+// Esta função agora busca TODOS os dados necessários para o período.
+async function fetchData(startDate, endDate) {
     const matrizesPermitidas = getMatrizesPermitidas();
     const [y, m, d] = endDate.split('-').map(Number);
     const endDateObj = new Date(y, m - 1, d);
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endISONextDay = _ymdLocal(endDateObj);
+
+    // Busca ampla: Trazemos todos os colaboradores ativos e todas as escalas
+    // O filtro fino (selectedMatriz, selectedGerente, turnoAtual) será feito em memória.
     let colabQuery = supabase
         .from('Colaboradores')
         .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor')
         .eq('Ativo', 'SIM')
+        .in('Escala', ['T1', 'T2', 'T3']) // Buscamos todas escalas relevantes
         .order('Nome', {ascending: true});
-    if (matrizesPermitidas && matrizesPermitidas.length) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
-    if (state.selectedMatriz) colabQuery = colabQuery.eq('MATRIZ', state.selectedMatriz);
-    if (turno === 'GERAL' || turno === 'COORDENACAO') {
-        colabQuery = colabQuery.in('Escala', ['T1', 'T2', 'T3']);
-    } else if (turno && ['T1', 'T2', 'T3'].includes(turno)) {
-        colabQuery = colabQuery.eq('Escala', turno);
+
+    // Mantemos apenas a segurança (Matrizes permitidas para o usuário)
+    if (matrizesPermitidas && matrizesPermitidas.length) {
+        colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
     }
+    // Removemos state.selectedMatriz e state.selectedGerente daqui!
+
     const colaboradores = await fetchAllPages(colabQuery);
-    let filteredColaboradores = colaboradores;
-    if (state.selectedGerente && state.matrizGerenteMap.size > 0) {
-        const normGerente = normalizeString(state.selectedGerente);
-        filteredColaboradores = colaboradores.filter(c => {
-            if (!c.MATRIZ) return false;
-            const cMatriz = normalizeString(c.MATRIZ);
-            const cGerente = state.matrizGerenteMap.get(cMatriz);
-            return cGerente === normGerente;
-        });
-    }
-    const nomesColabs = [...new Set(filteredColaboradores.map(c => c.Nome).filter(Boolean))];
+
+    const nomesColabs = [...new Set(colaboradores.map(c => c.Nome).filter(Boolean))];
+
     const preenchimentosQuery = supabase
         .from('ControleDiario')
         .select('Nome, Data')
@@ -373,6 +411,7 @@ const normalizeString = (str) => {
         .lt('Data', endISONextDay)
         .order('Data', {ascending: true})
         .order('Nome', {ascending: true});
+
     const feriasQuery = supabase
         .from('Ferias')
         .select('Nome, "Data Inicio", "Data Final"')
@@ -380,6 +419,7 @@ const normalizeString = (str) => {
         .gte('"Data Final"', startDate)
         .order('"Data Inicio"', {ascending: true})
         .order('Nome', {ascending: true});
+
     const afastamentosQuery = supabase
         .from('Afastamentos')
         .select('NOME, "DATA INICIO", "DATA RETORNO"')
@@ -387,14 +427,20 @@ const normalizeString = (str) => {
         .gt('"DATA RETORNO"', startDate)
         .order('"DATA INICIO"', {ascending: true})
         .order('NOME', {ascending: true});
+
     const [preenchimentos, ferias, afastamentos, dsrLogs] = await Promise.all([
         fetchAllPages(preenchimentosQuery),
         fetchAllPages(feriasQuery),
         fetchAllPages(afastamentosQuery),
+        // Buscamos logs para TODOS os colaboradores carregados.
+        // Isso pode ser pesado na primeira carga, mas garante que o cache funcione para filtros.
         fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
     ]);
-    return {colaboradores: filteredColaboradores, preenchimentos, ferias, dsrLogs, afastamentos};
-}function processEfetividade(
+
+    return {colaboradores, preenchimentos, ferias, dsrLogs, afastamentos};
+}
+
+function processEfetividade(
     colaboradores,
     preenchimentos,
     dates,
@@ -414,7 +460,9 @@ const normalizeString = (str) => {
     }
     for (const history of dsrHistoryMap.values()) {
         history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-    }    function getDSRForDate(colaborador, dateYMD, historyMap) {
+    }
+
+    function getDSRForDate(colaborador, dateYMD, historyMap) {
         const name = normalizeString(colaborador.Nome);
         const history = historyMap.get(name);
         const fallbackCadastro = (colaborador.DSR && String(colaborador.DSR).trim()) || null;
@@ -436,7 +484,9 @@ const normalizeString = (str) => {
         const first = history[0];
         if (first?.DsrAnterior && String(first.DsrAnterior).trim()) return first.DsrAnterior;
         return fallbackCadastro;
-    }    const feriasPorDia = new Map();
+    }
+
+    const feriasPorDia = new Map();
     for (const r of ferias) {
         if (r.Nome && r['Data Inicio'] && r['Data Final']) {
             for (const dia of listDates(r['Data Inicio'], r['Data Final'])) {
@@ -542,7 +592,9 @@ const normalizeString = (str) => {
         }
     }
     return {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults};
-}function getStatusClass(status) {
+}
+
+function getStatusClass(status) {
     switch (status) {
         case 'OK':
             return 'status-ok';
@@ -557,7 +609,9 @@ const normalizeString = (str) => {
         default:
             return '';
     }
-}function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
+}
+
+function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
     if (!ui?.resultContainer) return;
     const formattedDates = dates.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
     const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;
@@ -610,7 +664,9 @@ const normalizeString = (str) => {
             showDetailsModal(cell.dataset.groupKey, cell.dataset.date);
         });
     }
-}async function generateReport() {
+}
+
+async function generateReport() {
     const myRun = (state._runId = (state._runId || 0) + 1);
     const startDate = state.period.start;
     const endDate = state.period.end;
@@ -636,19 +692,66 @@ const normalizeString = (str) => {
     try {
         const dates = listDates(startDate, endDate);
         if (dates.length > 31) throw new Error('O período selecionado não pode exceder 31 dias.');
-        const {
-            colaboradores,
-            preenchimentos,
-            ferias,
-            dsrLogs,
-            afastamentos
-        } = await fetchData(startDate, endDate, state.turnoAtual || 'GERAL');
+
+        // OTIMIZAÇÃO: Cache de dados
+        // Verifica se já temos dados para este período no cache.
+        const periodKey = `${startDate}|${endDate}`;
+        let rawData;
+
+        if (state.cache && state.cache.key === periodKey && state.cache.data) {
+            // Usa dados do cache (não bate no banco)
+            rawData = state.cache.data;
+        } else {
+            // Busca dados novos (bate no banco uma vez para o período)
+            rawData = await fetchData(startDate, endDate);
+            state.cache = {
+                key: periodKey,
+                data: rawData
+            };
+        }
+
         if (myRun !== state._runId) return;
+
+        // FILTRAGEM EM MEMÓRIA
+        // Agora aplicamos os filtros (Turno, Matriz, Gerente) nos dados que já temos.
+        let filteredColaboradores = rawData.colaboradores;
+
+        // Filtro de Turno
+        const turno = state.turnoAtual || 'GERAL';
+        if (turno !== 'GERAL' && turno !== 'COORDENACAO') {
+            filteredColaboradores = filteredColaboradores.filter(c => c.Escala === turno);
+        }
+
+        // Filtro de Matriz
+        if (state.selectedMatriz) {
+            filteredColaboradores = filteredColaboradores.filter(c => c.MATRIZ === state.selectedMatriz);
+        }
+
+        // Filtro de Gerente
+        if (state.selectedGerente && state.matrizGerenteMap.size > 0) {
+            const normGerente = normalizeString(state.selectedGerente);
+            filteredColaboradores = filteredColaboradores.filter(c => {
+                if (!c.MATRIZ) return false;
+                const cMatriz = normalizeString(c.MATRIZ);
+                const cGerente = state.matrizGerenteMap.get(cMatriz);
+                return cGerente === normGerente;
+            });
+        }
+
         const groupBy = isCoordView ? 'Gestor' : 'SVC';
         const groupHeader = isCoordView ? 'Coordenador' : 'SVC';
+
+        // Processa com os colaboradores filtrados em memória
         const {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults} = processEfetividade(
-            colaboradores, preenchimentos, dates, ferias, dsrLogs, afastamentos, groupBy
+            filteredColaboradores,
+            rawData.preenchimentos,
+            dates,
+            rawData.ferias,
+            rawData.dsrLogs,
+            rawData.afastamentos,
+            groupBy
         );
+
         if (myRun !== state._runId) return;
         state.detailedResults = detailedResults;
         state.totalGeralDetailedResults = totalGeralDetailedResults;
@@ -681,7 +784,9 @@ const normalizeString = (str) => {
         if (myRun !== state._runId) return;
         showLoading(false);
     }
-}async function fetchFilterData() {
+}
+
+async function fetchFilterData() {
     try {
         const {data: colabMatrizes, error: colabError} = await supabase
             .from('Colaboradores')
@@ -707,7 +812,9 @@ const normalizeString = (str) => {
         state.allMatrizes = [];
         state.allGerentes = [];
     }
-}function populateMatrizFilter() {
+}
+
+function populateMatrizFilter() {
     if (!ui?.matrizFilterSelect) return;
     while (ui.matrizFilterSelect.options.length > 1) ui.matrizFilterSelect.remove(1);
     state.allMatrizes.forEach((matriz) => {
@@ -716,7 +823,9 @@ const normalizeString = (str) => {
         option.textContent = matriz;
         ui.matrizFilterSelect.appendChild(option);
     });
-}function populateGerenteFilter() {
+}
+
+function populateGerenteFilter() {
     if (!ui?.gerenteFilterSelect) {
         console.warn('Elemento #efet-gerente-filter não encontrado.');
         return;

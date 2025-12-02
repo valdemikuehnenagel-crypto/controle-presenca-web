@@ -8,6 +8,7 @@ const CACHE_TTL_MS = 10 * 60_000;
 const MIN_LABEL_FONT_PX = 12;
 const MIN_SEGMENT_PERCENT = 9;
 
+
 function cacheKeyForColabs() {
     return `colabs:ALL`;
 }
@@ -732,7 +733,6 @@ async function refresh() {
             if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
                 return false;
             }
-
 
 
             const ativoNormalizado = norm(c?.Ativo);
