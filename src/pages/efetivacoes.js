@@ -1,28 +1,17 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {logAction} from '../../logAction.js';
-
-const _cache = new Map();
+import {logAction} from '../../logAction.js';const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
 const MIN_LABEL_FONT_PX = 12;
-const MIN_SEGMENT_PERCENT = 9;
-
-
-function cacheKeyForColabs() {
+const MIN_SEGMENT_PERCENT = 9;function cacheKeyForColabs() {
     return `colabs:ALL`;
-}
-
-function toUpperTrim(str) {
+}function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}
-
-function normalizeCPF(value) {
+}function normalizeCPF(value) {
     if (!value) return null;
     return value.replace(/\D/g, '');
-}
-
-function formatDateTimeLocal(iso) {
+}function formatDateTimeLocal(iso) {
     if (!iso) return '-';
     try {
         const d = new Date(iso);
@@ -38,9 +27,7 @@ function formatDateTimeLocal(iso) {
     } catch (e) {
         return iso;
     }
-}
-
-function wireCepVagas() {
+}function wireCepVagas() {
     const form = document.getElementById('formVagas');
     if (!form) return;
     const inputCep = form.querySelector('[name="cep_candidato"]');
@@ -81,9 +68,7 @@ function wireCepVagas() {
             }
         });
     }
-}
-
-async function loadSheetJS() {
+}async function loadSheetJS() {
     if (window.XLSX) return;
     try {
         await new Promise((resolve, reject) => {
@@ -96,9 +81,7 @@ async function loadSheetJS() {
     } catch (error) {
         console.error("Falha ao carregar a biblioteca XLSX:", error);
     }
-}
-
-async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
+}async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
     console.log(`[DEBUG] Iniciando busca de absenteísmo (apenas ocorrências) para: ${nomeColaborador}`);
     if (!nomeColaborador) return null;
     const dataCorte = new Date();
@@ -151,9 +134,7 @@ async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
         stats: {justificado, injustificado},
         attachment: attachment
     };
-}
-
-function getLocalISOString(date) {
+}function getLocalISOString(date) {
     if (!date) date = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const year = date.getFullYear();
@@ -163,17 +144,13 @@ function getLocalISOString(date) {
     const minute = pad(date.getMinutes());
     const second = pad(date.getSeconds());
     return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-}
-
-function ymdToday() {
+}function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}
-
-function desligamento_getCurrentUserEmail() {
+}function desligamento_getCurrentUserEmail() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -184,9 +161,7 @@ function desligamento_getCurrentUserEmail() {
         console.error('Erro ao ler e-mail do usuário:', e);
     }
     return '';
-}
-
-function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
+}function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
     if (!dataSolicitada) return null;
     const start = new Date(dataSolicitada);
     const end = dataFinal ? new Date(dataFinal) : new Date();
@@ -194,9 +169,7 @@ function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
     const diffMs = end - start;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return diffDays < 0 ? 0 : diffDays;
-}
-
-async function desligamento_fetchEmailsSugestao(contrato) {
+}async function desligamento_fetchEmailsSugestao(contrato) {
     const emailsSugestao = new Set();
     const myEmail = desligamento_getCurrentUserEmail();
     if (myEmail) {
@@ -214,9 +187,7 @@ async function desligamento_fetchEmailsSugestao(contrato) {
         }
     }
     return Array.from(emailsSugestao).join(', ');
-}
-
-async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
+}async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
     if (hit && (now - hit.ts) < hit.ttl) return hit.value;
@@ -232,9 +203,7 @@ async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     })();
     _inflight.set(key, p);
     return p;
-}
-
-function invalidateCache(keys = []) {
+}function invalidateCache(keys = []) {
     if (!keys.length) {
         _cache.clear();
     } else {
@@ -245,9 +214,7 @@ function invalidateCache(keys = []) {
     } catch (e) {
         console.warn('Falha ao invalidar cache de colaboradores no localStorage', e);
     }
-}
-
-function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
     const selSapato = document.getElementById(idSelectSapato);
     const selColete = document.getElementById(idSelectColete);
     if (selSapato) {
@@ -273,9 +240,7 @@ function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
         });
         if (valorAtual) selColete.value = valorAtual;
     }
-}
-
-async function fetchAllWithPagination(queryBuilder) {
+}async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -291,9 +256,7 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
     return allData;
-}
-
-const HOST_SEL = '#hc-indice';
+}const HOST_SEL = '#hc-indice';
 const state = {
     mounted: false,
     loading: false,
@@ -338,9 +301,7 @@ const state = {
 };
 const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const root = () => document.documentElement;
-const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
-
-function parseRGB(str) {
+const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;function parseRGB(str) {
     if (!str) return {r: 0, g: 0, b: 0};
     const s = String(str).trim();
     if (s.startsWith('#')) {
@@ -353,9 +314,7 @@ function parseRGB(str) {
     }
     const m = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(s);
     return m ? {r: +m[1], g: +m[2], b: +m[3]} : {r: 30, g: 64, b: 124};
-}
-
-const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+}const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
 const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
 const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'N/D'];
@@ -364,38 +323,28 @@ const MONTH_ORDER = {
     'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
 };
 const sortMesAno = (a, b) => (a.ANO * 100 + a.mesOrder) - (b.ANO * 100 + b.mesOrder);
-const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;
-
-function parseDateMaybe(s) {
+const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDateMaybe(s) {
     const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(String(s || '').trim());
     if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function formatDateLocal(iso) {
+}function formatDateLocal(iso) {
     if (!iso) return '';
     const datePart = iso.split('T')[0];
     const [y, m, d] = datePart.split('-');
     if (!y || !m || !d) return '';
     return `${d}/${m}/${y}`;
-}
-
-function daysBetween(d1, d2) {
+}function daysBetween(d1, d2) {
     const ms = 24 * 60 * 60 * 1000;
     const a = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
     const b = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
     return Math.floor((b - a) / ms);
-}
-
-function daysSinceAdmission(c) {
+}function daysSinceAdmission(c) {
     const raw = c?.['Data de admissão'] ?? c?.['Data de admissao'] ?? c?.Admissao ?? c?.['Data Admissão'] ?? c?.['Data Admissao'] ?? '';
     const d = parseDateMaybe(raw);
     if (!d) return null;
     return daysBetween(d, new Date());
-}
-
-function calcAgeFromStr(s) {
+}function calcAgeFromStr(s) {
     const d = parseDateMaybe(s);
     if (!d) return null;
     const now = new Date();
@@ -403,9 +352,7 @@ function calcAgeFromStr(s) {
     const dm = now.getMonth() - d.getMonth();
     if (dm < 0 || (dm === 0 && now.getDate() < d.getDate())) a--;
     return a;
-}
-
-function ageBucket(a) {
+}function ageBucket(a) {
     if (a == null) return 'N/D';
     if (a < 20) return '<20';
     if (a < 30) return '20-29';
@@ -413,20 +360,14 @@ function ageBucket(a) {
     if (a < 50) return '40-49';
     if (a < 60) return '50-59';
     return '60+';
-}
-
-function getNascimento(c) {
+}function getNascimento(c) {
     return c?.['Data de Nascimento'] || c?.['Data de nascimento'] || c?.Nascimento || c?.['Nascimento'] || '';
-}
-
-function mapGeneroLabel(raw) {
+}function mapGeneroLabel(raw) {
     const n = norm(raw);
     if (n.startsWith('MASC')) return 'Masculino';
     if (n.startsWith('FEM')) return 'Feminino';
     return n ? 'Outros' : 'N/D';
-}
-
-function mapSvcLabel(rawSvc) {
+}function mapSvcLabel(rawSvc) {
     const svc = String(rawSvc || 'N/D').toUpperCase();
     if (svc === 'SBA2' || svc === 'SBA4') {
         return 'SBA2/4';
@@ -435,9 +376,7 @@ function mapSvcLabel(rawSvc) {
         return 'SBA3/7';
     }
     return svc;
-}
-
-function mapDSR(raw) {
+}function mapDSR(raw) {
     const n = norm(raw);
     if (!n) return ['N/D'];
     const days = n.split(',').map(d => d.trim());
@@ -452,9 +391,7 @@ function mapDSR(raw) {
         return null;
     }).filter(Boolean);
     return mapped.length > 0 ? mapped : ['N/D'];
-}
-
-function palette() {
+}function palette() {
     const r = root();
     return [
         css(r, '--hcidx-p-1', '#02B1EE'),
@@ -466,11 +403,7 @@ function palette() {
         css(r, '--hcidx-p-7', '#7FB8EB'),
         css(r, '--hcidx-p-8', '#99CCFF')
     ];
-}
-
-let _resizeObs = null;
-
-function setResponsiveHeights() {
+}let _resizeObs = null;function setResponsiveHeights() {
     if (window.Chart) {
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
         Object.values(state.charts).forEach(ch => {
@@ -479,9 +412,7 @@ function setResponsiveHeights() {
             ch.resize();
         });
     }
-}
-
-function wireResizeObserver() {
+}function wireResizeObserver() {
     if (_resizeObs) return;
     const rootEl = document.querySelector(HOST_SEL);
     if (!rootEl) return;
@@ -490,9 +421,7 @@ function wireResizeObserver() {
     });
     _resizeObs.observe(rootEl);
     window.addEventListener('resize', setResponsiveHeights);
-}
-
-function ensureMounted() {
+}function ensureMounted() {
     const host = document.querySelector(HOST_SEL);
     if (!host || state.mounted) return;
     ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
@@ -525,9 +454,7 @@ function ensureMounted() {
     state.mounted = true;
     setResponsiveHeights();
     wireResizeObserver();
-}
-
-async function ensureChartLib() {
+}async function ensureChartLib() {
     if (!window.Chart) await loadJs('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
     if (!window.ChartDataLabels) await loadJs('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js');
     try {
@@ -537,9 +464,7 @@ async function ensureChartLib() {
     Chart.defaults.responsive = true;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
-}
-
-function loadJs(src) {
+}function loadJs(src) {
     return new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = src;
@@ -547,22 +472,16 @@ function loadJs(src) {
         s.onerror = rej;
         document.head.appendChild(s);
     });
-}
-
-function showBusy(f) {
+}function showBusy(f) {
     const el = document.getElementById('hcidx-busy');
     if (el) el.style.display = f ? 'flex' : 'none';
-}
-
-const uniqueNonEmptySorted = (v) =>
+}const uniqueNonEmptySorted = (v) =>
     Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-let _filtersPopulated = false;
-
-function populateFilters(allColabs, matrizesMap) {
+let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     if (_filtersPopulated) return;
     const selM = document.getElementById('efet-filter-matriz');
     const selG = document.getElementById('efet-filter-gerencia');
@@ -583,9 +502,7 @@ function populateFilters(allColabs, matrizesMap) {
         if (state.regiao) selR.value = state.regiao;
     }
     _filtersPopulated = true;
-}
-
-async function loadColabsCached() {
+}async function loadColabsCached() {
     const key = cacheKeyForColabs();
     const now = Date.now();
     const CACHE_KEY_NAME = 'knc:hcIndiceCache';
@@ -621,9 +538,7 @@ async function loadColabsCached() {
         }
         return rows;
     });
-}
-
-async function loadSpamData() {
+}async function loadSpamData() {
     return fetchOnce('spamData', async () => {
         const {data, error} = await supabase.from('Spam').select('"HC Fixo", "HC PT", SVC, REGIAO, MÊS, ANO');
         if (error) throw error;
@@ -639,9 +554,7 @@ async function loadSpamData() {
             mesOrder: getMesOrder(r.MÊS)
         }));
     });
-}
-
-async function loadMatrizesData() {
+}async function loadMatrizesData() {
     return fetchOnce('matrizesData', async () => {
         const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
         if (error) throw error;
@@ -657,9 +570,7 @@ async function loadMatrizesData() {
         });
         return map;
     });
-}
-
-function enforceMinSegmentPct(percs, minPct) {
+}function enforceMinSegmentPct(percs, minPct) {
     const arr = percs.map(v => Math.max(0, +v || 0));
     const nonZeroIdx = arr.map((v, i) => v > 0 ? i : -1).filter(i => i >= 0);
     const k = nonZeroIdx.length;
@@ -683,9 +594,7 @@ function enforceMinSegmentPct(percs, minPct) {
         out[maxIdx] += diff;
     }
     return out;
-}
-
-function applyMinWidthToStack(datasets, minPct) {
+}function applyMinWidthToStack(datasets, minPct) {
     if (!datasets || datasets.length === 0) return;
     const n = Math.max(...datasets.map(ds => ds.data?.length || 0));
     for (let j = 0; j < n; j++) {
@@ -701,9 +610,7 @@ function applyMinWidthToStack(datasets, minPct) {
     datasets.forEach(ds => {
         ds.data = ds._renderData;
     });
-}
-
-async function refresh() {
+}async function refresh() {
     if (!state.mounted || state.loading) {
         if (state.loading) console.warn("Refresh chamado enquanto já estava carregando.");
         return;
@@ -727,28 +634,16 @@ async function refresh() {
             }
         }
         state.colabs = allRows.filter(c => {
-            const isDesligamentoView = document.querySelector('#efet-desligamento.active');
-
-
-            if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
+            const isDesligamentoView = document.querySelector('#efet-desligamento.active');            if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
                 return false;
-            }
-
-
-            const ativoNormalizado = norm(c?.Ativo);
-            const isAtivoOuPen = (ativoNormalizado === 'SIM' || ativoNormalizado === 'PEN');
-
-            if (isDesligamentoView) {
-                if (c.StatusDesligamento === 'CONCLUIDO') {
-
-                } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
+            }            const ativoNormalizado = norm(c?.Ativo);
+            const isAtivoOuPen = (ativoNormalizado === 'SIM' || ativoNormalizado === 'PEN');            if (isDesligamentoView) {
+                if (c.StatusDesligamento === 'CONCLUIDO') {                } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
                     return false;
                 } else if (c.StatusDesligamento === 'PENDENTE' && !isAtivoOuPen) {
                     return false;
                 }
-            }
-
-            if (state.matriz && c?.MATRIZ !== state.matriz) return false;
+            }            if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
                 if (!svcsDoGerente.has(colabSvcNorm)) {
@@ -789,9 +684,7 @@ async function refresh() {
         showBusy(false);
         setTimeout(() => setResponsiveHeights(), 100);
     }
-}
-
-function wireSubtabs() {
+}function wireSubtabs() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
     const subButtons = host.querySelectorAll('.efet-subtab-btn');
@@ -838,9 +731,7 @@ function wireSubtabs() {
             }, 50);
         });
     });
-}
-
-function setDynamicChartHeight(chart, labels) {
+}function setDynamicChartHeight(chart, labels) {
     if (!chart || !chart.canvas || chart.options.indexAxis !== 'y') return;
     const pixelsPerBar = 32;
     const headerAndLegendHeight = 96;
@@ -854,9 +745,7 @@ function setDynamicChartHeight(chart, labels) {
             setTimeout(() => chart.resize(), 50);
         }
     }
-}
-
-function baseLegendConfig(pos, show) {
+}function baseLegendConfig(pos, show) {
     return {
         display: show,
         position: pos,
@@ -864,9 +753,7 @@ function baseLegendConfig(pos, show) {
         align: 'center',
         labels: {boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true}
     };
-}
-
-function forceLegendBottom(chart) {
+}function forceLegendBottom(chart) {
     if (!chart?.options) return;
     const leg = chart.options.plugins.legend || (chart.options.plugins.legend = {});
     const lbls = leg.labels || (leg.labels = {});
@@ -881,9 +768,7 @@ function forceLegendBottom(chart) {
     const w = chart.canvas?.parentElement?.clientWidth || 800;
     const size = Math.max(13, Math.min(16, Math.round(w / 48)));
     lbls.font = {size};
-}
-
-function baseOptsPercent(canvas, onClick, axis = 'x') {
+}function baseOptsPercent(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(13, Math.min(16, Math.round(w / 48)));
     const isHorizontal = axis === 'y';
@@ -955,9 +840,7 @@ function baseOptsPercent(canvas, onClick, axis = 'x') {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}
-
-function baseOptsNumber(canvas, onClick, axis = 'x') {
+}function baseOptsNumber(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(12, Math.min(14, Math.round(w / 55)));
     const isHorizontal = axis === 'y';
@@ -1020,9 +903,7 @@ function baseOptsNumber(canvas, onClick, axis = 'x') {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}
-
-function createStackedBar(canvasId, onClick, axis = 'x') {
+}function createStackedBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsPercent(canvas, onClick, axis);
@@ -1037,9 +918,7 @@ function createStackedBar(canvasId, onClick, axis = 'x') {
     });
     forceLegendBottom(chart);
     return chart;
-}
-
-function createBar(canvasId, onClick, axis = 'x') {
+}function createBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsNumber(canvas, onClick, axis);
@@ -1051,16 +930,12 @@ function createBar(canvasId, onClick, axis = 'x') {
     });
     forceLegendBottom(chart);
     return chart;
-}
-
-function splitByTurno(colabs) {
+}function splitByTurno(colabs) {
     const t1 = colabs.filter(c => c.Escala === 'T1');
     const t2 = colabs.filter(c => c.Escala === 'T2');
     const t3 = colabs.filter(c => c.Escala === 'T3');
     return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, colabs]};
-}
-
-function splitByRegiao(colabs) {
+}function splitByRegiao(colabs) {
     const map = new Map();
     colabs.forEach(c => {
         const r = String(c?.REGIAO || 'N/D');
@@ -1073,9 +948,7 @@ function splitByRegiao(colabs) {
     labels.push('GERAL');
     groups.push(colabs.slice());
     return {labels, groups};
-}
-
-function ensureChartsCreatedService() {
+}function ensureChartsCreatedService() {
     if (!state.charts.idade) {
         state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'x');
     }
@@ -1135,9 +1008,7 @@ function ensureChartsCreatedService() {
     if (!state.charts.consultoriaSvc) {
         state.charts.consultoriaSvc = createStackedBar('ind-consultoria-svc-bar', null, 'y');
     }
-}
-
-function ensureChartsCreatedRegional() {
+}function ensureChartsCreatedRegional() {
     if (!state.charts.idadeRegiao) {
         const id = document.getElementById('reg-idade-bar') ? 'reg-idade-bar' : 'ind-idade-regiao-bar';
         state.charts.idadeRegiao = createStackedBar(id, null, 'x');
@@ -1154,9 +1025,7 @@ function ensureChartsCreatedRegional() {
         const id = document.getElementById('reg-aux-30-60-90-bar') ? 'reg-aux-30-60-90-bar' : 'ind-contrato-90d-regiao-bar';
         state.charts.auxPrazoRegiao = createStackedBar(id, null, 'x');
     }
-}
-
-function toggleFilter(type, chart, element) {
+}function toggleFilter(type, chart, element) {
     const set = state.interactive[type];
     if (!set) return;
     let label = (type === 'dsr')
@@ -1168,9 +1037,7 @@ function toggleFilter(type, chart, element) {
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}
-
-function applyInteractiveFilter(colabs) {
+}function applyInteractiveFilter(colabs) {
     let out = [...colabs];
     if (state.interactive.idade.size > 0) out = out.filter(c => state.interactive.idade.has(ageBucket(calcAgeFromStr(getNascimento(c)))));
     if (state.interactive.genero.size > 0) out = out.filter(c => state.interactive.genero.has(mapGeneroLabel(c.Genero)));
@@ -1181,17 +1048,13 @@ function applyInteractiveFilter(colabs) {
         });
     }
     return out;
-}
-
-function clearAllFilters() {
+}function clearAllFilters() {
     Object.values(state.interactive).forEach(set => set.clear());
     const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}
-
-function updateChartsNow() {
+}function updateChartsNow() {
     if (!state.charts.idade) {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
@@ -1560,9 +1423,7 @@ function updateChartsNow() {
             ch.update();
         }
     }
-}
-
-function updateRegionalChartsNow() {
+}function updateRegionalChartsNow() {
     if (!state.charts.idadeRegiao) {
         console.warn("Tentando atualizar gráficos Regionais, mas eles não estão inicializados.");
         return;
@@ -1703,9 +1564,7 @@ function updateRegionalChartsNow() {
             ch.update();
         }
     }
-}
-
-function updateEmEfetivacaoTable() {
+}function updateEmEfetivacaoTable() {
     const tbody = document.getElementById('efet-table-tbody');
     if (!tbody) {
         console.warn("Elemento #efet-table-tbody não encontrado. A tabela 'Em Efetivação' não pode ser populada.");
@@ -1735,9 +1594,7 @@ function updateEmEfetivacaoTable() {
         `;
         tbody.appendChild(tr);
     });
-}
-
-function ensureChartsCreatedSpam() {
+}function ensureChartsCreatedSpam() {
     const pal = palette();
     if (!state.charts.spamHcEvolucaoSvc) {
         const chart = createBar('spam-chart-evolucao-svc', null, 'x');
@@ -1892,9 +1749,7 @@ function ensureChartsCreatedSpam() {
             state.charts.spamContractDonut = chart;
         }
     }
-}
-
-async function updateSpamCharts(matrizesMap, svcsDoGerente) {
+}async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
     const [allSpamData] = await Promise.all([loadSpamData()]);
@@ -2194,9 +2049,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
     }
-}
-
-function desligamento_getCurrentUser() {
+}function desligamento_getCurrentUser() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -2207,33 +2060,22 @@ function desligamento_getCurrentUser() {
         console.error('Erro ao ler sessão do usuário:', e);
     }
     return 'Usuário RH Desconhecido';
-}
-
-async function desligamento_fetchPendentes() {
+}async function desligamento_fetchPendentes() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">Carregando...</td></tr>';
     const matrizesMap = await loadMatrizesData();
     const matrizesPermitidas = getMatrizesPermitidas();
-    const colunas = 'Nome, Smartoff, DataDesligamentoSolicitada, DataRetorno, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO';
-
-
-    let queryPendentes = supabase
+    const colunas = 'Nome, Smartoff, DataDesligamentoSolicitada, DataRetorno, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO';    let queryPendentes = supabase
         .from('Colaboradores')
         .select(colunas)
         .in('StatusDesligamento', ['PENDENTE', 'RECUSADO'])
-        .in('Ativo', ['SIM', 'PEN']);
-
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    let queryConcluidos = supabase
+        .in('Ativo', ['SIM', 'PEN']);    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();    let queryConcluidos = supabase
         .from('Colaboradores')
         .select(colunas)
         .eq('StatusDesligamento', 'CONCLUIDO')
         .eq('Ativo', 'NÃO')
-        .gte('DataDesligamentoSolicitada', sevenDaysAgo);
-
-    if (matrizesPermitidas) {
+        .gte('DataDesligamentoSolicitada', sevenDaysAgo);    if (matrizesPermitidas) {
         queryPendentes = queryPendentes.in('MATRIZ', matrizesPermitidas);
         queryConcluidos = queryConcluidos.in('MATRIZ', matrizesPermitidas);
     }
@@ -2244,39 +2086,23 @@ async function desligamento_fetchPendentes() {
     if (state.regiao) {
         queryPendentes = queryPendentes.eq('REGIAO', state.regiao);
         queryConcluidos = queryConcluidos.eq('REGIAO', state.regiao);
-    }
-
-    const [
+    }    const [
         {data: pendentesRaw, error: pendentesError},
         {data: concluidos, error: concluidosError}
     ] = await Promise.all([
         queryPendentes,
         queryConcluidos.order('DataDesligamentoSolicitada', {ascending: false})
-    ]);
-
-    if (pendentesError || concluidosError) {
+    ]);    if (pendentesError || concluidosError) {
         const error = pendentesError || concluidosError;
         console.error('Erro ao buscar solicitações de desligamento:', error);
         tbody.innerHTML = `<tr><td colspan="11" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
         return;
-    }
-
-
-    let pendentes = pendentesRaw || [];
-    pendentes.sort((a, b) => {
-
-        if (a.StatusDesligamento === 'PENDENTE' && b.StatusDesligamento !== 'PENDENTE') return -1;
-        if (a.StatusDesligamento !== 'PENDENTE' && b.StatusDesligamento === 'PENDENTE') return 1;
-
-
-        const dateA = new Date(a.DataDesligamentoSolicitada || 0);
+    }    let pendentes = pendentesRaw || [];
+    pendentes.sort((a, b) => {        if (a.StatusDesligamento === 'PENDENTE' && b.StatusDesligamento !== 'PENDENTE') return -1;
+        if (a.StatusDesligamento !== 'PENDENTE' && b.StatusDesligamento === 'PENDENTE') return 1;        const dateA = new Date(a.DataDesligamentoSolicitada || 0);
         const dateB = new Date(b.DataDesligamentoSolicitada || 0);
         return dateA - dateB;
-    });
-
-    let allItems = [...pendentes, ...(concluidos || [])];
-
-    if (state.gerencia) {
+    });    let allItems = [...pendentes, ...(concluidos || [])];    if (state.gerencia) {
         allItems = allItems.filter(c => {
             const svcNorm = norm(c.SVC).replace(/\s+/g, '');
             const mInfo = matrizesMap.get(svcNorm);
@@ -2285,9 +2111,7 @@ async function desligamento_fetchPendentes() {
     }
     state.desligamentoModule.pendentes = allItems;
     desligamento_renderTable();
-}
-
-function desligamento_renderTable() {
+}function desligamento_renderTable() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
     if (state.desligamentoModule.pendentes.length === 0) {
@@ -2412,9 +2236,7 @@ function desligamento_renderTable() {
         `;
         tbody.appendChild(tr);
     });
-}
-
-function desligamento_handleTableClick(event) {
+}function desligamento_handleTableClick(event) {
     const target = event.target.closest('button');
     if (!target) return;
     const action = target.dataset.action;
@@ -2433,9 +2255,7 @@ function desligamento_handleTableClick(event) {
     } else if (action === 'delete-request') {
         desligamento_handleDeleteRequest();
     }
-}
-
-async function desligamento_handleDeleteRequest() {
+}async function desligamento_handleDeleteRequest() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
     const ok = await window.customConfirm(
@@ -2465,9 +2285,7 @@ async function desligamento_handleDeleteRequest() {
     logAction(`Excluiu/Limpou solicitação de desligamento de: ${mod.colaboradorAtual.Nome}`);
     invalidateCache();
     desligamento_fetchPendentes();
-}
-
-async function desligamento_handleDirectKN() {
+}async function desligamento_handleDirectKN() {
     const mod = state.desligamentoModule;
     const colab = mod.colaboradorAtual;
     if (!colab) return;
@@ -2536,9 +2354,7 @@ async function desligamento_handleDirectKN() {
             btn.disabled = false;
         }
     }
-}
-
-async function desligamento_openApproveModal() {
+}async function desligamento_openApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal || !mod.colaboradorAtual) return;
     const colab = mod.colaboradorAtual;
@@ -2625,17 +2441,13 @@ async function desligamento_openApproveModal() {
         }
     };
     mod.modal.classList.remove('hidden');
-}
-
-function desligamento_closeApproveModal() {
+}function desligamento_closeApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal) return;
     mod.modal.classList.add('hidden');
     if (mod.form) mod.form.reset();
     mod.colaboradorAtual = null;
-}
-
-async function desligamento_handleReject() {
+}async function desligamento_handleReject() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
     const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
@@ -2662,9 +2474,7 @@ async function desligamento_handleReject() {
     logAction(`Recusou o desligamento de: ${mod.colaboradorAtual.Nome}. Motivo: ${motivoRecusa || 'N/A'}`);
     invalidateCache();
     desligamento_fetchPendentes();
-}
-
-function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+}function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -2684,9 +2494,7 @@ function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) 
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}
-
-async function desligamento_handleApproveSubmit(event) {
+}async function desligamento_handleApproveSubmit(event) {
     event.preventDefault();
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
@@ -2785,9 +2593,7 @@ async function desligamento_handleApproveSubmit(event) {
         submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
     }
-}
-
-function wireDesligamentoLogic() {
+}function wireDesligamentoLogic() {
     const mod = state.desligamentoModule;
     mod.tbody = document.getElementById('desligamento-tbody');
     mod.modal = document.getElementById('approveModal');
@@ -2814,9 +2620,7 @@ function wireDesligamentoLogic() {
             rhInput.value = rhInput.value.toUpperCase();
         });
     }
-}
-
-function desligamento_destroy() {
+}function desligamento_destroy() {
     const mod = state.desligamentoModule;
     console.log('Destruindo módulo de Desligamento...');
     if (mod.tbody) {
@@ -2837,9 +2641,7 @@ function desligamento_destroy() {
     mod.tbody = null;
     mod.modal = null;
     mod.form = null;
-}
-
-function checkUserRHStatus() {
+}function checkUserRHStatus() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -2855,9 +2657,7 @@ function checkUserRHStatus() {
         console.warn('Erro ao verificar tipo de usuário (RH/Gerente/Master):', e);
         state.isUserRH = false;
     }
-}
-
-export async function init() {
+}export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         console.warn('Host #hc-indice não encontrado.');
@@ -2893,9 +2693,7 @@ export async function init() {
     } else {
         await refresh();
     }
-}
-
-export function destroy() {
+}export function destroy() {
     if (state.mounted) {
         console.log('Destruindo estado de Efetivações.');
         Object.values(state.charts).forEach(chart => chart?.destroy());
@@ -2924,9 +2722,7 @@ export function destroy() {
         state.isUserRH = false;
         document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
     }
-}
-
-let vagasData = [];
+}let vagasData = [];
 let matrizesData = [];
 let gestoresData = [];
 let vagasModal;
@@ -2946,9 +2742,7 @@ let filterFilial;
 let filterStatus;
 let filterGestor;
 let filterRecrutadora;
-let inputCc;
-
-function initControleVagas() {
+let inputCc;function initControleVagas() {
     if (!document.getElementById('efet-controle-vagas')) return;
     vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
@@ -2999,9 +2793,7 @@ function initControleVagas() {
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
     fetchVagas();
     wireCepVagas();
-}
-
-async function fetchMatrizes() {
+}async function fetchMatrizes() {
     const {data, error} = await supabase
         .from('Matrizes')
         .select('MATRIZ, SERVICE, CC, GERENCIA, REGIAO')
@@ -3012,9 +2804,7 @@ async function fetchMatrizes() {
     }
     matrizesData = data || [];
     populateFilialSelect();
-}
-
-function atualizarCC(nomeMatriz) {
+}function atualizarCC(nomeMatriz) {
     if (!inputCc) return;
     if (!nomeMatriz) {
         inputCc.value = '';
@@ -3022,9 +2812,7 @@ function atualizarCC(nomeMatriz) {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputCc.value = encontrada ? (encontrada.CC || '-') : '';
-}
-
-async function fetchGestores() {
+}async function fetchGestores() {
     const {data, error} = await supabase
         .from('Gestores')
         .select('NOME, MATRIZ')
@@ -3034,9 +2822,7 @@ async function fetchGestores() {
         return;
     }
     gestoresData = data || [];
-}
-
-function populateFilialSelect() {
+}function populateFilialSelect() {
     if (!selectFilial) return;
     selectFilial.innerHTML = '<option value="">- Selecione uma Matriz -</option>';
     const matrizesUnicas = [...new Set(matrizesData.map(item => item.MATRIZ).filter(Boolean))].sort();
@@ -3046,9 +2832,7 @@ function populateFilialSelect() {
         option.textContent = matrizNome;
         selectFilial.appendChild(option);
     });
-}
-
-function atualizarSVC(nomeMatriz) {
+}function atualizarSVC(nomeMatriz) {
     if (!inputSvc) return;
     if (!nomeMatriz) {
         inputSvc.value = '';
@@ -3056,9 +2840,7 @@ function atualizarSVC(nomeMatriz) {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputSvc.value = encontrada ? (encontrada.SERVICE || '-') : '';
-}
-
-function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
+}function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (!selectGestor) return;
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
     if (!nomeMatriz) return;
@@ -3074,9 +2856,7 @@ function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (gestorPreSelecionado) {
         selectGestor.value = gestorPreSelecionado;
     }
-}
-
-function formatCargo(cargo) {
+}function formatCargo(cargo) {
     if (!cargo) return '-';
     return cargo
         .replace('OPERADOR DE EMPILHADEIRA', 'OP. EMPILHADEIRA')
@@ -3086,17 +2866,13 @@ function formatCargo(cargo) {
         .replace('SEGURANÇA DO TRABALHO', 'SEG. TRAB.')
         .replace('ADMINISTRATIVO', 'ADM.')
         .replace('PLANEJAMENTO DE LOGÍSTICA', 'PLAN. LOG.');
-}
-
-function calcularSLA() {
+}function calcularSLA() {
     const tipo = inputWcBc.value;
     if (tipo === 'WC') inputSla.value = 17;
     else if (tipo === 'BC') inputSla.value = 12;
     else inputSla.value = 12;
     calcularPrazoEntrega();
-}
-
-function calcularPrazoEntrega() {
+}function calcularPrazoEntrega() {
     const dataAprov = inputDataAprovacao.value;
     const diasSla = parseInt(inputSla.value);
     if (dataAprov && !isNaN(diasSla)) {
@@ -3107,9 +2883,7 @@ function calcularPrazoEntrega() {
         const dd = String(data.getDate()).padStart(2, '0');
         inputPrazoRS.value = `${yyyy}-${mm}-${dd}`;
     }
-}
-
-function openVagasModal(vagaData = null) {
+}function openVagasModal(vagaData = null) {
     if (!vagasModal) return;
     vagasModal.classList.remove('hidden');
     formVagas.reset();
@@ -3180,20 +2954,15 @@ function openVagasModal(vagaData = null) {
         formVagas.dataset.mode = 'create';
         delete formVagas.dataset.id;
     }
-}
-
-function closeVagasModal() {
+}function closeVagasModal() {
     if (vagasModal) vagasModal.classList.add('hidden');
-}
-
-window.toggleSubstituicao = function (val) {
+}window.toggleSubstituicao = function (val) {
     const div = document.getElementById('div-substituido');
     if (div) {
         if (val === 'SUBSTITUIÇÃO') div.classList.remove('hidden');
         else div.classList.add('hidden');
     }
 }
-
 async function fetchVagas() {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando vagas...</td></tr>';
@@ -3209,9 +2978,7 @@ async function fetchVagas() {
     vagasData = data || [];
     populateFilterOptions();
     filtrarVagas();
-}
-
-async function handleVagaSubmit(e) {
+}async function handleVagaSubmit(e) {
     e.preventDefault();
     const formData = new FormData(formVagas);
     const raw = Object.fromEntries(formData.entries());
@@ -3282,9 +3049,7 @@ async function handleVagaSubmit(e) {
     btn.disabled = false;
     closeVagasModal();
     fetchVagas();
-}
-
-function populateFilterOptions() {
+}function populateFilterOptions() {
     const matrizes = [...new Set(vagasData.map(v => v.MATRIZ).filter(Boolean))].sort();
     const gestores = [...new Set(vagasData.map(v => v.Gestor).filter(Boolean))].sort();
     const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();
@@ -3298,9 +3063,7 @@ function populateFilterOptions() {
     populate(filterFilial, matrizes, 'Todas as Filiais');
     populate(filterGestor, gestores, 'Todos Gestores');
     populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');
-}
-
-function filtrarVagas() {
+}function filtrarVagas() {
     const termo = searchInput.value.toLowerCase();
     const fFilial = filterFilial.value;
     const fStatus = filterStatus.value;
@@ -3334,9 +3097,7 @@ function filtrarVagas() {
         return true;
     });
     renderVagasTable(filtrados);
-}
-
-function renderVagasTable(lista) {
+}function renderVagasTable(lista) {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '';
     if (lista.length === 0) {

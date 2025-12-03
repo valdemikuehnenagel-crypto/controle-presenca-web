@@ -231,19 +231,27 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar ou filtrar dados.</td></tr>';
     }
 }function setupRhFilters() {
-    injectRhTabsStyles();    const inputSearch = document.getElementById('filterRhSearch');
+    injectRhTabsStyles();
+    const inputSearch = document.getElementById('filterRhSearch');
     const selectMatriz = document.getElementById('filterRhMatriz');
-    const selectCargo = document.getElementById('filterRhCargo');    const oldBtnDate = document.getElementById('btnToggleFutureDates');
+    const selectCargo = document.getElementById('filterRhCargo');
+    const oldBtnDate = document.getElementById('btnToggleFutureDates');
     if (oldBtnDate) oldBtnDate.style.display = 'none';
     const oldBtnClose = document.getElementById('btnToggleParaFechar');
-    if (oldBtnClose) oldBtnClose.style.display = 'none';    const filterContainer = inputSearch?.closest('.flex-wrap') || inputSearch?.parentElement;    if (filterContainer && !document.getElementById('rh-tabs-container')) {
+    if (oldBtnClose) oldBtnClose.style.display = 'none';
+    const filterContainer = inputSearch?.closest('.flex-wrap') || inputSearch?.parentElement;
+    if (filterContainer && !document.getElementById('rh-tabs-container')) {
         const tabsDiv = document.createElement('div');
         tabsDiv.id = 'rh-tabs-container';
-        tabsDiv.className = 'rh-tabs-container';        tabsDiv.style.cssText = "display: flex; gap: 4px; align-items: center; margin-right: auto;";        tabsDiv.innerHTML = `
+        tabsDiv.className = 'rh-tabs-container';
+        tabsDiv.style.cssText = "display: flex; gap: 4px; align-items: center; margin-right: auto;";
+        tabsDiv.innerHTML = `
             <button type="button" class="rh-tab-btn active" data-tab="ATUAIS">🔥 Vagas Atuais</button>
             <button type="button" class="rh-tab-btn" data-tab="FUTURAS">🚀 Vagas Futuras</button>
             <button type="button" class="rh-tab-btn" data-tab="PARA_FECHAR">🔒 Vagas p/ Fechar</button>
-        `;        filterContainer.insertBefore(tabsDiv, filterContainer.firstChild);        tabsDiv.querySelectorAll('.rh-tab-btn').forEach(btn => {
+        `;
+        filterContainer.insertBefore(tabsDiv, filterContainer.firstChild);
+        tabsDiv.querySelectorAll('.rh-tab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 tabsDiv.querySelectorAll('.rh-tab-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
@@ -251,7 +259,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 aplicarFiltrosRh();
             });
         });
-    }    if (inputSearch) inputSearch.oninput = (e) => {
+    }
+    if (inputSearch) inputSearch.oninput = (e) => {
         rhState.filtros.termo = e.target.value.toUpperCase();
         aplicarFiltrosRh();
     };
@@ -343,20 +352,30 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
 }function aplicarFiltrosRh() {
     const hoje = new Date().toISOString().split('T')[0];
-    const badge = document.getElementById('countRhBadges');    const filtrados = rhState.dadosBrutos.filter(item => {        const termo = (rhState.filtros.termo || '').toUpperCase().trim();
+    const badge = document.getElementById('countRhBadges');
+    const filtrados = rhState.dadosBrutos.filter(item => {
+        const termo = (rhState.filtros.termo || '').toUpperCase().trim();
         if (termo) {
             const nomeC = (item.CandidatoAprovado || '').toUpperCase();
             const cpfC = (item.CPFCandidato || '').toUpperCase();
             if (!nomeC.includes(termo) && !cpfC.includes(termo)) return false;
         }
         if (rhState.filtros.matriz && item.MATRIZ !== rhState.filtros.matriz) return false;
-        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;        const dataInicio = item.DataInicioDesejado || '1900-01-01';
-        const isFuture = dataInicio > hoje;        const nomeNorm = (item.CandidatoAprovado || '').toUpperCase().trim();
-        const jaExiste = rhState.nomesExistentes.has(nomeNorm);        if (rhState.activeTab === 'PARA_FECHAR') {            if (!jaExiste) return false;
-        } else if (rhState.activeTab === 'FUTURAS') {            if (!isFuture) return false;
-        } else {            if (isFuture) return false;
-        }        return true;
-    });    if (badge) badge.textContent = filtrados.length;
+        if (rhState.filtros.cargo && item.Cargo !== rhState.filtros.cargo) return false;
+        const dataInicio = item.DataInicioDesejado || '1900-01-01';
+        const isFuture = dataInicio > hoje;
+        const nomeNorm = (item.CandidatoAprovado || '').toUpperCase().trim();
+        const jaExiste = rhState.nomesExistentes.has(nomeNorm);
+        if (rhState.activeTab === 'PARA_FECHAR') {
+            if (!jaExiste) return false;
+        } else if (rhState.activeTab === 'FUTURAS') {
+            if (!isFuture) return false;
+        } else {
+            if (isFuture) return false;
+        }
+        return true;
+    });
+    if (badge) badge.textContent = filtrados.length;
     renderTabelaRH(filtrados);
 }function formatCargoShort(cargo) {
     if (!cargo) return '';
@@ -439,13 +458,10 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return iso;
     }
 }async function verificarPendencias(colab, dataDesligamentoStr) {
-    const pendencias = [];
-    const hoje = new Date();
-    const trintaDiasAtras = new Date();
-    trintaDiasAtras.setDate(hoje.getDate() - 30);
-    let dataLimite = new Date();
-    dataLimite.setDate(dataLimite.getDate() - 1);
-    if (dataDesligamentoStr) {
+    const pendencias = [];    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);    const trintaDiasAtras = new Date(hoje);
+    trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);    let dataLimite = new Date(hoje);
+    dataLimite.setDate(dataLimite.getDate() - 1);    if (dataDesligamentoStr) {
         const dtDesligamento = new Date(dataDesligamentoStr);
         if (!isNaN(dtDesligamento.getTime())) {
             dtDesligamento.setHours(0, 0, 0, 0);
@@ -453,41 +469,44 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 dataLimite = dtDesligamento;
             }
         }
-    }
-    let inicioVerificacao = new Date(trintaDiasAtras);
+    }    let inicioVerificacao = new Date(trintaDiasAtras);
     if (colab['Data de admissão']) {
         const parts = colab['Data de admissão'].split('-');
         const dtAdm = new Date(parts[0], parts[1] - 1, parts[2]);
-        if (dtAdm > inicioVerificacao) {
+        dtAdm.setHours(0, 0, 0, 0);        if (dtAdm > inicioVerificacao) {
             inicioVerificacao = dtAdm;
-        }
-        if (dtAdm > dataLimite) {
+        }        if (dtAdm > dataLimite) {
             return [];
         }
-    }
-    if (dataLimite < inicioVerificacao) return [];
-    const startISO = inicioVerificacao.toISOString().split('T')[0];
-    const endISO = dataLimite.toISOString().split('T')[0];
-    const {data: registros, error} = await supabase
+    }    if (dataLimite < inicioVerificacao) return [];    const startISO = inicioVerificacao.toISOString().split('T')[0];
+    const endISO = dataLimite.toISOString().split('T')[0];    const { data: registros, error } = await supabase
         .from('ControleDiario')
-        .select('Data')
+        .select('Data, Presença, Falta, Atestado, "Folga Especial", Suspensao, Feriado')
         .eq('Nome', colab.Nome)
         .gte('Data', startISO)
-        .lte('Data', endISO);
-    if (error) {
+        .lte('Data', endISO);    if (error) {
         console.error('Erro ao verificar pendências:', error);
         return [];
-    }
-    const datasPreenchidas = new Set((registros || []).map(r => r.Data));
-    const {data: ferias} = await supabase.from('Ferias')
+    }    const datasPreenchidas = new Set();
+    (registros || []).forEach(r => {
+        const hasMarcacao =
+            r['Presença'] === 1 || r['Presença'] === true ||
+            r['Falta'] === 1 || r['Falta'] === true ||
+            r['Atestado'] === 1 || r['Atestado'] === true ||
+            r['Folga Especial'] === 1 || r['Folga Especial'] === true ||
+            r['Suspensao'] === 1 || r['Suspensao'] === true ||
+            r['Feriado'] === 1 || r['Feriado'] === true;        if (hasMarcacao) {
+            datasPreenchidas.add(r.Data);
+        }
+    });    const { data: ferias } = await supabase
+        .from('Ferias')
         .select('"Data Inicio", "Data Final"')
         .eq('Nome', colab.Nome)
-        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);
-    const {data: afastamentos} = await supabase.from('Afastamentos')
+        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);    const { data: afastamentos } = await supabase
+        .from('Afastamentos')
         .select('"DATA INICIO", "DATA RETORNO"')
         .eq('NOME', colab.Nome)
-        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO}, "DATA RETORNO".is.null`);
-    const isAusenciaLegitima = (dateStr) => {
+        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO},"DATA RETORNO".is.null`);    const isAusenciaLegitima = (dateStr) => {
         if (ferias) {
             for (const f of ferias) {
                 if (dateStr >= f['Data Inicio'] && dateStr <= f['Data Final']) return true;
@@ -500,31 +519,21 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }
         }
         return false;
-    };
-    const cursor = new Date(inicioVerificacao);
-    cursor.setHours(0, 0, 0, 0);
-    const limiteComparacao = new Date(dataLimite);
-    limiteComparacao.setHours(0, 0, 0, 0);
-    const dsrString = (colab.DSR || '').toUpperCase();
-    while (cursor <= limiteComparacao) {
+    };    const cursor = new Date(inicioVerificacao);
+    cursor.setHours(0, 0, 0, 0);    const limiteComparacao = new Date(dataLimite);
+    limiteComparacao.setHours(0, 0, 0, 0);    const dsrString = (colab.DSR || '').toUpperCase();    while (cursor <= limiteComparacao) {
         const y = cursor.getFullYear();
         const m = String(cursor.getMonth() + 1).padStart(2, '0');
         const d = String(cursor.getDate()).padStart(2, '0');
-        const diaISO = `${y}-${m}-${d}`;
-        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];
-        let cobrar = true;
-        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
+        const diaISO = `${y}-${m}-${d}`;        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];
+        let cobrar = true;        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
             cobrar = false;
-        }
-        if (cobrar && isAusenciaLegitima(diaISO)) {
+        }        if (cobrar && isAusenciaLegitima(diaISO)) {
             cobrar = false;
-        }
-        if (cobrar && !datasPreenchidas.has(diaISO)) {
+        }        if (cobrar && !datasPreenchidas.has(diaISO)) {
             pendencias.push(formatDateLocal(diaISO));
-        }
-        cursor.setDate(cursor.getDate() + 1);
-    }
-    return pendencias;
+        }        cursor.setDate(cursor.getDate() + 1);
+    }    return pendencias;
 }function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
@@ -1209,21 +1218,28 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
 }async function checkPendingImports() {
-    const matrizesPermitidas = getMatrizesPermitidas();    let query = supabase
+    const matrizesPermitidas = getMatrizesPermitidas();
+    let query = supabase
         .from('Vagas')
         .select('CandidatoAprovado, MATRIZ')
         .eq('Status', 'EM ADMISSÃO')
-        .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');     if (matrizesPermitidas !== null) {
+        .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');
+    if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
-    }    const {data: vagasCandidatos, error} = await query;    if (error || !vagasCandidatos || vagasCandidatos.length === 0) {
+    }
+    const {data: vagasCandidatos, error} = await query;
+    if (error || !vagasCandidatos || vagasCandidatos.length === 0) {
         hidePendingImportAlert();
         return;
-    }    const nomesCadastrados = new Set(
+    }
+    const nomesCadastrados = new Set(
         state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
-    );    const pendentes = vagasCandidatos.filter(vaga => {
+    );
+    const pendentes = vagasCandidatos.filter(vaga => {
         const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
         return nomeCandidato && !nomesCadastrados.has(nomeCandidato);
-    });    if (pendentes.length > 0) {
+    });
+    if (pendentes.length > 0) {
         showPendingImportAlert(pendentes.length);
     } else {
         hidePendingImportAlert();
@@ -2329,21 +2345,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     return false;
 }async function onDesligarSubmit(e) {
-    e.preventDefault();
-    if (!desligarColaborador) {
+    e.preventDefault();    if (!desligarColaborador) {
         await window.customAlert('Erro: colaborador não carregado.', 'Erro');
         return;
-    }
-    if (document.body.classList.contains('user-level-visitante')) {
+    }    if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
-    }
-    const nome = desligarColaborador.Nome;
+    }    const nome = desligarColaborador.Nome;
     const dataAgendadaInput = (desligarDataEl?.value || '').trim();
     let motivo = (desligarMotivoEl?.value || '').trim();
     const isKN = (desligarColaborador.Contrato || '').trim().toUpperCase() === 'KN';
-    const smartoffVal = desligarSmartoffEl ? desligarSmartoffEl.value.trim() : null;
-    if (isKN) {
+    const smartoffVal = desligarSmartoffEl ? desligarSmartoffEl.value.trim() : null;    if (isKN) {
         if (!smartoffVal) {
             await window.customAlert('Para colaboradores KN, o Número Smart é obrigatório.', 'Campo Obrigatório');
             return;
@@ -2359,50 +2371,45 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             desligarSmartoffEl.focus();
             return;
         }
-    }
-    if (!dataAgendadaInput) {
+    }    if (!dataAgendadaInput) {
         await window.customAlert('Informe a data prevista para o desligamento.', 'Campo Obrigatório');
         return;
-    }
-    if (!motivo) {
+    }    if (!motivo) {
         await window.customAlert('Selecione o motivo.', 'Campo Obrigatório');
         return;
-    }
-    let timestampSolicitacao;
+    }    let timestampSolicitacao;
     try {
         timestampSolicitacao = getLocalISOString(new Date());
     } catch (err) {
         console.error("Erro ao gerar timestamp:", err);
         timestampSolicitacao = new Date().toISOString();
-    }
-    const dataAgendadaFormatada = dataAgendadaInput.split('-').reverse().join('/');
-    const motivoCompleto = `${motivo} (Data Prevista: ${dataAgendadaFormatada})`;
-    const btnSubmit = desligarConfirmarBtn;
+    }    const dataAgendadaFormatada = dataAgendadaInput.split('-').reverse().join('/');
+    const motivoCompleto = `${motivo} (Data Prevista: ${dataAgendadaFormatada})`;    const btnSubmit = desligarConfirmarBtn;
     const txtOriginal = btnSubmit.textContent;
     btnSubmit.textContent = 'Verificando pendências...';
-    btnSubmit.disabled = true;
-    let listaPendencias = [];
-    try {
-        const colabAtualizado = await fetchColabByNome(nome);
+    btnSubmit.disabled = true;    let listaPendencias = [];
+    try {        const colabAtualizado = await fetchColabByNome(nome);
         if (colabAtualizado) {
             listaPendencias = await verificarPendencias(colabAtualizado, dataAgendadaInput);
+        } else {            listaPendencias = await verificarPendencias(desligarColaborador, dataAgendadaInput);
         }
     } catch (err) {
         console.error("Erro verificando pendencias:", err);
+        await window.customAlert('Erro ao verificar pendências. Tente novamente.', 'Erro');
+        btnSubmit.textContent = txtOriginal;
+        btnSubmit.disabled = false;
+        return;
     } finally {
         btnSubmit.textContent = txtOriginal;
         btnSubmit.disabled = false;
-    }
-    if (listaPendencias.length > 0) {
+    }    if (listaPendencias.length > 0) {
         const listaExibicao = listaPendencias.slice(0, 10).join('<br>');
-        const mais = listaPendencias.length > 10 ? `<br>...e mais ${listaPendencias.length - 10} dias.` : '';
-        await window.customAlert(
+        const mais = listaPendencias.length > 10 ? `<br>...e mais ${listaPendencias.length - 10} dias.` : '';        await window.customAlert(
             `Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário.<br><br><b>Datas pendentes:</b><br>${listaExibicao}${mais}`,
             'Pendências Encontradas'
         );
         return;
-    }
-    let solicitante = 'Gestor Desconhecido';
+    }    let solicitante = 'Gestor Desconhecido';
     try {
         const userSession = localStorage.getItem('userSession');
         if (userSession) {
@@ -2410,14 +2417,11 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     } catch (e) {
         console.warn('Erro ao ler sessão', e);
-    }
-    const ok = await window.customConfirm(
+    }    const ok = await window.customConfirm(
         `Confirmar solicitação de desligamento para <b>"${nome}"</b>?<br>Data Prevista: <b>${dataAgendadaFormatada}</b>`,
         'Confirmar Desligamento',
         'danger'
-    );
-    if (!ok) return;
-    try {
+    );    if (!ok) return;    try {
         const payload = {
             Ativo: 'PEN',
             StatusDesligamento: 'PENDENTE',
@@ -2426,22 +2430,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             MotivoDesligamento: motivoCompleto,
             SolicitanteDesligamento: solicitante,
             Smartoff: isKN ? smartoffVal : null
-        };
-        const {error} = await supabase
+        };        const {error} = await supabase
             .from('Colaboradores')
             .update(payload)
-            .eq('Nome', nome);
-        if (error) throw error;
-        await window.customAlert('Solicitação enviada com sucesso!', 'Sucesso');
-        logAction(
+            .eq('Nome', nome);        if (error) throw error;        await window.customAlert('Solicitação enviada com sucesso!', 'Sucesso');        logAction(
             `Enviou solicitação de desligamento: ${nome} ` +
             `(Solicitado em: ${formatDateTimeLocal(timestampSolicitacao)}, Para: ${dataAgendadaFormatada})`
-        );
-        closeDesligarModal();
+        );        closeDesligarModal();
         hideEditModal();
         invalidateColaboradoresCache();
-        await fetchColaboradores();
-    } catch (err) {
+        await fetchColaboradores();    } catch (err) {
         console.error('Erro desligamento:', err);
         await window.customAlert(`Erro ao enviar: ${err.message || err}`, 'Erro');
     }
