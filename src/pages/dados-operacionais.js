@@ -1,16 +1,24 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';import {garantirModalEdicaoAtivo} from './colaboradores.js';let ui;
+import {getMatrizesPermitidas} from '../session.js';
+import {garantirModalEdicaoAtivo} from './colaboradores.js';
+
+let ui;
 const CACHE_TTL_MS = 10 * 60_000;
 const _cache = new Map();
 const _inflight = new Map();
-const _listeners = [];function keyFromMatrizes(mp) {
+const _listeners = [];
+
+function keyFromMatrizes(mp) {
     const part = Array.isArray(mp) && mp.length ? [...mp].sort().join('|') : 'ALL';
     return `dados-op:colaboradores:${part}:ativos`;
-}function fetchOnce(key, loader, ttl = CACHE_TTL_MS) {
+}
+
+function fetchOnce(key, loader, ttl = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
     if (hit && (now - hit.ts) < hit.ttl) return Promise.resolve(hit.value);
-    if (_inflight.has(key)) return _inflight.get(key);    const p = (async () => {
+    if (_inflight.has(key)) return _inflight.get(key);
+    const p = (async () => {
         try {
             const val = await loader();
             _cache.set(key, {ts: Date.now(), ttl, value: val});
@@ -18,22 +26,29 @@ const _listeners = [];function keyFromMatrizes(mp) {
         } finally {
             _inflight.delete(key);
         }
-    })();    _inflight.set(key, p);
+    })();
+    _inflight.set(key, p);
     return p;
-}function invalidateCache(keys) {
+}
+
+function invalidateCache(keys) {
     if (!keys || !keys.length) {
         _cache.clear();
         return;
     }
     keys.forEach(k => _cache.delete(k));
-}const state = {
+}
+
+const state = {
     mounted: false,
     detailedResults: new Map(),
     totalGeralResults: {},
     filters: {matriz: '', gerente: '', svc: ''},
     universe: {svcs: [], matrizes: [], gerentes: []},
     mappings: {svcToGerente: new Map(), svcToMatriz: new Map()},
-};async function fetchAllPages(query) {
+};
+
+async function fetchAllPages(query) {
     const pageSize = 1000;
     let allData = [];
     let page = 0;
@@ -50,7 +65,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         if (!data || data.length < pageSize) keepFetching = false;
     }
     return allData;
-}async function fetchMatrizesMappings() {
+}
+
+async function fetchMatrizesMappings() {
     const matrizesPermitidas = getMatrizesPermitidas();
     let q = supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
     if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);
@@ -78,7 +95,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         gerentes: [...optGerentes].sort((a, b) => a.localeCompare(b, 'pt-BR')),
         svcs: [...optSvcs].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     };
-}async function fetchDataCached() {
+}
+
+async function fetchDataCached() {
     const matrizesPermitidas = getMatrizesPermitidas();
     const key = keyFromMatrizes(matrizesPermitidas);
     return fetchOnce(key, async () => {
@@ -92,7 +111,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         const maps = await fetchMatrizesMappings();
         return {colaboradores, ...maps};
     });
-}function computeCascadingOptions(current, universe, mappings) {
+}
+
+function computeCascadingOptions(current, universe, mappings) {
     const selMatriz = String(current.matriz || '').trim();
     const selGerente = String(current.gerente || '').trim();
     const selSvc = String(current.svc || '').trim();
@@ -119,7 +140,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         matrizes: [...allowedMatrizes].sort((a, b) => a.localeCompare(b, 'pt-BR')),
         gerentes: [...allowedGerentes].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     };
-}function applyUserFilters(colaboradores, filters, mappings) {
+}
+
+function applyUserFilters(colaboradores, filters, mappings) {
     const fMatriz = String(filters.matriz || '').trim().toUpperCase();
     const fGerente = String(filters.gerente || '').trim().toUpperCase();
     const fSvc = String(filters.svc || '').trim().toUpperCase();
@@ -133,7 +156,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         if (fSvc && svc.toUpperCase() !== fSvc) return false;
         return true;
     });
-}function processDataQuality(colaboradores) {
+}
+
+function processDataQuality(colaboradores) {
     state.detailedResults.clear();
     state.totalGeralResults = {};
     const svcs = [...new Set(colaboradores.map(c => c.SVC).filter(Boolean))].sort();
@@ -183,16 +208,22 @@ const _listeners = [];function keyFromMatrizes(mp) {
         results[svc].totalGeral = (colunasParaVerificar.length === 0) ? 0 : percentualTotalSoma / colunasParaVerificar.length;
     }
     return {svcs, results, colunas: colunasParaVerificar, totalGeralResults};
-}function getStatusClass(percentual) {
+}
+
+function getStatusClass(percentual) {
     if (percentual === 100) return 'status-ok';
     if (percentual > 0) return 'status-pendente';
     if (percentual === 0) return 'status-nok';
     return 'status-na';
-}function getTotalStatusClass(percentual) {
+}
+
+function getTotalStatusClass(percentual) {
     if (percentual === 100) return 'status-ok';
     if (percentual >= 90) return 'status-pendente';
     return 'status-nok';
-}function ensureFiltersBar() {
+}
+
+function ensureFiltersBar() {
     let bar = document.getElementById('dados-op-filters');
     if (!bar) {
         bar = document.createElement('div');
@@ -243,7 +274,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         recomputeAndSyncFilterOptions();
         generateReport();
     });
-}function populateSelect(select, items, placeholder, keepValue) {
+}
+
+function populateSelect(select, items, placeholder, keepValue) {
     if (!select) return;
     const prev = keepValue ? select.value : '';
     select.innerHTML = '';
@@ -258,7 +291,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         select.appendChild(opt);
     });
     if (prev && items.includes(prev)) select.value = prev; else select.value = '';
-}function recomputeAndSyncFilterOptions() {
+}
+
+function recomputeAndSyncFilterOptions() {
     const allowed = computeCascadingOptions(state.filters, state.universe, state.mappings);
     populateSelect(ui.matrizSelect, allowed.matrizes, 'Matriz', true);
     populateSelect(ui.gerenteSelect, allowed.gerentes, 'Gerentes', true);
@@ -275,12 +310,22 @@ const _listeners = [];function keyFromMatrizes(mp) {
         state.filters.svc = '';
         ui.svcSelect.value = '';
     }
-}function showDetailsModal(svc, coluna) {
+}
+
+function showDetailsModal(svc, coluna) {
     const details = (svc === 'TODAS')
         ? state.totalGeralResults?.[coluna]
-        : state.detailedResults.get(svc)?.get(coluna);    if (!details) return;    const old = document.getElementById('dados-op-details-modal');
-    if (old) old.remove();    const modal = document.createElement('div');
-    modal.id = 'dados-op-details-modal';    modal.style.cssText = `
+        : state.detailedResults.get(svc)?.get(coluna);
+
+    if (!details) return;
+
+    const old = document.getElementById('dados-op-details-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'dados-op-details-modal';
+
+    modal.style.cssText = `
         position: fixed; 
         inset: 0; 
         background: rgba(0, 0, 0, .35); 
@@ -289,16 +334,20 @@ const _listeners = [];function keyFromMatrizes(mp) {
         justify-content: center; 
         z-index: 10000;
         font-family: sans-serif;
-    `;    const contentHtml = (details.pendentes.length === 0)
+    `;
+
+    const contentHtml = (details.pendentes.length === 0)
         ? '<p style="text-align:center; color:#6b7280; padding:20px; font-size:13px;">Nenhum colaborador com pendência neste campo.</p>'
         : `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding: 0 4px;">
          <span style="font-size:12px; color:#56607f; font-weight:600;">Total: <strong style="color:#003369;">${details.total}</strong></span>
          <span style="font-size:12px; color:#56607f; font-weight:600;">Pendentes: <strong style="color:#e55353;">${details.pendentes.length}</strong></span>
-      </div>      <div style="margin-bottom:12px; background:#e8f7ff; border:1px solid #bae6fd; border-radius:8px; padding:10px; display:flex; gap:8px; align-items:center;">
+      </div>
+      <div style="margin-bottom:12px; background:#e8f7ff; border:1px solid #bae6fd; border-radius:8px; padding:10px; display:flex; gap:8px; align-items:center;">
         <span style="font-size:16px;">ℹ️</span>
         <span style="font-size:12px; color:#003369; font-weight:600;">Dê <b>dois cliques</b> no nome ou clique em <b>Editar</b> para corrigir.</span>
-      </div>      <ul id="lista-pendencias" class="names-list" style="
+      </div>
+      <ul id="lista-pendencias" class="names-list" style="
           list-style:none; padding:0; margin:0; 
           max-height:300px; overflow-y:auto; 
           display:flex; flex-direction:column; gap:6px;
@@ -313,7 +362,7 @@ const _listeners = [];function keyFromMatrizes(mp) {
                     border: 1px solid #e8ecf3; 
                     border-radius: 8px; 
                     display: flex; justify-content: space-between; align-items: center;
-                    cursor: pointer; transition: all 0.2s;
+                    cursor: pointer; transition: all 0.2s; user-select: none; /* Evita seleção de texto no duplo clique */
                 "
                 onmouseover="this.style.borderColor='#02B1EE'; this.style.boxShadow='0 2px 5px rgba(2,177,238,0.1)'"
                 onmouseout="this.style.borderColor='#e8ecf3'; this.style.boxShadow='none'"
@@ -329,7 +378,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
             </li>
         `).join('')}
       </ul>
-    `;    modal.innerHTML = `
+    `;
+
+    modal.innerHTML = `
     <div class="modal-card" style="
         background: #fff; 
         border-radius: 12px; 
@@ -351,9 +402,13 @@ const _listeners = [];function keyFromMatrizes(mp) {
       ">
         <span>Pendências: "${coluna}"</span>
         <button data-close-modal style="background:none; border:none; color:#6b7280; font-size:20px; cursor:pointer;">&times;</button>
-      </h3>      <div style="flex:1; overflow:hidden;">
+      </h3>
+
+      <div style="flex:1; overflow:hidden;">
         ${contentHtml}
-      </div>      <div class="form-actions" style="
+      </div>
+
+      <div class="form-actions" style="
         margin-top: 16px; 
         display: flex; 
         justify-content: flex-end; 
@@ -376,15 +431,30 @@ const _listeners = [];function keyFromMatrizes(mp) {
         </button>
       </div>
     </div>
-  `;    document.body.appendChild(modal);    const triggerEdit = (nome) => {
-        if (!nome) return;        document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome: nome}}));        setTimeout(() => {
+  `;
+
+    document.body.appendChild(modal);
+
+    const triggerEdit = (nome) => {
+        if (!nome) return;
+
+                if (typeof garantirModalEdicaoAtivo === 'function') {
+            garantirModalEdicaoAtivo();
+        }
+
+        document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome: nome}}));
+
+                setTimeout(() => {
             const editModal = document.getElementById('editModal');
             if (editModal) {
                 editModal.style.zIndex = '12000';
             }
         }, 50);
-    };    const lista = modal.querySelector('#lista-pendencias');
-    if (lista) {        lista.addEventListener('click', (e) => {
+    };
+
+    const lista = modal.querySelector('#lista-pendencias');
+    if (lista) {
+        lista.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-editar-item');
             if (btn) {
                 e.stopPropagation();
@@ -392,21 +462,31 @@ const _listeners = [];function keyFromMatrizes(mp) {
                 const nome = item?.dataset?.nome;
                 triggerEdit(nome);
             }
-        });        lista.addEventListener('dblclick', (e) => {
+        });
+
+        lista.addEventListener('dblclick', (e) => {
             const item = e.target.closest('.pendencia-item');
-            const selection = window.getSelection();            if (selection && selection.toString().length > 0) return;            if (item) {
+
+
+            if (item) {
                 const nome = item.dataset.nome;
                 triggerEdit(nome);
             }
         });
-    }    modal.querySelectorAll('[data-close-modal]').forEach(el => {
+    }
+
+    modal.querySelectorAll('[data-close-modal]').forEach(el => {
         el.addEventListener('click', () => modal.remove());
     });
-}function renderTable(svcs, colunas, results, totalGeralResults) {
-    if (!ui.resultContainer) return;    const displaySvc = (svc) => {
+}
+
+function renderTable(svcs, colunas, results, totalGeralResults) {
+    if (!ui.resultContainer) return;
+    const displaySvc = (svc) => {
         const matriz = state?.mappings?.svcToMatriz?.get?.(svc) || '';
         return matriz ? `(${svc}) ${matriz}` : svc;
-    };    const colunasDisplay = {
+    };
+    const colunasDisplay = {
         'Gestor': 'Gestor ⚠️',
         'DSR': 'DSR ⚠️',
         'Escala': 'Escala ⚠️',
@@ -416,8 +496,10 @@ const _listeners = [];function keyFromMatrizes(mp) {
         'Data de admissão': 'Dt Admissão ⚠️',
         'Data de nascimento': 'Dt Nascim.',
         'Genero': 'Gênero',
-    };    const headerHtml =
-        `<tr><th>SVC</th>${colunas.map(col => `<th>${colunasDisplay[col] || col}</th>`).join('')}<th>Total</th></tr>`;    let totalRowHtml = '';
+    };
+    const headerHtml =
+        `<tr><th>SVC</th>${colunas.map(col => `<th>${colunasDisplay[col] || col}</th>`).join('')}<th>Total</th></tr>`;
+    let totalRowHtml = '';
     if (totalGeralResults && Object.keys(totalGeralResults).length > 0 && totalGeralResults.totalGeral !== undefined) {
         const totalPercent = totalGeralResults.totalGeral || 0;
         const totalStatusClass = getTotalStatusClass(Math.round(totalPercent));
@@ -425,7 +507,8 @@ const _listeners = [];function keyFromMatrizes(mp) {
             <td class="${totalStatusClass}" style="font-weight:bold;font-size:14px;text-align:center;">
             ${totalPercent.toFixed(0)}%
             </td>
-        `;        totalRowHtml = `
+        `;
+        totalRowHtml = `
             <tr class="total-geral-row" style="background-color: #f0f3f5; font-weight: bold; border-bottom: 2px solid #ccc;">
             <td>TODAS AS OPERAÇÕES</td>
             ${colunas.map(col => {
@@ -443,14 +526,16 @@ const _listeners = [];function keyFromMatrizes(mp) {
             ${totalCellHtml}
             </tr>
         `;
-    }    const bodyHtml = svcs.map(svc => {
+    }
+    const bodyHtml = svcs.map(svc => {
         const totalPercent = results[svc]?.totalGeral || 0;
         const totalStatusClass = getTotalStatusClass(Math.round(totalPercent));
         const totalCellHtml = `
       <td class="${totalStatusClass}" style="font-weight:bold;font-size:14px;text-align:center;">
         ${totalPercent.toFixed(0)}%
       </td>
-    `;        return `
+    `;
+        return `
       <tr>
         <td>${displaySvc(svc)}</td>
         ${colunas.map(col => {
@@ -468,14 +553,16 @@ const _listeners = [];function keyFromMatrizes(mp) {
         ${totalCellHtml}
       </tr>
     `;
-    }).join('');    ui.resultContainer.innerHTML = `
+    }).join('');
+    ui.resultContainer.innerHTML = `
     <div class="table-container">
       <table class="main-table">
         <thead>${headerHtml}</thead>
         <tbody>${totalRowHtml}${bodyHtml}</tbody>
       </table>
     </div>
-  `;    const table = ui.resultContainer.querySelector('.main-table');
+  `;
+    const table = ui.resultContainer.querySelector('.main-table');
     if (table) {
         table.addEventListener('dblclick', (event) => {
             const cell = event.target.closest('td[data-svc]');
@@ -483,23 +570,34 @@ const _listeners = [];function keyFromMatrizes(mp) {
             showDetailsModal(cell.dataset.svc, cell.dataset.coluna);
         });
     }
-}async function generateReport() {
+}
+
+async function generateReport() {
     if (ui?.loader) ui.loader.style.display = 'flex';
-    if (ui?.resultContainer) ui.resultContainer.innerHTML = `<p class="p-4 text-center">Gerando relatório...</p>`;    try {
-        const {colaboradores, svcToGerente, svcToMatriz, matrizes, gerentes, svcs} = await fetchDataCached();        state.universe.svcs = svcs;
+    if (ui?.resultContainer) ui.resultContainer.innerHTML = `<p class="p-4 text-center">Gerando relatório...</p>`;
+    try {
+        const {colaboradores, svcToGerente, svcToMatriz, matrizes, gerentes, svcs} = await fetchDataCached();
+        state.universe.svcs = svcs;
         state.universe.matrizes = matrizes;
         state.universe.gerentes = gerentes;
         state.mappings.svcToGerente = svcToGerente;
-        state.mappings.svcToMatriz = svcToMatriz;        ensureFiltersBar();
-        recomputeAndSyncFilterOptions();        const filtrados = applyUserFilters(colaboradores, state.filters, state.mappings);        const {svcs: svcsGroup, results, colunas, totalGeralResults} = processDataQuality(filtrados);        if (svcsGroup.length > 0) {
+        state.mappings.svcToMatriz = svcToMatriz;
+        ensureFiltersBar();
+        recomputeAndSyncFilterOptions();
+        const filtrados = applyUserFilters(colaboradores, state.filters, state.mappings);
+        const {svcs: svcsGroup, results, colunas, totalGeralResults} = processDataQuality(filtrados);
+        if (svcsGroup.length > 0) {
             svcsGroup.sort((a, b) => {
                 const avgA = results[a]?.totalGeral || 0;
                 const avgB = results[b]?.totalGeral || 0;
-                if (avgA !== avgB) return avgB - avgA;                const count100A = colunas.filter(col => (results[a][col]?.percentual || 0) === 100).length;
+                if (avgA !== avgB) return avgB - avgA;
+                const count100A = colunas.filter(col => (results[a][col]?.percentual || 0) === 100).length;
                 const count100B = colunas.filter(col => (results[b][col]?.percentual || 0) === 100).length;
-                if (count100A !== count100B) return count100B - count100A;                return a.localeCompare(b);
+                if (count100A !== count100B) return count100B - count100A;
+                return a.localeCompare(b);
             });
-        }        if (filtrados.length === 0) {
+        }
+        if (filtrados.length === 0) {
             ui.resultContainer.innerHTML = '<p class="p-4 text-center">Nenhum colaborador encontrado para o filtro selecionado.</p>';
         } else {
             renderTable(svcsGroup, colunas, results, totalGeralResults);
@@ -512,33 +610,45 @@ const _listeners = [];function keyFromMatrizes(mp) {
     } finally {
         if (ui?.loader) ui.loader.style.display = 'none';
     }
-}export function init() {
-    if (state.mounted) return;    if (document.getElementById('editModal')) {
+}
+
+export function init() {
+    if (state.mounted) return;
+    if (document.getElementById('editModal')) {
         garantirModalEdicaoAtivo();
-    }    ui = {
+    }
+    ui = {
         resultContainer: document.getElementById('dados-op-result'),
         loader: document.getElementById('dados-op-loader'),
         matrizSelect: null,
         gerenteSelect: null,
         svcSelect: null,
         clearBtn: null,
-    };    const evts = ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed', 'dadosop-invalidate'];
+    };
+    const evts = ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed', 'dadosop-invalidate'];
     const matrizesPermitidas = getMatrizesPermitidas();
-    const key = keyFromMatrizes(matrizesPermitidas);    evts.forEach(name => {
+    const key = keyFromMatrizes(matrizesPermitidas);
+    evts.forEach(name => {
         const handler = () => {
             invalidateCache([key]);
             generateReport();
         };
         window.addEventListener(name, handler);
         _listeners.push(() => window.removeEventListener(name, handler));
-    });    state.mounted = true;    ensureFiltersBar();
+    });
+    state.mounted = true;
+    ensureFiltersBar();
     recomputeAndSyncFilterOptions();
     generateReport();
-}export function destroy() {
+}
+
+export function destroy() {
     const modal = document.getElementById('dados-op-details-modal');
-    if (modal) modal.remove();    try {
+    if (modal) modal.remove();
+    try {
         _listeners.forEach(off => off());
     } catch {
     }
-    _listeners.length = 0;    state.mounted = false;
+    _listeners.length = 0;
+    state.mounted = false;
 }
