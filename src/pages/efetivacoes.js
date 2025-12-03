@@ -2971,7 +2971,8 @@ let inputCc;function initControleVagas() {
         if (val === 'SUBSTITUIÇÃO') div.classList.remove('hidden');
         else div.classList.add('hidden');
     }
-}async function fetchVagas() {
+}
+async function fetchVagas() {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando vagas...</td></tr>';
     const {data, error} = await supabase
