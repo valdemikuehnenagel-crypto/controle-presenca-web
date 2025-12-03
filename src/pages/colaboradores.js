@@ -11,6 +11,7 @@ import {logAction} from '../../logAction.js';let state = {
     contratosData: null,
     isUserAdmin: false,
     gestoresData: [],
+    matrizGerenciaMap: new Map(),
     matrizesData: [],
     feriasAtivasMap: new Map()
 };
@@ -71,6 +72,26 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.warn('Falha ao invalidar cache compartilhado', e);
     }
     console.log("Cache de colaboradores e férias invalidado.");
+}async function ensureMatrizesDataLoaded() {
+    if (state.matrizesData.length > 0) return;    try {        const {data, error} = await supabase
+            .from('Matrizes')
+            .select('SERVICE, MATRIZ, REGIAO, GERENCIA');        if (error) throw error;        state.matrizesData = data || [];        state.serviceMatrizMap = new Map();
+        state.serviceRegiaoMap = new Map();
+        state.matrizRegiaoMap = new Map();
+        state.matrizGerenciaMap = new Map();        state.matrizesData.forEach(item => {
+            const svc = String(item.SERVICE || '').toUpperCase().trim();
+            const mtz = String(item.MATRIZ || '').toUpperCase().trim();
+            const reg = String(item.REGIAO || '').toUpperCase().trim();
+            const ger = String(item.GERENCIA || '').toUpperCase().trim();            if (svc) {
+                state.serviceMatrizMap.set(svc, mtz);
+                state.serviceRegiaoMap.set(svc, reg);
+            }
+            if (mtz) {
+                state.matrizRegiaoMap.set(mtz, reg);                if (ger) state.matrizGerenciaMap.set(mtz, ger);
+            }
+        });    } catch (e) {
+        console.error('Erro ao carregar dados de Matrizes/Gerência:', e);
+    }
 }function mapearDadosRhParaFormulario(candidato) {
     let contratoFormatado = (candidato.EmpresaContratante || '').toUpperCase();
     if (contratoFormatado.includes('AST')) contratoFormatado = 'AST';
@@ -458,10 +479,14 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return iso;
     }
 }async function verificarPendencias(colab, dataDesligamentoStr) {
-    const pendencias = [];    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);    const trintaDiasAtras = new Date(hoje);
-    trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);    let dataLimite = new Date(hoje);
-    dataLimite.setDate(dataLimite.getDate() - 1);    if (dataDesligamentoStr) {
+    const pendencias = [];
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const trintaDiasAtras = new Date(hoje);
+    trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+    let dataLimite = new Date(hoje);
+    dataLimite.setDate(dataLimite.getDate() - 1);
+    if (dataDesligamentoStr) {
         const dtDesligamento = new Date(dataDesligamentoStr);
         if (!isNaN(dtDesligamento.getTime())) {
             dtDesligamento.setHours(0, 0, 0, 0);
@@ -469,25 +494,33 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 dataLimite = dtDesligamento;
             }
         }
-    }    let inicioVerificacao = new Date(trintaDiasAtras);
+    }
+    let inicioVerificacao = new Date(trintaDiasAtras);
     if (colab['Data de admissão']) {
         const parts = colab['Data de admissão'].split('-');
         const dtAdm = new Date(parts[0], parts[1] - 1, parts[2]);
-        dtAdm.setHours(0, 0, 0, 0);        if (dtAdm > inicioVerificacao) {
+        dtAdm.setHours(0, 0, 0, 0);
+        if (dtAdm > inicioVerificacao) {
             inicioVerificacao = dtAdm;
-        }        if (dtAdm > dataLimite) {
+        }
+        if (dtAdm > dataLimite) {
             return [];
         }
-    }    if (dataLimite < inicioVerificacao) return [];    const startISO = inicioVerificacao.toISOString().split('T')[0];
-    const endISO = dataLimite.toISOString().split('T')[0];    const { data: registros, error } = await supabase
+    }
+    if (dataLimite < inicioVerificacao) return [];
+    const startISO = inicioVerificacao.toISOString().split('T')[0];
+    const endISO = dataLimite.toISOString().split('T')[0];
+    const {data: registros, error} = await supabase
         .from('ControleDiario')
         .select('Data, Presença, Falta, Atestado, "Folga Especial", Suspensao, Feriado')
         .eq('Nome', colab.Nome)
         .gte('Data', startISO)
-        .lte('Data', endISO);    if (error) {
+        .lte('Data', endISO);
+    if (error) {
         console.error('Erro ao verificar pendências:', error);
         return [];
-    }    const datasPreenchidas = new Set();
+    }
+    const datasPreenchidas = new Set();
     (registros || []).forEach(r => {
         const hasMarcacao =
             r['Presença'] === 1 || r['Presença'] === true ||
@@ -495,18 +528,22 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             r['Atestado'] === 1 || r['Atestado'] === true ||
             r['Folga Especial'] === 1 || r['Folga Especial'] === true ||
             r['Suspensao'] === 1 || r['Suspensao'] === true ||
-            r['Feriado'] === 1 || r['Feriado'] === true;        if (hasMarcacao) {
+            r['Feriado'] === 1 || r['Feriado'] === true;
+        if (hasMarcacao) {
             datasPreenchidas.add(r.Data);
         }
-    });    const { data: ferias } = await supabase
+    });
+    const {data: ferias} = await supabase
         .from('Ferias')
         .select('"Data Inicio", "Data Final"')
         .eq('Nome', colab.Nome)
-        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);    const { data: afastamentos } = await supabase
+        .or(`"Data Final".gte.${startISO},"Data Inicio".lte.${endISO}`);
+    const {data: afastamentos} = await supabase
         .from('Afastamentos')
         .select('"DATA INICIO", "DATA RETORNO"')
         .eq('NOME', colab.Nome)
-        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO},"DATA RETORNO".is.null`);    const isAusenciaLegitima = (dateStr) => {
+        .or(`"DATA RETORNO".gte.${startISO},"DATA INICIO".lte.${endISO},"DATA RETORNO".is.null`);
+    const isAusenciaLegitima = (dateStr) => {
         if (ferias) {
             for (const f of ferias) {
                 if (dateStr >= f['Data Inicio'] && dateStr <= f['Data Final']) return true;
@@ -519,21 +556,31 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }
         }
         return false;
-    };    const cursor = new Date(inicioVerificacao);
-    cursor.setHours(0, 0, 0, 0);    const limiteComparacao = new Date(dataLimite);
-    limiteComparacao.setHours(0, 0, 0, 0);    const dsrString = (colab.DSR || '').toUpperCase();    while (cursor <= limiteComparacao) {
+    };
+    const cursor = new Date(inicioVerificacao);
+    cursor.setHours(0, 0, 0, 0);
+    const limiteComparacao = new Date(dataLimite);
+    limiteComparacao.setHours(0, 0, 0, 0);
+    const dsrString = (colab.DSR || '').toUpperCase();
+    while (cursor <= limiteComparacao) {
         const y = cursor.getFullYear();
         const m = String(cursor.getMonth() + 1).padStart(2, '0');
         const d = String(cursor.getDate()).padStart(2, '0');
-        const diaISO = `${y}-${m}-${d}`;        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];
-        let cobrar = true;        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
+        const diaISO = `${y}-${m}-${d}`;
+        const diaSemana = DIAS_DA_SEMANA[cursor.getDay()];
+        let cobrar = true;
+        if (dsrString.includes(diaSemana) || (diaSemana === 'DOMINGO' && dsrString === '')) {
             cobrar = false;
-        }        if (cobrar && isAusenciaLegitima(diaISO)) {
+        }
+        if (cobrar && isAusenciaLegitima(diaISO)) {
             cobrar = false;
-        }        if (cobrar && !datasPreenchidas.has(diaISO)) {
+        }
+        if (cobrar && !datasPreenchidas.has(diaISO)) {
             pendencias.push(formatDateLocal(diaISO));
-        }        cursor.setDate(cursor.getDate() + 1);
-    }    return pendencias;
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return pendencias;
 }function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
@@ -1082,132 +1129,159 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
 }function populateFilters() {
     if (!filtrosSelect) return;
     const filtros = {
-        Contrato: new Set(), Cargo: new Set(), Escala: new Set(), DSR: new Set(),
-        Gestor: new Set(), MATRIZ: new Set(), SVC: new Set(), REGIAO: new Set(),
+        Contrato: new Set(),
+        Cargo: new Set(),
+        Escala: new Set(),
+        DSR: new Set(),
+        Gestor: new Set(),
+        MATRIZ: new Set(),
+        Gerencia: new Set(),
+        REGIAO: new Set(),
         'FOLGA ESPECIAL': new Set()
-    };
-    state.colaboradoresData.forEach((c) => {
+    };    state.colaboradoresData.forEach((c) => {
         Object.keys(filtros).forEach((key) => {
-            const v = c[key];
-            if (v !== undefined && v !== null && String(v) !== '') {
-                filtros[key].add(String(v));
+            let v;            if (key === 'Gerencia') {                const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
+                v = state.matrizGerenciaMap.get(mtzColab);
+            } else if (key === 'SVC') {
+                return;
+            } else {
+                v = c[key];
+            }            if (v !== undefined && v !== null && String(v).trim() !== '') {
+                filtros[key].add(String(v).toUpperCase().trim());
             }
         });
-    });
-    filtrosSelect.forEach((selectEl) => {
+    });    filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
-        if (!key || !(key in filtros)) return;
-        const valorSalvo = selectEl.value;
+        if (!key || !(key in filtros)) return;        const valorSalvo = selectEl.value;
         const options = Array.from(filtros[key]).sort((a, b) =>
             a.localeCompare(b, 'pt-BR', {sensitivity: 'base'})
-        );
-        while (selectEl.options.length > 1) selectEl.remove(1);
-        options.forEach((option) => {
+        );        while (selectEl.options.length > 1) selectEl.remove(1);        options.forEach((option) => {
             const optionEl = document.createElement('option');
             optionEl.value = option;
             optionEl.textContent = option;
             selectEl.appendChild(optionEl);
-        });
-        if (key === 'Contrato') {
+        });        if (key === 'Contrato') {
             const optionEl = document.createElement('option');
             optionEl.value = 'Consultorias';
             optionEl.textContent = 'Consultorias';
             selectEl.appendChild(optionEl);
-        }
-        selectEl.value = valorSalvo;
+        }        selectEl.value = valorSalvo;
     });
 }function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
         .map(term => term.trim().toLowerCase())
-        .filter(term => term.length > 0);
-    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
+        .filter(term => term.length > 0);    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
         for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
-            if (!activeVal) continue;
-            if (key === 'Contrato' && activeVal === 'Consultorias') {
+            if (!activeVal) continue;            if (key === 'Contrato' && activeVal === 'Consultorias') {
                 if (String(colaborador?.['Contrato'] ?? '').toUpperCase() === 'KN') {
                     return false;
                 }
                 continue;
-            }
-            const colVal = String(colaborador?.[key] ?? '');
-            if (colVal !== activeVal) return false;
-        }
-        if (searchTerms.length === 0) {
+            }            let colVal;
+            if (key === 'Gerencia') {
+                const mtzColab = String(colaborador.MATRIZ || '').toUpperCase().trim();
+                colVal = state.matrizGerenciaMap.get(mtzColab) || '';
+            } else {
+                colVal = String(colaborador?.[key] ?? '');
+            }            if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
+        }        if (searchTerms.length === 0) {
             return true;
-        }
-        return searchTerms.some(term =>
+        }        return searchTerms.some(term =>
             String(colaborador.Nome || '').toLowerCase().includes(term) ||
             String(colaborador.CPF || '').toLowerCase().includes(term) ||
             String(colaborador['ID GROOT'] || '').toLowerCase().includes(term) ||
             String(colaborador.LDAP || '').toLowerCase().includes(term) ||
             String(colaborador.Fluxo || '').toLowerCase().includes(term)
         );
-    });
-    itensVisiveis = ITENS_POR_PAGINA;
+    });    itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
-    updateDisplay();
+    updateDisplay();    if (typeof updatePendingImportCounter === 'function') {
+        updatePendingImportCounter();
+    }
 }function repopulateFilterOptionsCascade() {
-    if (!filtrosSelect || !filtrosSelect.length) return;
-    filtrosSelect.forEach((selectEl) => {
+    if (!filtrosSelect || !filtrosSelect.length) return;    filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
-        if (!key) return;
-        const searchTerm = (searchInput?.value || '').toLowerCase();
-        const tempFiltrado = state.colaboradoresData.filter((c) => {
+        if (!key) return;        const searchTerm = (searchInput?.value || '').toLowerCase();        const tempFiltrado = state.colaboradoresData.filter((c) => {
             for (const k in state.filtrosAtivos) {
                 if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, k)) continue;
-                if (k === key) continue;
-                const activeVal = state.filtrosAtivos[k];
-                if (!activeVal) continue;
-                if (k === 'Contrato' && activeVal === 'Consultorias') {
-                    if (String(c?.['Contrato'] ?? '').toUpperCase() === 'KN') {
-                        return false;
-                    }
+                if (k === key) continue;                const activeVal = state.filtrosAtivos[k];
+                if (!activeVal) continue;                if (k === 'Contrato' && activeVal === 'Consultorias') {
+                    if (String(c?.['Contrato'] ?? '').toUpperCase() === 'KN') return false;
                     continue;
-                }
-                const colVal = String(c?.[k] ?? '');
-                if (colVal !== activeVal) return false;
-            }
-            if (!searchTerm) return true;
-            return (
+                }                let colVal;
+                if (k === 'Gerencia') {
+                    const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
+                    colVal = state.matrizGerenciaMap.get(mtzColab) || '';
+                } else {
+                    colVal = String(c?.[k] ?? '');
+                }                if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
+            }            if (!searchTerm) return true;            return (
                 String(c.Nome || '').toLowerCase().includes(searchTerm) ||
                 String(c.CPF || '').toLowerCase().includes(searchTerm) ||
                 String(c['ID GROOT'] || '').toLowerCase().includes(searchTerm) ||
                 String(c.LDAP || '').toLowerCase().includes(searchTerm) ||
                 String(c.Fluxo || '').toLowerCase().includes(searchTerm)
             );
-        });
-        const valores = new Set();
+        });        const valores = new Set();
         tempFiltrado.forEach((c) => {
-            const v = c?.[key];
-            if (v != null && v !== '') valores.add(String(v));
-        });
-        const selecionadoAntes = selectEl.value || '';
-        while (selectEl.options.length > 1) selectEl.remove(1);
-        Array.from(valores)
+            let v;
+            if (key === 'Gerencia') {                const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
+                v = state.matrizGerenciaMap.get(mtzColab);
+            } else {
+                v = c?.[key];
+            }            if (v != null && v !== '') valores.add(String(v).toUpperCase().trim());
+        });        const selecionadoAntes = selectEl.value || '';
+        while (selectEl.options.length > 1) selectEl.remove(1);        Array.from(valores)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .forEach((optVal) => {
                 const o = document.createElement('option');
                 o.value = optVal;
                 o.textContent = optVal;
                 selectEl.appendChild(o);
-            });
-        if (key === 'Contrato') {
+            });        if (key === 'Contrato') {
             const o = document.createElement('option');
             o.value = 'Consultorias';
             o.textContent = 'Consultorias';
             selectEl.appendChild(o);
-        }
-        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
+        }        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
             selectEl.value = selecionadoAntes;
         } else {
             if (state.filtrosAtivos[key]) delete state.filtrosAtivos[key];
             selectEl.selectedIndex = 0;
         }
     });
+}function updatePendingImportCounter() {    if (!state.pendingImportsRaw || state.pendingImportsRaw.length === 0) {
+        hidePendingImportAlert();
+        return;
+    }    const nomesCadastrados = new Set(
+        state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
+    );    const pendentesFiltrados = state.pendingImportsRaw.filter(vaga => {        const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
+        if (!nomeCandidato || nomesCadastrados.has(nomeCandidato)) return false;        for (const key in state.filtrosAtivos) {
+            if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
+            const activeVal = state.filtrosAtivos[key];
+            if (!activeVal) continue;            let vagaVal = '';            if (key === 'MATRIZ') {
+                vagaVal = vaga.MATRIZ;
+            } else if (key === 'Contrato') {
+                vagaVal = vaga.EmpresaContratante;
+            } else if (key === 'Gerencia') {                const mtzVaga = String(vaga.MATRIZ || '').toUpperCase().trim();                vagaVal = state.matrizGerenciaMap.get(mtzVaga) || vaga.Gestor;
+            } else if (key === 'Cargo') {
+                vagaVal = vaga.Cargo;
+            } else if (key === 'REGIAO') {                vagaVal = computeRegiaoFromSvcMatriz(null, vaga.MATRIZ);
+            } else {                continue;
+            }            if (vagaVal && String(vagaVal).toUpperCase().trim() !== String(activeVal).toUpperCase().trim()) {
+                return false;
+            }
+        }
+        return true;
+    });    if (pendentesFiltrados.length > 0) {
+        showPendingImportAlert(pendentesFiltrados.length);
+    } else {
+        hidePendingImportAlert();
+    }
 }function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
@@ -1218,32 +1292,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
 }async function checkPendingImports() {
-    const matrizesPermitidas = getMatrizesPermitidas();
-    let query = supabase
+    const matrizesPermitidas = getMatrizesPermitidas();    let query = supabase
         .from('Vagas')
-        .select('CandidatoAprovado, MATRIZ')
+        .select('CandidatoAprovado, MATRIZ, Gestor, Cargo, EmpresaContratante')
         .eq('Status', 'EM ADMISSÃO')
-        .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');
-    if (matrizesPermitidas !== null) {
+        .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');    if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
-    }
-    const {data: vagasCandidatos, error} = await query;
-    if (error || !vagasCandidatos || vagasCandidatos.length === 0) {
+    }    const {data: vagasCandidatos, error} = await query;    if (error || !vagasCandidatos) {
+        state.pendingImportsRaw = [];
         hidePendingImportAlert();
         return;
-    }
-    const nomesCadastrados = new Set(
-        state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
-    );
-    const pendentes = vagasCandidatos.filter(vaga => {
-        const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
-        return nomeCandidato && !nomesCadastrados.has(nomeCandidato);
-    });
-    if (pendentes.length > 0) {
-        showPendingImportAlert(pendentes.length);
-    } else {
-        hidePendingImportAlert();
-    }
+    }    state.pendingImportsRaw = vagasCandidatos;    updatePendingImportCounter();
 }function showPendingImportAlert(count) {
     let alertDiv = document.getElementById('pending-import-alert');
     if (!alertDiv) {
@@ -2280,26 +2339,6 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}function calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
-    if (!dataAdmissao) return '0';
-    const inicio = new Date(dataAdmissao);
-    const fim = new Date(dataDesligamento);
-    if (isNaN(inicio.getTime())) return '0';
-    const inicioUTC = Date.UTC(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
-    const fimUTC = Date.UTC(fim.getFullYear(), fim.getMonth(), fim.getDate());
-    const dias = Math.floor((fimUTC - inicioUTC) / (1000 * 60 * 60 * 24));
-    if (dias < 0) return 'Data inválida';
-    if (dias === 0) return '0';
-    if (dias <= 15) return `${dias} dia(s)`;
-    let meses = (fim.getFullYear() - inicio.getFullYear()) * 12;
-    meses -= inicio.getMonth();
-    meses += fim.getMonth();
-    const anos = Math.floor(meses / 12);
-    const mesesRestantes = meses % 12;
-    if (meses < 1) return 'Menos de 1 mês';
-    if (meses < 2) return '1 mês';
-    if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
-    return `${meses} mes(es)`;
 }function openDesligarModalFromColab(colab) {
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
@@ -2331,31 +2370,22 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function ensureColaboradorInativado(nome, tentativas = 4, delayMs = 200) {
-    for (let i = 0; i < tentativas; i++) {
-        const {data, error} = await supabase
-            .from('Colaboradores')
-            .select('Ativo')
-            .eq('Nome', nome)
-            .maybeSingle();
-        if (error) throw error;
-        if (data && data.Ativo === 'NÃO') return true;
-        if (!data) return true;
-        await sleep(delayMs);
-    }
-    return false;
-}async function onDesligarSubmit(e) {
-    e.preventDefault();    if (!desligarColaborador) {
+}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function onDesligarSubmit(e) {
+    e.preventDefault();
+    if (!desligarColaborador) {
         await window.customAlert('Erro: colaborador não carregado.', 'Erro');
         return;
-    }    if (document.body.classList.contains('user-level-visitante')) {
+    }
+    if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
-    }    const nome = desligarColaborador.Nome;
+    }
+    const nome = desligarColaborador.Nome;
     const dataAgendadaInput = (desligarDataEl?.value || '').trim();
     let motivo = (desligarMotivoEl?.value || '').trim();
     const isKN = (desligarColaborador.Contrato || '').trim().toUpperCase() === 'KN';
-    const smartoffVal = desligarSmartoffEl ? desligarSmartoffEl.value.trim() : null;    if (isKN) {
+    const smartoffVal = desligarSmartoffEl ? desligarSmartoffEl.value.trim() : null;
+    if (isKN) {
         if (!smartoffVal) {
             await window.customAlert('Para colaboradores KN, o Número Smart é obrigatório.', 'Campo Obrigatório');
             return;
@@ -2371,27 +2401,35 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             desligarSmartoffEl.focus();
             return;
         }
-    }    if (!dataAgendadaInput) {
+    }
+    if (!dataAgendadaInput) {
         await window.customAlert('Informe a data prevista para o desligamento.', 'Campo Obrigatório');
         return;
-    }    if (!motivo) {
+    }
+    if (!motivo) {
         await window.customAlert('Selecione o motivo.', 'Campo Obrigatório');
         return;
-    }    let timestampSolicitacao;
+    }
+    let timestampSolicitacao;
     try {
         timestampSolicitacao = getLocalISOString(new Date());
     } catch (err) {
         console.error("Erro ao gerar timestamp:", err);
         timestampSolicitacao = new Date().toISOString();
-    }    const dataAgendadaFormatada = dataAgendadaInput.split('-').reverse().join('/');
-    const motivoCompleto = `${motivo} (Data Prevista: ${dataAgendadaFormatada})`;    const btnSubmit = desligarConfirmarBtn;
+    }
+    const dataAgendadaFormatada = dataAgendadaInput.split('-').reverse().join('/');
+    const motivoCompleto = `${motivo} (Data Prevista: ${dataAgendadaFormatada})`;
+    const btnSubmit = desligarConfirmarBtn;
     const txtOriginal = btnSubmit.textContent;
     btnSubmit.textContent = 'Verificando pendências...';
-    btnSubmit.disabled = true;    let listaPendencias = [];
-    try {        const colabAtualizado = await fetchColabByNome(nome);
+    btnSubmit.disabled = true;
+    let listaPendencias = [];
+    try {
+        const colabAtualizado = await fetchColabByNome(nome);
         if (colabAtualizado) {
             listaPendencias = await verificarPendencias(colabAtualizado, dataAgendadaInput);
-        } else {            listaPendencias = await verificarPendencias(desligarColaborador, dataAgendadaInput);
+        } else {
+            listaPendencias = await verificarPendencias(desligarColaborador, dataAgendadaInput);
         }
     } catch (err) {
         console.error("Erro verificando pendencias:", err);
@@ -2402,14 +2440,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } finally {
         btnSubmit.textContent = txtOriginal;
         btnSubmit.disabled = false;
-    }    if (listaPendencias.length > 0) {
+    }
+    if (listaPendencias.length > 0) {
         const listaExibicao = listaPendencias.slice(0, 10).join('<br>');
-        const mais = listaPendencias.length > 10 ? `<br>...e mais ${listaPendencias.length - 10} dias.` : '';        await window.customAlert(
+        const mais = listaPendencias.length > 10 ? `<br>...e mais ${listaPendencias.length - 10} dias.` : '';
+        await window.customAlert(
             `Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário.<br><br><b>Datas pendentes:</b><br>${listaExibicao}${mais}`,
             'Pendências Encontradas'
         );
         return;
-    }    let solicitante = 'Gestor Desconhecido';
+    }
+    let solicitante = 'Gestor Desconhecido';
     try {
         const userSession = localStorage.getItem('userSession');
         if (userSession) {
@@ -2417,11 +2458,14 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     } catch (e) {
         console.warn('Erro ao ler sessão', e);
-    }    const ok = await window.customConfirm(
+    }
+    const ok = await window.customConfirm(
         `Confirmar solicitação de desligamento para <b>"${nome}"</b>?<br>Data Prevista: <b>${dataAgendadaFormatada}</b>`,
         'Confirmar Desligamento',
         'danger'
-    );    if (!ok) return;    try {
+    );
+    if (!ok) return;
+    try {
         const payload = {
             Ativo: 'PEN',
             StatusDesligamento: 'PENDENTE',
@@ -2430,16 +2474,22 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             MotivoDesligamento: motivoCompleto,
             SolicitanteDesligamento: solicitante,
             Smartoff: isKN ? smartoffVal : null
-        };        const {error} = await supabase
+        };
+        const {error} = await supabase
             .from('Colaboradores')
             .update(payload)
-            .eq('Nome', nome);        if (error) throw error;        await window.customAlert('Solicitação enviada com sucesso!', 'Sucesso');        logAction(
+            .eq('Nome', nome);
+        if (error) throw error;
+        await window.customAlert('Solicitação enviada com sucesso!', 'Sucesso');
+        logAction(
             `Enviou solicitação de desligamento: ${nome} ` +
             `(Solicitado em: ${formatDateTimeLocal(timestampSolicitacao)}, Para: ${dataAgendadaFormatada})`
-        );        closeDesligarModal();
+        );
+        closeDesligarModal();
         hideEditModal();
         invalidateColaboradoresCache();
-        await fetchColaboradores();    } catch (err) {
+        await fetchColaboradores();
+    } catch (err) {
         console.error('Erro desligamento:', err);
         await window.customAlert(`Erro ao enviar: ${err.message || err}`, 'Erro');
     }
@@ -3250,37 +3300,30 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}export function init() {
+}export async function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
-    wireTabelaColaboradoresEventos();
-    searchInput = document.getElementById('search-input');
+    wireTabelaColaboradoresEventos();    searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
     limparFiltrosBtn = document.getElementById('limpar-filtros-btn');
     addColaboradorBtn = document.getElementById('add-colaborador-btn');
     mostrarMaisBtn = document.getElementById('mostrar-mais-btn');
     mostrarMenosBtn = document.getElementById('mostrar-menos-btn');
-    contadorVisiveisEl = document.getElementById('contador-visiveis');
-    addForm = document.getElementById('addForm');
+    contadorVisiveisEl = document.getElementById('contador-visiveis');    addForm = document.getElementById('addForm');
     dropdownAdd = document.getElementById('dropdownAdd');
     btnAdicionarManual = document.getElementById('btnAdicionarManual');
     btnImportarRH = document.getElementById('btnImportarRH');
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
-    fecharModalRH = document.getElementById('fecharModalRH');
-    checkUserAdminStatus();
-    fetchColaboradores();
-    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
-    if (filtrosSelect && filtrosSelect.length) {
+    fecharModalRH = document.getElementById('fecharModalRH');    checkUserAdminStatus();    await ensureMatrizesDataLoaded();    fetchColaboradores();    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);    if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
             selectEl.addEventListener('change', (event) => {
                 const filterKey = selectEl.dataset.filterKey;
                 const value = event.target.value;
-                if (value) state.filtrosAtivos[filterKey] = value; else delete state.filtrosAtivos[filterKey];
-                applyFiltersAndSearch();
+                if (value) state.filtrosAtivos[filterKey] = value;
+                else delete state.filtrosAtivos[filterKey];                applyFiltersAndSearch();
             });
         });
-    }
-    if (limparFiltrosBtn) {
+    }    if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
@@ -3292,55 +3335,46 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
             applyFiltersAndSearch();
         });
-    }
-    if (mostrarMaisBtn) {
+    }    if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
             updateDisplay();
         });
-    }
-    if (mostrarMenosBtn) {
+    }    if (mostrarMenosBtn) {
         mostrarMenosBtn.addEventListener('click', () => {
             itensVisiveis = Math.max(ITENS_POR_PAGINA, itensVisiveis - ITENS_POR_PAGINA);
             updateDisplay();
         });
-    }
-    if (addColaboradorBtn) {
+    }    if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
-    }
-    document.addEventListener('click', (event) => {
+    }    document.addEventListener('click', (event) => {
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
-    });
-    if (btnAdicionarManual) {
+    });    if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
             await prepararFormularioAdicao();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
             preencherFormularioAdicao({});
         });
-    }
-    if (btnImportarRH) {
+    }    if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
             modalListaRH.classList.remove('hidden');
             fetchCandidatosAprovados();
         });
-    }
-    if (fecharModalRH) {
+    }    if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
-    }
-    window.addEventListener('click', (e) => {
+    }    window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
-    });
-    if (addForm) {
+    });    if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
         const svcSelect = document.getElementById('addSVC');
@@ -3357,8 +3391,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 openDsrModal(document.getElementById('addDSR'));
             });
         }
-    }
-    if (colaboradoresTbody) {
+    }    if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
@@ -3380,8 +3413,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 invalidateColaboradoresCache();
             }
         });
-    }
-    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
+    }    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
             if (!state.colaboradoresData.length) {
@@ -3391,8 +3423,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             const hasSearch = !!(searchInput && searchInput.value && searchInput.value.trim() !== '');
             const hasFilters = Object.keys(state.filtrosAtivos).length > 0;
             const filteredDifferent = state.dadosFiltrados.length !== state.colaboradoresData.length;
-            const useFiltered = hasSearch || hasFilters || filteredDifferent;
-            exportColaboradoresBtn.disabled = true;
+            const useFiltered = hasSearch || hasFilters || filteredDifferent;            exportColaboradoresBtn.disabled = true;
             try {
                 await exportColaboradoresXLSX(useFiltered);
             } catch (e) {
@@ -3402,12 +3433,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 exportColaboradoresBtn.disabled = false;
             }
         });
-    }
-    const gerarQRBtn = document.getElementById('gerar-qr-btn');
+    }    const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
-    }
-    wireEdit();
+    }    wireEdit();
     wireDesligar();
     wireFerias();
     wireFluxoEfetivacao();
