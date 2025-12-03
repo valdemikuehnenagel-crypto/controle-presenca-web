@@ -105,9 +105,22 @@ async function fetchDataCached() {
             .from('Colaboradores')
             .select('Nome, SVC, "Data de admissão", "Data de nascimento", LDAP, "ID GROOT", Gestor, MATRIZ, Cargo, Escala, DSR, Genero')
             .eq('Ativo', 'SIM');
-        if (matrizesPermitidas && matrizesPermitidas.length) colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
-        const colaboradores = await fetchAllPages(colabQuery);
+
+        if (matrizesPermitidas && matrizesPermitidas.length) {
+            colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
+        }
+
+        const todosColaboradores = await fetchAllPages(colabQuery);
+
+
+        const colaboradores = todosColaboradores.filter(c => {
+            const cargo = c.Cargo ? String(c.Cargo).toUpperCase().trim() : '';
+            return cargo === 'AUXILIAR';
+        });
+
+
         colaboradores.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
+
         const maps = await fetchMatrizesMappings();
         return {colaboradores, ...maps};
     });
