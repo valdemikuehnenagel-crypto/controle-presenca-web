@@ -457,7 +457,7 @@ function formatCargoShort(cargo) {
 async function showAvisoDesligamento() {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
-        overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]';
+        overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[20000]';
         overlay.innerHTML = `
             <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full p-6 animate-scaleIn">
                 <div class="flex items-center gap-3 mb-4 text-amber-600">
@@ -910,7 +910,7 @@ function checkUserAdminStatus() {
 function promptForDate(title, defaultDate) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:20000;';
         const modal = document.createElement('div');
         modal.style.cssText = 'background:white; padding:20px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); width: 300px;';
         const titleEl = document.createElement('h3');
@@ -3795,4 +3795,12 @@ export function destroy() {
     } catch {
     }
     console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
+}
+
+
+export function garantirModalEdicaoAtivo() {
+    if (!editModal || editModal.dataset.wired !== '1') {
+        console.log("Iniciando Modal de Edição via Dados Operacionais...");
+        wireEdit();
+    }
 }

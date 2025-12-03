@@ -170,23 +170,24 @@ const MIN_SEGMENT_PERCENT = 9;function cacheKeyForColabs() {
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return diffDays < 0 ? 0 : diffDays;
 }async function desligamento_fetchEmailsSugestao(contrato) {
-    const emailsSugestao = new Set();
-    const myEmail = desligamento_getCurrentUserEmail();
+    const emailsSugestao = new Set();    const myEmail = desligamento_getCurrentUserEmail();
     if (myEmail) {
         emailsSugestao.add(myEmail.toLowerCase());
-    }
-    if (contrato && contrato.toUpperCase() !== 'KN') {
-        const {data, error} = await supabase
-            .from('Consultoria')
-            .select('EMAIL')
-            .eq('CONTRATO', contrato);
-        if (!error && data) {
-            data.forEach(row => {
-                if (row.EMAIL) emailsSugestao.add(row.EMAIL.toLowerCase());
-            });
-        }
-    }
-    return Array.from(emailsSugestao).join(', ');
+    }    const contratosParaBuscar = ['KN'];    if (contrato && toUpperTrim(contrato) !== 'KN') {
+        contratosParaBuscar.push(contrato);
+    }    const {data, error} = await supabase
+        .from('Consultoria')
+        .select('EMAIL')
+        .in('CONTRATO', contratosParaBuscar);     if (!error && data) {
+        data.forEach(row => {
+            if (row.EMAIL) {                const emailsRaw = row.EMAIL.split(/[;,]+/);
+                emailsRaw.forEach(e => {
+                    const eClean = e.trim().toLowerCase();
+                    if (eClean) emailsSugestao.add(eClean);
+                });
+            }
+        });
+    }    return Array.from(emailsSugestao).join(', ');
 }async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
@@ -2760,47 +2761,57 @@ let filterGestor;
 let filterRecrutadora;
 let filterCargo;
 let inputCc;function initControleVagas() {
-    if (!document.getElementById('efet-controle-vagas')) return;    vagasModal = document.getElementById('vagasModal');
+    if (!document.getElementById('efet-controle-vagas')) return;
+    vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     formVagas = document.getElementById('formVagas');
-    tbodyVagas = document.getElementById('vagas-tbody');    if (btnGerarVaga) {
+    tbodyVagas = document.getElementById('vagas-tbody');
+    if (btnGerarVaga) {
         if (!state.isUserRH) {
             btnGerarVaga.style.display = 'none';
         } else {
             btnGerarVaga.style.display = '';
             btnGerarVaga.addEventListener('click', () => openVagasModal());
         }
-    }    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
+    }
+    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
     inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
-    inputCc = formVagas?.querySelector('[name="cc"]');    searchInput = document.getElementById('vagas-search');
+    inputCc = formVagas?.querySelector('[name="cc"]');
+    searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
     filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
-    filterCargo = document.getElementById('filter-vagas-cargo');    fetchMatrizes();
+    filterCargo = document.getElementById('filter-vagas-cargo');
+    fetchMatrizes();
     fetchGestores();
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
-    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);    if (selectFilial) {
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
+    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
+    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
+    if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
             atualizarSVC(matrizSelecionada);
             atualizarCC(matrizSelecionada);
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
-    }    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
+    }
+    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
-    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
+    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
+    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
-    if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);    fetchVagas();
+    if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);
+    fetchVagas();
     wireCepVagas();
 }async function fetchMatrizes() {
     const {data, error} = await supabase
@@ -3061,34 +3072,42 @@ async function fetchVagas() {
 }function populateFilterOptions() {
     const matrizes = [...new Set(vagasData.map(v => v.MATRIZ).filter(Boolean))].sort();
     const gestores = [...new Set(vagasData.map(v => v.Gestor).filter(Boolean))].sort();
-    const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();    const cargos = [...new Set(vagasData.map(v => v.Cargo).filter(Boolean))].sort();    const populate = (el, list, label) => {
+    const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();
+    const cargos = [...new Set(vagasData.map(v => v.Cargo).filter(Boolean))].sort();
+    const populate = (el, list, label) => {
         if (!el) return;
         const valorAtual = el.value;
         el.innerHTML = `<option value="">${label}</option>`;
         list.forEach(i => el.insertAdjacentHTML('beforeend', `<option value="${i}">${i}</option>`));
         if (list.includes(valorAtual) || valorAtual === "") el.value = valorAtual;
-    };    populate(filterFilial, matrizes, 'Todas as Filiais');
+    };
+    populate(filterFilial, matrizes, 'Todas as Filiais');
     populate(filterGestor, gestores, 'Todos Gestores');
-    populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');    populate(filterCargo, cargos, 'Todos Cargos');
+    populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');
+    populate(filterCargo, cargos, 'Todos Cargos');
 }function filtrarVagas() {
     const termo = searchInput.value.toLowerCase();
     const fFilial = filterFilial.value;
     const fStatus = filterStatus.value;
     const fGestor = filterGestor.value;
     const fRecrut = filterRecrutadora.value;
-    const fCargo = filterCargo ? filterCargo.value : '';    const filtrados = vagasData.filter(vaga => {
+    const fCargo = filterCargo ? filterCargo.value : '';
+    const filtrados = vagasData.filter(vaga => {
         const txt = (
             (vaga.CandidatoAprovado || '') +
             (vaga.CPFCandidato || '') +
             (vaga.FluxoSmart || '') +
             (vaga.ID_Vaga || '') +
             (vaga.MATRIZ || '')
-        ).toLowerCase();        const matchLocal = txt.includes(termo) &&
+        ).toLowerCase();
+        const matchLocal = txt.includes(termo) &&
             (!fFilial || vaga.MATRIZ === fFilial) &&
             (!fStatus || vaga.Status === fStatus) &&
             (!fGestor || vaga.Gestor === fGestor) &&
             (!fRecrut || vaga.Recrutadora === fRecrut) &&
-            (!fCargo || vaga.Cargo === fCargo);        if (!matchLocal) return false;        if (state.matriz && vaga.MATRIZ !== state.matriz) {
+            (!fCargo || vaga.Cargo === fCargo);
+        if (!matchLocal) return false;
+        if (state.matriz && vaga.MATRIZ !== state.matriz) {
             return false;
         }
         if (state.gerencia || state.regiao) {
@@ -3100,7 +3119,8 @@ async function fetchVagas() {
             if (state.regiao && dadosMatriz.REGIAO !== state.regiao) return false;
         }
         return true;
-    });    renderVagasTable(filtrados);
+    });
+    renderVagasTable(filtrados);
 }function renderVagasTable(lista) {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '';

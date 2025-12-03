@@ -244,6 +244,9 @@ body:not(.sidebar-collapsed) #sidebar-overlay {
     gap: 8px;
 }
 
+/* ==========================================================================
+   1. ESTILO GERAL DOS MODAIS (Cores, Fundo Branco, Sombras)
+   ========================================================================== */
 #addModal .container,
 #editModal .container,
 #desligarModal .container,
@@ -254,15 +257,18 @@ body:not(.sidebar-collapsed) #sidebar-overlay {
 #matrizModal .container,
 #editUserModal .container,
 #gestorModal .container {
-    background: #ffffff !important;
+    background: #ffffff !important;       /* Garante o fundo branco */
     backdrop-filter: none !important;
     border-radius: 12px !important;
     border: 1px solid #e7ebf4 !important;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
     padding: 20px 24px !important;
     height: auto !important;
+    display: flex;                        /* Prepara para layout flexível */
+    flex-direction: column;
 }
 
+/* 2. ESTILO DOS TÍTULOS (H3) DENTRO DOS MODAIS */
 #addModal .container h3,
 #editModal .container h3,
 #desligarModal .container h3,
@@ -281,8 +287,96 @@ body:not(.sidebar-collapsed) #sidebar-overlay {
     text-align: center !important;
     border-bottom: 1px solid #e5e7eb !important;
     padding-bottom: 1rem !important;
+    flex-shrink: 0;                       /* Impede que o título encolha */
 }
 
+/* ==========================================================================
+   3. CORREÇÃO DE LARGURA (ADICIONAR E EDITAR)
+   Tamanho de 950px para caber os botões sem ser tela cheia
+   ========================================================================== */
+#addModal .container,
+#editModal .container {
+    width: 100% !important;
+    max-width: 950px !important;  /* Largura ideal */
+    max-height: 90vh !important;  /* Limite de altura */
+    margin: 0 auto;               /* Centraliza */
+}
+
+/* 4. AJUSTE DA BARRA DE ROLAGEM DENTRO DO FORMULÁRIO */
+#addModal form,
+#editModal form {
+    overflow-y: auto;       /* O scroll acontece DENTRO da parte branca */
+    overflow-x: hidden;     /* Evita scroll lateral */
+    flex: 1;                /* Ocupa o espaço restante */
+    padding-right: 8px;     /* Espaço para a barra de rolagem */
+}
+
+/* Estilização da barra de rolagem (Adicionar/Editar) */
+#addModal form::-webkit-scrollbar,
+#editModal form::-webkit-scrollbar {
+    width: 6px;
+}
+#addModal form::-webkit-scrollbar-thumb,
+#editModal form::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 51, 105, 0.2);
+    border-radius: 4px;
+}
+
+/* ==========================================================================
+   5. CORREÇÃO DE CAMADAS (Z-INDEX) PARA MODAIS SECUNDÁRIOS
+   Garante que Histórico, Férias, Desligar apareçam ACIMA do Editar
+   ========================================================================== */
+#historicoModal,
+#desligarModal,
+#feriasModal,
+#fluxoEfetivacaoModal,
+#dsrModal,
+#gestorModal,
+#matrizModal {
+    z-index: 14000 !important; /* Maior que 12000 do Editar */
+}
+
+/* ==========================================================================
+   6. AJUSTE DE TAMANHO ESPECÍFICO PARA O HISTÓRICO
+   Mais largo para o calendário e com scroll interno correto
+   ========================================================================== */
+#historicoModal .container {
+    width: 100% !important;
+    max-width: 1200px !important; /* Mais largo para caber 4 meses lado a lado */
+    max-height: 95vh !important;  /* Quase a altura total da tela */
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    padding: 16px !important;     /* Padding reduzido para ganhar área útil */
+}
+
+/* Ajuste interno para o calendário rolar suavemente */
+#historicoModal .hist-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden; /* Impede scroll duplo na página */
+    flex: 1;          /* Ocupa todo o espaço vertical disponível */
+}
+
+#historicoModal .year-grid {
+    flex: 1;            /* Estica para ocupar o meio da janela */
+    overflow-y: auto;   /* Scroll acontece só AQUI */
+    overflow-x: hidden;
+    margin-top: 10px;
+    border: 1px solid #e7ebf4;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+/* Scrollbar específico do Histórico */
+#historicoModal .year-grid::-webkit-scrollbar {
+    width: 8px;
+}
+#historicoModal .year-grid::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 51, 105, 0.3);
+    border-radius: 4px;
+}
 #limpar-filtros-btn, #gerar-qr-btn, .btn-add, #export-colaboradores-btn {
     padding: 8px 12px;
     min-width: 100px;
