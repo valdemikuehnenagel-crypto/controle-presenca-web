@@ -634,16 +634,21 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         }
         state.colabs = allRows.filter(c => {
-            const isDesligamentoView = document.querySelector('#efet-desligamento.active');            if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
+            const isDesligamentoView = document.querySelector('#efet-desligamento.active');
+            if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
                 return false;
-            }            const ativoNormalizado = norm(c?.Ativo);
-            const isAtivoOuPen = (ativoNormalizado === 'SIM' || ativoNormalizado === 'PEN');            if (isDesligamentoView) {
-                if (c.StatusDesligamento === 'CONCLUIDO') {                } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
+            }
+            const ativoNormalizado = norm(c?.Ativo);
+            const isAtivoOuPen = (ativoNormalizado === 'SIM' || ativoNormalizado === 'PEN');
+            if (isDesligamentoView) {
+                if (c.StatusDesligamento === 'CONCLUIDO') {
+                } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
                     return false;
                 } else if (c.StatusDesligamento === 'PENDENTE' && !isAtivoOuPen) {
                     return false;
                 }
-            }            if (state.matriz && c?.MATRIZ !== state.matriz) return false;
+            }
+            if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
                 if (!svcsDoGerente.has(colabSvcNorm)) {
@@ -2066,16 +2071,20 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">Carregando...</td></tr>';
     const matrizesMap = await loadMatrizesData();
     const matrizesPermitidas = getMatrizesPermitidas();
-    const colunas = 'Nome, Smartoff, DataDesligamentoSolicitada, DataRetorno, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO';    let queryPendentes = supabase
+    const colunas = 'Nome, Smartoff, DataDesligamentoSolicitada, DataRetorno, SolicitanteDesligamento, Gestor, MotivoDesligamento, Contrato, MATRIZ, SVC, Escala, StatusDesligamento, REGIAO';
+    let queryPendentes = supabase
         .from('Colaboradores')
         .select(colunas)
         .in('StatusDesligamento', ['PENDENTE', 'RECUSADO'])
-        .in('Ativo', ['SIM', 'PEN']);    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();    let queryConcluidos = supabase
+        .in('Ativo', ['SIM', 'PEN']);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    let queryConcluidos = supabase
         .from('Colaboradores')
         .select(colunas)
         .eq('StatusDesligamento', 'CONCLUIDO')
         .eq('Ativo', 'NÃO')
-        .gte('DataDesligamentoSolicitada', sevenDaysAgo);    if (matrizesPermitidas) {
+        .gte('DataDesligamentoSolicitada', sevenDaysAgo);
+    if (matrizesPermitidas) {
         queryPendentes = queryPendentes.in('MATRIZ', matrizesPermitidas);
         queryConcluidos = queryConcluidos.in('MATRIZ', matrizesPermitidas);
     }
@@ -2086,23 +2095,30 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     if (state.regiao) {
         queryPendentes = queryPendentes.eq('REGIAO', state.regiao);
         queryConcluidos = queryConcluidos.eq('REGIAO', state.regiao);
-    }    const [
+    }
+    const [
         {data: pendentesRaw, error: pendentesError},
         {data: concluidos, error: concluidosError}
     ] = await Promise.all([
         queryPendentes,
         queryConcluidos.order('DataDesligamentoSolicitada', {ascending: false})
-    ]);    if (pendentesError || concluidosError) {
+    ]);
+    if (pendentesError || concluidosError) {
         const error = pendentesError || concluidosError;
         console.error('Erro ao buscar solicitações de desligamento:', error);
         tbody.innerHTML = `<tr><td colspan="11" class="text-center p-4 text-red-500">Erro ao carregar: ${error.message}</td></tr>`;
         return;
-    }    let pendentes = pendentesRaw || [];
-    pendentes.sort((a, b) => {        if (a.StatusDesligamento === 'PENDENTE' && b.StatusDesligamento !== 'PENDENTE') return -1;
-        if (a.StatusDesligamento !== 'PENDENTE' && b.StatusDesligamento === 'PENDENTE') return 1;        const dateA = new Date(a.DataDesligamentoSolicitada || 0);
+    }
+    let pendentes = pendentesRaw || [];
+    pendentes.sort((a, b) => {
+        if (a.StatusDesligamento === 'PENDENTE' && b.StatusDesligamento !== 'PENDENTE') return -1;
+        if (a.StatusDesligamento !== 'PENDENTE' && b.StatusDesligamento === 'PENDENTE') return 1;
+        const dateA = new Date(a.DataDesligamentoSolicitada || 0);
         const dateB = new Date(b.DataDesligamentoSolicitada || 0);
         return dateA - dateB;
-    });    let allItems = [...pendentes, ...(concluidos || [])];    if (state.gerencia) {
+    });
+    let allItems = [...pendentes, ...(concluidos || [])];
+    if (state.gerencia) {
         allItems = allItems.filter(c => {
             const svcNorm = norm(c.SVC).replace(/\s+/g, '');
             const mInfo = matrizesMap.get(svcNorm);
@@ -2742,56 +2758,49 @@ let filterFilial;
 let filterStatus;
 let filterGestor;
 let filterRecrutadora;
+let filterCargo;
 let inputCc;function initControleVagas() {
-    if (!document.getElementById('efet-controle-vagas')) return;
-    vagasModal = document.getElementById('vagasModal');
+    if (!document.getElementById('efet-controle-vagas')) return;    vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     formVagas = document.getElementById('formVagas');
-    tbodyVagas = document.getElementById('vagas-tbody');
-    if (btnGerarVaga) {
+    tbodyVagas = document.getElementById('vagas-tbody');    if (btnGerarVaga) {
         if (!state.isUserRH) {
             btnGerarVaga.style.display = 'none';
         } else {
             btnGerarVaga.style.display = '';
             btnGerarVaga.addEventListener('click', () => openVagasModal());
         }
-    }
-    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
+    }    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
     inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
-    inputCc = formVagas?.querySelector('[name="cc"]');
-    searchInput = document.getElementById('vagas-search');
+    inputCc = formVagas?.querySelector('[name="cc"]');    searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
     filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
-    fetchMatrizes();
+    filterCargo = document.getElementById('filter-vagas-cargo');    fetchMatrizes();
     fetchGestores();
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
-    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
-    if (selectFilial) {
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
+    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);    if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
             atualizarSVC(matrizSelecionada);
             atualizarCC(matrizSelecionada);
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
-    }
-    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
+    }    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
-    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
-    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
+    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
-    fetchVagas();
+    if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);    fetchVagas();
     wireCepVagas();
 }async function fetchMatrizes() {
     const {data, error} = await supabase
@@ -2962,8 +2971,7 @@ let inputCc;function initControleVagas() {
         if (val === 'SUBSTITUIÇÃO') div.classList.remove('hidden');
         else div.classList.add('hidden');
     }
-}
-async function fetchVagas() {
+}async function fetchVagas() {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando vagas...</td></tr>';
     const {data, error} = await supabase
@@ -3052,38 +3060,34 @@ async function fetchVagas() {
 }function populateFilterOptions() {
     const matrizes = [...new Set(vagasData.map(v => v.MATRIZ).filter(Boolean))].sort();
     const gestores = [...new Set(vagasData.map(v => v.Gestor).filter(Boolean))].sort();
-    const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();
-    const populate = (el, list, label) => {
+    const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();    const cargos = [...new Set(vagasData.map(v => v.Cargo).filter(Boolean))].sort();    const populate = (el, list, label) => {
         if (!el) return;
         const valorAtual = el.value;
         el.innerHTML = `<option value="">${label}</option>`;
         list.forEach(i => el.insertAdjacentHTML('beforeend', `<option value="${i}">${i}</option>`));
         if (list.includes(valorAtual) || valorAtual === "") el.value = valorAtual;
-    };
-    populate(filterFilial, matrizes, 'Todas as Filiais');
+    };    populate(filterFilial, matrizes, 'Todas as Filiais');
     populate(filterGestor, gestores, 'Todos Gestores');
-    populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');
+    populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');    populate(filterCargo, cargos, 'Todos Cargos');
 }function filtrarVagas() {
     const termo = searchInput.value.toLowerCase();
     const fFilial = filterFilial.value;
     const fStatus = filterStatus.value;
     const fGestor = filterGestor.value;
     const fRecrut = filterRecrutadora.value;
-    const filtrados = vagasData.filter(vaga => {
+    const fCargo = filterCargo ? filterCargo.value : '';    const filtrados = vagasData.filter(vaga => {
         const txt = (
             (vaga.CandidatoAprovado || '') +
             (vaga.CPFCandidato || '') +
             (vaga.FluxoSmart || '') +
             (vaga.ID_Vaga || '') +
             (vaga.MATRIZ || '')
-        ).toLowerCase();
-        const matchLocal = txt.includes(termo) &&
+        ).toLowerCase();        const matchLocal = txt.includes(termo) &&
             (!fFilial || vaga.MATRIZ === fFilial) &&
             (!fStatus || vaga.Status === fStatus) &&
             (!fGestor || vaga.Gestor === fGestor) &&
-            (!fRecrut || vaga.Recrutadora === fRecrut);
-        if (!matchLocal) return false;
-        if (state.matriz && vaga.MATRIZ !== state.matriz) {
+            (!fRecrut || vaga.Recrutadora === fRecrut) &&
+            (!fCargo || vaga.Cargo === fCargo);        if (!matchLocal) return false;        if (state.matriz && vaga.MATRIZ !== state.matriz) {
             return false;
         }
         if (state.gerencia || state.regiao) {
@@ -3095,8 +3099,7 @@ async function fetchVagas() {
             if (state.regiao && dadosMatriz.REGIAO !== state.regiao) return false;
         }
         return true;
-    });
-    renderVagasTable(filtrados);
+    });    renderVagasTable(filtrados);
 }function renderVagasTable(lista) {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '';

@@ -1,6 +1,8 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {logAction} from '../../logAction.js';let state = {
+import {logAction} from '../../logAction.js';
+
+let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
@@ -62,7 +64,9 @@ let modalListaRH, tbodyCandidatosRH, fecharModalRH;
 let currentDsrInputTarget = null;
 let histContextMenu = null;
 let selectedMonthIndex = null;
-const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];function invalidateColaboradoresCache() {
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
+
+function invalidateColaboradoresCache() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
@@ -72,27 +76,40 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.warn('Falha ao invalidar cache compartilhado', e);
     }
     console.log("Cache de colaboradores e férias invalidado.");
-}async function ensureMatrizesDataLoaded() {
-    if (state.matrizesData.length > 0) return;    try {        const {data, error} = await supabase
+}
+
+async function ensureMatrizesDataLoaded() {
+    if (state.matrizesData.length > 0) return;
+    try {
+        const {data, error} = await supabase
             .from('Matrizes')
-            .select('SERVICE, MATRIZ, REGIAO, GERENCIA');        if (error) throw error;        state.matrizesData = data || [];        state.serviceMatrizMap = new Map();
+            .select('SERVICE, MATRIZ, REGIAO, GERENCIA');
+        if (error) throw error;
+        state.matrizesData = data || [];
+        state.serviceMatrizMap = new Map();
         state.serviceRegiaoMap = new Map();
         state.matrizRegiaoMap = new Map();
-        state.matrizGerenciaMap = new Map();        state.matrizesData.forEach(item => {
+        state.matrizGerenciaMap = new Map();
+        state.matrizesData.forEach(item => {
             const svc = String(item.SERVICE || '').toUpperCase().trim();
             const mtz = String(item.MATRIZ || '').toUpperCase().trim();
             const reg = String(item.REGIAO || '').toUpperCase().trim();
-            const ger = String(item.GERENCIA || '').toUpperCase().trim();            if (svc) {
+            const ger = String(item.GERENCIA || '').toUpperCase().trim();
+            if (svc) {
                 state.serviceMatrizMap.set(svc, mtz);
                 state.serviceRegiaoMap.set(svc, reg);
             }
             if (mtz) {
-                state.matrizRegiaoMap.set(mtz, reg);                if (ger) state.matrizGerenciaMap.set(mtz, ger);
+                state.matrizRegiaoMap.set(mtz, reg);
+                if (ger) state.matrizGerenciaMap.set(mtz, ger);
             }
-        });    } catch (e) {
+        });
+    } catch (e) {
         console.error('Erro ao carregar dados de Matrizes/Gerência:', e);
     }
-}function mapearDadosRhParaFormulario(candidato) {
+}
+
+function mapearDadosRhParaFormulario(candidato) {
     let contratoFormatado = (candidato.EmpresaContratante || '').toUpperCase();
     if (contratoFormatado.includes('AST')) contratoFormatado = 'AST';
     else if (contratoFormatado.includes('ADECCO')) contratoFormatado = 'ADECCO';
@@ -123,7 +140,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         sapato: candidato.sapato,
         DataNascimento: candidato.DataNascimento
     };
-}function injectRhTabsStyles() {
+}
+
+function injectRhTabsStyles() {
     const styleId = 'rh-tabs-style';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
@@ -151,7 +170,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .rh-tab-btn.active { color: #003369; border-bottom: 2px solid #003369; font-weight: 800; }
     `;
     document.head.appendChild(style);
-}function ensureHistContextMenu() {
+}
+
+function ensureHistContextMenu() {
     if (document.getElementById('hist-context-menu')) return;
     const menu = document.createElement('div');
     menu.id = 'hist-context-menu';
@@ -176,7 +197,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     });
     window.addEventListener('scroll', hideHistContextMenu, true);
-}function showHistContextMenu(x, y, monthIndex) {
+}
+
+function showHistContextMenu(x, y, monthIndex) {
     ensureHistContextMenu();
     selectedMonthIndex = monthIndex;
     if (histContextMenu) {
@@ -184,11 +207,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         histContextMenu.style.top = `${y}px`;
         histContextMenu.classList.remove('hidden');
     }
-}function hideHistContextMenu() {
+}
+
+function hideHistContextMenu() {
     if (histContextMenu) {
         histContextMenu.classList.add('hidden');
     }
-}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+}
+
+function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
     const selSapato = document.getElementById(idSelectSapato);
     const selColete = document.getElementById(idSelectColete);
     if (selSapato) {
@@ -214,7 +241,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         });
         if (valorAtual) selColete.value = valorAtual;
     }
-}async function fetchCandidatosAprovados() {
+}
+
+async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
     tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
     try {
@@ -251,7 +280,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro RH:', err);
         tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar ou filtrar dados.</td></tr>';
     }
-}function setupRhFilters() {
+}
+
+function setupRhFilters() {
     injectRhTabsStyles();
     const inputSearch = document.getElementById('filterRhSearch');
     const selectMatriz = document.getElementById('filterRhMatriz');
@@ -293,7 +324,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         rhState.filtros.cargo = e.target.value;
         aplicarFiltrosRh();
     };
-}function populateRhFilterOptions() {
+}
+
+function populateRhFilterOptions() {
     const selMatriz = document.getElementById('filterRhMatriz');
     const selCargo = document.getElementById('filterRhCargo');
     if (!selMatriz || !selCargo) return;
@@ -317,7 +350,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     });
     if (matrizes.includes(valMatriz)) selMatriz.value = valMatriz;
     if (cargos.includes(valCargo)) selCargo.value = valCargo;
-}async function buscarEnderecoPorCep(cep, prefixoId) {
+}
+
+async function buscarEnderecoPorCep(cep, prefixoId) {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) {
         return;
@@ -356,7 +391,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } finally {
         if (campoEndereco) campoEndereco.placeholder = "";
     }
-}function wireCepEvents() {
+}
+
+function wireCepEvents() {
     const addCepInput = document.getElementById('addCEP');
     if (addCepInput) {
         addCepInput.addEventListener('input', (e) => {
@@ -371,7 +408,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }
         });
     }
-}function aplicarFiltrosRh() {
+}
+
+function aplicarFiltrosRh() {
     const hoje = new Date().toISOString().split('T')[0];
     const badge = document.getElementById('countRhBadges');
     const filtrados = rhState.dadosBrutos.filter(item => {
@@ -398,7 +437,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     });
     if (badge) badge.textContent = filtrados.length;
     renderTabelaRH(filtrados);
-}function formatCargoShort(cargo) {
+}
+
+function formatCargoShort(cargo) {
     if (!cargo) return '';
     let s = cargo.toUpperCase();
     s = s.replace('AUXILIAR DE OPERAÇÕES LOGÍSTICAS', 'Aux. Op. Log.');
@@ -411,7 +452,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     s = s.replace('OPERADOR DE EMPILHADEIRA', 'Op. Empilhadeira');
     s = s.replace('CONFERENTE', 'Conferente');
     return s;
-}async function showAvisoDesligamento() {
+}
+
+async function showAvisoDesligamento() {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]';
@@ -446,7 +489,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             if (e.target === overlay) close(false);
         });
     });
-}function getLocalISOString(date) {
+}
+
+function getLocalISOString(date) {
     if (!(date instanceof Date)) {
         date = new Date(date);
     }
@@ -464,7 +509,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const offHour = pad(Math.floor(absMin / 60));
     const offMin = pad(absMin % 60);
     return `${year}-${month}-${day}T${hour}:${minute}:${second}${sign}${offHour}:${offMin}`;
-}function formatDateTimeLocal(iso) {
+}
+
+function formatDateTimeLocal(iso) {
     if (!iso) return '';
     try {
         const d = new Date(iso);
@@ -478,7 +525,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } catch (e) {
         return iso;
     }
-}async function verificarPendencias(colab, dataDesligamentoStr) {
+}
+
+async function verificarPendencias(colab, dataDesligamentoStr) {
     const pendencias = [];
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -581,7 +630,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         cursor.setDate(cursor.getDate() + 1);
     }
     return pendencias;
-}function renderTabelaRH(lista) {
+}
+
+function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -696,7 +747,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         });
         tbodyCandidatosRH.appendChild(tr);
     });
-}async function fecharVagaImportacao(vaga) {
+}
+
+async function fecharVagaImportacao(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = await window.customConfirm(
         `Deseja marcar a vaga de <b>${nome}</b> como <span style="color:green">FECHADA</span>?<br><br>Isso removerá o candidato desta lista de importação.`,
@@ -722,7 +775,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         await window.customAlert('Erro ao fechar vaga: ' + err.message, 'Erro');
         fetchCandidatosAprovados();
     }
-}async function confirmarDesistenciaVaga(vaga) {
+}
+
+async function confirmarDesistenciaVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar DESISTÊNCIA de:\n\n${nome}?\n\nA vaga será cancelada.`);
     if (!confirmacao) return;
@@ -745,7 +800,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         alert('Erro ao registrar desistência: ' + err.message);
         fetchCandidatosAprovados();
     }
-}async function confirmarNoShowVaga(vaga) {
+}
+
+async function confirmarNoShowVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar NO SHOW (Não Comparecimento) de:\n\n${nome}?\n\nA vaga será cancelada com motivo 'NO SHOW'.`);
     if (!confirmacao) return;
@@ -768,7 +825,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         alert('Erro ao registrar No Show: ' + err.message);
         fetchCandidatosAprovados();
     }
-}async function selecionarCandidatoImportacao(candidatoRaw) {
+}
+
+async function selecionarCandidatoImportacao(candidatoRaw) {
     const dadosMapeados = mapearDadosRhParaFormulario(candidatoRaw);
     modalListaRH.classList.add('hidden');
     await prepararFormularioAdicao();
@@ -776,14 +835,18 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     setTimeout(() => {
         preencherFormularioAdicao(dadosMapeados);
     }, 100);
-}async function prepararFormularioAdicao() {
+}
+
+async function prepararFormularioAdicao() {
     await loadGestoresParaFormulario();
     loadSVCsParaFormulario();
     await populateContratoSelect(document.getElementById('addContrato'));
     populateOptionsTamanhos('addSapato', 'addColete');
     populateGestorSelect(null);
     attachUppercaseHandlers();
-}function preencherFormularioAdicao(dados) {
+}
+
+function preencherFormularioAdicao(dados) {
     const setVal = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.value = val || '';
@@ -820,7 +883,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             populateGestorSelect(matrizItem.SERVICE);
         }
     }
-}function checkUserAdminStatus() {
+}
+
+function checkUserAdminStatus() {
     const sessionString = localStorage.getItem('userSession');
     if (!sessionString) {
         console.warn('Sessão do usuário não encontrada. Permissões de admin não concedidas.');
@@ -840,7 +905,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
     }
-}function promptForDate(title, defaultDate) {
+}
+
+function promptForDate(title, defaultDate) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9998;';
@@ -883,7 +950,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             if (e.target === overlay) close(null);
         };
     });
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -902,32 +971,48 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return allData;
-}function ymdToday() {
+}
+
+function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}function isFutureYMD(yyyyMmDd) {
+}
+
+function isFutureYMD(yyyyMmDd) {
     if (!yyyyMmDd) return false;
     return yyyyMmDd > ymdToday();
-}function normalizeCPF(raw) {
+}
+
+function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
-}function toUpperNoTrim(str) {
+}
+
+function toUpperNoTrim(str) {
     return typeof str === 'string' ? str.toUpperCase() : str;
-}function toUpperTrim(str) {
+}
+
+function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}function nullIfEmpty(v) {
+}
+
+function nullIfEmpty(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s === '' ? null : s;
-}function numberOrNull(v) {
+}
+
+function numberOrNull(v) {
     const s = nullIfEmpty(v);
     if (s === null) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
-}function toStartOfDay(dateish) {
+}
+
+function toStartOfDay(dateish) {
     if (!dateish) return NaN;
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
@@ -939,11 +1024,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}function formatDateLocal(iso) {
+}
+
+function formatDateLocal(iso) {
     if (!iso) return '';
     const [y, m, d] = String(iso).split('T')[0].split('-');
     return `${d}/${m}/${y}`;
-}function attachUppercaseHandlers() {
+}
+
+function attachUppercaseHandlers() {
     if (!addForm || addForm.dataset.upperBound === '1') return;
     addForm.dataset.upperBound = '1';
     const uppercaseOnInput = (el) => {
@@ -968,7 +1057,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}async function populateContratoSelect(selectElement) {
+}
+
+async function populateContratoSelect(selectElement) {
     if (!selectElement) return;
     const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
@@ -982,7 +1073,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
-}function attachUpperHandlersTo(form) {
+}
+
+function attachUpperHandlersTo(form) {
     if (!form || form.dataset.upperBound === '1') return;
     form.dataset.upperBound = '1';
     const textInputs = form.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="tel"], input:not([type]), textarea');
@@ -1005,7 +1098,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     form.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+}
+
+function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -1037,7 +1132,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
-}function toUpperObject(obj) {
+}
+
+function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
@@ -1069,7 +1166,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return out;
-}function renderTable(dataToRender) {
+}
+
+function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
     colaboradoresTbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
@@ -1120,13 +1219,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             `;
         colaboradoresTbody.appendChild(tr);
     });
-}function updateDisplay() {
+}
+
+function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
     renderTable(dataSlice);
     if (mostrarMenosBtn) mostrarMenosBtn.classList.toggle('hidden', itensVisiveis <= ITENS_POR_PAGINA);
     if (mostrarMaisBtn) mostrarMaisBtn.classList.toggle('hidden', itensVisiveis >= state.dadosFiltrados.length);
     if (contadorVisiveisEl) contadorVisiveisEl.textContent = `${dataSlice.length} de ${state.dadosFiltrados.length} colaboradores visíveis`;
-}function populateFilters() {
+}
+
+function populateFilters() {
     if (!filtrosSelect) return;
     const filtros = {
         Contrato: new Set(),
@@ -1138,151 +1241,206 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         Gerencia: new Set(),
         REGIAO: new Set(),
         'FOLGA ESPECIAL': new Set()
-    };    state.colaboradoresData.forEach((c) => {
+    };
+    state.colaboradoresData.forEach((c) => {
         Object.keys(filtros).forEach((key) => {
-            let v;            if (key === 'Gerencia') {                const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
+            let v;
+            if (key === 'Gerencia') {
+                const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
                 v = state.matrizGerenciaMap.get(mtzColab);
             } else if (key === 'SVC') {
                 return;
             } else {
                 v = c[key];
-            }            if (v !== undefined && v !== null && String(v).trim() !== '') {
+            }
+            if (v !== undefined && v !== null && String(v).trim() !== '') {
                 filtros[key].add(String(v).toUpperCase().trim());
             }
         });
-    });    filtrosSelect.forEach((selectEl) => {
+    });
+    filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
-        if (!key || !(key in filtros)) return;        const valorSalvo = selectEl.value;
+        if (!key || !(key in filtros)) return;
+        const valorSalvo = selectEl.value;
         const options = Array.from(filtros[key]).sort((a, b) =>
             a.localeCompare(b, 'pt-BR', {sensitivity: 'base'})
-        );        while (selectEl.options.length > 1) selectEl.remove(1);        options.forEach((option) => {
+        );
+        while (selectEl.options.length > 1) selectEl.remove(1);
+        options.forEach((option) => {
             const optionEl = document.createElement('option');
             optionEl.value = option;
             optionEl.textContent = option;
             selectEl.appendChild(optionEl);
-        });        if (key === 'Contrato') {
+        });
+        if (key === 'Contrato') {
             const optionEl = document.createElement('option');
             optionEl.value = 'Consultorias';
             optionEl.textContent = 'Consultorias';
             selectEl.appendChild(optionEl);
-        }        selectEl.value = valorSalvo;
+        }
+        selectEl.value = valorSalvo;
     });
-}function applyFiltersAndSearch() {
+}
+
+function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
         .map(term => term.trim().toLowerCase())
-        .filter(term => term.length > 0);    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
+        .filter(term => term.length > 0);
+    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
         for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
-            if (!activeVal) continue;            if (key === 'Contrato' && activeVal === 'Consultorias') {
+            if (!activeVal) continue;
+            if (key === 'Contrato' && activeVal === 'Consultorias') {
                 if (String(colaborador?.['Contrato'] ?? '').toUpperCase() === 'KN') {
                     return false;
                 }
                 continue;
-            }            let colVal;
+            }
+            let colVal;
             if (key === 'Gerencia') {
                 const mtzColab = String(colaborador.MATRIZ || '').toUpperCase().trim();
                 colVal = state.matrizGerenciaMap.get(mtzColab) || '';
             } else {
                 colVal = String(colaborador?.[key] ?? '');
-            }            if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
-        }        if (searchTerms.length === 0) {
+            }
+            if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
+        }
+        if (searchTerms.length === 0) {
             return true;
-        }        return searchTerms.some(term =>
+        }
+        return searchTerms.some(term =>
             String(colaborador.Nome || '').toLowerCase().includes(term) ||
             String(colaborador.CPF || '').toLowerCase().includes(term) ||
             String(colaborador['ID GROOT'] || '').toLowerCase().includes(term) ||
             String(colaborador.LDAP || '').toLowerCase().includes(term) ||
             String(colaborador.Fluxo || '').toLowerCase().includes(term)
         );
-    });    itensVisiveis = ITENS_POR_PAGINA;
+    });
+    itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
-    updateDisplay();    if (typeof updatePendingImportCounter === 'function') {
+    updateDisplay();
+    if (typeof updatePendingImportCounter === 'function') {
         updatePendingImportCounter();
     }
-}function repopulateFilterOptionsCascade() {
-    if (!filtrosSelect || !filtrosSelect.length) return;    filtrosSelect.forEach((selectEl) => {
+}
+
+function repopulateFilterOptionsCascade() {
+    if (!filtrosSelect || !filtrosSelect.length) return;
+    filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
-        if (!key) return;        const searchTerm = (searchInput?.value || '').toLowerCase();        const tempFiltrado = state.colaboradoresData.filter((c) => {
+        if (!key) return;
+        const searchTerm = (searchInput?.value || '').toLowerCase();
+        const tempFiltrado = state.colaboradoresData.filter((c) => {
             for (const k in state.filtrosAtivos) {
                 if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, k)) continue;
-                if (k === key) continue;                const activeVal = state.filtrosAtivos[k];
-                if (!activeVal) continue;                if (k === 'Contrato' && activeVal === 'Consultorias') {
+                if (k === key) continue;
+                const activeVal = state.filtrosAtivos[k];
+                if (!activeVal) continue;
+                if (k === 'Contrato' && activeVal === 'Consultorias') {
                     if (String(c?.['Contrato'] ?? '').toUpperCase() === 'KN') return false;
                     continue;
-                }                let colVal;
+                }
+                let colVal;
                 if (k === 'Gerencia') {
                     const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
                     colVal = state.matrizGerenciaMap.get(mtzColab) || '';
                 } else {
                     colVal = String(c?.[k] ?? '');
-                }                if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
-            }            if (!searchTerm) return true;            return (
+                }
+                if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
+            }
+            if (!searchTerm) return true;
+            return (
                 String(c.Nome || '').toLowerCase().includes(searchTerm) ||
                 String(c.CPF || '').toLowerCase().includes(searchTerm) ||
                 String(c['ID GROOT'] || '').toLowerCase().includes(searchTerm) ||
                 String(c.LDAP || '').toLowerCase().includes(searchTerm) ||
                 String(c.Fluxo || '').toLowerCase().includes(searchTerm)
             );
-        });        const valores = new Set();
+        });
+        const valores = new Set();
         tempFiltrado.forEach((c) => {
             let v;
-            if (key === 'Gerencia') {                const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
+            if (key === 'Gerencia') {
+                const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
                 v = state.matrizGerenciaMap.get(mtzColab);
             } else {
                 v = c?.[key];
-            }            if (v != null && v !== '') valores.add(String(v).toUpperCase().trim());
-        });        const selecionadoAntes = selectEl.value || '';
-        while (selectEl.options.length > 1) selectEl.remove(1);        Array.from(valores)
+            }
+            if (v != null && v !== '') valores.add(String(v).toUpperCase().trim());
+        });
+        const selecionadoAntes = selectEl.value || '';
+        while (selectEl.options.length > 1) selectEl.remove(1);
+        Array.from(valores)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .forEach((optVal) => {
                 const o = document.createElement('option');
                 o.value = optVal;
                 o.textContent = optVal;
                 selectEl.appendChild(o);
-            });        if (key === 'Contrato') {
+            });
+        if (key === 'Contrato') {
             const o = document.createElement('option');
             o.value = 'Consultorias';
             o.textContent = 'Consultorias';
             selectEl.appendChild(o);
-        }        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
+        }
+        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
             selectEl.value = selecionadoAntes;
         } else {
             if (state.filtrosAtivos[key]) delete state.filtrosAtivos[key];
             selectEl.selectedIndex = 0;
         }
     });
-}function updatePendingImportCounter() {    if (!state.pendingImportsRaw || state.pendingImportsRaw.length === 0) {
+}
+
+function updatePendingImportCounter() {
+    if (!state.pendingImportsRaw || state.pendingImportsRaw.length === 0) {
         hidePendingImportAlert();
         return;
-    }    const nomesCadastrados = new Set(
+    }
+    const nomesCadastrados = new Set(
         state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
-    );    const pendentesFiltrados = state.pendingImportsRaw.filter(vaga => {        const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
-        if (!nomeCandidato || nomesCadastrados.has(nomeCandidato)) return false;        for (const key in state.filtrosAtivos) {
+    );
+    const pendentesFiltrados = state.pendingImportsRaw.filter(vaga => {
+        const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
+        if (!nomeCandidato || nomesCadastrados.has(nomeCandidato)) return false;
+        for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
-            if (!activeVal) continue;            let vagaVal = '';            if (key === 'MATRIZ') {
+            if (!activeVal) continue;
+            let vagaVal = '';
+            if (key === 'MATRIZ') {
                 vagaVal = vaga.MATRIZ;
             } else if (key === 'Contrato') {
                 vagaVal = vaga.EmpresaContratante;
-            } else if (key === 'Gerencia') {                const mtzVaga = String(vaga.MATRIZ || '').toUpperCase().trim();                vagaVal = state.matrizGerenciaMap.get(mtzVaga) || vaga.Gestor;
+            } else if (key === 'Gerencia') {
+                const mtzVaga = String(vaga.MATRIZ || '').toUpperCase().trim();
+                vagaVal = state.matrizGerenciaMap.get(mtzVaga) || vaga.Gestor;
             } else if (key === 'Cargo') {
                 vagaVal = vaga.Cargo;
-            } else if (key === 'REGIAO') {                vagaVal = computeRegiaoFromSvcMatriz(null, vaga.MATRIZ);
-            } else {                continue;
-            }            if (vagaVal && String(vagaVal).toUpperCase().trim() !== String(activeVal).toUpperCase().trim()) {
+            } else if (key === 'REGIAO') {
+                vagaVal = computeRegiaoFromSvcMatriz(null, vaga.MATRIZ);
+            } else {
+                continue;
+            }
+            if (vagaVal && String(vagaVal).toUpperCase().trim() !== String(activeVal).toUpperCase().trim()) {
                 return false;
             }
         }
         return true;
-    });    if (pendentesFiltrados.length > 0) {
+    });
+    if (pendentesFiltrados.length > 0) {
         showPendingImportAlert(pendentesFiltrados.length);
     } else {
         hidePendingImportAlert();
     }
-}function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+}
+
+function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
     state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
@@ -1291,19 +1449,29 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (bySvc) return toUpperTrim(bySvc);
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
-}async function checkPendingImports() {
-    const matrizesPermitidas = getMatrizesPermitidas();    let query = supabase
+}
+
+async function checkPendingImports() {
+    const matrizesPermitidas = getMatrizesPermitidas();
+    let query = supabase
         .from('Vagas')
         .select('CandidatoAprovado, MATRIZ, Gestor, Cargo, EmpresaContratante')
         .eq('Status', 'EM ADMISSÃO')
-        .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');    if (matrizesPermitidas !== null) {
+        .or('Cargo.ilike.%CONFERENTE%,Cargo.ilike.%AUXILIAR DE OPERAÇÕES%');
+    if (matrizesPermitidas !== null) {
         query = query.in('MATRIZ', matrizesPermitidas);
-    }    const {data: vagasCandidatos, error} = await query;    if (error || !vagasCandidatos) {
+    }
+    const {data: vagasCandidatos, error} = await query;
+    if (error || !vagasCandidatos) {
         state.pendingImportsRaw = [];
         hidePendingImportAlert();
         return;
-    }    state.pendingImportsRaw = vagasCandidatos;    updatePendingImportCounter();
-}function showPendingImportAlert(count) {
+    }
+    state.pendingImportsRaw = vagasCandidatos;
+    updatePendingImportCounter();
+}
+
+function showPendingImportAlert(count) {
     let alertDiv = document.getElementById('pending-import-alert');
     if (!alertDiv) {
         alertDiv = document.createElement('div');
@@ -1326,12 +1494,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 </div>
             `;
     alertDiv.classList.remove('hidden');
-}function hidePendingImportAlert() {
+}
+
+function hidePendingImportAlert() {
     const alertDiv = document.getElementById('pending-import-alert');
     if (alertDiv) {
         alertDiv.classList.add('hidden');
     }
-}async function fetchColaboradores() {
+}
+
+async function fetchColaboradores() {
     const now = Date.now();
     let currentUser = 'unknown';
     try {
@@ -1449,7 +1621,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         cachedColaboradores = null;
         lastFetchTimestamp = 0;
     }
-}async function gerarJanelaDeQRCodes() {
+}
+
+async function gerarJanelaDeQRCodes() {
     if (state.selectedNames.size === 0) {
         await window.customAlert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.', 'Aviso');
         return;
@@ -1536,7 +1710,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
-}async function loadSVCsParaFormulario() {
+}
+
+async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
     if (state.matrizesData.length > 0 && svcSelect.options.length > 1) {
@@ -1568,7 +1744,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         svcSelect.appendChild(opt);
     });
-}async function loadGestoresParaFormulario() {
+}
+
+async function loadGestoresParaFormulario() {
     if (state.gestoresData.length > 0) return;
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
@@ -1577,7 +1755,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return;
     }
     state.gestoresData = data || [];
-}function populateGestorSelect(selectedSvc) {
+}
+
+function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -1606,7 +1786,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-}function isDSRValida(dsrStr) {
+}
+
+function isDSRValida(dsrStr) {
     const raw = (dsrStr || '').toUpperCase().trim();
     if (!raw) return false;
     const dias = raw.split(',').map(d => d.trim()).filter(Boolean);
@@ -1614,7 +1796,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
     permitidos.add('SABADO');
     return dias.every(d => permitidos.has(d));
-}async function handleAddSubmit(event) {
+}
+
+async function handleAddSubmit(event) {
     event.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -1737,7 +1921,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}async function loadServiceMatrizForEdit() {
+}
+
+async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
     if (state.matrizesData.length > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
@@ -1767,7 +1953,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         editSVC.appendChild(opt);
     });
-}async function fetchColabByNome(nome) {
+}
+
+async function fetchColabByNome(nome) {
     const {data, error} = await supabase
         .from('Colaboradores')
         .select('*')
@@ -1775,13 +1963,19 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .maybeSingle();
     if (error) throw error;
     return data;
-}function showEditModal() {
+}
+
+function showEditModal() {
     editModal?.classList.remove('hidden');
-}function hideEditModal() {
+}
+
+function hideEditModal() {
     editModal?.classList.add('hidden');
     editOriginal = null;
     editForm?.reset();
-}async function fillEditForm(colab) {
+}
+
+async function fillEditForm(colab) {
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
@@ -1893,7 +2087,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
-}function openFluxoEfetivacaoModal() {
+}
+
+function openFluxoEfetivacaoModal() {
     if (!editOriginal || !fluxoEfetivacaoModal) {
         console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
@@ -1953,12 +2149,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
     }
     fluxoEfetivacaoModal.classList.remove('hidden');
-}function closeFluxoEfetivacaoModal() {
+}
+
+function closeFluxoEfetivacaoModal() {
     if (fluxoEfetivacaoModal) {
         fluxoEfetivacaoModal.classList.add('hidden');
         fluxoEfetivacaoForm.reset();
     }
-}async function handleFluxoSubmit(action) {
+}
+
+async function handleFluxoSubmit(action) {
     if (!fluxoNumeroEl || !fluxoDataAberturaEl || !fluxoObservacaoEl || !fluxoAdmissaoKnEl || !fluxoGerarBtn || !fluxoFinalizarBtn || !fluxoCancelarBtn) {
         await window.customAlert('Erro crítico: Elementos do formulário não encontrados.', 'Erro');
         return;
@@ -2041,7 +2241,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = false;
         if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;
     }
-}async function validateEditDuplicates(payload) {
+}
+
+async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
         const {count, error} = await supabase.from('Colaboradores').select('Nome', {
             count: 'exact',
@@ -2059,7 +2261,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if ((count || 0) > 0) return 'Já existe um colaborador com esse CPF.';
     }
     return null;
-}async function updateColaboradorSmart(nomeAnterior, payload) {
+}
+
+async function updateColaboradorSmart(nomeAnterior, payload) {
     if (payload.Nome && payload.Nome !== nomeAnterior) {
         const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
             nome_antigo: nomeAnterior,
@@ -2091,7 +2295,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .update(payload)
         .eq('Nome', nomeAnterior);
     if (upErr) throw upErr;
-}async function onEditSubmit(e) {
+}
+
+async function onEditSubmit(e) {
     e.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -2245,7 +2451,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             editSalvarBtn.textContent = 'Salvar Alterações';
         }
     }
-}async function onAfastarClick() {
+}
+
+async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
         await window.customAlert('Erro: Colaborador não identificado.', 'Erro');
         return;
@@ -2339,7 +2547,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}function openDesligarModalFromColab(colab) {
+}
+
+function openDesligarModalFromColab(colab) {
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
     const hoje = new Date();
@@ -2366,25 +2576,35 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     desligarModal.classList.remove('hidden');
-}function closeDesligarModal() {
+}
+
+function closeDesligarModal() {
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function onDesligarSubmit(e) {
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function onDesligarSubmit(e) {
     e.preventDefault();
+
     if (!desligarColaborador) {
         await window.customAlert('Erro: colaborador não carregado.', 'Erro');
         return;
     }
+
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
     }
+
     const nome = desligarColaborador.Nome;
     const dataAgendadaInput = (desligarDataEl?.value || '').trim();
     let motivo = (desligarMotivoEl?.value || '').trim();
     const isKN = (desligarColaborador.Contrato || '').trim().toUpperCase() === 'KN';
     const smartoffVal = desligarSmartoffEl ? desligarSmartoffEl.value.trim() : null;
+
     if (isKN) {
         if (!smartoffVal) {
             await window.customAlert('Para colaboradores KN, o Número Smart é obrigatório.', 'Campo Obrigatório');
@@ -2402,14 +2622,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             return;
         }
     }
+
     if (!dataAgendadaInput) {
         await window.customAlert('Informe a data prevista para o desligamento.', 'Campo Obrigatório');
         return;
     }
+
     if (!motivo) {
         await window.customAlert('Selecione o motivo.', 'Campo Obrigatório');
         return;
     }
+
     let timestampSolicitacao;
     try {
         timestampSolicitacao = getLocalISOString(new Date());
@@ -2417,12 +2640,19 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error("Erro ao gerar timestamp:", err);
         timestampSolicitacao = new Date().toISOString();
     }
+
     const dataAgendadaFormatada = dataAgendadaInput.split('-').reverse().join('/');
     const motivoCompleto = `${motivo} (Data Prevista: ${dataAgendadaFormatada})`;
+
+    // =================================================================================
+    // --- VALIDAÇÃO DE PONTO REMOVIDA TEMPORARIAMENTE (COMENTADA) ---
+    // =================================================================================
+    /*
     const btnSubmit = desligarConfirmarBtn;
     const txtOriginal = btnSubmit.textContent;
     btnSubmit.textContent = 'Verificando pendências...';
     btnSubmit.disabled = true;
+
     let listaPendencias = [];
     try {
         const colabAtualizado = await fetchColabByNome(nome);
@@ -2441,15 +2671,20 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         btnSubmit.textContent = txtOriginal;
         btnSubmit.disabled = false;
     }
+
     if (listaPendencias.length > 0) {
         const listaExibicao = listaPendencias.slice(0, 10).join('<br>');
         const mais = listaPendencias.length > 10 ? `<br>...e mais ${listaPendencias.length - 10} dias.` : '';
+
         await window.customAlert(
             `Atenção, esse colaborador contém preenchimentos de presença pendentes! Verifique na aba Controle Diário.<br><br><b>Datas pendentes:</b><br>${listaExibicao}${mais}`,
             'Pendências Encontradas'
         );
         return;
     }
+    */
+    // =================================================================================
+
     let solicitante = 'Gestor Desconhecido';
     try {
         const userSession = localStorage.getItem('userSession');
@@ -2459,12 +2694,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } catch (e) {
         console.warn('Erro ao ler sessão', e);
     }
+
     const ok = await window.customConfirm(
         `Confirmar solicitação de desligamento para <b>"${nome}"</b>?<br>Data Prevista: <b>${dataAgendadaFormatada}</b>`,
         'Confirmar Desligamento',
         'danger'
     );
+
     if (!ok) return;
+
     try {
         const payload = {
             Ativo: 'PEN',
@@ -2475,25 +2713,33 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             SolicitanteDesligamento: solicitante,
             Smartoff: isKN ? smartoffVal : null
         };
-        const {error} = await supabase
+
+        const { error } = await supabase
             .from('Colaboradores')
             .update(payload)
             .eq('Nome', nome);
+
         if (error) throw error;
+
         await window.customAlert('Solicitação enviada com sucesso!', 'Sucesso');
+
         logAction(
             `Enviou solicitação de desligamento: ${nome} ` +
             `(Solicitado em: ${formatDateTimeLocal(timestampSolicitacao)}, Para: ${dataAgendadaFormatada})`
         );
+
         closeDesligarModal();
         hideEditModal();
         invalidateColaboradoresCache();
         await fetchColaboradores();
+
     } catch (err) {
         console.error('Erro desligamento:', err);
         await window.customAlert(`Erro ao enviar: ${err.message || err}`, 'Erro');
     }
-}async function getNonFinalizedFerias(nome) {
+}
+
+async function getNonFinalizedFerias(nome) {
     const {data, error} = await supabase
         .from('Ferias')
         .select('Numero, Status, "Data Final"')
@@ -2503,7 +2749,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .limit(1);
     if (error) return {error};
     return {data: (data && data.length > 0) ? data[0] : null};
-}async function agendarFerias(info) {
+}
+
+async function agendarFerias(info) {
     const {colaborador, dataInicio, dataFinal} = info;
     const {data: feriasPendentes, error: feriasCheckError} = await getNonFinalizedFerias(colaborador.Nome);
     if (feriasCheckError) {
@@ -2547,7 +2795,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     invalidateColaboradoresCache();
     await updateAllVacationStatuses();
     return {success: true};
-}async function updateAllVacationStatuses() {
+}
+
+async function updateAllVacationStatuses() {
     const {data: feriasList, error} = await supabase.from('Ferias').select('*').order('Numero', {ascending: true});
     if (error || !feriasList) return;
     const today = toStartOfDay(new Date());
@@ -2587,7 +2837,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (needsColabUpdate) {
         invalidateColaboradoresCache();
     }
-}function openFeriasModalFromColab(colab) {
+}
+
+function openFeriasModalFromColab(colab) {
     feriasColaborador = colab;
     if (!feriasModal) return;
     if (feriasNomeEl) feriasNomeEl.value = colab?.Nome || '';
@@ -2597,12 +2849,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (feriasInicioEl && !feriasInicioEl.value) feriasInicioEl.value = iso;
     if (feriasFinalEl && !feriasFinalEl.value) feriasFinalEl.value = iso;
     feriasModal.classList.remove('hidden');
-}function closeFeriasModal() {
+}
+
+function closeFeriasModal() {
     if (!feriasModal) return;
     feriasModal.classList.add('hidden');
     feriasColaborador = null;
     feriasForm?.reset();
-}async function onFeriasSubmit(e) {
+}
+
+async function onFeriasSubmit(e) {
     e.preventDefault();
     if (isSubmittingFerias) return;
     try {
@@ -2655,7 +2911,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             submitButton.textContent = 'Confirmar';
         }
     }
-}const HIST = {
+}
+
+const HIST = {
     nome: null, ano: new Date().getFullYear(), marks: new Map(), dsrDates: new Set(),
     initialized: false, els: {modal: null, title: null, yearSel: null, months: null, fecharBtn: null,}
 };
@@ -2685,7 +2943,9 @@ const firstWeekdayIndex = (year, month0) => {
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';function ensureHistoricoDomRefs() {
+const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';
+
+function ensureHistoricoDomRefs() {
     if (HIST.initialized) return;
     HIST.els.modal = document.getElementById('historicoModal');
     HIST.els.title = document.getElementById('hist-title');
@@ -2720,10 +2980,14 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         }
     });
     HIST.initialized = true;
-}function putHistoricoTitle() {
+}
+
+function putHistoricoTitle() {
     if (!HIST.els.title) return;
     HIST.els.title.textContent = HIST.nome ? `Histórico – ${HIST.nome}` : 'Histórico';
-}function renderHistoricoCalendar() {
+}
+
+function renderHistoricoCalendar() {
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
     monthsEl.innerHTML = '';
@@ -2776,7 +3040,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
-}async function computeDsrDatesForYear(nome, ano) {
+}
+
+async function computeDsrDatesForYear(nome, ano) {
     try {
         const {data: colab, error} = await supabase.from('Colaboradores').select('DSR').eq('Nome', nome).maybeSingle();
         if (error) throw error;
@@ -2810,7 +3076,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         console.error('computeDsrDatesForYear error:', e);
         return new Set();
     }
-}async function exportHistoricoMesXLSX(monthIndex) {
+}
+
+async function exportHistoricoMesXLSX(monthIndex) {
     if (monthIndex === null || monthIndex === undefined) return;
     await ensureXLSX();
     const nomeColaborador = HIST.nome || 'Colaborador';
@@ -2855,7 +3123,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     const fileName = `Historico_${nomeColaborador.replace(/\s+/g, '_')}_${mesNome}_${ano}.xlsx`;
     window.XLSX.writeFile(wb, fileName);
     await window.customAlert(`Exportação de <b>${mesNome}/${ano}</b> concluída com sucesso!`, 'Sucesso');
-}async function loadHistoricoIntoModal() {
+}
+
+async function loadHistoricoIntoModal() {
     if (!HIST.nome) return;
     if (HIST.els.months) {
         HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
@@ -2891,7 +3161,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#e55353;">Erro ao carregar histórico.</div>';
         }
     }
-}async function openHistorico(nome) {
+}
+
+async function openHistorico(nome) {
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
         alert('Não foi possível abrir o histórico (elementos do modal não encontrados).');
@@ -2906,7 +3178,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     putHistoricoTitle();
     await loadHistoricoIntoModal();
     HIST.els.modal.classList.remove('hidden');
-}function wireDsrModal() {
+}
+
+function wireDsrModal() {
     dsrModal = document.getElementById('dsrModal');
     if (!dsrModal || dsrModal.dataset.wired === '1') return;
     dsrModal.dataset.wired = '1';
@@ -2945,7 +3219,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         dsrModal.classList.add('hidden');
         currentDsrInputTarget = null;
     });
-}function openDsrModal(targetInput) {
+}
+
+function openDsrModal(targetInput) {
     if (!dsrModal) return;
     currentDsrInputTarget = targetInput;
     const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -2954,7 +3230,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         checkbox.checked = currentValueSet.has(checkbox.value);
     });
     dsrModal.classList.remove('hidden');
-}function wireEdit() {
+}
+
+function wireEdit() {
     editModal = document.getElementById('editModal');
     if (!editModal) return;
     editForm = document.getElementById('editForm');
@@ -3107,7 +3385,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             await window.customAlert('Erro ao carregar colaborador para edição.', 'Erro');
         }
     });
-}function wireDesligar() {
+}
+
+function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');
     if (!desligarModal || desligarModal.dataset.wired === '1') return;
     desligarModal.dataset.wired = '1';
@@ -3139,7 +3419,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             }
         });
     }
-}function wireFerias() {
+}
+
+function wireFerias() {
     feriasModal = document.getElementById('feriasModal') || null;
     if (!feriasModal || feriasModal.dataset.wired === '1') return;
     feriasModal.dataset.wired = '1';
@@ -3150,7 +3432,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     feriasCancelarBtn = document.getElementById('feriasCancelarBtn') || document.getElementById('cancelarBtn') || null;
     feriasCancelarBtn?.addEventListener('click', closeFeriasModal);
     feriasForm?.addEventListener('submit', onFeriasSubmit);
-}async function ensureXLSX() {
+}
+
+async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -3159,7 +3443,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}async function exportColaboradoresXLSX(useFiltered) {
+}
+
+async function exportColaboradoresXLSX(useFiltered) {
     const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
     if (!data || data.length === 0) {
         await window.customAlert('Não há dados para exportar.', 'Aviso');
@@ -3212,7 +3498,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
     window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
-}function wireFluxoEfetivacao() {
+}
+
+function wireFluxoEfetivacao() {
     fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');
     if (!fluxoEfetivacaoModal) {
         console.warn("Modal de fluxo de efetivação (id='fluxoEfetivacaoModal') não encontrado. A funcionalidade não será ativada.");
@@ -3244,7 +3532,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             closeFluxoEfetivacaoModal();
         }
     });
-}function wireTabelaColaboradoresEventos() {
+}
+
+function wireTabelaColaboradoresEventos() {
     if (!colaboradoresTbody) return;
     if (colaboradoresTbody.dataset.wired === '1') return;
     colaboradoresTbody.dataset.wired = '1';
@@ -3300,30 +3590,41 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}export async function init() {
+}
+
+export async function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
-    wireTabelaColaboradoresEventos();    searchInput = document.getElementById('search-input');
+    wireTabelaColaboradoresEventos();
+    searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
     limparFiltrosBtn = document.getElementById('limpar-filtros-btn');
     addColaboradorBtn = document.getElementById('add-colaborador-btn');
     mostrarMaisBtn = document.getElementById('mostrar-mais-btn');
     mostrarMenosBtn = document.getElementById('mostrar-menos-btn');
-    contadorVisiveisEl = document.getElementById('contador-visiveis');    addForm = document.getElementById('addForm');
+    contadorVisiveisEl = document.getElementById('contador-visiveis');
+    addForm = document.getElementById('addForm');
     dropdownAdd = document.getElementById('dropdownAdd');
     btnAdicionarManual = document.getElementById('btnAdicionarManual');
     btnImportarRH = document.getElementById('btnImportarRH');
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
-    fecharModalRH = document.getElementById('fecharModalRH');    checkUserAdminStatus();    await ensureMatrizesDataLoaded();    fetchColaboradores();    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);    if (filtrosSelect && filtrosSelect.length) {
+    fecharModalRH = document.getElementById('fecharModalRH');
+    checkUserAdminStatus();
+    await ensureMatrizesDataLoaded();
+    fetchColaboradores();
+    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
+    if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
             selectEl.addEventListener('change', (event) => {
                 const filterKey = selectEl.dataset.filterKey;
                 const value = event.target.value;
                 if (value) state.filtrosAtivos[filterKey] = value;
-                else delete state.filtrosAtivos[filterKey];                applyFiltersAndSearch();
+                else delete state.filtrosAtivos[filterKey];
+                applyFiltersAndSearch();
             });
         });
-    }    if (limparFiltrosBtn) {
+    }
+    if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
@@ -3335,46 +3636,55 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
             applyFiltersAndSearch();
         });
-    }    if (mostrarMaisBtn) {
+    }
+    if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
             updateDisplay();
         });
-    }    if (mostrarMenosBtn) {
+    }
+    if (mostrarMenosBtn) {
         mostrarMenosBtn.addEventListener('click', () => {
             itensVisiveis = Math.max(ITENS_POR_PAGINA, itensVisiveis - ITENS_POR_PAGINA);
             updateDisplay();
         });
-    }    if (addColaboradorBtn) {
+    }
+    if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
-    }    document.addEventListener('click', (event) => {
+    }
+    document.addEventListener('click', (event) => {
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
-    });    if (btnAdicionarManual) {
+    });
+    if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
             await prepararFormularioAdicao();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
             preencherFormularioAdicao({});
         });
-    }    if (btnImportarRH) {
+    }
+    if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
             modalListaRH.classList.remove('hidden');
             fetchCandidatosAprovados();
         });
-    }    if (fecharModalRH) {
+    }
+    if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
-    }    window.addEventListener('click', (e) => {
+    }
+    window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
-    });    if (addForm) {
+    });
+    if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
         const svcSelect = document.getElementById('addSVC');
@@ -3391,7 +3701,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 openDsrModal(document.getElementById('addDSR'));
             });
         }
-    }    if (colaboradoresTbody) {
+    }
+    if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
@@ -3413,7 +3724,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 invalidateColaboradoresCache();
             }
         });
-    }    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
+    }
+    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
             if (!state.colaboradoresData.length) {
@@ -3423,7 +3735,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             const hasSearch = !!(searchInput && searchInput.value && searchInput.value.trim() !== '');
             const hasFilters = Object.keys(state.filtrosAtivos).length > 0;
             const filteredDifferent = state.dadosFiltrados.length !== state.colaboradoresData.length;
-            const useFiltered = hasSearch || hasFilters || filteredDifferent;            exportColaboradoresBtn.disabled = true;
+            const useFiltered = hasSearch || hasFilters || filteredDifferent;
+            exportColaboradoresBtn.disabled = true;
             try {
                 await exportColaboradoresXLSX(useFiltered);
             } catch (e) {
@@ -3433,16 +3746,20 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 exportColaboradoresBtn.disabled = false;
             }
         });
-    }    const gerarQRBtn = document.getElementById('gerar-qr-btn');
+    }
+    const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
-    }    wireEdit();
+    }
+    wireEdit();
     wireDesligar();
     wireFerias();
     wireFluxoEfetivacao();
     wireDsrModal();
     wireCepEvents();
-}export function destroy() {
+}
+
+export function destroy() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
