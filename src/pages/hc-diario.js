@@ -94,26 +94,28 @@ const normalizeWeekdayPT = s =>
     if (!startISO || !endISO) return [startISO, endISO];
     const todayISO = toISODate(new Date());
     return [startISO, endISO > todayISO ? todayISO : endISO];
-}const onlyActiveAux = arr => (arr || []).filter(c => norm(c.Cargo) === 'AUXILIAR' && norm(c.Ativo || 'SIM') === 'SIM');
-const onlyActiveConf = arr => (arr || []).filter(c => norm(c.Cargo) === 'CONFERENTE' && norm(c.Ativo || 'SIM') === 'SIM');function dsrSetFrom(c) {
+}const onlyActiveAux = arr => (arr || []).filter(c => {
+    const st = norm(c.Ativo || 'SIM');
+    return norm(c.Cargo) === 'AUXILIAR' && (st === 'SIM' || st === 'NÃO' || st === 'NAO' || st === 'PEN');
+});const onlyActiveConf = arr => (arr || []).filter(c => {
+    const st = norm(c.Ativo || 'SIM');
+    return norm(c.Cargo) === 'CONFERENTE' && (st === 'SIM' || st === 'NÃO' || st === 'NAO' || st === 'PEN');
+});function dsrSetFrom(c) {
     const raw = String(c?.DSR || '');
     if (!raw) return new Set();
     const parts = raw.split(',').map(s => normalizeWeekdayPT(s.trim()));
     const valid = new Set(['DOMINGO', 'SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA', 'SABADO']);
     return new Set(parts.filter(p => valid.has(p)));
-}function canonicalMark(row) {
-    if (row?.['Presença'] === 1 || row?.['Presença'] === true) return 'PRESENCA';
+}function canonicalMark(row) {    if (row?.['Presença'] === 1 || row?.['Presença'] === true) return 'PRESENCA';
     if (row?.Falta === 1 || row?.Falta === true) return 'FALTA';
     if (row?.Atestado === 1 || row?.Atestado === true) return 'ATESTADO';
     if (row?.['Folga Especial'] === 1 || row?.['Folga Especial'] === true) return 'F_ESPECIAL';
-    if (row?.Feriado === 1 || row?.Feriado === true) return 'FERIADO';
-    const s = norm(row?.Marcacao || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (row?.Feriado === 1 || row?.Feriado === true) return 'FERIADO';    const s = norm(row?.Marcacao || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (s === 'P' || s === 'PRESENCA' || s === 'PRESENÇA') return 'PRESENCA';
     if (s === 'F' || s === 'FALTA') return 'FALTA';
     if (s === 'A' || s === 'ATESTADO') return 'ATESTADO';
     if (['FE', 'F_ESPECIAL', 'FOLGA ESPECIAL', 'FOLGA_ESPECIAL'].includes(s)) return 'F_ESPECIAL';
-    if (s === 'FER' || s === 'FERIADO') return 'FERIADO';
-    return '';
+    if (s === 'FER' || s === 'FERIADO') return 'FERIADO';    return '';
 }function firstISOFrom(row, keys) {
     for (const k of keys) {
         const iso = parseAnyToISO(row?.[k]);
@@ -138,23 +140,16 @@ const onlyActiveConf = arr => (arr || []).filter(c => norm(c.Cargo) === 'CONFERE
     const matrizesPermitidas = getMatrizesPermitidas();
     let query = supabase
         .from('Colaboradores')
-        .select('Nome, Cargo, MATRIZ, SVC, Escala, DSR, Ativo, "Data de admissão"')
-        .eq('Ativo', 'SIM');
-    if (matrizesPermitidas !== null) {
-        query = query.in('MATRIZ', matrizesPermitidas);
-    }
+        .select('Nome, Cargo, MATRIZ, SVC, Escala, DSR, Ativo, "Data de admissão"');    if (matrizesPermitidas !== null) query = query.in('MATRIZ', matrizesPermitidas);
     if (_filters.matriz) query = query.eq('MATRIZ', _filters.matriz);
-    if (_filters.svc) query = query.eq('SVC', _filters.svc);
-    const colabData = await fetchAllWithPagination(query);
-    const enrichedColabs = (colabData || []).map(c => {
+    if (_filters.svc) query = query.eq('SVC', _filters.svc);    const colabData = await fetchAllWithPagination(query);    const enrichedColabs = (colabData || []).map(c => {
         const mapping = matrizesMap.get(norm(c.MATRIZ));
         return {
             ...c,
             REGIAO: mapping?.regiao || '',
             GERENCIA: mapping?.gerencia || ''
         };
-    });
-    _colabs = enrichedColabs.filter(c => {
+    });    _colabs = enrichedColabs.filter(c => {
         if (_filters.regiao && norm(c.REGIAO) !== norm(_filters.regiao)) return false;
         if (_filters.gerencia && norm(c.GERENCIA) !== norm(_filters.gerencia)) return false;
         return true;
@@ -167,12 +162,11 @@ const onlyActiveConf = arr => (arr || []).filter(c => norm(c.Cargo) === 'CONFERE
         const to = from + pageSize - 1;
         const {data, error} = await supabase
             .from('ControleDiario')
-            .select('Nome, Data, Marcacao, Presença, Falta, Atestado, "Folga Especial", Feriado')
+            .select('*')
             .gte('Data', startISO)
             .lte('Data', endISO)
             .order('Data', {ascending: true})
-            .range(from, to);
-        if (error) throw error;
+            .range(from, to);        if (error) throw error;
         const rows = Array.isArray(data) ? data : [];
         all.push(...rows);
         if (rows.length < pageSize) break;
@@ -254,84 +248,93 @@ const onlyActiveConf = arr => (arr || []).filter(c => norm(c.Cargo) === 'CONFERE
     for (const k of ROWS_ORDER) for (const d of dates)
         out[k][d] = (Number(a?.[k]?.[d] || 0) + Number(b?.[k]?.[d] || 0));
     return out;
-}async function buildTurnoRows(turno, datesISO, feriasPorDia, desligRows, marksByDate) {
+}async function buildTurnoRows(turnoDestino, datesISO, feriasPorDia, desligRows, marksByDate) {
     const rows = {};
-    ROWS_ORDER.forEach(k => rows[k] = {});
-    const auxTurno = byTurnFilterAux(turno);
-    const confTurno = byTurnFilterConf(turno);
-    const dsrCache = new Map();
-    const getDSRSet = (c) => {
-        if (dsrCache.has(c.Nome)) return dsrCache.get(c.Nome);
+    ROWS_ORDER.forEach(k => rows[k] = {});    const normalize = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();    const colabMap = new Map();
+    _colabs.forEach(c => colabMap.set(normalize(c.Nome), c));    const dsrCache = new Map();
+    const getDSRSet = (nomeNorm) => {
+        if (dsrCache.has(nomeNorm)) return dsrCache.get(nomeNorm);
+        const c = colabMap.get(nomeNorm);
         const s = dsrSetFrom(c);
-        dsrCache.set(c.Nome, s);
+        dsrCache.set(nomeNorm, s);
         return s;
-    };
-    for (const d of datesISO) {
-        const want = weekdayKey(d);
-        const auxElegiveis = auxTurno.filter(c => !c['Data de admissão'] || parseAnyToISO(c['Data de admissão']) <= d);
-        const confElegiveis = confTurno.filter(c => !c['Data de admissão'] || parseAnyToISO(c['Data de admissão']) <= d);
-        const setAux = new Set(auxElegiveis.map(c => c.Nome));
-        const setConf = new Set(confElegiveis.map(c => c.Nome));
-        const dsrAux = auxElegiveis.reduce((acc, c) => acc + (getDSRSet(c).has(want) ? 1 : 0), 0);
-        const dsrConf = confElegiveis.reduce((acc, c) => acc + (getDSRSet(c).has(want) ? 1 : 0), 0);
-        const nomesFerias = feriasPorDia.get(d) || new Set();
-        let feriasAux = 0, feriasConf = 0;
-        for (const c of auxElegiveis) if (nomesFerias.has(c.Nome)) feriasAux++;
-        for (const c of confElegiveis) if (nomesFerias.has(c.Nome)) feriasConf++;
-        let presAux = 0, presConf = 0, fal = 0, ate = 0, fe = 0, fer = 0;
-        const marks = marksByDate.get(d) || [];
-        for (const m of marks) {
-            const nome = m.Nome;
-            const inAux = setAux.has(nome);
-            const inConf = setConf.has(nome);
-            if (!inAux && !inConf) continue;
-            const tipo = canonicalMark(m);
-            const bump = (t, grp) => {
-                switch (t) {
-                    case 'PRESENCA':
-                        grp === 'AUX' ? presAux++ : presConf++;
-                        break;
-                    case 'FALTA':
-                        fal++;
-                        break;
-                    case 'ATESTADO':
-                        ate++;
-                        break;
-                    case 'F_ESPECIAL':
-                        fe++;
-                        break;
-                    case 'FERIADO':
-                        fer++;
-                        break;
-                }
-            };
-            if (inAux) bump(tipo, 'AUX');
-            else if (inConf) bump(tipo, 'CONF');
-        }
-        const adm = countAdmissoes(new Set([...setAux, ...setConf]), d);
-        const deslig = (desligRows || []).reduce((acc, r) => {
-            const iso = firstISOFrom(r, ['Data de Desligamento']);
-            if (iso !== d) return acc;
-            const rTurno = norm(r.Escala || '');
-            const thisTurno = norm(turno);
-            if (rTurno && rTurno !== thisTurno) return acc;
-            if (!rTurno && !(setAux.has(r.Nome) || setConf.has(r.Nome))) return acc;
+    };    for (const d of datesISO) {
+        const wantDay = weekdayKey(d);        let counts = {
+            presAux: 0, presConf: 0,
+            fal: 0, ate: 0, fe: 0, fer: 0, susp: 0,
+            dsrAux: 0, dsrConf: 0,
+            feriasAux: 0, feriasConf: 0
+        };        let quadroAtivoCount = 0;        const rawMarks = marksByDate.get(d) || [];
+        const processedNames = new Set();        const uniqueMarks = new Map();
+        for (const m of rawMarks) uniqueMarks.set(normalize(m.Nome), m);        for (const [nomeNorm, m] of uniqueMarks) {
+            const cCadastro = colabMap.get(nomeNorm) || {};            const turnoEfetivo  = norm(m.Turno  || cCadastro.Escala);
+            const cargoEfetivo  = norm(m.Cargo  || cCadastro.Cargo);
+            const matrizEfetiva = norm(m.MATRIZ || cCadastro.MATRIZ);            if (turnoEfetivo !== norm(turnoDestino)) continue;
+            if (_filters.matriz && matrizEfetiva !== norm(_filters.matriz)) continue;
+            if (_filters.svc && norm(cCadastro.SVC) !== norm(_filters.svc)) continue;            let isAux  = cargoEfetivo.includes('AUXILIAR');
+            let isConf = cargoEfetivo.includes('CONFERENTE');            if (!isAux && !isConf && cCadastro.Cargo) {
+                isAux  = norm(cCadastro.Cargo).includes('AUXILIAR');
+                isConf = norm(cCadastro.Cargo).includes('CONFERENTE');
+            }            if (!isAux && !isConf) continue;            quadroAtivoCount++;
+            processedNames.add(nomeNorm);            const tipo = canonicalMark(m);            if (isAux) {
+                if (tipo === 'PRESENCA') counts.presAux++;
+                else if (tipo === 'FALTA') counts.fal++;
+                else if (tipo === 'ATESTADO') counts.ate++;
+                else if (tipo === 'F_ESPECIAL') counts.fe++;
+                else if (tipo === 'FERIADO') counts.fer++;
+                else if (tipo === 'SUSPENSAO') counts.susp++;
+            } else if (isConf) {
+                if (tipo === 'PRESENCA') counts.presConf++;
+                else if (tipo === 'FALTA') counts.fal++;
+                else if (tipo === 'ATESTADO') counts.ate++;
+                else if (tipo === 'F_ESPECIAL') counts.fe++;
+                else if (tipo === 'FERIADO') counts.fer++;
+                else if (tipo === 'SUSPENSAO') counts.susp++;
+            }
+        }        const feriasDoDia = feriasPorDia.get(d) || new Set();
+        const feriasNorm = new Set();
+        feriasDoDia.forEach(n => feriasNorm.add(normalize(n)));        for (const c of _colabs) {
+            const nomeNorm = normalize(c.Nome);            if (processedNames.has(nomeNorm)) continue;            const status = norm(c.Ativo || 'SIM');
+            if (status !== 'SIM') continue;            if (parseAnyToISO(c['Data de admissão']) > d) continue;
+            if (norm(c.Escala) !== norm(turnoDestino)) continue;
+            if (_filters.matriz && norm(c.MATRIZ) !== norm(_filters.matriz)) continue;
+            if (_filters.svc && norm(c.SVC) !== norm(_filters.svc)) continue;            const cargo = norm(c.Cargo);
+            const isAux = cargo.includes('AUXILIAR');
+            const isConf = cargo.includes('CONFERENTE');
+            if (!isAux && !isConf) continue;            quadroAtivoCount++;            if (feriasNorm.has(nomeNorm)) {
+                if (isAux) counts.feriasAux++;
+                else counts.feriasConf++;
+                continue;
+            }            const dsrSet = getDSRSet(nomeNorm);
+            if (dsrSet.has(wantDay)) {
+                if (isAux) counts.dsrAux++;
+                else counts.dsrConf++;
+            }        }        let adm = 0;
+        for (const c of _colabs) {            if (parseAnyToISO(c['Data de admissão']) === d &&
+                norm(c.Escala) === norm(turnoDestino) &&
+                (!_filters.matriz || norm(c.MATRIZ) === norm(_filters.matriz)) &&
+                (!_filters.svc || norm(c.SVC) === norm(_filters.svc))
+               ) {
+                adm++;
+            }
+        }        const deslig = (desligRows || []).reduce((acc, r) => {
+            if (firstISOFrom(r, ['Data de Desligamento']) !== d) return acc;
+            if (norm(r.Escala) !== norm(turnoDestino)) return acc;
+            if (_filters.matriz && norm(r.MATRIZ) !== norm(_filters.matriz)) return acc;
+            if (_filters.svc && norm(r.SVC) !== norm(_filters.svc)) return acc;
             return acc + 1;
-        }, 0);
-        rows['LOG I'][d] = presAux;
-        rows['CONFERENTES'][d] = presConf;
-        rows['DSR'][d] = dsrAux;
-        rows['DSR PS'][d] = dsrConf;
-        rows['FÉRIAS'][d] = feriasAux + feriasConf;
-        rows['INJUSTIFICADO'][d] = fal;
-        rows['JUSTIFICADO'][d] = ate;
-        rows['FOLGA ESPECIAL'][d] = fe;
-        rows['FERIADO'][d] = fer;
+        }, 0);        rows['LOG I'][d] = counts.presAux;
+        rows['CONFERENTES'][d] = counts.presConf;
+        rows['DSR'][d] = counts.dsrAux;
+        rows['DSR PS'][d] = counts.dsrConf;
+        rows['FÉRIAS'][d] = counts.feriasAux + counts.feriasConf;
+        rows['INJUSTIFICADO'][d] = counts.fal;
+        rows['JUSTIFICADO'][d] = counts.ate;
+        rows['FOLGA ESPECIAL'][d] = counts.fe;
+        rows['FERIADO'][d] = counts.fer;
         rows['ADMISSÃO'][d] = adm;
-        rows['DESLIGAMENTOS'][d] = deslig;
-        rows['TOTAL QUADRO'][d] = (presAux + presConf) + (dsrAux + dsrConf) + (feriasAux + feriasConf) + fe + fer;
-    }
-    return rows;
+        rows['DESLIGAMENTOS'][d] = deslig;        rows['TOTAL QUADRO'][d] = quadroAtivoCount;
+    }    return rows;
 }export async function buildHCDiario() {
     if (_building) {
         _needsRebuild = true;
