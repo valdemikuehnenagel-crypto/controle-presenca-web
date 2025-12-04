@@ -1,9 +1,7 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
 import {logAction} from '../../logAction.js';
-import {openFeriasModal, processarStatusFerias, setOnFeriasChangeCallback, wireFerias} from './ferias.js';
-
-let state = {
+import {openFeriasModal, processarStatusFerias, setOnFeriasChangeCallback, wireFerias} from './ferias.js';let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
@@ -65,9 +63,7 @@ let modalListaRH, tbodyCandidatosRH, fecharModalRH;
 let currentDsrInputTarget = null;
 let histContextMenu = null;
 let selectedMonthIndex = null;
-const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
-
-function invalidateColaboradoresCache() {
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];function invalidateColaboradoresCache() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
@@ -77,9 +73,7 @@ function invalidateColaboradoresCache() {
         console.warn('Falha ao invalidar cache compartilhado', e);
     }
     console.log("Cache de colaboradores e férias invalidado.");
-}
-
-async function ensureMatrizesDataLoaded() {
+}async function ensureMatrizesDataLoaded() {
     if (state.matrizesData.length > 0) return;
     try {
         const {data, error} = await supabase
@@ -108,9 +102,7 @@ async function ensureMatrizesDataLoaded() {
     } catch (e) {
         console.error('Erro ao carregar dados de Matrizes/Gerência:', e);
     }
-}
-
-function mapearDadosRhParaFormulario(candidato) {
+}function mapearDadosRhParaFormulario(candidato) {
     let contratoFormatado = (candidato.EmpresaContratante || '').toUpperCase();
     if (contratoFormatado.includes('AST')) contratoFormatado = 'AST';
     else if (contratoFormatado.includes('ADECCO')) contratoFormatado = 'ADECCO';
@@ -141,9 +133,61 @@ function mapearDadosRhParaFormulario(candidato) {
         sapato: candidato.sapato,
         DataNascimento: candidato.DataNascimento
     };
-}
-
-function injectRhTabsStyles() {
+}function injectFluxoStyles() {
+    const styleId = 'fluxo-modal-style-fix';
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+        #fluxoEfetivacaoModal > div {
+            max-width: 450px !important; /* Deixa a janela mais estreita */
+            width: 95% !important;
+            margin: auto;
+        }
+        .swal-custom-list {
+            text-align: left;
+            font-size: 14px;
+            margin-top: 10px;
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+        .swal-custom-list li {
+            margin-bottom: 4px;
+        }
+    `;
+    document.head.appendChild(style);
+}function promptSelectContratoReversao() {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 bg-black/60 z-[30000] flex items-center justify-center p-4 backdrop-blur-sm';
+        overlay.innerHTML = `
+            <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm p-6 animate-scaleIn">
+                <h3 class="text-lg font-bold text-[#003369] mb-2">Reverter para Consultoria</h3>
+                <p class="text-sm text-gray-600 mb-4">Deseja voltar o colaborador para Consultoria? Selecione o contrato original:</p>                <select id="revertContractSelect" class="w-full border border-gray-300 rounded p-2 mb-6 text-sm focus:border-blue-500 outline-none">
+                    <option value="ADECCO">ADECCO</option>
+                    <option value="AST">AST</option>
+                    <option value="GNX">GNX</option>
+                    <option value="LUANDRE">LUANDRE</option>
+                    <option value="POLLY">POLLY</option>
+                    <option value="TSI">TSI</option>
+                </select>                <div class="flex justify-end gap-2">
+                    <button id="btnCancelRevert" class="px-4 py-2 rounded text-gray-600 hover:bg-gray-100 text-sm font-medium">Cancelar</button>
+                    <button id="btnConfirmRevert" class="px-4 py-2 rounded bg-[#003369] text-white hover:bg-[#002244] text-sm font-bold shadow-md">Confirmar Reversão</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);        const close = (val) => {
+            overlay.remove();
+            resolve(val);
+        };        document.getElementById('btnCancelRevert').onclick = () => close(null);
+        document.getElementById('btnConfirmRevert').onclick = () => {
+            const selected = document.getElementById('revertContractSelect').value;
+            close(selected);
+        };
+    });
+}function injectRhTabsStyles() {
     const styleId = 'rh-tabs-style';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
@@ -171,9 +215,7 @@ function injectRhTabsStyles() {
         .rh-tab-btn.active { color: #003369; border-bottom: 2px solid #003369; font-weight: 800; }
     `;
     document.head.appendChild(style);
-}
-
-function ensureHistContextMenu() {
+}function ensureHistContextMenu() {
     if (document.getElementById('hist-context-menu')) return;
     const menu = document.createElement('div');
     menu.id = 'hist-context-menu';
@@ -198,9 +240,7 @@ function ensureHistContextMenu() {
         }
     });
     window.addEventListener('scroll', hideHistContextMenu, true);
-}
-
-function showHistContextMenu(x, y, monthIndex) {
+}function showHistContextMenu(x, y, monthIndex) {
     ensureHistContextMenu();
     selectedMonthIndex = monthIndex;
     if (histContextMenu) {
@@ -208,15 +248,11 @@ function showHistContextMenu(x, y, monthIndex) {
         histContextMenu.style.top = `${y}px`;
         histContextMenu.classList.remove('hidden');
     }
-}
-
-function hideHistContextMenu() {
+}function hideHistContextMenu() {
     if (histContextMenu) {
         histContextMenu.classList.add('hidden');
     }
-}
-
-function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
     const selSapato = document.getElementById(idSelectSapato);
     const selColete = document.getElementById(idSelectColete);
     if (selSapato) {
@@ -242,9 +278,7 @@ function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
         });
         if (valorAtual) selColete.value = valorAtual;
     }
-}
-
-async function fetchCandidatosAprovados() {
+}async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
     tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
     try {
@@ -281,9 +315,7 @@ async function fetchCandidatosAprovados() {
         console.error('Erro RH:', err);
         tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar ou filtrar dados.</td></tr>';
     }
-}
-
-function setupRhFilters() {
+}function setupRhFilters() {
     injectRhTabsStyles();
     const inputSearch = document.getElementById('filterRhSearch');
     const selectMatriz = document.getElementById('filterRhMatriz');
@@ -325,9 +357,7 @@ function setupRhFilters() {
         rhState.filtros.cargo = e.target.value;
         aplicarFiltrosRh();
     };
-}
-
-function populateRhFilterOptions() {
+}function populateRhFilterOptions() {
     const selMatriz = document.getElementById('filterRhMatriz');
     const selCargo = document.getElementById('filterRhCargo');
     if (!selMatriz || !selCargo) return;
@@ -351,9 +381,7 @@ function populateRhFilterOptions() {
     });
     if (matrizes.includes(valMatriz)) selMatriz.value = valMatriz;
     if (cargos.includes(valCargo)) selCargo.value = valCargo;
-}
-
-async function buscarEnderecoPorCep(cep, prefixoId) {
+}async function buscarEnderecoPorCep(cep, prefixoId) {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) {
         return;
@@ -392,9 +420,7 @@ async function buscarEnderecoPorCep(cep, prefixoId) {
     } finally {
         if (campoEndereco) campoEndereco.placeholder = "";
     }
-}
-
-function wireCepEvents() {
+}function wireCepEvents() {
     const addCepInput = document.getElementById('addCEP');
     if (addCepInput) {
         addCepInput.addEventListener('input', (e) => {
@@ -409,9 +435,7 @@ function wireCepEvents() {
             }
         });
     }
-}
-
-function aplicarFiltrosRh() {
+}function aplicarFiltrosRh() {
     const hoje = new Date().toISOString().split('T')[0];
     const badge = document.getElementById('countRhBadges');
     const filtrados = rhState.dadosBrutos.filter(item => {
@@ -438,9 +462,7 @@ function aplicarFiltrosRh() {
     });
     if (badge) badge.textContent = filtrados.length;
     renderTabelaRH(filtrados);
-}
-
-function formatCargoShort(cargo) {
+}function formatCargoShort(cargo) {
     if (!cargo) return '';
     let s = cargo.toUpperCase();
     s = s.replace('AUXILIAR DE OPERAÇÕES LOGÍSTICAS', 'Aux. Op. Log.');
@@ -453,9 +475,7 @@ function formatCargoShort(cargo) {
     s = s.replace('OPERADOR DE EMPILHADEIRA', 'Op. Empilhadeira');
     s = s.replace('CONFERENTE', 'Conferente');
     return s;
-}
-
-async function showAvisoDesligamento() {
+}async function showAvisoDesligamento() {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[20000]';
@@ -490,9 +510,7 @@ async function showAvisoDesligamento() {
             if (e.target === overlay) close(false);
         });
     });
-}
-
-function getLocalISOString(date) {
+}function getLocalISOString(date) {
     if (!(date instanceof Date)) {
         date = new Date(date);
     }
@@ -510,9 +528,7 @@ function getLocalISOString(date) {
     const offHour = pad(Math.floor(absMin / 60));
     const offMin = pad(absMin % 60);
     return `${year}-${month}-${day}T${hour}:${minute}:${second}${sign}${offHour}:${offMin}`;
-}
-
-function formatDateTimeLocal(iso) {
+}function formatDateTimeLocal(iso) {
     if (!iso) return '';
     try {
         const d = new Date(iso);
@@ -526,9 +542,7 @@ function formatDateTimeLocal(iso) {
     } catch (e) {
         return iso;
     }
-}
-
-async function verificarPendencias(colab, dataDesligamentoStr) {
+}async function verificarPendencias(colab, dataDesligamentoStr) {
     const pendencias = [];
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -631,9 +645,7 @@ async function verificarPendencias(colab, dataDesligamentoStr) {
         cursor.setDate(cursor.getDate() + 1);
     }
     return pendencias;
-}
-
-function renderTabelaRH(lista) {
+}function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -748,9 +760,7 @@ function renderTabelaRH(lista) {
         });
         tbodyCandidatosRH.appendChild(tr);
     });
-}
-
-async function fecharVagaImportacao(vaga) {
+}async function fecharVagaImportacao(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = await window.customConfirm(
         `Deseja marcar a vaga de <b>${nome}</b> como <span style="color:green">FECHADA</span>?<br><br>Isso removerá o candidato desta lista de importação.`,
@@ -776,9 +786,7 @@ async function fecharVagaImportacao(vaga) {
         await window.customAlert('Erro ao fechar vaga: ' + err.message, 'Erro');
         fetchCandidatosAprovados();
     }
-}
-
-async function confirmarDesistenciaVaga(vaga) {
+}async function confirmarDesistenciaVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar DESISTÊNCIA de:\n\n${nome}?\n\nA vaga será cancelada.`);
     if (!confirmacao) return;
@@ -801,9 +809,7 @@ async function confirmarDesistenciaVaga(vaga) {
         alert('Erro ao registrar desistência: ' + err.message);
         fetchCandidatosAprovados();
     }
-}
-
-async function confirmarNoShowVaga(vaga) {
+}async function confirmarNoShowVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar NO SHOW (Não Comparecimento) de:\n\n${nome}?\n\nA vaga será cancelada com motivo 'NO SHOW'.`);
     if (!confirmacao) return;
@@ -826,9 +832,7 @@ async function confirmarNoShowVaga(vaga) {
         alert('Erro ao registrar No Show: ' + err.message);
         fetchCandidatosAprovados();
     }
-}
-
-async function selecionarCandidatoImportacao(candidatoRaw) {
+}async function selecionarCandidatoImportacao(candidatoRaw) {
     const dadosMapeados = mapearDadosRhParaFormulario(candidatoRaw);
     modalListaRH.classList.add('hidden');
     await prepararFormularioAdicao();
@@ -836,18 +840,14 @@ async function selecionarCandidatoImportacao(candidatoRaw) {
     setTimeout(() => {
         preencherFormularioAdicao(dadosMapeados);
     }, 100);
-}
-
-async function prepararFormularioAdicao() {
+}async function prepararFormularioAdicao() {
     await loadGestoresParaFormulario();
     loadSVCsParaFormulario();
     await populateContratoSelect(document.getElementById('addContrato'));
     populateOptionsTamanhos('addSapato', 'addColete');
     populateGestorSelect(null);
     attachUppercaseHandlers();
-}
-
-function preencherFormularioAdicao(dados) {
+}function preencherFormularioAdicao(dados) {
     const setVal = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.value = val || '';
@@ -884,9 +884,7 @@ function preencherFormularioAdicao(dados) {
             populateGestorSelect(matrizItem.SERVICE);
         }
     }
-}
-
-function checkUserAdminStatus() {
+}function checkUserAdminStatus() {
     const sessionString = localStorage.getItem('userSession');
     if (!sessionString) {
         console.warn('Sessão do usuário não encontrada. Permissões de admin não concedidas.');
@@ -906,9 +904,7 @@ function checkUserAdminStatus() {
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
     }
-}
-
-function promptForDate(title, defaultDate) {
+}function promptForDate(title, defaultDate) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:20000;';
@@ -951,9 +947,7 @@ function promptForDate(title, defaultDate) {
             if (e.target === overlay) close(null);
         };
     });
-}
-
-async function fetchAllWithPagination(queryBuilder) {
+}async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -972,48 +966,32 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
     return allData;
-}
-
-function ymdToday() {
+}function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}
-
-function isFutureYMD(yyyyMmDd) {
+}function isFutureYMD(yyyyMmDd) {
     if (!yyyyMmDd) return false;
     return yyyyMmDd > ymdToday();
-}
-
-function normalizeCPF(raw) {
+}function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
-}
-
-function toUpperNoTrim(str) {
+}function toUpperNoTrim(str) {
     return typeof str === 'string' ? str.toUpperCase() : str;
-}
-
-function toUpperTrim(str) {
+}function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}
-
-function nullIfEmpty(v) {
+}function nullIfEmpty(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s === '' ? null : s;
-}
-
-function numberOrNull(v) {
+}function numberOrNull(v) {
     const s = nullIfEmpty(v);
     if (s === null) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
-}
-
-function toStartOfDay(dateish) {
+}function toStartOfDay(dateish) {
     if (!dateish) return NaN;
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
@@ -1025,15 +1003,11 @@ function toStartOfDay(dateish) {
     }
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
-
-function formatDateLocal(iso) {
+}function formatDateLocal(iso) {
     if (!iso) return '';
     const [y, m, d] = String(iso).split('T')[0].split('-');
     return `${d}/${m}/${y}`;
-}
-
-function attachUppercaseHandlers() {
+}function attachUppercaseHandlers() {
     if (!addForm || addForm.dataset.upperBound === '1') return;
     addForm.dataset.upperBound = '1';
     const uppercaseOnInput = (el) => {
@@ -1058,9 +1032,7 @@ function attachUppercaseHandlers() {
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}
-
-async function populateContratoSelect(selectElement) {
+}async function populateContratoSelect(selectElement) {
     if (!selectElement) return;
     const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
@@ -1074,9 +1046,7 @@ async function populateContratoSelect(selectElement) {
     if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
-}
-
-function attachUpperHandlersTo(form) {
+}function attachUpperHandlersTo(form) {
     if (!form || form.dataset.upperBound === '1') return;
     form.dataset.upperBound = '1';
     const textInputs = form.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="tel"], input:not([type]), textarea');
@@ -1099,9 +1069,7 @@ function attachUpperHandlersTo(form) {
     form.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}
-
-function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+}function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -1133,9 +1101,7 @@ function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
-}
-
-function toUpperObject(obj) {
+}function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
@@ -1167,9 +1133,7 @@ function toUpperObject(obj) {
         }
     }
     return out;
-}
-
-function renderTable(dataToRender) {
+}function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
     colaboradoresTbody.innerHTML = '';
     if (!dataToRender || dataToRender.length === 0) {
@@ -1220,17 +1184,13 @@ function renderTable(dataToRender) {
             `;
         colaboradoresTbody.appendChild(tr);
     });
-}
-
-function updateDisplay() {
+}function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
     renderTable(dataSlice);
     if (mostrarMenosBtn) mostrarMenosBtn.classList.toggle('hidden', itensVisiveis <= ITENS_POR_PAGINA);
     if (mostrarMaisBtn) mostrarMaisBtn.classList.toggle('hidden', itensVisiveis >= state.dadosFiltrados.length);
     if (contadorVisiveisEl) contadorVisiveisEl.textContent = `${dataSlice.length} de ${state.dadosFiltrados.length} colaboradores visíveis`;
-}
-
-function populateFilters() {
+}function populateFilters() {
     if (!filtrosSelect) return;
     const filtros = {
         Contrato: new Set(),
@@ -1281,66 +1241,39 @@ function populateFilters() {
         }
         selectEl.value = valorSalvo;
     });
-}
-
-function applyFiltersAndSearch() {
+}function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
         .map(term => term.trim().toLowerCase())
-        .filter(term => term.length > 0);
-
-    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
+        .filter(term => term.length > 0);    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
         for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
-            if (!activeVal) continue;
-
-
-            if (key === 'Contrato' && activeVal === 'Consultorias') {
+            if (!activeVal) continue;            if (key === 'Contrato' && activeVal === 'Consultorias') {
                 if (String(colaborador?.['Contrato'] ?? '').toUpperCase() === 'KN') {
                     return false;
                 }
                 continue;
-            }
-
-            let colVal;
-
-            if (key.toUpperCase() === 'GERENCIA') {
-                const mtzColab = String(colaborador.MATRIZ || '').toUpperCase().trim();
-
-                colVal = state.matrizGerenciaMap.get(mtzColab) || '';
-            } else {
-
-                colVal = String(colaborador?.[key] ?? '');
-            }
-
-            if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
-        }
-
-        if (searchTerms.length === 0) {
+            }            let colVal;            if (key.toUpperCase() === 'GERENCIA') {
+                const mtzColab = String(colaborador.MATRIZ || '').toUpperCase().trim();                colVal = state.matrizGerenciaMap.get(mtzColab) || '';
+            } else {                colVal = String(colaborador?.[key] ?? '');
+            }            if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
+        }        if (searchTerms.length === 0) {
             return true;
-        }
-
-        return searchTerms.some(term =>
+        }        return searchTerms.some(term =>
             String(colaborador.Nome || '').toLowerCase().includes(term) ||
             String(colaborador.CPF || '').toLowerCase().includes(term) ||
             String(colaborador['ID GROOT'] || '').toLowerCase().includes(term) ||
             String(colaborador.LDAP || '').toLowerCase().includes(term) ||
             String(colaborador.Fluxo || '').toLowerCase().includes(term)
         );
-    });
-
-    itensVisiveis = ITENS_POR_PAGINA;
+    });    itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
-    updateDisplay();
-
-    if (typeof updatePendingImportCounter === 'function') {
+    updateDisplay();    if (typeof updatePendingImportCounter === 'function') {
         updatePendingImportCounter();
     }
-}
-
-function repopulateFilterOptionsCascade() {
+}function repopulateFilterOptionsCascade() {
     if (!filtrosSelect || !filtrosSelect.length) return;
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
@@ -1408,9 +1341,7 @@ function repopulateFilterOptionsCascade() {
             selectEl.selectedIndex = 0;
         }
     });
-}
-
-function updatePendingImportCounter() {
+}function updatePendingImportCounter() {
     if (!state.pendingImportsRaw || state.pendingImportsRaw.length === 0) {
         hidePendingImportAlert();
         return;
@@ -1451,9 +1382,7 @@ function updatePendingImportCounter() {
     } else {
         hidePendingImportAlert();
     }
-}
-
-function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+}function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
     state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
@@ -1462,9 +1391,7 @@ function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     if (bySvc) return toUpperTrim(bySvc);
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
-}
-
-async function checkPendingImports() {
+}async function checkPendingImports() {
     const matrizesPermitidas = getMatrizesPermitidas();
     let query = supabase
         .from('Vagas')
@@ -1482,9 +1409,7 @@ async function checkPendingImports() {
     }
     state.pendingImportsRaw = vagasCandidatos;
     updatePendingImportCounter();
-}
-
-function showPendingImportAlert(count) {
+}function showPendingImportAlert(count) {
     let alertDiv = document.getElementById('pending-import-alert');
     if (!alertDiv) {
         alertDiv = document.createElement('div');
@@ -1507,16 +1432,12 @@ function showPendingImportAlert(count) {
                 </div>
             `;
     alertDiv.classList.remove('hidden');
-}
-
-function hidePendingImportAlert() {
+}function hidePendingImportAlert() {
     const alertDiv = document.getElementById('pending-import-alert');
     if (alertDiv) {
         alertDiv.classList.add('hidden');
     }
-}
-
-async function fetchColaboradores() {
+}async function fetchColaboradores() {
     const now = Date.now();
     let currentUser = 'unknown';
     try {
@@ -1635,9 +1556,7 @@ async function fetchColaboradores() {
         cachedColaboradores = null;
         lastFetchTimestamp = 0;
     }
-}
-
-async function gerarJanelaDeQRCodes() {
+}async function gerarJanelaDeQRCodes() {
     if (state.selectedNames.size === 0) {
         await window.customAlert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.', 'Aviso');
         return;
@@ -1724,9 +1643,7 @@ async function gerarJanelaDeQRCodes() {
         `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
-}
-
-async function loadSVCsParaFormulario() {
+}async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
     if (state.matrizesData.length > 0 && svcSelect.options.length > 1) {
@@ -1758,9 +1675,7 @@ async function loadSVCsParaFormulario() {
         opt.textContent = svc;
         svcSelect.appendChild(opt);
     });
-}
-
-async function loadGestoresParaFormulario() {
+}async function loadGestoresParaFormulario() {
     if (state.gestoresData.length > 0) return;
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
@@ -1769,9 +1684,7 @@ async function loadGestoresParaFormulario() {
         return;
     }
     state.gestoresData = data || [];
-}
-
-function populateGestorSelect(selectedSvc) {
+}function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -1800,9 +1713,7 @@ function populateGestorSelect(selectedSvc) {
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-}
-
-function isDSRValida(dsrStr) {
+}function isDSRValida(dsrStr) {
     const raw = (dsrStr || '').toUpperCase().trim();
     if (!raw) return false;
     const dias = raw.split(',').map(d => d.trim()).filter(Boolean);
@@ -1810,9 +1721,7 @@ function isDSRValida(dsrStr) {
     const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
     permitidos.add('SABADO');
     return dias.every(d => permitidos.has(d));
-}
-
-async function handleAddSubmit(event) {
+}async function handleAddSubmit(event) {
     event.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -1935,9 +1844,7 @@ async function handleAddSubmit(event) {
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}
-
-async function loadServiceMatrizForEdit() {
+}async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
     if (state.matrizesData.length > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
@@ -1967,9 +1874,7 @@ async function loadServiceMatrizForEdit() {
         opt.textContent = svc;
         editSVC.appendChild(opt);
     });
-}
-
-async function fetchColabByNome(nome) {
+}async function fetchColabByNome(nome) {
     const {data, error} = await supabase
         .from('Colaboradores')
         .select('*')
@@ -1977,19 +1882,13 @@ async function fetchColabByNome(nome) {
         .maybeSingle();
     if (error) throw error;
     return data;
-}
-
-function showEditModal() {
+}function showEditModal() {
     editModal?.classList.remove('hidden');
-}
-
-function hideEditModal() {
+}function hideEditModal() {
     editModal?.classList.add('hidden');
     editOriginal = null;
     editForm?.reset();
-}
-
-async function fillEditForm(colab) {
+}async function fillEditForm(colab) {
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
@@ -2101,19 +2000,15 @@ async function fillEditForm(colab) {
     if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
-}
-
-function openFluxoEfetivacaoModal() {
+}function openFluxoEfetivacaoModal() {
     if (!editOriginal || !fluxoEfetivacaoModal) {
         console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
-    }
-    if (
+    }    injectFluxoStyles();    if (
         !fluxoEfetivacaoNomeEl || !fluxoNumeroEl || !fluxoDataAberturaEl ||
         !fluxoObservacaoEl || !fluxoAdmissaoKnEl || !fluxoGerarBtn ||
         !fluxoFinalizarBtn || !fluxoCancelarBtn
     ) {
-        console.error("Elementos do formulário de fluxo não encontrados! Verificando IDs...");
         fluxoEfetivacaoNomeEl = document.getElementById('fluxoEfetivacaoNome');
         fluxoNumeroEl = document.getElementById('fluxoNumero');
         fluxoDataAberturaEl = document.getElementById('fluxoDataAbertura');
@@ -2121,143 +2016,111 @@ function openFluxoEfetivacaoModal() {
         fluxoAdmissaoKnEl = document.getElementById('fluxoAdmissaoKnData');
         fluxoGerarBtn = document.getElementById('fluxoGerarBtn');
         fluxoFinalizarBtn = document.getElementById('fluxoFinalizarBtn');
-        fluxoCancelarBtn = document.getElementById('fluxoCancelarBtn');
-        if (!fluxoAdmissaoKnEl) {
-            alert('Erro fatal: O campo com ID "fluxoAdmissaoKnData" não foi encontrado no HTML.');
-            return;
-        }
-    }
-    fluxoEfetivacaoNomeEl.value = editOriginal.Nome;
+        fluxoCancelarBtn = document.getElementById('fluxoCancelarBtn');        if (!fluxoAdmissaoKnEl) return;
+    }    fluxoEfetivacaoNomeEl.value = editOriginal.Nome;
     fluxoNumeroEl.value = editOriginal.Fluxo || '';
     fluxoDataAberturaEl.value = editOriginal['Data Fluxo'] || ymdToday();
-    fluxoObservacaoEl.value = editOriginal['Observacao Fluxo'] || '';
-    const status = editOriginal.Efetivacao;
-    if (status === 'Concluido') {
+    fluxoObservacaoEl.value = editOriginal['Observacao Fluxo'] || '';    const status = editOriginal.Efetivacao;    if (status === 'Concluido') {
         fluxoAdmissaoKnEl.value = editOriginal['Admissao KN'] || editOriginal['Data de admissão'] || '';
+        fluxoAdmissaoKnEl.disabled = true;
     } else {
         fluxoAdmissaoKnEl.value = '';
-    }
-    fluxoGerarBtn.disabled = false;
-    fluxoFinalizarBtn.disabled = false;
-    fluxoCancelarBtn.disabled = false;
-    fluxoAdmissaoKnEl.disabled = false;
-    fluxoNumeroEl.disabled = false;
+        fluxoAdmissaoKnEl.disabled = false;
+    }    fluxoNumeroEl.disabled = false;
     fluxoDataAberturaEl.disabled = false;
-    fluxoObservacaoEl.disabled = false;
-    if (status === 'Aberto') {
-        fluxoGerarBtn.textContent = 'Atualizar Fluxo';
-    } else if (status === 'Concluido') {
-        fluxoGerarBtn.textContent = 'Salvar Observação';
-        fluxoFinalizarBtn.disabled = true;
-        fluxoCancelarBtn.textContent = 'Reverter Conclusão';
-        fluxoCancelarBtn.disabled = true;
-        fluxoAdmissaoKnEl.disabled = true;
-    } else if (status === 'Cancelado') {
-        fluxoGerarBtn.textContent = 'Re-abrir Fluxo';
-        fluxoFinalizarBtn.disabled = true;
-        fluxoCancelarBtn.disabled = true;
-    } else {
-        fluxoGerarBtn.textContent = 'Gerar Fluxo';
-    }
-    if (!status && editOriginal.Contrato === 'KN') {
-        fluxoGerarBtn.textContent = 'Criar Fluxo (Legado)';
-    }
-    fluxoEfetivacaoModal.classList.remove('hidden');
-}
-
-function closeFluxoEfetivacaoModal() {
+    fluxoObservacaoEl.disabled = false;    fluxoFinalizarBtn.classList.remove('opacity-50', 'cursor-not-allowed');    if (status === 'Concluido') {
+        fluxoGerarBtn.textContent = 'Salvar Observação';        fluxoFinalizarBtn.disabled = true;
+        fluxoFinalizarBtn.classList.add('opacity-50', 'cursor-not-allowed');        fluxoCancelarBtn.textContent = 'Reverter Fluxo';
+        fluxoCancelarBtn.disabled = false;    } else {        if (status === 'Aberto') {
+            fluxoGerarBtn.textContent = 'Atualizar Fluxo';
+        } else if (status === 'Cancelado') {
+            fluxoGerarBtn.textContent = 'Re-abrir Fluxo';
+        } else {
+            fluxoGerarBtn.textContent = 'Gerar Fluxo';
+        }        fluxoFinalizarBtn.disabled = false;        fluxoCancelarBtn.textContent = 'Cancelar Fluxo';
+        fluxoCancelarBtn.disabled = false;
+    }    fluxoAdmissaoKnEl.oninput = null;    fluxoEfetivacaoModal.classList.remove('hidden');
+}function closeFluxoEfetivacaoModal() {
     if (fluxoEfetivacaoModal) {
         fluxoEfetivacaoModal.classList.add('hidden');
         fluxoEfetivacaoForm.reset();
     }
-}
-
-async function handleFluxoSubmit(action) {
-    if (!fluxoNumeroEl || !fluxoDataAberturaEl || !fluxoObservacaoEl || !fluxoAdmissaoKnEl || !fluxoGerarBtn || !fluxoFinalizarBtn || !fluxoCancelarBtn) {
-        await window.customAlert('Erro crítico: Elementos do formulário não encontrados.', 'Erro');
-        return;
-    }
-    if (!editOriginal) {
-        await window.customAlert('Erro crítico: Dados do colaborador original perdidos.', 'Erro');
-        return;
-    }
-    const nome = editOriginal.Nome;
+}async function handleFluxoSubmit(action) {
+    if (!editOriginal) return;    const nome = editOriginal.Nome;
     const numeroFluxo = nullIfEmpty(fluxoNumeroEl.value);
     const dataAbertura = nullIfEmpty(fluxoDataAberturaEl.value);
-    const observacao = nullIfEmpty(fluxoObservacaoEl.value);
-    const admissaoKN = nullIfEmpty(fluxoAdmissaoKnEl.value);
-    let payload = {
-        'Fluxo': editOriginal.Fluxo,
-        'Data Fluxo': editOriginal['Data Fluxo'],
-        'Observacao Fluxo': editOriginal['Observacao Fluxo'],
+    const observacao = nullIfEmpty(fluxoObservacaoEl.value);    let admissaoKN = nullIfEmpty(fluxoAdmissaoKnEl.value);    let payload = {
+        'Fluxo': numeroFluxo,
+        'Data Fluxo': dataAbertura,
+        'Observacao Fluxo': observacao,
         'Efetivacao': editOriginal.Efetivacao,
         'Contrato': editOriginal.Contrato,
         'Admissao KN': editOriginal['Admissao KN']
-    };
-    payload['Fluxo'] = numeroFluxo;
-    payload['Data Fluxo'] = dataAbertura;
-    payload['Observacao Fluxo'] = observacao;
-    let confirmMsg = '';
-    let confirmTitle = 'Confirmação';
-    if (action === 'gerar') {
+    };    if (action === 'gerar') {
         if (!numeroFluxo || !dataAbertura) {
             await window.customAlert('Para "Gerar" ou "Atualizar", o número do Fluxo e Data são obrigatórios.', 'Campos Obrigatórios');
-            fluxoNumeroEl.focus();
             return;
         }
-        payload.Efetivacao = 'Aberto';
-        confirmMsg = `Tem certeza que deseja salvar o fluxo para <b>"${nome}"</b> como "Aberto"?`;
-    } else if (action === 'finalizar') {
-        if (!admissaoKN) {
-            await window.customAlert('Para "Finalizar", a Data de Admissão KN é obrigatória.', 'Campo Obrigatório');
-            fluxoAdmissaoKnEl.focus();
-            return;
-        }
-        const admOriginal = editOriginal['Data de admissão'] || null;
+        payload.Efetivacao = 'Aberto';        const ok = await window.customConfirm(`Salvar o fluxo para <b>"${nome}"</b> como "Aberto"?`, 'Confirmar');
+        if (!ok) return;
+    }    else if (action === 'finalizar') {        if (!admissaoKN) {
+            const dataHoje = ymdToday();
+            const dataHojeFormatada = formatDateLocal(dataHoje);            const usarHoje = await window.customConfirm(
+                `A data de admissão não foi preenchida.<br><br>Deseja finalizar a admissão KN com a data de <b>HOJE (${dataHojeFormatada})</b>?`,
+                'Definir Data',
+                'question'
+            );            if (usarHoje) {
+                admissaoKN = dataHoje;
+            } else {                admissaoKN = await promptForDate("Selecione a Data de Admissão KN:", dataHoje);
+                if (!admissaoKN) return;
+            }            fluxoAdmissaoKnEl.value = admissaoKN;
+        }        const admOriginal = editOriginal['Data de admissão'] || null;
         if (admOriginal && admissaoKN < admOriginal) {
-            await window.customAlert(`Admissão KN (${formatDateLocal(admissaoKN)}) não pode ser anterior à admissão original.`, 'Data Inválida');
+            await window.customAlert(`Data inválida! A Admissão KN (${formatDateLocal(admissaoKN)}) não pode ser anterior à admissão original na consultoria.`, 'Erro');
             fluxoAdmissaoKnEl.focus();
             return;
-        }
-        payload.Efetivacao = 'Concluido';
+        }        const dataFinalFormatada = formatDateLocal(admissaoKN);
+        const htmlMsg = `
+            <div class="text-left">
+                <p>Confirma a finalização para "<b>${nome}</b>"?</p>
+                <ul class="swal-custom-list">
+                    <li>1. Status: <b>Concluido</b></li>
+                    <li>2. Contrato: <b>KN</b></li>
+                    <li>3. Admissão: <b>${dataFinalFormatada}</b></li>
+                </ul>
+            </div>
+        `;        const okFinal = await window.customConfirm(htmlMsg, 'Confirmar Efetivação', 'success');
+        if (!okFinal) return;        payload.Efetivacao = 'Concluido';
         payload.Contrato = 'KN';
         payload['Admissao KN'] = admissaoKN;
-        confirmMsg = `Tem certeza que deseja <b>FINALIZAR</b> o fluxo para "${nome}"?<br><br>Isso irá:<br>1. Alterar status para "Concluido".<br>2. Mudar contrato para "KN".<br>3. Registrar admissão em ${formatDateLocal(admissaoKN)}.`;
-        confirmTitle = 'Finalizar Fluxo';
-    } else if (action === 'cancelar') {
-        payload.Efetivacao = 'Cancelado';
-        payload.Contrato = editOriginal.Contrato;
+    }    else if (action === 'cancelar') {
+        const novoContrato = await promptSelectContratoReversao();
+        if (!novoContrato) return;        payload.Efetivacao = null;
+        payload.Fluxo = null;
+        payload['Data Fluxo'] = null;
+        payload['Observacao Fluxo'] = null;
         payload['Admissao KN'] = null;
-        confirmMsg = `Tem certeza que deseja <b>CANCELAR</b> o fluxo para "${nome}"?`;
-        confirmTitle = 'Cancelar Fluxo';
-    } else {
-        return;
-    }
-    const ok = await window.customConfirm(confirmMsg, confirmTitle, action === 'gerar' ? 'warning' : 'danger');
-    if (!ok) return;
-    try {
+        payload.Contrato = novoContrato;        await window.customAlert(`Fluxo revertido. Colaborador voltou para <b>${novoContrato}</b>.`, 'Sucesso', 'success');
+    }    try {
         if (fluxoGerarBtn) fluxoGerarBtn.disabled = true;
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = true;
-        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;
-        const {error} = await supabase.from('Colaboradores').update(payload).eq('Nome', nome);
-        if (error) throw error;
-        await window.customAlert(`Fluxo de efetivação para "${nome}" salvo com sucesso!`, 'Sucesso');
-        logAction(`Alterou fluxo de efetivação para ${nome}: Status ${payload.Efetivacao}, Fluxo Nº ${payload.Fluxo || 'N/A'}`);
-        closeFluxoEfetivacaoModal();
+        if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = true;        const {error} = await supabase.from('Colaboradores').update(payload).eq('Nome', nome);        if (error) throw error;        if (action !== 'cancelar') {
+            await window.customAlert('Fluxo salvo com sucesso!', 'Sucesso');
+        }        let logMsg = `Fluxo ${nome}: ${action.toUpperCase()}`;
+        if(action === 'finalizar') logMsg += ` (Adm KN: ${formatDateLocal(admissaoKN)})`;
+        if(action === 'cancelar') logMsg += ` (Revertido p/ ${payload.Contrato})`;
+        logAction(logMsg);        closeFluxoEfetivacaoModal();
         hideEditModal();
         invalidateColaboradoresCache();
-        await fetchColaboradores();
-    } catch (error) {
+        await fetchColaboradores();    } catch (error) {
         console.error('Erro fluxo:', error);
-        await window.customAlert(`Não foi possível salvar o fluxo: ${error.message}`, 'Erro');
+        await window.customAlert(`Erro ao salvar: ${error.message}`, 'Erro');
     } finally {
         if (fluxoGerarBtn) fluxoGerarBtn.disabled = false;
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = false;
         if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;
     }
-}
-
-async function validateEditDuplicates(payload) {
+}async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
         const {count, error} = await supabase.from('Colaboradores').select('Nome', {
             count: 'exact',
@@ -2275,9 +2138,7 @@ async function validateEditDuplicates(payload) {
         if ((count || 0) > 0) return 'Já existe um colaborador com esse CPF.';
     }
     return null;
-}
-
-async function updateColaboradorSmart(nomeAnterior, payload) {
+}async function updateColaboradorSmart(nomeAnterior, payload) {
     if (payload.Nome && payload.Nome !== nomeAnterior) {
         const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
             nome_antigo: nomeAnterior,
@@ -2309,9 +2170,7 @@ async function updateColaboradorSmart(nomeAnterior, payload) {
         .update(payload)
         .eq('Nome', nomeAnterior);
     if (upErr) throw upErr;
-}
-
-async function onEditSubmit(e) {
+}async function onEditSubmit(e) {
     e.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -2465,9 +2324,7 @@ async function onEditSubmit(e) {
             editSalvarBtn.textContent = 'Salvar Alterações';
         }
     }
-}
-
-async function onAfastarClick() {
+}async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
         await window.customAlert('Erro: Colaborador não identificado.', 'Erro');
         return;
@@ -2561,9 +2418,7 @@ async function onAfastarClick() {
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}
-
-function openDesligarModalFromColab(colab) {
+}function openDesligarModalFromColab(colab) {
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
     const hoje = new Date();
@@ -2590,17 +2445,11 @@ function openDesligarModalFromColab(colab) {
         }
     }
     desligarModal.classList.remove('hidden');
-}
-
-function closeDesligarModal() {
+}function closeDesligarModal() {
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}
-
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-async function onDesligarSubmit(e) {
+}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function onDesligarSubmit(e) {
     e.preventDefault();
     if (!desligarColaborador) {
         await window.customAlert('Erro: colaborador não carregado.', 'Erro');
@@ -2721,9 +2570,7 @@ async function onDesligarSubmit(e) {
         console.error('Erro desligamento:', err);
         await window.customAlert(`Erro ao enviar: ${err.message || err}`, 'Erro');
     }
-}
-
-const HIST = {
+}const HIST = {
     nome: null, ano: new Date().getFullYear(), marks: new Map(), dsrDates: new Set(),
     initialized: false, els: {modal: null, title: null, yearSel: null, months: null, fecharBtn: null,}
 };
@@ -2753,9 +2600,7 @@ const firstWeekdayIndex = (year, month0) => {
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';
-
-function ensureHistoricoDomRefs() {
+const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';function ensureHistoricoDomRefs() {
     if (HIST.initialized) return;
     HIST.els.modal = document.getElementById('historicoModal');
     HIST.els.title = document.getElementById('hist-title');
@@ -2790,14 +2635,10 @@ function ensureHistoricoDomRefs() {
         }
     });
     HIST.initialized = true;
-}
-
-function putHistoricoTitle() {
+}function putHistoricoTitle() {
     if (!HIST.els.title) return;
     HIST.els.title.textContent = HIST.nome ? `Histórico – ${HIST.nome}` : 'Histórico';
-}
-
-function renderHistoricoCalendar() {
+}function renderHistoricoCalendar() {
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
     monthsEl.innerHTML = '';
@@ -2850,9 +2691,7 @@ function renderHistoricoCalendar() {
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
-}
-
-async function computeDsrDatesForYear(nome, ano) {
+}async function computeDsrDatesForYear(nome, ano) {
     try {
         const {data: colab, error} = await supabase.from('Colaboradores').select('DSR').eq('Nome', nome).maybeSingle();
         if (error) throw error;
@@ -2886,9 +2725,7 @@ async function computeDsrDatesForYear(nome, ano) {
         console.error('computeDsrDatesForYear error:', e);
         return new Set();
     }
-}
-
-async function exportHistoricoMesXLSX(monthIndex) {
+}async function exportHistoricoMesXLSX(monthIndex) {
     if (monthIndex === null || monthIndex === undefined) return;
     await ensureXLSX();
     const nomeColaborador = HIST.nome || 'Colaborador';
@@ -2933,9 +2770,7 @@ async function exportHistoricoMesXLSX(monthIndex) {
     const fileName = `Historico_${nomeColaborador.replace(/\s+/g, '_')}_${mesNome}_${ano}.xlsx`;
     window.XLSX.writeFile(wb, fileName);
     await window.customAlert(`Exportação de <b>${mesNome}/${ano}</b> concluída com sucesso!`, 'Sucesso');
-}
-
-async function loadHistoricoIntoModal() {
+}async function loadHistoricoIntoModal() {
     if (!HIST.nome) return;
     if (HIST.els.months) {
         HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
@@ -2971,9 +2806,7 @@ async function loadHistoricoIntoModal() {
             HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#e55353;">Erro ao carregar histórico.</div>';
         }
     }
-}
-
-async function openHistorico(nome) {
+}async function openHistorico(nome) {
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
         alert('Não foi possível abrir o histórico (elementos do modal não encontrados).');
@@ -2988,9 +2821,7 @@ async function openHistorico(nome) {
     putHistoricoTitle();
     await loadHistoricoIntoModal();
     HIST.els.modal.classList.remove('hidden');
-}
-
-function wireDsrModal() {
+}function wireDsrModal() {
     dsrModal = document.getElementById('dsrModal');
     if (!dsrModal || dsrModal.dataset.wired === '1') return;
     dsrModal.dataset.wired = '1';
@@ -3029,9 +2860,7 @@ function wireDsrModal() {
         dsrModal.classList.add('hidden');
         currentDsrInputTarget = null;
     });
-}
-
-function openDsrModal(targetInput) {
+}function openDsrModal(targetInput) {
     if (!dsrModal) return;
     currentDsrInputTarget = targetInput;
     const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -3040,9 +2869,7 @@ function openDsrModal(targetInput) {
         checkbox.checked = currentValueSet.has(checkbox.value);
     });
     dsrModal.classList.remove('hidden');
-}
-
-function wireEdit() {
+}function wireEdit() {
     editModal = document.getElementById('editModal');
     if (!editModal) return;
     editForm = document.getElementById('editForm');
@@ -3195,9 +3022,7 @@ function wireEdit() {
             await window.customAlert('Erro ao carregar colaborador para edição.', 'Erro');
         }
     });
-}
-
-function wireDesligar() {
+}function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');
     if (!desligarModal || desligarModal.dataset.wired === '1') return;
     desligarModal.dataset.wired = '1';
@@ -3229,9 +3054,7 @@ function wireDesligar() {
             }
         });
     }
-}
-
-async function ensureXLSX() {
+}async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -3240,9 +3063,7 @@ async function ensureXLSX() {
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}
-
-async function exportColaboradoresXLSX(useFiltered) {
+}async function exportColaboradoresXLSX(useFiltered) {
     const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
     if (!data || data.length === 0) {
         await window.customAlert('Não há dados para exportar.', 'Aviso');
@@ -3300,9 +3121,7 @@ async function exportColaboradoresXLSX(useFiltered) {
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
     window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
-}
-
-function wireFluxoEfetivacao() {
+}function wireFluxoEfetivacao() {
     fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');
     if (!fluxoEfetivacaoModal) {
         console.warn("Modal de fluxo de efetivação (id='fluxoEfetivacaoModal') não encontrado. A funcionalidade não será ativada.");
@@ -3334,9 +3153,7 @@ function wireFluxoEfetivacao() {
             closeFluxoEfetivacaoModal();
         }
     });
-}
-
-function wireTabelaColaboradoresEventos() {
+}function wireTabelaColaboradoresEventos() {
     if (!colaboradoresTbody) return;
     if (colaboradoresTbody.dataset.wired === '1') return;
     colaboradoresTbody.dataset.wired = '1';
@@ -3392,9 +3209,7 @@ function wireTabelaColaboradoresEventos() {
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}
-
-export async function init() {
+}export async function init() {
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
@@ -3567,9 +3382,7 @@ export async function init() {
     wireFluxoEfetivacao();
     wireDsrModal();
     wireCepEvents();
-}
-
-export function destroy() {
+}export function destroy() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
@@ -3605,9 +3418,7 @@ export function destroy() {
     } catch {
     }
     console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
-}
-
-export function garantirModalEdicaoAtivo() {
+}export function garantirModalEdicaoAtivo() {
     if (!editModal || editModal.dataset.wired !== '1') {
         console.log("Iniciando Modal de Edição via Dados Operacionais...");
         wireEdit();

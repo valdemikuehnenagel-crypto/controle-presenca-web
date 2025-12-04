@@ -4,15 +4,14 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Acesso ao Sistema | KN Conecta</title>
-
     <link rel="icon" href="/imagens/kn.gif" type="image/gif">
-
     <link rel="stylesheet" href="/login.css"/>
 </head>
 
 <body class="login-page">
 
 <div class="container" id="container">
+
     <div class="form-container sign-up">
         <form id="registerForm">
             <label for="registerAvatar" class="avatar-upload-label">
@@ -21,7 +20,7 @@
             </label>
             <input type="file" id="registerAvatar" accept="image/*" style="display: none;">
 
-            <span class="form-subtitle"><strong>Use seu nome, email e gere um PIN para se registrar</strong></span>
+            <span class="form-subtitle"><strong>Preencha seus dados e crie uma senha forte</strong></span>
 
             <input id="registerName" type="text" placeholder="Nome Completo" required class="form-field"/>
             <input id="registerEmail" type="email" placeholder="Email" required class="form-field"/>
@@ -36,16 +35,24 @@
                 </select>
             </div>
 
-            <div class="pin-display-container">
-                <span id="generatedPinDisplay"></span>
+            <div class="password-container">
+                <div class="input-wrapper">
+                    <input id="registerPassword" type="password" placeholder="Crie sua Senha" required class="form-field password-field"/>
+                    <span class="toggle-password" data-target="registerPassword">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon-svg"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                    </span>
+                </div>
+
+                <div class="password-strength-bar">
+                    <div class="strength-indicator" id="password-strength-indicator"></div>
+                </div>
+                <div class="strength-text-container">
+                    <span id="password-strength-text"></span>
+                </div>
             </div>
 
-            <p id="pinMessage" class="message pin-message"></p>
-
-
             <div class="form-button-container">
-                <button type="button" id="generatePinBtn">Gerar PIN</button>
-                <button id="registerBtn" type="submit">Criar e Enviar</button>
+                <button id="registerBtn" type="submit">Criar Conta</button>
             </div>
 
             <p id="registerMsg" class="message"></p>
@@ -56,11 +63,17 @@
         <form id="loginForm">
             <div id="login-form-content" class="login-content">
                 <h1>Faça o seu login</h1>
-                <span>Use o seu PIN de 6 dígitos para entrar</span>
-                <input id="pinLogin" type="password" placeholder="Digite aqui" maxlength="6" inputmode="numeric"
-                       required class="pin-input"/>
+                <span>Digite sua senha ou PIN antigo para entrar</span>
+
+                <div class="input-wrapper" style="width: 100%;">
+                    <input id="loginInput" type="password" placeholder="Senha ou PIN" required class="form-field password-field text-login"/>
+                    <span class="toggle-password" data-target="loginInput">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon-svg"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                    </span>
+                </div>
+
                 <button id="loginBtn" type="submit">Entrar</button>
-                <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci meu pin</button>
+                <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci minha senha</button>
                 <p id="loginMsg" class="message"></p>
             </div>
             <div id="welcome-back-container" class="welcome-back hidden">
@@ -69,20 +82,17 @@
             </div>
         </form>
     </div>
+
     <div class="toggle-container">
         <div class="toggle">
             <div class="toggle-panel toggle-left">
-
                 <img src="/imagens/kn.gif" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
-
                 <h1>Bem-vindo de volta!</h1>
                 <p>Já possui uma conta? Faça o login para acessar o sistema.</p>
                 <button class="hidden" id="showLoginBtn">Entrar</button>
             </div>
             <div class="toggle-panel toggle-right">
-
                 <img src="/imagens/kn.gif" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
-
                 <h1>Olá, seja bem vindo ao KNConecta!</h1>
                 <p>Ainda não tem uma conta? Registre-se para solicitar seu acesso.</p>
                 <button class="hidden" id="showRegisterBtn">Criar Conta</button>
@@ -100,6 +110,39 @@
     <div id="modal-matriz-list" class="modal-body"></div>
     <div class="modal-footer">
         <button id="confirm-matriz-selection-btn" class="btn-primary">OK</button>
+    </div>
+</div>
+
+<div id="migration-modal-overlay" class="modal-overlay"></div>
+<div id="migration-modal" class="modal">
+    <div class="modal-header">
+        <h2>Atualização de Segurança</h2>
+    </div>
+    <div class="modal-body" style="text-align: center;">
+        <p style="margin-bottom: 15px; color: #555; font-size: 14px;">
+            Detectamos que você ainda usa o antigo PIN. <br>
+            <strong>Por favor, crie uma nova senha forte para continuar.</strong>
+        </p>
+
+        <div class="password-container" style="text-align: left;">
+            <div class="input-wrapper">
+                <input id="migrationPassword" type="password" placeholder="Nova Senha" class="form-field password-field" style="background-color: #f0f2f5;"/>
+                <span class="toggle-password" data-target="migrationPassword">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon-svg"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </span>
+            </div>
+
+            <div class="password-strength-bar">
+                <div class="strength-indicator" id="migration-strength-indicator"></div>
+            </div>
+            <div class="strength-text-container">
+                <span id="migration-strength-text"></span>
+            </div>
+        </div>
+        <p id="migrationMsg" class="message error"></p>
+    </div>
+    <div class="modal-footer">
+        <button id="confirm-migration-btn" class="btn-primary">Salvar Nova Senha</button>
     </div>
 </div>
 
