@@ -1,7 +1,5 @@
 import {getMatrizesPermitidas} from '../session.js';
-import {supabase} from '../supabaseClient.js';
-
-(function () {
+import {supabase} from '../supabaseClient.js';(function () {
     var HOST_SEL = '#hc-relatorio-abs';
     var state = {
         periodo: {start: '', end: ''},
@@ -11,19 +9,16 @@ import {supabase} from '../supabaseClient.js';
         regiao: '',
         gerencia: '',
         cargo: '',
+        acao: '',
         rows: [],
         paging: {limit: 2000, offset: 0, total: 0},
         mounted: false,
         dirty: false,
         firstLoad: true,
         showDebug: false
-    };
-
-    function pad2(n) {
+    };    function pad2(n) {
         return (n < 10 ? '0' + n : '' + n);
-    }
-
-    function toISO(v) {
+    }    function toISO(v) {
         if (v && v instanceof Date) return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate());
         var s = String(v || '');
         var m = s.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -35,9 +30,7 @@ import {supabase} from '../supabaseClient.js';
             return y + '-' + pad2(mo) + '-' + pad2(d);
         }
         return s.slice(0, 10);
-    }
-
-    function parseAnyDateToISO(val) {
+    }    function parseAnyDateToISO(val) {
         if (!val) return '';
         var s = String(val);
         var mISO = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -54,45 +47,27 @@ import {supabase} from '../supabaseClient.js';
         } catch (_) {
         }
         return toISO(s);
-    }
-
-    function fmtBR(iso) {
+    }    function fmtBR(iso) {
         if (!iso) return '';
         var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
         return m ? (m[3] + '/' + m[2] + '/' + m[1]) : iso;
-    }
-
-    const todayISO = () => toISO(new Date());
-
-    function clampEndToToday(startISO, endISO) {
+    }    const todayISO = () => toISO(new Date());    function clampEndToToday(startISO, endISO) {
         if (!startISO || !endISO) return [startISO, endISO];
         var t = todayISO();
         return [startISO, endISO > t ? t : endISO];
-    }
-
-    function defaultCurrentMonth() {
+    }    function defaultCurrentMonth() {
         const today = new Date();
         const start = new Date(today.getFullYear(), today.getMonth(), 1);
         return {start: toISO(start), end: toISO(today)};
-    }
-
-    function esc(s) {
+    }    function esc(s) {
         return String(s == null ? '' : s);
-    }
-
-    function norm(v) {
+    }    function norm(v) {
         return String(v == null ? '' : v).trim().toUpperCase();
-    }
-
-    function stripAccents(s) {
+    }    function stripAccents(s) {
         return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    }
-
-    function isActiveView() {
+    }    function isActiveView() {
         return !!document.querySelector('#hc-relatorio-abs.hc-view.active');
-    }
-
-    async function loadSheetJS() {
+    }    async function loadSheetJS() {
         if (window.XLSX) return;
         try {
             await new Promise((resolve, reject) => {
@@ -106,9 +81,7 @@ import {supabase} from '../supabaseClient.js';
             console.error("Falha ao carregar a biblioteca XLSX:", error);
             alert("Erro ao carregar a biblioteca de exportação de Excel. Tente recarregar a página.");
         }
-    }
-
-    async function fetchAllPagesGeneric(query, pageSize = 1000) {
+    }    async function fetchAllPagesGeneric(query, pageSize = 1000) {
         let from = 0;
         const all = [];
         while (true) {
@@ -120,9 +93,7 @@ import {supabase} from '../supabaseClient.js';
             from += pageSize;
         }
         return all;
-    }
-
-    async function loadMatrizesMapping() {
+    }    async function loadMatrizesMapping() {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase.from('Matrizes').select('MATRIZ, GERENCIA, REGIAO');
         if (matrizesPermitidas !== null) {
@@ -144,11 +115,7 @@ import {supabase} from '../supabaseClient.js';
             }
         });
         return map;
-    }
-
-    var _colabIdx = null;
-
-    async function getColabIndex() {
+    }    var _colabIdx = null;    async function getColabIndex() {
         if (_colabIdx) return _colabIdx;
         const matrizesMap = await loadMatrizesMapping();
         const matrizesPermitidas = getMatrizesPermitidas();
@@ -161,13 +128,11 @@ import {supabase} from '../supabaseClient.js';
             .from('Colaboradores')
             .select('Nome, Contrato, MATRIZ, Escala, Cargo, Gestor, "ID GROOT", LDAP')
             .order('Nome', {ascending: true});
-        qAtivos = applyFilters(qAtivos);
-        let qDeslig = supabase
+        qAtivos = applyFilters(qAtivos);        let qDeslig = supabase
             .from('Desligados')
-            .select('Nome, Contrato, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento", "ID GROOT", LDAP')
+            .select('Nome, Contrato, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento", "ID GROOT", LDAP, Motivo')
             .order('Nome', {ascending: true});
-        qDeslig = applyFilters(qDeslig);
-        const [ativosRaw, desligadosRaw] = await Promise.all([
+        qDeslig = applyFilters(qDeslig);        const [ativosRaw, desligadosRaw] = await Promise.all([
             fetchAllPagesGeneric(qAtivos, 1000),
             fetchAllPagesGeneric(qDeslig, 1000)
         ]);
@@ -197,7 +162,7 @@ import {supabase} from '../supabaseClient.js';
                     Cargo: item.Cargo ?? existing.Cargo,
                     Gestor: item.Gestor ?? existing.Gestor,
                     "ID GROOT": item["ID GROOT"] ?? existing["ID GROOT"],
-                    LDAP: item.LDAP ?? existing.LDAP,
+                    LDAP: item.LDAP ?? existing.LDAP,                    Motivo: item.Motivo ?? existing.Motivo,
                     _origem: origem,
                     _data_desligamento: dataDesligamento || existing._data_desligamento
                 });
@@ -207,18 +172,14 @@ import {supabase} from '../supabaseClient.js';
         addToMap(ativos, 'Colaboradores');
         _colabIdx = map;
         return _colabIdx;
-    }
-
-    function scheduleRefresh(invalidate = false) {
+    }    function scheduleRefresh(invalidate = false) {
         if (invalidate) _colabIdx = null;
         if (!state.mounted) {
             state.dirty = true;
             return;
         }
         if (isActiveView()) fetchAndRender(); else state.dirty = true;
-    }
-
-    window.addEventListener('hc-filters-changed', function (ev) {
+    }    window.addEventListener('hc-filters-changed', function (ev) {
         var f = (ev && ev.detail) ? ev.detail : {};
         var mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
         var mudouRegiao = (typeof f.regiao === 'string' && state.regiao !== f.regiao);
@@ -247,9 +208,7 @@ import {supabase} from '../supabaseClient.js';
         if (document.visibilityState === 'visible' && isActiveView() && state.mounted) {
             if (state.dirty) fetchAndRender();
         }
-    });
-
-    function watchActivation() {
+    });    function watchActivation() {
         var host = document.querySelector(HOST_SEL);
         if (!host) return;
         var mo = new MutationObserver(function () {
@@ -259,16 +218,12 @@ import {supabase} from '../supabaseClient.js';
             }
         });
         mo.observe(host, {attributes: true, attributeFilter: ['class']});
-    }
-
-    function ensureMounted(forceEnsure) {
+    }    function ensureMounted(forceEnsure) {
         if (forceEnsure !== true) forceEnsure = false;
         var host = document.querySelector(HOST_SEL);
         if (!host) return;
-        if (typeof state.cargo !== 'string') state.cargo = '';
-        var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
-        if (state.mounted && hasTable && !forceEnsure) return;
-        host.innerHTML =
+        if (typeof state.cargo !== 'string') state.cargo = '';        if (typeof state.acao !== 'string') state.acao = '';        var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
+        if (state.mounted && hasTable && !forceEnsure) return;        host.innerHTML =
             '<div class="abs-toolbar">' +
             '  <div class="abs-left">' +
             '    <input id="abs-search" type="search" placeholder="Pesquisar por nome..." />' +
@@ -282,8 +237,14 @@ import {supabase} from '../supabaseClient.js';
             '      <option value="">Cargo</option>' +
             '      <option value="AUXILIAR">AUXILIAR</option>' +
             '      <option value="CONFERENTE">CONFERENTE</option>' +
-            '    </select>' +
-            '    <span id="abs-counts" class="abs-counts" aria-live="polite">' +
+            '    </select>' +            '    <select id="abs-filter-acao">' +
+            '      <option value="">Ação</option>' +
+            '      <option value="Advertência Verbal">Advertência Verbal</option>' +
+            '      <option value="Advertência Escrita">Advertência Escrita</option>' +
+            '      <option value="Suspensão">Suspensão</option>' +
+            '      <option value="Afastamento">Afastamento</option>' +
+            '      <option value="Desligamento">Desligamento</option>' +
+            '    </select>' +            '    <span id="abs-counts" class="abs-counts" aria-live="polite">' +
             '      Injustificado: 0 <span class="sep">|</span> Justificado: 0 <span class="sep">|</span> ABS Total: 0 <span class="sep">|</span> Entrevistas feitas: 0' +
             '    </span>' +
             '  </div>' +
@@ -307,18 +268,17 @@ import {supabase} from '../supabaseClient.js';
             '        <th>Ação</th>' +
             '        <th>CID</th>' +
             '        <th>LDAP</th>' +
+            '        <th>Desligamento</th>' +
+            '        <th>MATRIZ</th>' +
             '      </tr>' +
             '    </thead>' +
             '    <tbody id="abs-tbody"></tbody>' +
             '  </table>' +
-            '</div>';
-        state.mounted = true;
-        document.getElementById('abs-export')?.addEventListener('click', handleExport);
-        document.getElementById('abs-period')?.addEventListener('click', openPeriodModal);
-        const elSearch = document.getElementById('abs-search');
+            '</div>';        state.mounted = true;        document.getElementById('abs-export')?.addEventListener('click', handleExport);
+        document.getElementById('abs-period')?.addEventListener('click', openPeriodModal);        const elSearch = document.getElementById('abs-search');
         const elEscala = document.getElementById('abs-filter-escala');
         const elCargo = document.getElementById('abs-filter-cargo');
-        elSearch?.addEventListener('input', function () {
+        const elAcao = document.getElementById('abs-filter-acao');         elSearch?.addEventListener('input', function () {
             state.search = elSearch.value;
             renderRows();
         });
@@ -329,8 +289,10 @@ import {supabase} from '../supabaseClient.js';
         elCargo?.addEventListener('change', function () {
             state.cargo = elCargo.value;
             fetchAndRender();
-        });
-        const tbody = document.getElementById('abs-tbody');
+        });        elAcao?.addEventListener('change', function () {
+            state.acao = elAcao.value;
+            fetchAndRender();
+        });        const tbody = document.getElementById('abs-tbody');
         if (tbody) {
             tbody.addEventListener('dblclick', function (ev) {
                 const tr = ev.target?.closest ? ev.target.closest('tr.abs-row') : null;
@@ -354,15 +316,11 @@ import {supabase} from '../supabaseClient.js';
         }
         requestAnimationFrame(fetchAndRender);
         watchActivation();
-    }
-
-    function updatePeriodButtonText() {
+    }    function updatePeriodButtonText() {
         var b = document.getElementById('abs-period');
         if (!b) return;
         b.textContent = 'Selecionar período';
-    }
-
-    async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
+    }    async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
         let from = 0;
         const all = [];
         while (true) {
@@ -383,12 +341,10 @@ import {supabase} from '../supabaseClient.js';
             if (from > 100000) break;
         }
         return all;
-    }
-
-    async function fetchAndRender() {
+    }    async function fetchAndRender() {
         var tbody = document.getElementById('abs-tbody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="10" class="muted">Carregando…</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="muted">Carregando…</td></tr>';
         var startISO = parseAnyDateToISO(state.periodo.start);
         var endStr = parseAnyDateToISO(state.periodo.end);
         [startISO, endStr] = clampEndToToday(startISO, endStr);
@@ -410,8 +366,10 @@ import {supabase} from '../supabaseClient.js';
             const colabIndex = await getColabIndex();
             const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);
             const transformedRows = (controleRows || []).map(row => {
-                const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
-                return {
+                const colabInfo = colabIndex.get(String(row.Nome || '')) || {};                let motivoDesligamento = '';
+                if (String(row.Acao || '').trim() === 'Desligamento') {
+                    motivoDesligamento = colabInfo.Motivo || '';
+                }                return {
                     Numero: row.Numero,
                     Nome: row.Nome,
                     Data: row.Data,
@@ -429,14 +387,14 @@ import {supabase} from '../supabaseClient.js';
                     Cargo: colabInfo.Cargo || null,
                     "ID GROOT": colabInfo["ID GROOT"] || null,
                     LDAP: colabInfo.LDAP || null,
+                    MotivoDesligamento: motivoDesligamento,
                     _origemCadastro: colabInfo._origem || null
                 };
             });
             const filteredRows = transformedRows.filter(r => {
                 const cargo = norm(r.Cargo);
                 if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
-                if (state.cargo && cargo !== norm(state.cargo)) return false;
-                if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
+                if (state.cargo && cargo !== norm(state.cargo)) return false;                if (state.acao && norm(r.Acao) !== norm(state.acao)) return false;                if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
                 if (state.regiao && norm(r.REGIAO) !== norm(state.regiao)) return false;
                 if (state.gerencia && norm(r.GERENCIA) !== norm(state.gerencia)) return false;
                 return true;
@@ -448,12 +406,10 @@ import {supabase} from '../supabaseClient.js';
         } catch (e) {
             console.error('RelatorioABS: fetch erro', e);
             var tb = document.getElementById('abs-tbody');
-            if (tb) tb.innerHTML = '<tr><td colspan="10" class="muted">Erro ao carregar. Veja o console.</td></tr>';
+            if (tb) tb.innerHTML = '<tr><td colspan="12" class="muted">Erro ao carregar. Veja o console.</td></tr>';
             updateCounters([]);
         }
-    }
-
-    function updateCounters(filtered) {
+    }    function updateCounters(filtered) {
         var el = document.getElementById('abs-counts');
         if (!el) return;
         filtered = Array.isArray(filtered) ? filtered : [];
@@ -470,9 +426,7 @@ import {supabase} from '../supabaseClient.js';
             ' <span class="sep">|</span> Justificado: ' + just +
             ' <span class="sep">|</span> ABS Total: ' + total +
             ' <span class="sep">|</span> Entrevistas feitas: ' + entrevistas;
-    }
-
-    function renderRows() {
+    }    function renderRows() {
         var tbody = document.getElementById('abs-tbody');
         if (!tbody) {
             updateCounters([]);
@@ -486,7 +440,7 @@ import {supabase} from '../supabaseClient.js';
         });
         updateCounters(filtered);
         if (!filtered.length) {
-            tbody.innerHTML = '<tr><td colspan="10" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="muted">Nenhum registro encontrado para o período e filtros selecionados.</td></tr>';
             return;
         }
         var frag = document.createDocumentFragment();
@@ -496,8 +450,7 @@ import {supabase} from '../supabaseClient.js';
             tr.className = 'abs-row';
             tr.dataset.id = row.Numero;
             var originalIndex = state.rows.findIndex(r => r.Numero === row.Numero);
-            tr.setAttribute('data-idx', String(originalIndex));
-            tr.innerHTML =
+            tr.setAttribute('data-idx', String(originalIndex));            tr.innerHTML =
                 '<td>' + esc(row["ID GROOT"] || '') + '</td>' +
                 '<td class="cell-name">' + esc(row.Nome || '') + '</td>' +
                 '<td>' + esc(row.Contrato || '') + '</td>' +
@@ -507,13 +460,13 @@ import {supabase} from '../supabaseClient.js';
                 '<td>' + (String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não') + '</td>' +
                 '<td>' + esc(row.Acao || '') + '</td>' +
                 '<td>' + esc(row.CID || '') + '</td>' +
-                '<td>' + esc(row.LDAP || '') + '</td>';
+                '<td>' + esc(row.LDAP || '') + '</td>' +
+                '<td>' + esc(row.MotivoDesligamento || '') + '</td>' +
+                '<td>' + esc(row.MATRIZ || '') + '</td>';
             frag.appendChild(tr);
         });
         tbody.replaceChildren(frag);
-    }
-
-    function openEditModal(row) {
+    }    function openEditModal(row) {
         var overlay = document.createElement('div');
         overlay.className = 'abs-modal-overlay';
         overlay.setAttribute('role', 'dialog');
@@ -598,9 +551,7 @@ import {supabase} from '../supabaseClient.js';
         var selTipoAtestado = modal.querySelector('#abs-tipo-atestado');
         var inputObsJustificado = modal.querySelector('#abs-obs-justificado');
         var cidContainer = modal.querySelector('#abs-cid-container');
-        var cidInput = modal.querySelector('#abs-cid-input');
-
-        function toggleConditionalFields() {
+        var cidInput = modal.querySelector('#abs-cid-input');        function toggleConditionalFields() {
             var entrevistaSim = radioSim.checked;
             entrevistaDetails.style.display = entrevistaSim ? 'flex' : 'none';
             if (entrevistaSim) {
@@ -621,9 +572,7 @@ import {supabase} from '../supabaseClient.js';
                 justificadoFields.style.display = 'none';
                 cidContainer.style.display = 'none';
             }
-        }
-
-        radioSim.addEventListener('change', toggleConditionalFields);
+        }        radioSim.addEventListener('change', toggleConditionalFields);
         radioNao.addEventListener('change', toggleConditionalFields);
         selTipoAtestado.addEventListener('change', toggleConditionalFields);
         if (String(row.Entrevista || '').toUpperCase() === 'SIM') radioSim.checked = true; else radioNao.checked = true;
@@ -673,9 +622,7 @@ import {supabase} from '../supabaseClient.js';
                 btnSave.textContent = 'Salvar';
             }
         });
-    }
-
-    function openPeriodModal() {
+    }    function openPeriodModal() {
         const curStart = toISO(state.periodo.start) || defaultCurrentMonth().start;
         const curEnd = toISO(state.periodo.end) || defaultCurrentMonth().end;
         const today = new Date();
@@ -768,9 +715,7 @@ import {supabase} from '../supabaseClient.js';
             close();
             fetchAndRender();
         };
-    }
-
-    async function handleExport() {
+    }    async function handleExport() {
         if (!state.periodo.start || !state.periodo.end) {
             alert('Selecione um período antes de exportar.');
             return;
@@ -790,8 +735,7 @@ import {supabase} from '../supabaseClient.js';
             if (!rows.length) {
                 alert('Nada para exportar com os filtros atuais.');
                 return;
-            }
-            var exportRows = rows.map(function (r) {
+            }            var exportRows = rows.map(function (r) {
                 return {
                     'GROOT ID': r["ID GROOT"] || '',
                     'Nome': r.Nome || '',
@@ -802,7 +746,9 @@ import {supabase} from '../supabaseClient.js';
                     'Entrevista': String(r.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não',
                     'Ação': r.Acao || '',
                     'CID': r.CID || '',
-                    'LDAP': r.LDAP || ''
+                    'LDAP': r.LDAP || '',
+                    'Desligamento': r.MotivoDesligamento || '',
+                    'MATRIZ': r.MATRIZ || ''
                 };
             });
             const ws = XLSX.utils.json_to_sheet(exportRows);
@@ -816,9 +762,7 @@ import {supabase} from '../supabaseClient.js';
         } finally {
             if (btn) btn.disabled = false;
         }
-    }
-
-    window.ensureHCRelatorioMountedOnce = function () {
+    }    window.ensureHCRelatorioMountedOnce = function () {
         ensureMounted(true);
         if (state.dirty || isActiveView()) fetchAndRender();
     };

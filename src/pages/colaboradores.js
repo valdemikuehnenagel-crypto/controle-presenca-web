@@ -2,6 +2,12 @@ import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
 import {logAction} from '../../logAction.js';
 
+import {
+    processarStatusFerias,
+    openFeriasModal,
+    wireFerias,
+    setOnFeriasChangeCallback
+} from './ferias.js';
 let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
@@ -1577,10 +1583,14 @@ async function fetchColaboradores() {
     }
     try {
         const matrizesPermitidas = getMatrizesPermitidas();
+
+        // --- AQUI ESTAVA O PROBLEMA: Adicionei Genero, DataRetorno e CEP ao select ---
         let query = supabase
             .from('Colaboradores')
-            .select('Nome, CPF, DSR, Escala, Contrato, Cargo, Gestor, "ID GROOT", MatriculaKN, LDAP, SVC, REGIAO, MATRIZ, "Data de admissão", "Admissao KN", "FOLGA ESPECIAL", Ativo, StatusDesligamento, Ferias, Efetivacao, Fluxo, "Data Fluxo", "Observacao Fluxo", rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato').neq('Ativo', 'NÃO')
+            .select('Nome, CPF, DSR, Escala, Contrato, Cargo, Gestor, "ID GROOT","Data de nascimento", MatriculaKN, LDAP, SVC, REGIAO, MATRIZ, "Data de admissão", "Admissao KN", "FOLGA ESPECIAL", Ativo, StatusDesligamento, Ferias, Efetivacao, Fluxo, "Data Fluxo", "Observacao Fluxo", rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato, Genero, DataRetorno, CEP')
+            .neq('Ativo', 'NÃO')
             .order('Nome');
+
         if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
         }
@@ -2714,7 +2724,7 @@ async function onDesligarSubmit(e) {
             Smartoff: isKN ? smartoffVal : null
         };
 
-        const { error } = await supabase
+        const {error} = await supabase
             .from('Colaboradores')
             .update(payload)
             .eq('Nome', nome);
@@ -2736,180 +2746,6 @@ async function onDesligarSubmit(e) {
     } catch (err) {
         console.error('Erro desligamento:', err);
         await window.customAlert(`Erro ao enviar: ${err.message || err}`, 'Erro');
-    }
-}
-
-async function getNonFinalizedFerias(nome) {
-    const {data, error} = await supabase
-        .from('Ferias')
-        .select('Numero, Status, "Data Final"')
-        .eq('Nome', nome)
-        .neq('Status', 'Finalizado')
-        .order('Numero', {ascending: false})
-        .limit(1);
-    if (error) return {error};
-    return {data: (data && data.length > 0) ? data[0] : null};
-}
-
-async function agendarFerias(info) {
-    const {colaborador, dataInicio, dataFinal} = info;
-    const {data: feriasPendentes, error: feriasCheckError} = await getNonFinalizedFerias(colaborador.Nome);
-    if (feriasCheckError) {
-        console.error("Erro ao verificar férias pendentes:", feriasCheckError);
-        return {error: new Error('Erro ao verificar férias existentes.')};
-    }
-    if (feriasPendentes) {
-        const status = feriasPendentes.Status || 'pendente';
-        const dataFinalStr = feriasPendentes['Data Final'] ? ` (terminando em ${formatDateLocal(feriasPendentes['Data Final'])})` : '';
-        return {error: new Error(`Este colaborador já possui férias com status "${status}"${dataFinalStr}. Não é possível agendar novas férias até que as anteriores sejam finalizadas.`)};
-    }
-    const {data: lastFerias, error: numError} = await supabase
-        .from('Ferias')
-        .select('Numero')
-        .order('Numero', {ascending: false})
-        .limit(1);
-    if (numError) return {error: numError};
-    const newNumero = (lastFerias && lastFerias.length > 0) ? (lastFerias[0].Numero + 1) : 1;
-    const hoje = toStartOfDay(new Date());
-    const inicio = toStartOfDay(dataInicio);
-    const fim = toStartOfDay(dataFinal);
-    const statusInicial = (hoje < inicio) ? 'A iniciar' : (hoje <= fim ? 'Em andamento' : 'Finalizado');
-    const diasParaFinalizar = Math.max(0, Math.ceil((fim - hoje) / (1000 * 60 * 60 * 24)));
-    const svcUp = (colaborador.SVC || '').toString().toUpperCase();
-    let matriz = colaborador.MATRIZ || (state?.serviceMatrizMap?.get?.(svcUp) ?? null);
-    if (!matriz && svcUp) {
-        const {
-            data: m,
-            error: mErr
-        } = await supabase.from('Matrizes').select('MATRIZ').eq('SERVICE', svcUp).maybeSingle();
-        if (!mErr && m) matriz = m.MATRIZ || null;
-    }
-    const feriasData = {
-        Numero: newNumero, Nome: colaborador.Nome, Cargo: colaborador.Cargo || null,
-        Escala: colaborador.Escala, SVC: colaborador.SVC, MATRIZ: matriz || null,
-        'Data Inicio': dataInicio, 'Data Final': dataFinal, Status: statusInicial,
-        'Dias para finalizar': diasParaFinalizar
-    };
-    const {error} = await supabase.from('Ferias').insert([feriasData]);
-    if (error) return {error};
-    invalidateColaboradoresCache();
-    await updateAllVacationStatuses();
-    return {success: true};
-}
-
-async function updateAllVacationStatuses() {
-    const {data: feriasList, error} = await supabase.from('Ferias').select('*').order('Numero', {ascending: true});
-    if (error || !feriasList) return;
-    const today = toStartOfDay(new Date());
-    let needsColabUpdate = false;
-    for (const ferias of feriasList) {
-        const dataInicio = toStartOfDay(ferias['Data Inicio']);
-        const dataFinal = toStartOfDay(ferias['Data Final']);
-        let newStatus = ferias.Status;
-        let updatePayload = {};
-        let colabFeriasStatusUpdate = null;
-        if (ferias.Status === 'Finalizado') {
-            if (ferias['Dias para finalizar'] !== 0) updatePayload['Dias para finalizar'] = 0;
-            colabFeriasStatusUpdate = 'NAO';
-        } else {
-            if (today > dataFinal) newStatus = 'Finalizado';
-            else if (today >= dataInicio && today <= dataFinal) newStatus = 'Em andamento';
-            else if (today < dataInicio) newStatus = 'A iniciar';
-            const diasParaFinalizar = Math.max(0, Math.ceil((dataFinal - today) / (1000 * 60 * 60 * 24)));
-            if (newStatus !== ferias.Status || diasParaFinalizar !== ferias['Dias para finalizar']) {
-                updatePayload.Status = newStatus;
-                updatePayload['Dias para finalizar'] = diasParaFinalizar;
-                if (newStatus === 'Em andamento') colabFeriasStatusUpdate = 'SIM';
-                else if (newStatus === 'Finalizado') colabFeriasStatusUpdate = 'NAO';
-            }
-        }
-        if (Object.keys(updatePayload).length > 0) {
-            await supabase.from('Ferias').update(updatePayload).eq('Numero', ferias.Numero);
-        }
-        if (colabFeriasStatusUpdate) {
-            const colab = cachedColaboradores?.find(c => c.Nome === ferias.Nome);
-            if (!colab || colab.Ferias !== colabFeriasStatusUpdate) {
-                await supabase.from('Colaboradores').update({Ferias: colabFeriasStatusUpdate}).eq('Nome', ferias.Nome);
-                needsColabUpdate = true;
-            }
-        }
-    }
-    if (needsColabUpdate) {
-        invalidateColaboradoresCache();
-    }
-}
-
-function openFeriasModalFromColab(colab) {
-    feriasColaborador = colab;
-    if (!feriasModal) return;
-    if (feriasNomeEl) feriasNomeEl.value = colab?.Nome || '';
-    const hoje = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    const iso = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
-    if (feriasInicioEl && !feriasInicioEl.value) feriasInicioEl.value = iso;
-    if (feriasFinalEl && !feriasFinalEl.value) feriasFinalEl.value = iso;
-    feriasModal.classList.remove('hidden');
-}
-
-function closeFeriasModal() {
-    if (!feriasModal) return;
-    feriasModal.classList.add('hidden');
-    feriasColaborador = null;
-    feriasForm?.reset();
-}
-
-async function onFeriasSubmit(e) {
-    e.preventDefault();
-    if (isSubmittingFerias) return;
-    try {
-        if (!feriasColaborador || !feriasColaborador.Nome) {
-            await window.customAlert('Erro: dados do colaborador não carregados.', 'Erro');
-            return;
-        }
-        const dataInicio = (feriasInicioEl?.value || '').trim();
-        const dataFinal = (feriasFinalEl?.value || '').trim();
-        if (!dataInicio || !dataFinal) {
-            await window.customAlert('Selecione a Data de Início e a Data Final.', 'Campos Obrigatórios');
-            return;
-        }
-        const dIni = new Date(dataInicio);
-        const dFim = new Date(dataFinal);
-        if (isNaN(dIni) || isNaN(dFim)) {
-            await window.customAlert('Datas inválidas.', 'Erro');
-            return;
-        }
-        if (dFim < dIni) {
-            await window.customAlert('A Data Final não pode ser anterior à Data de Início.', 'Data Inválida');
-            return;
-        }
-        const ok = await window.customConfirm(
-            `Confirmar férias de <b>${feriasColaborador.Nome}</b><br>De: ${formatDateLocal(dataInicio)}<br>Até: ${formatDateLocal(dataFinal)}?`,
-            'Confirmar Férias',
-            'warning'
-        );
-        if (!ok) return;
-        isSubmittingFerias = true;
-        const submitButton = feriasForm ? feriasForm.querySelector('button[type="submit"]') : null;
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.textContent = 'Agendando...';
-        }
-        const {success, error} = await agendarFerias({colaborador: feriasColaborador, dataInicio, dataFinal});
-        if (!success) {
-            await window.customAlert(`Erro ao agendar férias: ${error?.message || error}`, 'Erro');
-        } else {
-            await window.customAlert('Férias agendadas com sucesso!', 'Sucesso');
-            logAction(`Agendou férias para ${feriasColaborador.Nome} de ${formatDateLocal(dataInicio)} até ${formatDateLocal(dataFinal)}`);
-            closeFeriasModal();
-            await fetchColaboradores();
-        }
-    } finally {
-        isSubmittingFerias = false;
-        const submitButton = feriasForm ? feriasForm.querySelector('button[type="submit"]') : null;
-        if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.textContent = 'Confirmar';
-        }
     }
 }
 
@@ -3249,6 +3085,8 @@ function wireEdit() {
     editMatriz = document.getElementById('editMatriz');
     const editRegiao = document.getElementById('editRegiao');
     const editCepInput = document.getElementById('editCEP');
+
+    // ... Mapeamento de inputs editInputs ...
     editInputs = {
         Nome: document.getElementById('editNome'),
         CPF: document.getElementById('editCPF'),
@@ -3274,7 +3112,10 @@ function wireEdit() {
         colete: document.getElementById('editColete'),
         sapato: document.getElementById('editSapato')
     };
+
     attachUpperHandlersTo(editForm);
+
+    // Wire CEP
     if (editCepInput && editCepInput.dataset.cepWired !== '1') {
         editCepInput.dataset.cepWired = '1';
         editCepInput.addEventListener('input', (e) => {
@@ -3289,6 +3130,8 @@ function wireEdit() {
             }
         });
     }
+
+    // Wire SVC
     if (editSVC) {
         if (editSVC.dataset.svcWired !== '1') {
             editSVC.dataset.svcWired = '1';
@@ -3302,6 +3145,8 @@ function wireEdit() {
             });
         }
     }
+
+    // Wire DSR
     const editDSRBtn = document.getElementById('editDSRBtn');
     if (editDSRBtn && editDSRBtn.dataset.dsrWired !== '1') {
         editDSRBtn.dataset.dsrWired = '1';
@@ -3309,12 +3154,34 @@ function wireEdit() {
             openDsrModal(document.getElementById('editDSR'));
         });
     }
+
     if (editModal.dataset.wired === '1') return;
     editModal.dataset.wired = '1';
+
+    // Event Listeners Principais
     editForm?.addEventListener('submit', onEditSubmit);
     editCancelarBtn?.addEventListener('click', hideEditModal);
     editAfastarBtn?.addEventListener('click', onAfastarClick);
     editEfetivarKnBtn?.addEventListener('click', openFluxoEfetivacaoModal);
+
+    // Wire Botão de Férias (USANDO O NOVO MÓDULO)
+    editFeriasBtn?.addEventListener('click', async () => {
+        if (!editOriginal) return;
+        const colab = await fetchColabByNome(editOriginal.Nome);
+        if (!colab) {
+            await window.customAlert('Colaborador não encontrado.', 'Erro');
+            return;
+        }
+        // Chama a função importada de ferias.js
+        openFeriasModal(colab);
+    });
+
+    editHistoricoBtn?.addEventListener('click', () => {
+        if (!editOriginal?.Nome) return;
+        openHistorico(editOriginal.Nome);
+    });
+
+    // Wire Excluir
     editExcluirBtn?.addEventListener('click', async () => {
         if (!state.isUserAdmin) {
             await window.customAlert('Apenas administradores podem excluir colaboradores.', 'Acesso Negado');
@@ -3344,6 +3211,7 @@ function wireEdit() {
             editExcluirBtn.textContent = 'Excluir Colaborador';
         }
     });
+
     editDesligarBtn?.addEventListener('click', async () => {
         if (!editOriginal) return;
         const continuar = await showAvisoDesligamento();
@@ -3355,19 +3223,7 @@ function wireEdit() {
         }
         openDesligarModalFromColab(colab);
     });
-    editFeriasBtn?.addEventListener('click', async () => {
-        if (!editOriginal) return;
-        const colab = await fetchColabByNome(editOriginal.Nome);
-        if (!colab) {
-            await window.customAlert('Colaborador não encontrado.', 'Erro');
-            return;
-        }
-        openFeriasModalFromColab(colab);
-    });
-    editHistoricoBtn?.addEventListener('click', () => {
-        if (!editOriginal?.Nome) return;
-        openHistorico(editOriginal.Nome);
-    });
+
     document.addEventListener('open-edit-modal', async (evt) => {
         const nome = evt.detail?.nome;
         if (!nome) return;
@@ -3421,18 +3277,6 @@ function wireDesligar() {
     }
 }
 
-function wireFerias() {
-    feriasModal = document.getElementById('feriasModal') || null;
-    if (!feriasModal || feriasModal.dataset.wired === '1') return;
-    feriasModal.dataset.wired = '1';
-    feriasForm = document.getElementById('feriasForm') || document.getElementById('ferias-form') || null;
-    feriasNomeEl = document.getElementById('feriasNome') || document.getElementById('nome-colaborador') || null;
-    feriasInicioEl = document.getElementById('feriasDataInicio') || document.getElementById('data-inicio') || null;
-    feriasFinalEl = document.getElementById('feriasDataFinal') || document.getElementById('data-final') || null;
-    feriasCancelarBtn = document.getElementById('feriasCancelarBtn') || document.getElementById('cancelarBtn') || null;
-    feriasCancelarBtn?.addEventListener('click', closeFeriasModal);
-    feriasForm?.addEventListener('submit', onFeriasSubmit);
-}
 
 async function ensureXLSX() {
     if (window.XLSX) return;
@@ -3452,48 +3296,62 @@ async function exportColaboradoresXLSX(useFiltered) {
         return;
     }
     await ensureXLSX();
+
     const mapColabToExportRow = (c) => {
         const fmt = (v) => v == null ? '' : v;
         const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
+
+        // Mapeamento na ordem exata solicitada
         return {
             'Nome': fmt(c.Nome),
-            'DSR': fmt(c.DSR),
-            'Escala': fmt(c.Escala),
             'Contrato': fmt(c.Contrato),
             'Cargo': fmt(c.Cargo),
-            'ID GROOT': c['ID GROOT'] ?? '',
-            'Matricula KN': fmt(c.MatriculaKN),
-            'LDAP': fmt(c.LDAP),
-            'SVC': fmt(c.SVC),
-            'REGIAO': fmt(c.REGIAO),
             'Data de admissão': fmtDate(c['Data de admissão']),
-            'Admissao KN': fmtDate(c['Admissao KN']),
-            'FOLGA ESPECIAL': fmt(c['FOLGA ESPECIAL']),
-            'CPF': fmt(c.CPF),
-            'Data de nascimento': fmtDate(c['Data de nascimento']),
-            'Gênero': fmt(c.Genero),
-            'MATRIZ': fmt(c.MATRIZ),
+            'Gestor': fmt(c.Gestor),
+            'Escala': fmt(c.Escala),
+            'DSR': fmt(c.DSR),
             'Ativo': fmt(c.Ativo),
-            'Férias': fmt(c.Ferias),
-            'Status Efetivação': fmt(c.Efetivacao),
-            'Fluxo Efetivação': fmt(c.Fluxo),
-            'Data Fluxo': fmtDate(c['Data Fluxo']),
-            'Obs Fluxo': fmt(c['Observacao Fluxo']),
-            'Total Presença': c['Total Presença'] ?? '',
-            'Total Faltas': c['Total Faltas'] ?? '',
-            'Total Atestados': c['Total Atestados'] ?? '',
-            'Total Suspensões': c['Total Suspensões'] ?? ''
+            'Ferias': fmt(c.Ferias),
+            'Genero': fmt(c.Genero),
+            'Data de nascimento': fmtDate(c['Data de nascimento']),
+            'SVC': fmt(c.SVC),
+            'CPF': fmt(c.CPF),
+            'LDAP': fmt(c.LDAP),
+            'ID GROOT': c['ID GROOT'] ?? '',
+            'FOLGA ESPECIAL': fmt(c['FOLGA ESPECIAL']),
+            'MATRIZ': fmt(c.MATRIZ),
+            'Admissao KN': fmtDate(c['Admissao KN']),
+            'REGIAO': fmt(c.REGIAO),
+            'rg': fmt(c.rg),
+            'telefone': fmt(c.telefone),
+            'email': fmt(c.email),
+            'pis': fmt(c.pis),
+            'endereco_completo': fmt(c.endereco_completo),
+            'numero': fmt(c.numero),
+            'bairro': fmt(c.bairro),
+            'cidade': fmt(c.cidade),
+            'colete': fmt(c.colete),
+            'sapato': fmt(c.sapato),
+            'DataRetorno': fmtDate(c.DataRetorno),
+            'CEP': fmt(c.CEP),
+            'MatriculaKN': fmt(c.MatriculaKN)
         };
     };
+
     const rows = data.map(mapColabToExportRow);
-    const headers = Object.keys(mapColabToExportRow(state.colaboradoresData[0] || {}));
+    // Extrai os cabeçalhos diretamente do primeiro objeto para garantir a ordem
+    const headers = Object.keys(rows[0]);
+
     const wb = window.XLSX.utils.book_new();
-    const ws = window.XLSX.utils.json_to_sheet(rows, {header: headers});
+    const ws = window.XLSX.utils.json_to_sheet(rows, { header: headers });
+
+    // Ajuste automático de largura das colunas
     const colWidths = headers.map(h => {
         const maxLen = Math.max(h.length, ...rows.map(r => String(r[h] ?? '').length));
-        return {wch: Math.min(Math.max(10, maxLen + 2), 40)};
+        return { wch: Math.min(Math.max(10, maxLen + 2), 50) };
     });
     ws['!cols'] = colWidths;
+
     window.XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores');
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     const suffix = useFiltered ? 'filtrado' : 'completo';
@@ -3609,9 +3467,28 @@ export async function init() {
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
     fecharModalRH = document.getElementById('fecharModalRH');
+
     checkUserAdminStatus();
+
+    // --- INTEGRAÇÃO COM MÓDULO DE FÉRIAS ---
+    // 1. Configura callback: se o módulo de férias mudar algo no banco, recarrega a tabela
+    setOnFeriasChangeCallback(async () => {
+        console.log("Status de férias alterado pelo processador. Recarregando...");
+        invalidateColaboradoresCache();
+        await fetchColaboradores();
+    });
+
+    // 2. Configura os eventos do modal de férias (que está no HTML principal)
+    wireFerias();
+
+    // 3. Executa a verificação de datas AGORA (resolve o problema do "sumiço")
+    // Se hoje for o dia de início de férias de alguém, isso vai atualizar o banco agora.
+    await processarStatusFerias();
+    // ---------------------------------------
+
     await ensureMatrizesDataLoaded();
     fetchColaboradores();
+
     if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
     if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
@@ -3751,9 +3628,11 @@ export async function init() {
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
     }
+
+    // Funções de wire internas
     wireEdit();
     wireDesligar();
-    wireFerias();
+    // wireFerias já foi chamado acima via importação
     wireFluxoEfetivacao();
     wireDsrModal();
     wireCepEvents();
