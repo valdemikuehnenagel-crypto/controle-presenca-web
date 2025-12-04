@@ -128,11 +128,13 @@ import {supabase} from '../supabaseClient.js';(function () {
             .from('Colaboradores')
             .select('Nome, Contrato, MATRIZ, Escala, Cargo, Gestor, "ID GROOT", LDAP')
             .order('Nome', {ascending: true});
-        qAtivos = applyFilters(qAtivos);        let qDeslig = supabase
+        qAtivos = applyFilters(qAtivos);
+        let qDeslig = supabase
             .from('Desligados')
             .select('Nome, Contrato, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento", "ID GROOT", LDAP, Motivo')
             .order('Nome', {ascending: true});
-        qDeslig = applyFilters(qDeslig);        const [ativosRaw, desligadosRaw] = await Promise.all([
+        qDeslig = applyFilters(qDeslig);
+        const [ativosRaw, desligadosRaw] = await Promise.all([
             fetchAllPagesGeneric(qAtivos, 1000),
             fetchAllPagesGeneric(qDeslig, 1000)
         ]);
@@ -162,7 +164,8 @@ import {supabase} from '../supabaseClient.js';(function () {
                     Cargo: item.Cargo ?? existing.Cargo,
                     Gestor: item.Gestor ?? existing.Gestor,
                     "ID GROOT": item["ID GROOT"] ?? existing["ID GROOT"],
-                    LDAP: item.LDAP ?? existing.LDAP,                    Motivo: item.Motivo ?? existing.Motivo,
+                    LDAP: item.LDAP ?? existing.LDAP,
+                    Motivo: item.Motivo ?? existing.Motivo,
                     _origem: origem,
                     _data_desligamento: dataDesligamento || existing._data_desligamento
                 });
@@ -222,8 +225,11 @@ import {supabase} from '../supabaseClient.js';(function () {
         if (forceEnsure !== true) forceEnsure = false;
         var host = document.querySelector(HOST_SEL);
         if (!host) return;
-        if (typeof state.cargo !== 'string') state.cargo = '';        if (typeof state.acao !== 'string') state.acao = '';        var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
-        if (state.mounted && hasTable && !forceEnsure) return;        host.innerHTML =
+        if (typeof state.cargo !== 'string') state.cargo = '';
+        if (typeof state.acao !== 'string') state.acao = '';
+        var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
+        if (state.mounted && hasTable && !forceEnsure) return;
+        host.innerHTML =
             '<div class="abs-toolbar">' +
             '  <div class="abs-left">' +
             '    <input id="abs-search" type="search" placeholder="Pesquisar por nome..." />' +
@@ -237,14 +243,16 @@ import {supabase} from '../supabaseClient.js';(function () {
             '      <option value="">Cargo</option>' +
             '      <option value="AUXILIAR">AUXILIAR</option>' +
             '      <option value="CONFERENTE">CONFERENTE</option>' +
-            '    </select>' +            '    <select id="abs-filter-acao">' +
+            '    </select>' +
+            '    <select id="abs-filter-acao">' +
             '      <option value="">Ação</option>' +
             '      <option value="Advertência Verbal">Advertência Verbal</option>' +
             '      <option value="Advertência Escrita">Advertência Escrita</option>' +
             '      <option value="Suspensão">Suspensão</option>' +
             '      <option value="Afastamento">Afastamento</option>' +
             '      <option value="Desligamento">Desligamento</option>' +
-            '    </select>' +            '    <span id="abs-counts" class="abs-counts" aria-live="polite">' +
+            '    </select>' +
+            '    <span id="abs-counts" class="abs-counts" aria-live="polite">' +
             '      Injustificado: 0 <span class="sep">|</span> Justificado: 0 <span class="sep">|</span> ABS Total: 0 <span class="sep">|</span> Entrevistas feitas: 0' +
             '    </span>' +
             '  </div>' +
@@ -268,17 +276,21 @@ import {supabase} from '../supabaseClient.js';(function () {
             '        <th>Ação</th>' +
             '        <th>CID</th>' +
             '        <th>LDAP</th>' +
-            '        <th>Desligamento</th>' +
+            '        <th>Motivo</th>' + /* Exibe a coluna unificada de motivo */
             '        <th>MATRIZ</th>' +
             '      </tr>' +
             '    </thead>' +
             '    <tbody id="abs-tbody"></tbody>' +
             '  </table>' +
-            '</div>';        state.mounted = true;        document.getElementById('abs-export')?.addEventListener('click', handleExport);
-        document.getElementById('abs-period')?.addEventListener('click', openPeriodModal);        const elSearch = document.getElementById('abs-search');
+            '</div>';
+        state.mounted = true;
+        document.getElementById('abs-export')?.addEventListener('click', handleExport);
+        document.getElementById('abs-period')?.addEventListener('click', openPeriodModal);
+        const elSearch = document.getElementById('abs-search');
         const elEscala = document.getElementById('abs-filter-escala');
         const elCargo = document.getElementById('abs-filter-cargo');
-        const elAcao = document.getElementById('abs-filter-acao');         elSearch?.addEventListener('input', function () {
+        const elAcao = document.getElementById('abs-filter-acao');
+        elSearch?.addEventListener('input', function () {
             state.search = elSearch.value;
             renderRows();
         });
@@ -289,10 +301,12 @@ import {supabase} from '../supabaseClient.js';(function () {
         elCargo?.addEventListener('change', function () {
             state.cargo = elCargo.value;
             fetchAndRender();
-        });        elAcao?.addEventListener('change', function () {
+        });
+        elAcao?.addEventListener('change', function () {
             state.acao = elAcao.value;
             fetchAndRender();
-        });        const tbody = document.getElementById('abs-tbody');
+        });
+        const tbody = document.getElementById('abs-tbody');
         if (tbody) {
             tbody.addEventListener('dblclick', function (ev) {
                 const tr = ev.target?.closest ? ev.target.closest('tr.abs-row') : null;
@@ -366,20 +380,21 @@ import {supabase} from '../supabaseClient.js';(function () {
             const colabIndex = await getColabIndex();
             const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);
             const transformedRows = (controleRows || []).map(row => {
-                const colabInfo = colabIndex.get(String(row.Nome || '')) || {};                let motivoDesligamento = '';
-                if (String(row.Acao || '').trim() === 'Desligamento') {
-                    motivoDesligamento = colabInfo.Motivo || '';
+                const colabInfo = colabIndex.get(String(row.Nome || '')) || {};                const isJustificado = row.Atestado > 0;
+                let motivoReal = '';                if (isJustificado) {                    motivoReal = row.TipoAtestado || '';
+                } else {                    motivoReal = row.Observacao || '';
                 }                return {
                     Numero: row.Numero,
                     Nome: row.Nome,
                     Data: row.Data,
-                    Absenteismo: row.Atestado > 0 ? 'Justificado' : 'Injustificado',
+                    Absenteismo: isJustificado ? 'Justificado' : 'Injustificado',
                     Escala: row.Turno,
                     Entrevista: row.Entrevista,
                     Acao: row.Acao,
                     Observacao: row.Observacao,
                     CID: row.CID,
                     TipoAtestado: row.TipoAtestado,
+                    MotivoReal: motivoReal,
                     Contrato: colabInfo.Contrato || null,
                     MATRIZ: colabInfo.MATRIZ || null,
                     REGIAO: colabInfo.REGIAO || null,
@@ -387,14 +402,15 @@ import {supabase} from '../supabaseClient.js';(function () {
                     Cargo: colabInfo.Cargo || null,
                     "ID GROOT": colabInfo["ID GROOT"] || null,
                     LDAP: colabInfo.LDAP || null,
-                    MotivoDesligamento: motivoDesligamento,
                     _origemCadastro: colabInfo._origem || null
                 };
             });
             const filteredRows = transformedRows.filter(r => {
                 const cargo = norm(r.Cargo);
                 if (cargo !== 'AUXILIAR' && cargo !== 'CONFERENTE') return false;
-                if (state.cargo && cargo !== norm(state.cargo)) return false;                if (state.acao && norm(r.Acao) !== norm(state.acao)) return false;                if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
+                if (state.cargo && cargo !== norm(state.cargo)) return false;
+                if (state.acao && norm(r.Acao) !== norm(state.acao)) return false;
+                if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
                 if (state.regiao && norm(r.REGIAO) !== norm(state.regiao)) return false;
                 if (state.gerencia && norm(r.GERENCIA) !== norm(state.gerencia)) return false;
                 return true;
@@ -450,7 +466,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             tr.className = 'abs-row';
             tr.dataset.id = row.Numero;
             var originalIndex = state.rows.findIndex(r => r.Numero === row.Numero);
-            tr.setAttribute('data-idx', String(originalIndex));            tr.innerHTML =
+            tr.setAttribute('data-idx', String(originalIndex));
+            tr.innerHTML =
                 '<td>' + esc(row["ID GROOT"] || '') + '</td>' +
                 '<td class="cell-name">' + esc(row.Nome || '') + '</td>' +
                 '<td>' + esc(row.Contrato || '') + '</td>' +
@@ -461,7 +478,7 @@ import {supabase} from '../supabaseClient.js';(function () {
                 '<td>' + esc(row.Acao || '') + '</td>' +
                 '<td>' + esc(row.CID || '') + '</td>' +
                 '<td>' + esc(row.LDAP || '') + '</td>' +
-                '<td>' + esc(row.MotivoDesligamento || '') + '</td>' +
+                '<td>' + esc(row.MotivoReal || '') + '</td>' + /* Usa o Motivo unificado */
                 '<td>' + esc(row.MATRIZ || '') + '</td>';
             frag.appendChild(tr);
         });
@@ -735,7 +752,8 @@ import {supabase} from '../supabaseClient.js';(function () {
             if (!rows.length) {
                 alert('Nada para exportar com os filtros atuais.');
                 return;
-            }            var exportRows = rows.map(function (r) {
+            }
+            var exportRows = rows.map(function (r) {
                 return {
                     'GROOT ID': r["ID GROOT"] || '',
                     'Nome': r.Nome || '',
@@ -747,7 +765,7 @@ import {supabase} from '../supabaseClient.js';(function () {
                     'Ação': r.Acao || '',
                     'CID': r.CID || '',
                     'LDAP': r.LDAP || '',
-                    'Desligamento': r.MotivoDesligamento || '',
+                    'Motivo': r.MotivoReal || '',
                     'MATRIZ': r.MATRIZ || ''
                 };
             });
