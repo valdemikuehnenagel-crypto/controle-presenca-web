@@ -640,7 +640,11 @@
         <h3 id="modal-title">Gerar Nova Vaga</h3>
         <form id="formVagas" style="overflow-y: auto; padding-right: 10px;">
 
-            <div class="form-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
+            <div class="form-grid" style="grid-template-columns: repeat(5, 1fr); margin-bottom: 20px;">
+                <div class="form-group" style="background: #f0fdf4; border-radius: 6px; padding: 4px;">
+                    <label style="color: #15803d; font-weight: bold;">Qtd. Vagas</label>
+                    <input type="number" name="qtd_vagas" value="1" min="1" max="100" style="border-color: #86efac;">
+                </div>
                 <div class="form-group">
                     <label>Status</label>
                     <select name="status" required>
@@ -801,7 +805,6 @@
                         <option value="CONSULTORIA ADECCO">CONSULTORIA ADECCO</option>
                         <option value="CONSULTORIA GNX">CONSULTORIA GNX</option>
                         <option value="CONSULTORIA AST">CONSULTORIA AST</option>
-                        <option value="CONSULTORIA GNX">CONSULTORIA GNX</option>
                         <option value="CONSULTORIA INKLUA">CONSULTORIA INKLUA</option>
                         <option value="CONSULTORIA LUANDRE">CONSULTORIA LUANDRE</option>
                         <option value="CONSULTORIA POLLY">CONSULTORIA POLLY</option>
@@ -981,8 +984,9 @@
                 </div>
             </div>
 
-            <div class="form-actions" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-                <button type="button" id="btn-cancelar-vaga" class="btn-cancelar">Cancelar</button>
+            <div class="form-actions" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; display:flex; justify-content: flex-end; gap: 8px;">
+                <button type="button" id="btn-cancelar-vaga" class="btn-cancelar" style="margin-right: auto;">Cancelar</button>
+                <button type="button" id="btn-duplicar-vaga" class="btn-neutral" style="background: #f59e0b; color:white; display:none;">Duplicar Vaga</button>
                 <button type="submit" class="btn-salvar">Salvar Vaga</button>
             </div>
         </form>

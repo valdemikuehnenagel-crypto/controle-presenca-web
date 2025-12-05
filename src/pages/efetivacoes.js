@@ -4,7 +4,8 @@ import {logAction} from '../../logAction.js';const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
 const MIN_LABEL_FONT_PX = 12;
-const MIN_SEGMENT_PERCENT = 9;function cacheKeyForColabs() {
+const MIN_SEGMENT_PERCENT = 9;let inputQtdVagas;
+let btnDuplicarVaga; function cacheKeyForColabs() {
     return `colabs:ALL`;
 }function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
@@ -170,24 +171,31 @@ const MIN_SEGMENT_PERCENT = 9;function cacheKeyForColabs() {
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return diffDays < 0 ? 0 : diffDays;
 }async function desligamento_fetchEmailsSugestao(contrato) {
-    const emailsSugestao = new Set();    const myEmail = desligamento_getCurrentUserEmail();
+    const emailsSugestao = new Set();
+    const myEmail = desligamento_getCurrentUserEmail();
     if (myEmail) {
         emailsSugestao.add(myEmail.toLowerCase());
-    }    const contratosParaBuscar = ['KN'];    if (contrato && toUpperTrim(contrato) !== 'KN') {
+    }
+    const contratosParaBuscar = ['KN'];
+    if (contrato && toUpperTrim(contrato) !== 'KN') {
         contratosParaBuscar.push(contrato);
-    }    const {data, error} = await supabase
+    }
+    const {data, error} = await supabase
         .from('Consultoria')
         .select('EMAIL')
-        .in('CONTRATO', contratosParaBuscar);     if (!error && data) {
+        .in('CONTRATO', contratosParaBuscar);
+    if (!error && data) {
         data.forEach(row => {
-            if (row.EMAIL) {                const emailsRaw = row.EMAIL.split(/[;,]+/);
+            if (row.EMAIL) {
+                const emailsRaw = row.EMAIL.split(/[;,]+/);
                 emailsRaw.forEach(e => {
                     const eClean = e.trim().toLowerCase();
                     if (eClean) emailsSugestao.add(eClean);
                 });
             }
         });
-    }    return Array.from(emailsSugestao).join(', ');
+    }
+    return Array.from(emailsSugestao).join(', ');
 }async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
@@ -2761,57 +2769,48 @@ let filterGestor;
 let filterRecrutadora;
 let filterCargo;
 let inputCc;function initControleVagas() {
-    if (!document.getElementById('efet-controle-vagas')) return;
-    vagasModal = document.getElementById('vagasModal');
+    if (!document.getElementById('efet-controle-vagas')) return;    vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
-    btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
-    formVagas = document.getElementById('formVagas');
-    tbodyVagas = document.getElementById('vagas-tbody');
-    if (btnGerarVaga) {
+    btnCancelarVaga = document.getElementById('btn-cancelar-vaga');    btnDuplicarVaga = document.getElementById('btn-duplicar-vaga');    formVagas = document.getElementById('formVagas');
+    tbodyVagas = document.getElementById('vagas-tbody');    if (btnGerarVaga) {
         if (!state.isUserRH) {
             btnGerarVaga.style.display = 'none';
         } else {
             btnGerarVaga.style.display = '';
             btnGerarVaga.addEventListener('click', () => openVagasModal());
         }
-    }
-    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
+    }    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
     inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
-    inputCc = formVagas?.querySelector('[name="cc"]');
-    searchInput = document.getElementById('vagas-search');
+    inputCc = formVagas?.querySelector('[name="cc"]');    inputQtdVagas = formVagas?.querySelector('[name="qtd_vagas"]');    searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
     filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
-    filterCargo = document.getElementById('filter-vagas-cargo');
-    fetchMatrizes();
+    filterCargo = document.getElementById('filter-vagas-cargo');    fetchMatrizes();
     fetchGestores();
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
-    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
-    if (selectFilial) {
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
+    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);    if (btnDuplicarVaga) {
+        btnDuplicarVaga.addEventListener('click', duplicarVagaAtual);
+    }    if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
             atualizarSVC(matrizSelecionada);
             atualizarCC(matrizSelecionada);
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
-    }
-    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
+    }    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
-    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
-    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
+    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
-    if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);
-    fetchVagas();
+    if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);    fetchVagas();
     wireCepVagas();
 }async function fetchMatrizes() {
     const {data, error} = await supabase
@@ -2903,40 +2902,46 @@ let inputCc;function initControleVagas() {
         const dd = String(data.getDate()).padStart(2, '0');
         inputPrazoRS.value = `${yyyy}-${mm}-${dd}`;
     }
-}function openVagasModal(vagaData = null) {
+}/**
+ * Abre o modal de vagas.
+ * @param {Object|null} vagaData - Dados da vaga (se edição ou cópia)
+ * @param {boolean} isCopy - Se true, abre como NOVA vaga copiando os dados
+ */
+function openVagasModal(vagaData = null, isCopy = false) {
     if (!vagasModal) return;
-    vagasModal.classList.remove('hidden');
-    formVagas.reset();
-    formVagas.querySelectorAll('select').forEach(sel => {
-        if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
-            sel.value = "";
-        }
-    });
-    selectFilial.value = "";
-    selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
-    inputSvc.value = "";
-    if (inputCc) inputCc.value = "";
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-    if (document.getElementById('div-substituido')) {
-        document.getElementById('div-substituido').classList.add('hidden');
-    }
-    if (vagaData) {
-        document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
-        formVagas.dataset.mode = 'edit';
-        formVagas.dataset.id = vagaData.ID_Vaga;
-        const f = formVagas.elements;
-        if (f.status) f.status.value = vagaData.Status || '';
+    vagasModal.classList.remove('hidden');    if (!vagaData) {
+        formVagas.reset();
+        formVagas.querySelectorAll('select').forEach(sel => {
+            if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
+                sel.value = "";
+            }
+        });
+        selectFilial.value = "";
+        selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
+        inputSvc.value = "";
+        if (inputCc) inputCc.value = "";
+        if (inputQtdVagas) inputQtdVagas.value = "1";         document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
+        formVagas.dataset.mode = 'create';
+        delete formVagas.dataset.id;        if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';    } else {        if (isCopy) {
+            document.getElementById('modal-title').textContent = `Copiando Vaga (Origem #${vagaData.ID_Vaga})`;
+            formVagas.dataset.mode = 'create';
+            delete formVagas.dataset.id;
+            if (inputQtdVagas) inputQtdVagas.value = "1";             if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';
+        } else {
+            document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
+            formVagas.dataset.mode = 'edit';
+            formVagas.dataset.id = vagaData.ID_Vaga;
+            if (inputQtdVagas) inputQtdVagas.value = "1";            if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'inline-block';
+        }        const f = formVagas.elements;        if (f.status) f.status.value = vagaData.Status || '';
         if (f.data_aprovacao) f.data_aprovacao.value = vagaData.DataAprovacao || '';
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
-        if (f.cargo) f.cargo.value = vagaData.Cargo || '';
-        if (f.filial) {
+        if (f.cargo) f.cargo.value = vagaData.Cargo || '';        if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
             atualizarCC(vagaData.MATRIZ);
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
-        }
-        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
+        }        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
         if (f.setor) f.setor.value = vagaData.Setor || '';
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
         if (f.recrutadora) f.recrutadora.value = vagaData.Recrutadora || '';
@@ -2967,13 +2972,54 @@ let inputCc;function initControleVagas() {
         if (f.bairro_candidato) f.bairro_candidato.value = vagaData.bairro || '';
         if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';
         if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
-        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';
-        toggleSubstituicao(vagaData.Motivo);
-    } else {
-        document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
-        formVagas.dataset.mode = 'create';
-        delete formVagas.dataset.id;
-    }
+        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';        toggleSubstituicao(vagaData.Motivo);
+    }    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
+}/**
+ * Função acionada pelo botão "Duplicar Vaga" dentro do modal de edição.
+ */function duplicarVagaAtual(e) {
+    e.preventDefault();    const confirmacao = confirm("Deseja criar uma cópia desta vaga? \n\nO formulário será aberto como 'Nova Vaga' com os mesmos dados preenchidos.");
+    if (!confirmacao) return;    const formData = new FormData(formVagas);
+    const raw = Object.fromEntries(formData.entries());    const dadosParaCopia = {
+        ID_Vaga: formVagas.dataset.id,
+        Status: raw.status,
+        DataAprovacao: raw.data_aprovacao,
+        DataInicioDesejado: raw.data_inicio_desejado,
+        FluxoSmart: raw.fluxo_smart,
+        Cargo: raw.cargo,
+        MATRIZ: raw.filial,        Cliente: raw.cliente,
+        Setor: raw.setor,
+        TipoContrato: raw.tipo_contrato,
+        Recrutadora: raw.recrutadora,
+        Vagas_WC_BC: raw.vagas_wc_bc,
+        Gestor: raw.gestor,
+        Motivo: raw.motivo_vaga,
+        PCD: raw.pcd,
+        ColaboradorSubstituido: raw.colaborador_substituido,
+        FonteRecrutamento: raw.fonte_recrutamento,
+        EmpresaContratante: raw.empresa_contrato,
+        HoraEntrada: raw.hora_entrada,
+        HoraSaida: raw.hora_saida,
+        DiasSemana: raw.dias_semana,
+        JornadaTipo: raw.jornada_tipo,
+        SLA_Acordada: raw.sla_acordada,
+        PrazoEntregaRS: raw.prazo_entrega_rs,
+        DataEncaminhadoAdmissao: raw.data_encaminhado_admissao,
+        DataAdmissaoReal: raw.data_admissao_real,
+        CandidatoAprovado: raw.candidato_aprovado,
+        DataNascimento: raw.data_nascimento_candidato,
+        CPFCandidato: raw.cpf_candidato,
+        rg: raw.rg_candidato,
+        telefone: raw.telefone_candidato,
+        email: raw.email_candidato,
+        pis: raw.pis_candidato,
+        CEP: raw.cep_candidato,
+        endereco_completo: raw.endereco_candidato,
+        numero: raw.numero_candidato,
+        bairro: raw.bairro_candidato,
+        cidade: raw.cidade_candidato,
+        colete: raw.vaga_colete,
+        sapato: raw.vaga_sapato
+    };    openVagasModal(dadosParaCopia, true);
 }function closeVagasModal() {
     if (vagasModal) vagasModal.classList.add('hidden');
 }window.toggleSubstituicao = function (val) {
@@ -3003,8 +3049,11 @@ async function fetchVagas() {
     const formData = new FormData(formVagas);
     const raw = Object.fromEntries(formData.entries());
     const mode = formVagas.dataset.mode;
-    const id = formVagas.dataset.id;
-    const payload = {
+    const id = formVagas.dataset.id;    let qtdCopias = 1;
+    if (raw.qtd_vagas && !isNaN(parseInt(raw.qtd_vagas))) {
+        qtdCopias = parseInt(raw.qtd_vagas);
+    }
+    if (qtdCopias < 1) qtdCopias = 1;    const payloadBase = {
         Status: raw.status,
         DataAprovacao: raw.data_aprovacao || null,
         DataInicioDesejado: raw.data_inicio_desejado || null,
@@ -3045,26 +3094,26 @@ async function fetchVagas() {
         PrazoEntregaRS: raw.prazo_entrega_rs || null,
         DataEncaminhadoAdmissao: raw.data_encaminhado_admissao || null,
         DataAdmissaoReal: raw.data_admissao_real || null
-    };
-    const btn = formVagas.querySelector('.btn-salvar');
+    };    const btn = formVagas.querySelector('.btn-salvar');
     const txt = btn.textContent;
     btn.textContent = 'Salvando...';
-    btn.disabled = true;
-    let error;
-    if (mode === 'edit' && id) {
-        const res = await supabase.from('Vagas').update(payload).eq('ID_Vaga', id);
+    btn.disabled = true;    let error;    if (mode === 'edit' && id) {        const res = await supabase.from('Vagas').update(payloadBase).eq('ID_Vaga', id);
         error = res.error;
-    } else {
-        const res = await supabase.from('Vagas').insert([payload]);
-        error = res.error;
-    }
-    if (error) {
+    } else {        if (qtdCopias > 1) {            const bulkPayload = Array(qtdCopias).fill(payloadBase);
+            const res = await supabase.from('Vagas').insert(bulkPayload);
+            error = res.error;
+        } else {            const res = await supabase.from('Vagas').insert([payloadBase]);
+            error = res.error;
+        }
+    }    if (error) {
         alert('Erro: ' + error.message);
         btn.textContent = txt;
         btn.disabled = false;
         return;
-    }
-    alert(mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada!');
+    }    let successMsg = mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada com sucesso!';
+    if (mode === 'create' && qtdCopias > 1) {
+        successMsg = `${qtdCopias} vagas criadas com sucesso!`;
+    }    alert(successMsg);
     btn.textContent = txt;
     btn.disabled = false;
     closeVagasModal();

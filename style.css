@@ -5278,41 +5278,65 @@ html, body {
     color: #475569;
 }
 
+/* --- CONTAINER PRINCIPAL DO MODAL (Onde ajustamos o tamanho) --- */
 #vagasModal .container {
     background: #fff;
     border-radius: 16px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
     border: 1px solid #e7ebf4;
     padding: 24px;
+
+    /* AS TRAVAS DE TAMANHO */
+    width: 95%; /* Em celular pega quase tudo */
+    max-width: 950px !important; /* No PC trava em 950px */
+    height: auto;
+    max-height: 90vh; /* Máximo 90% da altura da tela */
+    margin: 0 auto; /* Centraliza */
+
+    /* PARA O SCROLL FUNCIONAR CORRETAMENTE */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
+/* Título fixo no topo */
 #vagasModal h3 {
     color: #003369;
     font-weight: 800;
     font-size: 18px;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
+    margin-top: 0;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
     border-bottom: 1px solid #eceff5;
     text-align: center;
+    flex-shrink: 0; /* Não deixa o título esmagar */
 }
 
+/* Área de Rolagem dos Inputs */
+#formVagas {
+    overflow-y: auto; /* Scroll apenas aqui */
+    overflow-x: hidden;
+    flex-grow: 1; /* Ocupa o espaço restante */
+    padding-right: 8px; /* Espaço para não colar na barra de rolagem */
+}
+
+/* Estilização da Barra de Rolagem */
 #formVagas::-webkit-scrollbar {
     width: 8px;
 }
-
 #formVagas::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 4px;
 }
-
 #formVagas::-webkit-scrollbar-track {
     background: #f8fafc;
 }
 
+/* Labels e Inputs */
 #vagasModal label {
     font-size: 12px;
     color: #56607f;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
     font-weight: 700;
     display: block;
     white-space: nowrap;
@@ -5324,15 +5348,16 @@ html, body {
 #vagasModal input[type="time"],
 #vagasModal select {
     width: 100%;
-    padding: 10px 12px;
+    padding: 8px 12px; /* Reduzi um pouco o padding para ficar mais compacto */
     border: 2px solid #e8ecf3;
-    border-radius: 10px;
+    border-radius: 8px;
     font-size: 13px;
     font-weight: 600;
     color: #242c4c;
     background: #fff;
     outline: none;
     transition: all 0.2s ease;
+    height: 38px; /* Altura fixa para alinhar tudo */
 }
 
 #vagasModal input:focus, #vagasModal select:focus {
@@ -5340,9 +5365,12 @@ html, body {
     box-shadow: 0 0 0 3px rgba(2, 177, 238, 0.15);
 }
 
+/* Fieldset para agrupar dados */
 #vagasModal fieldset {
     border: 1px solid #e2e8f0;
     border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
 }
 
 #vagasModal legend {
@@ -5350,10 +5378,16 @@ html, body {
     font-family: inherit;
 }
 
+/* Ações (Botões no rodapé) */
 #vagasModal .form-actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
+    padding-top: 15px;
+    margin-top: 10px;
+    border-top: 1px solid #eceff5;
+    flex-shrink: 0;
+    background: #fff;
 }
 
 #vagasModal .form-actions button {
@@ -5375,7 +5409,6 @@ html, body {
     background-color: #003369;
     color: #fff;
 }
-
 #vagasModal .btn-salvar:hover {
     background-color: #02B1EE;
 }
@@ -5384,19 +5417,25 @@ html, body {
     background-color: #e4e6eb;
     color: #4b4f56;
 }
-
 #vagasModal .btn-cancelar:hover {
     background-color: #d8dadf;
+}
+
+
+#vagasModal .form-grid {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 12px;
 }
 
 .hidden {
     display: none !important;
 }
 
-/* Menu de Contexto do Histórico */
+
 #hist-context-menu {
     position: absolute;
-    z-index: 10000; /* Bem alto para ficar acima do modal */
+    z-index: 10000;
     background: #fff;
     border: 1px solid #e5e7eb;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
