@@ -1,7 +1,10 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let state;
+import {getMatrizesPermitidas} from '../session.js';
+
+let state;
 let ui;
-let realtimeChannel = null;const collator = new Intl.Collator('pt-BR', {sensitivity: 'base'});
+let realtimeChannel = null;
+const collator = new Intl.Collator('pt-BR', {sensitivity: 'base'});
 const NORM = (s) => (s || '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const pick = (o, ...keys) => {
     for (const k of keys) {
@@ -10,9 +13,12 @@ const pick = (o, ...keys) => {
     }
     return '';
 };
-const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();const CACHE_DURATION_MS = 5 * 60 * 1000;
+const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();
+const CACHE_DURATION_MS = 5 * 60 * 1000;
 const cachedDailyData = new Map();
-const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getFromCache(turno, dateISO) {
+const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;
+
+function getFromCache(turno, dateISO) {
     const k = cacheKey(turno, dateISO);
     const hit = cachedDailyData.get(k);
     if (!hit) return null;
@@ -21,24 +27,35 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         return null;
     }
     return hit.data;
-}async function refresh() {
+}
+
+async function refresh() {
     state.filtered = applyFilters(state.baseList);
     repopulateFilterOptionsCascade();
     await renderRows(state.filtered);
     computeSummary(state.filtered, state.meta);
-}function setCache(turno, dateISO, data) {
+}
+
+function setCache(turno, dateISO, data) {
     cachedDailyData.set(cacheKey(turno, dateISO), {ts: Date.now(), data});
-}function invalidateCacheForDate(dateISO) {
+}
+
+function invalidateCacheForDate(dateISO) {
     ['T1', 'T2', 'T3', 'GERAL'].forEach(t => {
         cachedDailyData.delete(cacheKey(t, dateISO));
     });
-}function showLoading(on = true) {
+}
+
+function showLoading(on = true) {
     const el = document.getElementById('cd-loading');
     if (!el) return;
     el.style.display = on ? 'flex' : 'none';
-}function toast(msg, type = 'info', timeout = 2500) {
+}
+
+function toast(msg, type = 'info', timeout = 2500) {
     const root = document.getElementById('toast-root');
-    if (!root) {        console.log(msg);
+    if (!root) {
+        console.log(msg);
         return;
     }
     const div = document.createElement('div');
@@ -50,13 +67,19 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         div.style.transform = 'translateY(-6px)';
         setTimeout(() => div.remove(), 180);
     }, timeout);
-}function weekdayPT(iso) {
+}
+
+function weekdayPT(iso) {
     const d = new Date(iso + 'T00:00:00');
     const dias = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
     return dias[d.getDay()];
-}function uniqSorted(arr) {
+}
+
+function uniqSorted(arr) {
     return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => collator.compare(a, b));
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -72,30 +95,41 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         }
     }
     return allData;
-}async function getColaboradoresElegiveis(turno, dateISO) {
+}
+
+async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
     let matrizesPermitidas = getMatrizesPermitidas();
     if (Array.isArray(matrizesPermitidas) && matrizesPermitidas.length === 0) {
         matrizesPermitidas = null;
-    }    let q = supabase
+    }
+    let q = supabase
         .from('Colaboradores')
         .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')
-        .eq('Ativo', 'SIM');    if (!turno || turno === 'GERAL') q = q.in('Escala', ['T1', 'T2', 'T3']);
-    else q = q.eq('Escala', turno);    if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);    q = q.order('Nome', {ascending: true});    try {
+        .eq('Ativo', 'SIM');
+    if (!turno || turno === 'GERAL') q = q.in('Escala', ['T1', 'T2', 'T3']);
+    else q = q.eq('Escala', turno);
+    if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);
+    q = q.order('Nome', {ascending: true});
+    try {
         const cols = await fetchAllWithPagination(q);
         const all = cols || [];
-        const nomesColabs = all.map(c => c.Nome);        const {data: feriasHoje} = await supabase
+        const nomesColabs = all.map(c => c.Nome);
+        const {data: feriasHoje} = await supabase
             .from('Ferias')
             .select('Nome')
             .lte('"Data Inicio"', dateISO)
             .gte('"Data Final"', dateISO);
-        const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));        const {data: afastamentosHoje} = await supabase
+        const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
+        const {data: afastamentosHoje} = await supabase
             .from('Afastamentos')
             .select('NOME')
             .lte('"DATA INICIO"', dateISO)
             .gt('"DATA RETORNO"', dateISO);
-        const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));        let dsrLogs = [];
-        const chunkSize = 200;        if (nomesColabs.length > 0) {
+        const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));
+        let dsrLogs = [];
+        const chunkSize = 200;
+        if (nomesColabs.length > 0) {
             const promises = [];
             for (let i = 0; i < nomesColabs.length; i += chunkSize) {
                 const chunk = nomesColabs.slice(i, i + chunkSize);
@@ -112,75 +146,120 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                 if (error) throw error;
                 if (data) dsrLogs = dsrLogs.concat(data);
             }
-        }        const dsrHistoryMap = new Map();
+        }
+        const dsrHistoryMap = new Map();
         for (const log of dsrLogs) {
             const nameNorm = NORM(log.Name);
             if (!dsrHistoryMap.has(nameNorm)) dsrHistoryMap.set(nameNorm, []);
             dsrHistoryMap.get(nameNorm).push(log);
-        }        for (const history of dsrHistoryMap.values()) {
+        }
+        for (const history of dsrHistoryMap.values()) {
             history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-        }        const getDSRForDate = (colaborador) => {
+        }
+        const getDSRForDate = (colaborador) => {
             const nameNorm = NORM(colaborador.Nome);
             const history = dsrHistoryMap.get(nameNorm);
-            if (!history || history.length === 0) return colaborador.DSR;            let applicableDSR = null;
+            if (!history || history.length === 0) return colaborador.DSR;
+            let applicableDSR = null;
             for (let i = history.length - 1; i >= 0; i--) {
                 if (history[i].DataAlteracao.slice(0, 10) <= dateISO) {
                     applicableDSR = history[i].DsrAtual;
                     break;
                 }
-            }            if (applicableDSR === null) applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);            return applicableDSR;
-        };        const checkDSR = (colaborador) => {
+            }
+            if (applicableDSR === null) applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);
+            return applicableDSR;
+        };
+        const checkDSR = (colaborador) => {
             const historicalDSR = getDSRForDate(colaborador);
             const colaboradorDSRs = (historicalDSR || '').toString().toUpperCase().split(',').map(d => d.trim());
             return colaboradorDSRs.includes(dia);
-        };        const dsrObjects = [];
-        const elegiveis = [];        for (const c of all) {
+        };
+        const dsrObjects = [];
+        const elegiveis = [];
+        for (const c of all) {
             const dataAdmissao = c['Data de admissão'];
             if (dataAdmissao && dataAdmissao > dateISO) continue;
             if (nomesEmFeriasHoje.has(c.Nome)) continue;
-            if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) continue;            const isDSR = checkDSR(c);
+            if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) continue;
+            const isDSR = checkDSR(c);
             if (isDSR) {
                 dsrObjects.push(c);
             } else {
                 elegiveis.push(c);
             }
-        }        elegiveis.sort((a, b) => collator.compare(a.Nome, b.Nome));        const dsrList = dsrObjects.map(c => c.Nome);        return {elegiveis, dsrList, dsrObjects};    } catch (error) {
+        }
+        elegiveis.sort((a, b) => collator.compare(a.Nome, b.Nome));
+        const dsrList = dsrObjects.map(c => c.Nome);
+        return {elegiveis, dsrList, dsrObjects};
+    } catch (error) {
         console.error("Erro ao buscar colaboradores elegíveis com paginação:", error);
         throw error;
     }
-}async function getMarksFor(dateISO, nomes) {
+}
+
+async function getMarksFor(dateISO, nomes) {
     if (!nomes.length) return new Map();
+
     const {data, error} = await supabase
         .rpc('get_marcas_para_nomes', {nomes: nomes, data_consulta: dateISO});
+
     if (error) throw error;
+
     const map = new Map();
+
+    // Função auxiliar para garantir que 0 ou "0" seja falso, e 1 ou "1" seja verdadeiro
+    const checkVal = (v) => {
+        if (v === true || v === 'true' || v === 'TRUE') return true;
+        const n = Number(v);
+        // Retorna true apenas se for um número válido maior que 0
+        return !isNaN(n) && n > 0;
+    };
+
     (data || []).forEach(m => {
         let tipo = null;
-        if (m['Presença']) tipo = 'PRESENCA';
-        else if (m['Falta']) tipo = 'FALTA';
-        else if (m['Atestado']) tipo = 'ATESTADO';
-        else if (m['Folga Especial']) tipo = 'F_ESPECIAL';
-        else if (m['Feriado']) tipo = 'FERIADO';
-        else if (m['Suspensao']) tipo = 'SUSPENSAO';
+
+        // A ordem dos IFs define a prioridade visual caso existam dois marcados (erro de dados)
+        if (checkVal(m['Presença'])) {
+            tipo = 'PRESENCA';
+        } else if (checkVal(m['Falta'])) {
+            tipo = 'FALTA';
+        } else if (checkVal(m['Atestado'])) {
+            tipo = 'ATESTADO';
+        } else if (checkVal(m['Folga Especial'])) {
+            tipo = 'F_ESPECIAL';
+        } else if (checkVal(m['Feriado'])) {
+            tipo = 'FERIADO';
+        } else if (checkVal(m['Suspensao'])) {
+            tipo = 'SUSPENSAO';
+        }
+
         map.set(m.Nome, tipo);
     });
+
     return map;
-}async function fetchList(turno, dateISO) {
+}
+
+async function fetchList(turno, dateISO) {
     const cacheHit = getFromCache(turno, dateISO);
-    if (cacheHit) return cacheHit;    if (turno === 'GERAL') {
+    if (cacheHit) return cacheHit;
+    if (turno === 'GERAL') {
         const parts = await Promise.all(['T1', 'T2', 'T3'].map(t => fetchList(t, dateISO)));
         const byName = new Map();
         const dsrSet = new Set();
-        const dsrObjMap = new Map();        parts.forEach(p => {
+        const dsrObjMap = new Map();
+        parts.forEach(p => {
             p.list.forEach(x => {
                 if (!byName.has(x.Nome)) byName.set(x.Nome, x);
             });
-            (p.meta.dsrList || []).forEach(n => dsrSet.add(n));            if (p.meta.dsrObjects) {
+            (p.meta.dsrList || []).forEach(n => dsrSet.add(n));
+            if (p.meta.dsrObjects) {
                 p.meta.dsrObjects.forEach(obj => {
                     if (!dsrObjMap.has(obj.Nome)) dsrObjMap.set(obj.Nome, obj);
                 });
             }
-        });        const combined = {
+        });
+        const combined = {
             list: Array.from(byName.values()),
             meta: {
                 dsrList: Array.from(dsrSet),
@@ -189,8 +268,10 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         };
         setCache('GERAL', dateISO, combined);
         return combined;
-    }    const {elegiveis, dsrList, dsrObjects} = await getColaboradoresElegiveis(turno, dateISO);
-    const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));    const list = elegiveis.map(c => ({
+    }
+    const {elegiveis, dsrList, dsrObjects} = await getColaboradoresElegiveis(turno, dateISO);
+    const markMap = await getMarksFor(dateISO, elegiveis.map(x => x.Nome));
+    const list = elegiveis.map(c => ({
         Nome: c.Nome,
         LDAP: c.LDAP || '',
         Cargo: c.Cargo || '',
@@ -200,7 +281,8 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         Matriz: c.MATRIZ || '',
         Escala: c.Escala || '',
         Marcacao: markMap.get(c.Nome) || null
-    }));    const packed = {
+    }));
+    const packed = {
         list,
         meta: {
             dsrList,
@@ -209,15 +291,20 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     };
     setCache(turno, dateISO, packed);
     return packed;
-}async function upsertMarcacao({nome, turno, dateISO, tipo}) {
+}
+
+async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
-    const setOne = {...zeros};    if (tipo === 'PRESENCA') setOne['Presença'] = 1;
+    const setOne = {...zeros};
+    if (tipo === 'PRESENCA') setOne['Presença'] = 1;
     else if (tipo === 'FALTA') setOne['Falta'] = 1;
     else if (tipo === 'ATESTADO') setOne['Atestado'] = 1;
     else if (tipo === 'F_ESPECIAL') setOne['Folga Especial'] = 1;
     else if (tipo === 'FERIADO') setOne['Feriado'] = 1;
     else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1;
-    else throw new Error('Tipo inválido.');    let colabInfo = null;    const inMemory = state.baseList.find(c => c.Nome === nome);
+    else throw new Error('Tipo inválido.');
+    let colabInfo = null;
+    const inMemory = state.baseList.find(c => c.Nome === nome);
     if (inMemory) {
         colabInfo = {
             Escala: inMemory.Escala,
@@ -230,7 +317,8 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         if (inDsr) {
             colabInfo = {Escala: inDsr.Escala, SVC: inDsr.SVC, MATRIZ: inDsr.MATRIZ, Cargo: inDsr.Cargo};
         }
-    }    if (!colabInfo) {
+    }
+    if (!colabInfo) {
         const {data, error: colabErr} = await supabase
             .from('Colaboradores')
             .select('Escala, SVC, MATRIZ, Cargo')
@@ -238,12 +326,16 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             .single();
         if (colabErr) throw colabErr;
         colabInfo = data;
-    }    const turnoToUse = turno || colabInfo.Escala || null;    const {data: existing, error: findErr} = await supabase
+    }
+    const turnoToUse = turno || colabInfo.Escala || null;
+    const {data: existing, error: findErr} = await supabase
         .from('ControleDiario')
         .select('Numero')
         .eq('Nome', nome)
         .eq('Data', dateISO)
-        .limit(1);    if (findErr) throw findErr;    if (existing && existing.length > 0) {
+        .limit(1);
+    if (findErr) throw findErr;
+    if (existing && existing.length > 0) {
         const {error: updErr} = await supabase
             .from('ControleDiario')
             .update({
@@ -254,13 +346,17 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                 Cargo: colabInfo.Cargo
             })
             .eq('Nome', nome)
-            .eq('Data', dateISO);        if (updErr) throw updErr;
+            .eq('Data', dateISO);
+        if (updErr) throw updErr;
     } else {
         const {data: maxRow, error: maxErr} = await supabase
             .from('ControleDiario')
             .select('Numero')
             .order('Numero', {ascending: false})
-            .limit(1);        if (maxErr) throw maxErr;        const nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;        const row = {
+            .limit(1);
+        if (maxErr) throw maxErr;
+        const nextNumero = ((maxRow && maxRow[0] && maxRow[0].Numero) || 0) + 1;
+        const row = {
             Numero: nextNumero,
             Nome: nome,
             Data: dateISO,
@@ -268,9 +364,11 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             ...setOne,
             MATRIZ: colabInfo.MATRIZ,
             Cargo: colabInfo.Cargo
-        };        const {error: insErr} = await supabase.from('ControleDiario').insert(row);
+        };
+        const {error: insErr} = await supabase.from('ControleDiario').insert(row);
         if (insErr) throw insErr;
-    }    try {
+    }
+    try {
         if (window.absSyncForRow) {
             await window.absSyncForRow({
                 Nome: nome,
@@ -286,7 +384,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     } catch (e) {
         console.warn('ABS sync (row) falhou:', e);
     }
-}async function deleteMarcacao({nome, dateISO}) {
+}
+
+async function deleteMarcacao({nome, dateISO}) {
     const {error} = await supabase
         .from('ControleDiario')
         .delete()
@@ -300,7 +400,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     } catch (e) {
         console.warn('ABS sync (delete) falhou:', e);
     }
-}function label(tipo) {
+}
+
+function label(tipo) {
     switch (tipo) {
         case 'PRESENCA':
             return 'Presente';
@@ -317,7 +419,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         default:
             return '';
     }
-}function btnsHTML(item) {
+}
+
+function btnsHTML(item) {
     const tipos = [
         {label: 'P', tipo: 'PRESENCA', className: 'status-p'},
         {label: 'F', tipo: 'FALTA', className: 'status-f'},
@@ -331,7 +435,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         const on = item.Marcacao === b.tipo ? ' active' : '';
         return `<button class="cd-btn ${b.className}${on}" data-tipo="${b.tipo}" data-nome="${item.Nome}">${b.label}</button>`;
     }).join('');
-}function applyMarkToRow(tr, tipo) {
+}
+
+function applyMarkToRow(tr, tipo) {
     tr.dataset.mark = tipo || 'NONE';
     tr.className = '';
     tr.classList.add(`row-${(tipo || 'NONE').toLowerCase()}`);
@@ -351,7 +457,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     tr.querySelectorAll('.cd-btn').forEach(btn => {
         btn.classList.toggle('active', !!tipo && btn.dataset.tipo === tipo);
     });
-}function passFilters(x) {
+}
+
+function passFilters(x) {
     const f = state.filters;
     if (f.search) {
         const searchTermNorm = NORM(f.search);
@@ -366,9 +474,13 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     if (f.matriz && getMatriz(x) !== f.matriz) return false;
     if (state.isPendingFilterActive && x.Marcacao) return false;
     return true;
-}function applyFilters(list) {
+}
+
+function applyFilters(list) {
     return list.filter(passFilters).sort((a, b) => collator.compare(a.Nome, b.Nome));
-}function passFiltersExcept(x, exceptKey) {
+}
+
+function passFiltersExcept(x, exceptKey) {
     const f = state.filters;
     if (f.search && !NORM(x.Nome).includes(NORM(f.search))) return false;
     if (exceptKey !== 'gestor' && f.gestor && (x.Gestor || '') !== f.gestor) return false;
@@ -377,7 +489,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     if (exceptKey !== 'svc' && f.svc && (x.SVC || '') !== f.svc) return false;
     if (exceptKey !== 'matriz' && f.matriz && getMatriz(x) !== f.matriz) return false;
     return true;
-}function recomputeOptionsFor(key) {
+}
+
+function recomputeOptionsFor(key) {
     const base = state.baseList.filter((x) => passFiltersExcept(x, key));
     let values = [];
     switch (key) {
@@ -400,7 +514,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             values = [];
     }
     return uniqSorted(values.filter(Boolean));
-}function fillPreserving(sel, values, placeholder, current, onInvalid) {
+}
+
+function fillPreserving(sel, values, placeholder, current, onInvalid) {
     if (!sel) return;
     sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
     if (current && values.includes(current)) {
@@ -409,7 +525,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         sel.value = '';
         if (typeof onInvalid === 'function') onInvalid();
     }
-}function repopulateFilterOptionsCascade() {
+}
+
+function repopulateFilterOptionsCascade() {
     const cur = {
         gestor: state.filters.gestor,
         cargo: state.filters.cargo,
@@ -429,44 +547,66 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     fillPreserving(ui.selContrato, opts.contrato, 'Contrato', cur.contrato, () => (state.filters.contrato = ''));
     fillPreserving(ui.selSVC, opts.svc, 'SVC', cur.svc, () => (state.filters.svc = ''));
     fillPreserving(ui.selMatriz, opts.matriz, 'Matriz', cur.matriz, () => (state.filters.matriz = ''));
-}async function renderRows(list) {
-    ui.tbody.innerHTML = '';    const dsrNamesRaw = (state.meta?.dsrList || []).slice();    if (!dsrNamesRaw.length && list.length === 0) {
+}
+
+async function renderRows(list) {
+    ui.tbody.innerHTML = '';
+    const dsrNamesRaw = (state.meta?.dsrList || []).slice();
+    if (!dsrNamesRaw.length && list.length === 0) {
         ui.tbody.innerHTML = '<tr><td colspan="7">Nenhum colaborador previsto para hoje.</td></tr>';
         state.dsrInfoList = [];
         updateFooterCounts();
         return;
-    }    let dsrInfos = [];
+    }
+    let dsrInfos = [];
     if (state.meta && state.meta.dsrObjects && state.meta.dsrObjects.length > 0) {
         const dsrMap = new Map(state.meta.dsrObjects.map(d => [d.Nome, d]));
         dsrInfos = dsrNamesRaw.map(n => dsrMap.get(n) || {Nome: n});
     } else {
         dsrInfos = dsrNamesRaw.map(n => ({Nome: n}));
-    }    state.dsrInfoList = dsrInfos;    const dsrFiltered = dsrInfos
+    }
+    state.dsrInfoList = dsrInfos;
+    const dsrFiltered = dsrInfos
         .filter(passFilters)
         .map(x => x.Nome)
-        .sort((a, b) => collator.compare(a, b));    const maxLen = Math.max(list.length, dsrFiltered.length);
-    const frag = document.createDocumentFragment();    for (let i = 0; i < maxLen; i++) {
+        .sort((a, b) => collator.compare(a, b));
+    const maxLen = Math.max(list.length, dsrFiltered.length);
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < maxLen; i++) {
         const item = list[i] || null;
-        const dsrName = dsrFiltered[i] || '—';        const tr = document.createElement('tr');        if (item) {
+        const dsrName = dsrFiltered[i] || '—';
+        const tr = document.createElement('tr');
+        if (item) {
             tr.dataset.nome = item.Nome;
             tr.dataset.mark = item.Marcacao || 'NONE';
-            tr.classList.add(`row-${(item.Marcacao || 'NONE').toLowerCase()}`);            const tdNome = document.createElement('td');
-            tdNome.className = 'nome-col';            const ic = document.createElement('span');
+            tr.classList.add(`row-${(item.Marcacao || 'NONE').toLowerCase()}`);
+            const tdNome = document.createElement('td');
+            tdNome.className = 'nome-col';
+            const ic = document.createElement('span');
             ic.className = 'status-icon';
             ic.textContent = item.Marcacao ? '✅' : '⚠️';
-            ic.title = item.Marcacao ? 'Marcado' : 'Pendente';            tdNome.append(ic, document.createTextNode(` ${item.Nome}`));            if (item.Marcacao) {
+            ic.title = item.Marcacao ? 'Marcado' : 'Pendente';
+            tdNome.append(ic, document.createTextNode(` ${item.Nome}`));
+            if (item.Marcacao) {
                 const badge = document.createElement('span');
                 badge.className = `cd-badge badge-${item.Marcacao.toLowerCase()}`;
                 badge.textContent = label(item.Marcacao);
                 tdNome.append(' ', badge);
-            }            const tdAcoes = document.createElement('td');
+            }
+            const tdAcoes = document.createElement('td');
             tdAcoes.className = 'status-actions';
-            tdAcoes.innerHTML = btnsHTML(item);            const tdLDAP = document.createElement('td');
-            tdLDAP.textContent = item.LDAP || '—';            const tdCargo = document.createElement('td');
-            tdCargo.textContent = item.Cargo || '';            const tdSVC = document.createElement('td');
-            tdSVC.textContent = item.SVC || '';            const tdGestor = document.createElement('td');
-            tdGestor.textContent = item.Gestor || '';            const tdDSR = document.createElement('td');
-            tdDSR.textContent = dsrName;            tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
+            tdAcoes.innerHTML = btnsHTML(item);
+            const tdLDAP = document.createElement('td');
+            tdLDAP.textContent = item.LDAP || '—';
+            const tdCargo = document.createElement('td');
+            tdCargo.textContent = item.Cargo || '';
+            const tdSVC = document.createElement('td');
+            tdSVC.textContent = item.SVC || '';
+            const tdGestor = document.createElement('td');
+            tdGestor.textContent = item.Gestor || '';
+            const tdDSR = document.createElement('td');
+            tdDSR.textContent = dsrName;
+            tr.append(tdNome, tdAcoes, tdLDAP, tdCargo, tdSVC, tdGestor, tdDSR);
         } else {
             const dash = () => {
                 const td = document.createElement('td');
@@ -481,7 +621,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     }
     ui.tbody.replaceChildren(frag);
     updateFooterCounts();
-}function updateFooterCounts() {
+}
+
+function updateFooterCounts() {
     if (ui.footerCount) {
         const totalVisiveis = state.filtered.length;
         ui.footerCount.textContent = `${totalVisiveis} colaboradores visíveis`;
@@ -493,7 +635,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             return false;
         };
     }
-}function injectTableClampStyles() {
+}
+
+function injectTableClampStyles() {
     if (document.getElementById('cd-table-scroll-style')) return;
     const st = document.createElement('style');
     st.id = 'cd-table-scroll-style';
@@ -505,7 +649,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
       table.cd-scroll-12 thead::-webkit-scrollbar { display: none; }
     `;
     document.head.appendChild(st);
-}function enforce12RowViewport() {
+}
+
+function enforce12RowViewport() {
     const table = ui.tbody?.closest('table');
     if (!table) return;
     injectTableClampStyles();
@@ -518,25 +664,45 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         totalH = Math.ceil(totalH + 4);
     }
     table.style.setProperty('--cd-max-table-h', `${totalH}px`);
-}function computeSummary(list, meta) {
-    const isConf = x => String(x.Cargo || '').toUpperCase() === 'CONFERENTE';
+}
+
+function computeSummary(list, meta) {
+    // Normaliza cargo para evitar problemas de case
+    const isConf = x => String(x.Cargo || '').trim().toUpperCase() === 'CONFERENTE';
+
+    // Cálculos baseados na propriedade .Marcacao definida no getMarksFor
     const hcPrevisto = list.filter(x => !isConf(x)).length;
+
+    // HC Real: Apenas quem tem marcação PRESENCA e não é conferente
     const hcReal = list.filter(x => !isConf(x) && x.Marcacao === 'PRESENCA').length;
+
+    // Conferente Real: Apenas quem tem marcação PRESENCA e é conferente
     const confReal = list.filter(x => isConf(x) && x.Marcacao === 'PRESENCA').length;
+
+    // Pendentes: Quem não tem nenhuma marcação (null ou undefined)
     const pend = list.filter(x => !x.Marcacao).length;
+
+    // Contagem de Ocorrências
     const faltas = list.filter(x => x.Marcacao === 'FALTA').length;
     const atest = list.filter(x => x.Marcacao === 'ATESTADO').length;
     const fesp = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
     const fer = list.filter(x => x.Marcacao === 'FERIADO').length;
     const susp = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
+
+    // Quadro total efetivo presente (Auxiliares + Conferentes)
     const quadroTotal = hcReal + confReal;
+
+    // Cálculo de DSR
     let dsrCount = 0, dsrPS = 0;
     const dsrInfo = Array.isArray(state.dsrInfoList) ? state.dsrInfoList : [];
+
     if (dsrInfo.length) {
+        // Se temos a lista de DSR já filtrada na tela
         const dsrFiltrados = dsrInfo.filter(passFilters);
         dsrPS = dsrFiltrados.filter(isConf).length;
         dsrCount = dsrFiltrados.length - dsrPS;
     } else if (meta?.dsrList?.length) {
+        // Fallback usando meta dados
         const dsrColabs = meta.dsrList.map(nome =>
             state.baseList.find(c => c.Nome === nome) ||
             state.colabMap.get(nome) || {Nome: nome}
@@ -545,22 +711,30 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         dsrPS = dsrFiltrados.filter(isConf).length;
         dsrCount = dsrFiltrados.length - dsrPS;
     }
+
+    // Renderização do HTML
     const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
     const mainSummaryHTML =
         `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` +
         `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` +
         `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | DSR PS: ${dsrPS} | ` +
         `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
+
     const activeClass = state.isPendingFilterActive ? 'active' : '';
-    ui.summary.innerHTML = `
-        <div id="cd-summary-pending-btn" class="summary-pending ${pendentesClass} ${activeClass}" title="Clique para filtrar pendentes">
-            Pendentes: ${pend}
-        </div>
-        <div class="summary-main">
-            ${mainSummaryHTML}
-        </div>
-    `;
-}async function carregar(full = false) {
+
+    if (ui.summary) {
+        ui.summary.innerHTML = `
+            <div id="cd-summary-pending-btn" class="summary-pending ${pendentesClass} ${activeClass}" title="Clique para filtrar pendentes">
+                Pendentes: ${pend}
+            </div>
+            <div class="summary-main">
+                ${mainSummaryHTML}
+            </div>
+        `;
+    }
+}
+
+async function carregar(full = false) {
     const dateISO = ui.date.value;
     if (!dateISO) return;
     if (full) ui.summary.textContent = 'Carregando…';
@@ -581,7 +755,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     } finally {
         showLoading(false);
     }
-}async function onRowClick(ev) {
+}
+
+async function onRowClick(ev) {
     if (document.body.classList.contains('user-level-visitante')) return;
     if (state.isProcessing) {
         toast('Aguarde, processando marcação anterior...', 'info');
@@ -623,7 +799,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         state.isProcessing = false;
         showLoading(false);
     }
-}async function marcarTodosPresentes() {
+}
+
+async function marcarTodosPresentes() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
     const pendTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => tr.dataset.nome && (tr.dataset.mark || 'NONE') === 'NONE');
@@ -690,7 +868,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         ui.markAllBtn.textContent = 'Marcar Todos como Presente';
         showLoading(false);
     }
-}async function limparTodas() {
+}
+
+async function limparTodas() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
     const marcadosTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => (tr.dataset.mark || 'NONE') !== 'NONE');
@@ -727,7 +907,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         ui.clearAllBtn.textContent = 'Limpar Marcações Visíveis';
         showLoading(false);
     }
-}function listDates(aISO, bISO) {
+}
+
+function listDates(aISO, bISO) {
     let a = new Date(aISO), b = new Date(bISO);
     if (a > b) [a, b] = [b, a];
     const out = [];
@@ -735,10 +917,14 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         out.push(new Date(d).toISOString().slice(0, 10));
     }
     return out;
-}const csvEsc = (v) => {
+}
+
+const csvEsc = (v) => {
     const s = (v ?? '').toString();
     return /[;\n"]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};async function ensureXLSX() {
+};
+
+async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -747,18 +933,24 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}function autoColWidths(headers, rows) {
+}
+
+function autoColWidths(headers, rows) {
     return headers.map(h => {
         const maxLen = Math.max(String(h).length, ...rows.map(r => String(r[h] ?? '').length));
         return {wch: Math.min(Math.max(10, maxLen + 2), 40)};
     });
-}function clampEndToToday(startISO, endISO) {
+}
+
+function clampEndToToday(startISO, endISO) {
     if (!startISO || !endISO) return [startISO, endISO];
     const today = new Date();
     const pad2 = (n) => String(n).padStart(2, '0');
     const todayISO = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
     return [startISO, endISO > todayISO ? todayISO : endISO];
-}async function exportXLSX() {
+}
+
+async function exportXLSX() {
     const [start, endClamped] = clampEndToToday(state.period.start, state.period.end);
     if (!start || !endClamped) return toast('Selecione o período.', 'info');
     if (!confirm(`Exportar dados filtrados (${start} → ${endClamped}) em XLSX?`)) return;
@@ -818,9 +1010,13 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         ui.exportBtn.disabled = false;
         ui.exportBtn.textContent = 'Exportar dados';
     }
-}function updatePeriodLabel() {
+}
+
+function updatePeriodLabel() {
     ui.periodBtn.textContent = 'Selecionar Período';
-}function openPeriodModal() {
+}
+
+function openPeriodModal() {
     const today = new Date();
     const pad2 = (n) => String(n).padStart(2, '0');
     const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -911,7 +1107,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         updatePeriodLabel();
         close();
     };
-}function injectSummaryStyles() {
+}
+
+function injectSummaryStyles() {
     const style = document.createElement('style');
     style.textContent = `
         /* O container pai agora só organiza os itens (botão e sumário) */
@@ -956,7 +1154,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         }
     `;
     document.head.appendChild(style);
-}function getStatusFromRow(row) {
+}
+
+function getStatusFromRow(row) {
     if (!row) return null;
     if (row['Presença']) return 'PRESENCA';
     if (row['Falta']) return 'FALTA';
@@ -965,21 +1165,28 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     if (row['Feriado']) return 'FERIADO';
     if (row['Suspensao']) return 'SUSPENSAO';
     return null;
-}function setupRealtimeListener() {
+}
+
+function setupRealtimeListener() {
     if (realtimeChannel) {
         supabase.removeChannel(realtimeChannel);
-    }    realtimeChannel = supabase
+    }
+    realtimeChannel = supabase
         .channel('controle-diario-sync')
         .on(
             'postgres_changes',
             {event: '*', schema: 'public', table: 'ControleDiario'},
             (payload) => {
                 const currentDate = ui.date?.value;
-                if (!currentDate) return;                const rowDate = payload.new?.Data || payload.old?.Data;
-                if (rowDate !== currentDate) return;                const eventType = payload.eventType;
+                if (!currentDate) return;
+                const rowDate = payload.new?.Data || payload.old?.Data;
+                if (rowDate !== currentDate) return;
+                const eventType = payload.eventType;
                 const newRow = payload.new;
                 const oldRow = payload.old;
-                const nome = newRow?.Nome || oldRow?.Nome;                if (!nome) return;                const updateInMemory = (list) => {
+                const nome = newRow?.Nome || oldRow?.Nome;
+                if (!nome) return;
+                const updateInMemory = (list) => {
                     const item = list.find(x => x.Nome === nome);
                     if (item) {
                         if (eventType === 'DELETE') {
@@ -988,11 +1195,16 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                             item.Marcacao = getStatusFromRow(newRow);
                         }
                     }
-                };                updateInMemory(state.baseList);                refresh();                invalidateCacheForDate(currentDate);
+                };
+                updateInMemory(state.baseList);
+                refresh();
+                invalidateCacheForDate(currentDate);
             }
         )
         .subscribe();
-}export async function init() {
+}
+
+export async function init() {
     const pad2 = (n) => String(n).padStart(2, '0');
     const localISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
     injectSummaryStyles();
@@ -1032,7 +1244,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         isProcessing: false,
         dsrInfoList: [],
     };
-    if (!ui.date.value) ui.date.value = hoje;    setupRealtimeListener();    document.querySelectorAll('.subtab-btn').forEach(btn => {
+    if (!ui.date.value) ui.date.value = hoje;
+    setupRealtimeListener();
+    document.querySelectorAll('.subtab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -1081,7 +1295,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     });
     updatePeriodLabel();
     await carregar(true);
-}export function destroy() {
+}
+
+export function destroy() {
     if (realtimeChannel) {
         supabase.removeChannel(realtimeChannel);
         realtimeChannel = null;

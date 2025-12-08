@@ -128,21 +128,26 @@ let outbox = {
         return isoString ? isoString.split("T")[0] : null;
     }
 }async function fetchHistoricalUsers() {
-    try {        const { data, error } = await supabase
+    try {
+        const {data, error} = await supabase
             .from("Carregamento")
             .select('"BIPADO SAIDA"')
-            .neq("BIPADO SAIDA", null)            .order("DATA", { ascending: false })
-            .limit(5000);        if (error) {
+            .neq("BIPADO SAIDA", null).order("DATA", {ascending: false})
+            .limit(5000);
+        if (error) {
             console.error("Erro Supabase:", error);
             throw error;
-        }        if (data) {
+        }
+        if (data) {
             const uniqueNames = new Set();
             data.forEach(row => {
                 const name = row["BIPADO SAIDA"];
                 if (name && typeof name === 'string' && name.trim().length > 0 && name !== "---") {
                     uniqueNames.add(name.trim());
                 }
-            });            state.allUsersList = Array.from(uniqueNames).sort();            if (dom.carUserSelect && !dom.carUserSelect.classList.contains("hidden")) {
+            });
+            state.allUsersList = Array.from(uniqueNames).sort();
+            if (dom.carUserSelect && !dom.carUserSelect.classList.contains("hidden")) {
                 populateCarUserSelect();
             }
         }
@@ -150,32 +155,47 @@ let outbox = {
         console.error("Erro ao buscar histórico de usuários:", err);
     }
 }function ensureCarUserSelect() {
-    if (dom.carUserSelect) return;     const inputOriginal = document.getElementById("car-user-name");
-    if (!inputOriginal) return;    const select = document.createElement("select");
+    if (dom.carUserSelect) return;
+    const inputOriginal = document.getElementById("car-user-name");
+    if (!inputOriginal) return;
+    const select = document.createElement("select");
     select.id = "car-user-select";
-    select.className = "w-full px-3 py-2 border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white text-gray-700";    const btnVoltar = document.createElement("button");
+    select.className = "w-full px-3 py-2 border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white text-gray-700";
+    const btnVoltar = document.createElement("button");
     btnVoltar.type = "button";
     btnVoltar.innerHTML = "↺ Voltar para Lista";
-    btnVoltar.className = "text-xs text-blue-600 hover:text-blue-800 font-bold mt-2 hidden";    inputOriginal.parentNode.insertBefore(select, inputOriginal);
-    inputOriginal.parentNode.appendChild(btnVoltar);    dom.carUserSelect = select;
-    dom.carUserBackBtn = btnVoltar;    inputOriginal.classList.add("hidden");    select.addEventListener("change", () => {
-        const valor = select.value;        if (valor === "__MANUAL__") {            select.classList.add("hidden");
+    btnVoltar.className = "text-xs text-blue-600 hover:text-blue-800 font-bold mt-2 hidden";
+    inputOriginal.parentNode.insertBefore(select, inputOriginal);
+    inputOriginal.parentNode.appendChild(btnVoltar);
+    dom.carUserSelect = select;
+    dom.carUserBackBtn = btnVoltar;
+    inputOriginal.classList.add("hidden");
+    select.addEventListener("change", () => {
+        const valor = select.value;
+        if (valor === "__MANUAL__") {
+            select.classList.add("hidden");
             inputOriginal.classList.remove("hidden");
             btnVoltar.classList.remove("hidden");
             inputOriginal.value = "";
             inputOriginal.focus();
-        } else {            inputOriginal.value = valor;            if (!state.selectedDock && dom.carDockSelect) {
+        } else {
+            inputOriginal.value = valor;
+            if (!state.selectedDock && dom.carDockSelect) {
                 dom.carDockSelect.focus();
             }
         }
-    });    btnVoltar.addEventListener("click", () => {
+    });
+    btnVoltar.addEventListener("click", () => {
         inputOriginal.classList.add("hidden");
         btnVoltar.classList.add("hidden");
-        select.classList.remove("hidden");        select.value = "";
+        select.classList.remove("hidden");
+        select.value = "";
         inputOriginal.value = "";
     });
 }function populateCarUserSelect() {
-    if (!dom.carUserSelect) return;    let sourceList = state.allUsersList || [];    if (sourceList.length === 0 && state.cacheData && state.cacheData.length > 0) {
+    if (!dom.carUserSelect) return;
+    let sourceList = state.allUsersList || [];
+    if (sourceList.length === 0 && state.cacheData && state.cacheData.length > 0) {
         const tempSet = new Set();
         state.cacheData.forEach(item => {
             const val = item["BIPADO SAIDA"];
@@ -184,10 +204,13 @@ let outbox = {
             }
         });
         sourceList = Array.from(tempSet).sort();
-    }    dom.carUserSelect.innerHTML = "";    const defaultOpt = document.createElement("option");
+    }
+    dom.carUserSelect.innerHTML = "";
+    const defaultOpt = document.createElement("option");
     defaultOpt.value = "";
     defaultOpt.textContent = "Selecione o Colaborador...";
-    dom.carUserSelect.appendChild(defaultOpt);    if (sourceList.length > 0) {
+    dom.carUserSelect.appendChild(defaultOpt);
+    if (sourceList.length > 0) {
         sourceList.forEach(nome => {
             const opt = document.createElement("option");
             opt.value = nome;
@@ -199,10 +222,12 @@ let outbox = {
         emptyOpt.disabled = true;
         emptyOpt.textContent = "(Carregando lista...)";
         dom.carUserSelect.appendChild(emptyOpt);
-    }    const separator = document.createElement("option");
+    }
+    const separator = document.createElement("option");
     separator.disabled = true;
     separator.textContent = "──────────────────";
-    dom.carUserSelect.appendChild(separator);    const manualOpt = document.createElement("option");
+    dom.carUserSelect.appendChild(separator);
+    const manualOpt = document.createElement("option");
     manualOpt.value = "__MANUAL__";
     manualOpt.textContent = "✐ Digitar Manualmente...";
     manualOpt.style.fontWeight = "bold";
@@ -550,86 +575,81 @@ let outbox = {
     const modal = document.createElement("div");
     modal.id = "modal-importar-consolidado";
     modal.className = "modal-overlay hidden";
-    modal.style.zIndex = "1200";
-    modal.innerHTML = `        <div class="modal-content" style="width: 95vw; max-width: 800px;">            <div class="flex justify-between items-center mb-4 border-b pb-2">                <h3 class="text-xl font-semibold">Importar Consolidado SBA7</h3>                <button id="importar-consolidado-close" class="modal-close" type="button">&times;</button>            </div>            <div id="importar-consolidado-body">                <p class="text-sm text-gray-600 mb-2">Cole os dados (CTRL+V) do seu consolidado no formato <strong>ID_PACOTE [espaço/tab] ROTA</strong>, um por linha.</p>                <p class="text-xs text-red-600 mb-4"><strong>ATENÇÃO:</strong> Isso vai apagar TODOS os dados antigos e substituir pelos novos.</p>                <textarea id="importar-textarea" class="w-full h-64 p-2 border border-gray-300 rounded-md font-mono text-sm" placeholder="45662053071 G22_PM1\n45662604505 L21_PM1\n..."></textarea>                <div id="importar-status" class="mt-2 text-sm font-medium text-gray-700 h-6"></div>                <div class="mt-4 flex justify-end">                    <button id="importar-submit-btn" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow hover:bg-green-700">                        Importar Dados                    </button>                </div>            </div>        </div>    `;
-    document.body.appendChild(modal);
+    modal.style.zIndex = "1200";    modal.innerHTML = `
+        <div class="modal-content" style="width: 95vw; max-width: 800px;">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-semibold">Importar Consolidado</h3>
+                <button id="importar-consolidado-close" class="modal-close" type="button">&times;</button>
+            </div>
+            <div id="importar-consolidado-body">                <div class="mb-4 bg-blue-50 p-3 rounded border border-blue-100">
+                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Selecione a Unidade de Destino</label>
+                    <select id="import-target-svc" class="w-full px-3 py-2 border border-blue-300 rounded focus:border-blue-500 outline-none bg-white font-bold text-blue-900">
+                        <option value="SBA7" selected>SBA7</option>
+                        <option value="SBA3">SBA3</option>
+                    </select>
+                </div>                <p class="text-sm text-gray-600 mb-2">Cole os dados (CTRL+V) do seu consolidado no formato <strong>ID_PACOTE [espaço/tab] ROTA</strong>, um por linha.</p>
+                <p class="text-xs text-red-600 mb-4"><strong>ATENÇÃO:</strong> Isso vai apagar TODOS os dados antigos da unidade selecionada e substituir pelos novos.</p>                <textarea id="importar-textarea" class="w-full h-64 p-2 border border-gray-300 rounded-md font-mono text-sm" placeholder="45662053071 G22_PM1\n45662604505 L21_PM1\n..."></textarea>                <div id="importar-status" class="mt-2 text-sm font-medium text-gray-700 h-6"></div>                <div class="mt-4 flex justify-end">
+                    <button id="importar-submit-btn" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-md shadow hover:bg-green-700">
+                        Importar Dados
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;    document.body.appendChild(modal);
     dom.modalImportar = modal;
     dom.importCloseBtn = modal.querySelector("#importar-consolidado-close");
     dom.importTextarea = modal.querySelector("#importar-textarea");
     dom.importSubmitBtn = modal.querySelector("#importar-submit-btn");
-    dom.importStatus = modal.querySelector("#importar-status");
+    dom.importStatus = modal.querySelector("#importar-status");    dom.importTargetSelect = modal.querySelector("#import-target-svc");
 }async function handleImportarConsolidado() {
-    if (state.isImporting) return;
-    const rawText = dom.importTextarea.value;
-    if (!rawText || !rawText.trim()) {
+    if (state.isImporting) return;    const rawText = dom.importTextarea.value;    const targetSvc = dom.importTargetSelect ? dom.importTargetSelect.value : "SBA7";
+    const tableName = targetSvc === "SBA3" ? "Consolidado SBA3" : "Consolidado SBA7";    if (!rawText || !rawText.trim()) {
         dom.importStatus.textContent = "Área de texto vazia.";
         dom.importStatus.className = "mt-2 text-sm font-medium text-red-600 h-6";
         return;
-    }
-    state.isImporting = true;
+    }    state.isImporting = true;
     dom.importSubmitBtn.disabled = true;
-    dom.importSubmitBtn.textContent = "Importando...";
+    dom.importSubmitBtn.textContent = `Importando para ${targetSvc}...`;
     dom.importStatus.className = "mt-2 text-sm font-medium text-blue-600 h-6";
-    dom.importStatus.textContent = "Preparando dados...";
-    const lines = rawText.trim().split("\n");
+    dom.importStatus.textContent = "Preparando dados...";    const lines = rawText.trim().split("\n");
     const rows = [];
-    let idx = 0;
-    for (const line of lines) {
+    let idx = 0;    for (const line of lines) {
         const trimmedLine = line.trim();
         if (!trimmedLine) continue;
-        const parts = trimmedLine.split(/\s+/);
-        if (parts.length >= 2 && parts[0].length >= 11) {
+        const parts = trimmedLine.split(/\s+/);        if (parts.length >= 2 && parts[0].length >= 11) {
             const id = parts[0].trim();
             const rota = parts[1].trim();
-            const rotaOtimizada = rota.charAt(0).toUpperCase();
-            rows.push({
+            const rotaOtimizada = rota.charAt(0).toUpperCase();            rows.push({
                 ID: id,
                 Rota: rota,
                 "Rota Otimizada": rotaOtimizada,
             });
             idx++;
-        } else {
-            console.warn("Linha ignorada (formato inválido):", line);
         }
-    }
-    if (rows.length === 0) {
-        dom.importStatus.textContent =
-            "Nenhum dado válido encontrado para importar.";
+    }    if (rows.length === 0) {
+        dom.importStatus.textContent = "Nenhum dado válido encontrado.";
         dom.importStatus.className = "mt-2 text-sm font-medium text-red-600 h-6";
         state.isImporting = false;
         dom.importSubmitBtn.disabled = false;
         dom.importSubmitBtn.textContent = "Importar Dados";
         return;
-    }
-    try {
-        dom.importStatus.textContent = `Encontrados ${rows.length} registros. Limpando tabela antiga...`;
-        const {
-            error: deleteError
-        } = await supabase
-            .from("Consolidado SBA7")
+    }    try {
+        dom.importStatus.textContent = `Limpa tabela ${tableName}...`;        const {error: deleteError} = await supabase
+            .from(tableName)
             .delete()
-            .neq("ID", "dummy-id-que-nunca-vai-existir");
-        if (deleteError) {
-            console.error("Erro ao limpar tabela:", deleteError);
-            throw new Error(`Falha ao limpar tabela antiga: ${deleteError.message}`);
-        }
-        dom.importStatus.textContent = `Tabela limpa. Inserindo ${rows.length} novos registros...`;
-        const {
-            error: insertError
-        } = await supabase
-            .from("Consolidado SBA7")
-            .insert(rows);
-        if (insertError) {
-            console.error("Erro ao inserir dados:", insertError);
-            throw new Error(`Falha ao inserir novos dados: ${insertError.message}`);
-        }
-        dom.importStatus.textContent = `Sucesso! ${rows.length} registros importados.`;
+            .neq("ID", "dummy-id");        if (deleteError) {
+            console.error("Erro ao limpar:", deleteError);
+            throw new Error(`Falha ao limpar ${tableName}: ${deleteError.message}`);
+        }        dom.importStatus.textContent = `Inserindo ${rows.length} registros em ${tableName}...`;        const {error: insertError} = await supabase
+            .from(tableName)
+            .insert(rows);        if (insertError) {
+            console.error("Erro ao inserir:", insertError);
+            throw new Error(`Falha ao inserir em ${tableName}: ${insertError.message}`);
+        }        dom.importStatus.textContent = `Sucesso! ${rows.length} registros em ${tableName}.`;
         dom.importStatus.className = "mt-2 text-sm font-medium text-green-600 h-6";
-        dom.importTextarea.value = "";
-        setTimeout(() => {
+        dom.importTextarea.value = "";        setTimeout(() => {
             closeModal(dom.modalImportar);
-        }, 2000);
-    } catch (err) {
+        }, 2000);    } catch (err) {
         console.error("Erro na importação:", err);
         dom.importStatus.textContent = `Erro: ${err.message}`;
         dom.importStatus.className = "mt-2 text-sm font-medium text-red-600 h-6";
@@ -1334,79 +1354,34 @@ let outbox = {
     return json;
 }async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
-    const usuarioEntrada = dom.sepUser?.value?.trim();
-    if (!usuarioEntrada) {
-        showScannerFeedback(
-            "error",
-            "Colaborador não definido. Feche a câmera e digite seu nome.",
-            true,
-        );
+    const usuarioEntrada = dom.sepUser?.value?.trim();    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";    if (!usuarioEntrada) {
+        showScannerFeedback("error", "Colaborador não definido.", true);
         stopGlobalScanner();
-        setSepStatus("Digite o nome do colaborador", {
-            error: true
-        });
+        setSepStatus("Digite o nome do colaborador", {error: true});
         dom.sepUser?.focus();
         return;
-    }
-    state.isSeparaçãoProcessing = true;
-    const dataScan = new Date().toISOString();
-    try {
+    }    state.isSeparaçãoProcessing = true;
+    const dataScan = new Date().toISOString();    try {
         const body = {
             id_pacote: idPacote,
             data_scan: dataScan,
             usuario_entrada: usuarioEntrada,
-        };
-        const {
-            queued,
-            json
-        } = await tryPostOrQueue(
-            "separacao",
-            FUNC_SEPARACAO_URL,
-            body,
-        );
-        if (queued) {
-            showScannerFeedback(
-                "error",
-                "Falha na conexão com a rede… Tentando registrar",
-                true,
-            );
+            svc: svcSelecionado
+        };        const {queued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);        if (queued) {
+            showScannerFeedback("error", "Sem rede... Tentando registrar", true);
             stopGlobalScanner();
-            setSepStatus(
-                'Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', {
-                    error: true
-                },
-            );
+            setSepStatus('Sem rede. Na fila.', {error: true});
             dom.sepScan.value = idPacote;
             dom.sepScan.focus();
             return;
-        }
-        const {
-            numeracao,
-            ilha,
-            insertedData,
-            pacote,
-            isDuplicate,
-            message
-        } =
-            json;
-        if (!numeracao)
-            throw new Error(json?.error || "Resposta não contém numeração");
-        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = {
-            dataForQr: idPacoteParaQr,
-            ilha,
-            mangaLabel: numeracao,
-        };
-        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        if (isDuplicate) {
-            const friendly = message || "PACOTE JÁ BIPADO. Reimpressão solicitada.";
+        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;        if (!numeracao) throw new Error(json?.error || "Resposta sem numeração");        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);        if (isDuplicate) {
+            const friendly = message || "PACOTE JÁ BIPADO.";
             showScannerFeedback("error", friendly, true);
             stopGlobalScanner();
             await sleep(50);
             await printCurrentQr();
-            setSepStatus(friendly, {
-                error: true
-            });
+            setSepStatus(friendly, {error: true});
             dom.sepScan.value = idPacote;
             dom.sepScan.focus();
         } else {
@@ -1416,22 +1391,16 @@ let outbox = {
                 if (id) state.idPacoteMap.set(id, insertedData[0]);
                 renderDashboard();
             }
-            showScannerFeedback(
-                "success",
-                `Sucesso! Manga ${numeracao} (Rota ${ilha})`,
-            );
+            showScannerFeedback("success", `Sucesso! Manga ${numeracao} (${svcSelecionado})`);
             stopGlobalScanner();
             await sleep(50);
             await printCurrentQr();
         }
     } catch (err) {
         console.error("Erro Separação (Scanner):", err);
-        const friendly = `ERRO: ${err.message || err}`;
-        showScannerFeedback("error", friendly, true);
+        showScannerFeedback("error", `ERRO: ${err.message || err}`, true);
         stopGlobalScanner();
-        setSepStatus(friendly, {
-            error: true
-        });
+        setSepStatus(`Erro: ${err.message}`, {error: true});
         dom.sepScan.value = idPacote;
         dom.sepScan.focus();
     } finally {
@@ -1450,14 +1419,9 @@ let outbox = {
         .filter((s) => s.length > 0);
 }async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
-    let ok = 0,
-        fail = 0,
-        dup = 0,
-        queued = 0;
-    state.isSeparaçãoProcessing = true;
+    let ok = 0, fail = 0, dup = 0, queued = 0;    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";    state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
-    dom.sepUser.disabled = true;
-    for (let i = 0; i < total; i++) {
+    dom.sepUser.disabled = true;    for (let i = 0; i < total; i++) {
         const idPacote = ids[i];
         setSepStatus(`Processando ${i + 1}/${total}: ${idPacote}...`);
         try {
@@ -1466,48 +1430,16 @@ let outbox = {
                 id_pacote: idPacote,
                 data_scan: dataScan,
                 usuario_entrada: usuarioEntrada,
+                svc: svcSelecionado
             };
-            const {
-                queued: wasQueued,
-                json
-            } = await tryPostOrQueue(
-                "separacao",
-                FUNC_SEPARACAO_URL,
-                body,
-            );
-            if (wasQueued) {
+            const {queued: wasQueued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);            if (wasQueued) {
                 queued++;
-                setSepStatus(`Sem rede: ${i + 1}/${total}: ${idPacote} enfileirado.`, {
-                    error: true,
-                });
                 continue;
-            }
-            const {
-                numeracao,
-                ilha,
-                insertedData,
-                pacote,
-                isDuplicate,
-                message
-            } =
-            json || {};
-            if (!numeracao)
-                throw new Error(json?.error || "Resposta não contém numeração");
-            const idPacoteParaQr = pacote || idPacote;
-            state.lastPrintData = {
-                dataForQr: idPacoteParaQr,
-                ilha,
-                mangaLabel: numeracao,
-            };
-            await generateQRCode(idPacoteParaQr, ilha, numeracao);
-            await printCurrentQr();
-            if (isDuplicate) {
+            }            const {numeracao, ilha, insertedData, pacote, isDuplicate} = json || {};
+            if (!numeracao) throw new Error(json?.error || "Erro no retorno");            const idPacoteParaQr = pacote || idPacote;
+            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};            await generateQRCode(idPacoteParaQr, ilha, numeracao);
+            await printCurrentQr();            if (isDuplicate) {
                 dup++;
-                setSepStatus(
-                    `Duplicado ${i + 1}/${total}: ${idPacote} — ${message || "Pacote já bipado"}`, {
-                        error: true
-                    },
-                );
             } else {
                 if (insertedData && insertedData[0]) {
                     state.cacheData.unshift(insertedData[0]);
@@ -1517,27 +1449,11 @@ let outbox = {
                 ok++;
             }
         } catch (err) {
-            console.error("Erro em massa (separação):", err);
             fail++;
-            setSepStatus(
-                `Falhou ${i + 1}/${total}: ${idPacote} — ${err?.message || err}`, {
-                    error: true
-                },
-            );
         }
     }
     renderDashboard();
-    const resumo = [
-        `${ok} sucesso(s)`,
-        dup ? `${dup} duplicado(s)` : null,
-        fail ? `${fail} falha(s)` : null,
-        queued ? `${queued} enfileirado(s)` : null,
-    ]
-        .filter(Boolean)
-        .join(", ");
-    setSepStatus(`Lote concluído: ${resumo}.`, {
-        error: fail + queued > 0
-    });
+    setSepStatus(`Lote concluído (${svcSelecionado}): ${ok} ok, ${dup} dup, ${fail} erros.`, {error: fail > 0});
     dom.sepScan.value = "";
     dom.sepScan.focus();
     state.isSeparaçãoProcessing = false;
@@ -1546,85 +1462,41 @@ let outbox = {
 }async function handleSeparaçãoSubmit(e) {
     if (e.key !== "Enter") return;
     if (state.isSeparaçãoProcessing) return;
-    e.preventDefault();
-    const raw = dom.sepScan?.value ?? "";
-    const usuarioEntrada = dom.sepUser?.value?.trim();
-    if (!usuarioEntrada) {
-        setSepStatus("Digite o nome do colaborador", {
-            error: true
-        });
+    e.preventDefault();    const raw = dom.sepScan?.value ?? "";
+    const usuarioEntrada = dom.sepUser?.value?.trim();    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";    if (!usuarioEntrada) {
+        setSepStatus("Digite o nome do colaborador", {error: true});
         dom.sepUser.focus();
         return;
     }
     if (!raw || !raw.trim()) {
-        setSepStatus("Digite/escaneie um código válido", {
-            error: true
-        });
+        setSepStatus("Digite um código válido", {error: true});
         dom.sepScan.focus();
         return;
-    }
-    const idsRaw = parseBulkEntries(raw);
-    const ids = idsRaw.map(normalizeScanned).filter(Boolean);
-    if (ids.length > 1) {
+    }    const idsRaw = parseBulkEntries(raw);
+    const ids = idsRaw.map(normalizeScanned).filter(Boolean);    if (ids.length > 1) {
         await processarSeparacaoEmMassa(ids, usuarioEntrada);
         return;
-    }
-    const idPacote = ids[0];
+    }    const idPacote = ids[0];
     const dataScan = new Date().toISOString();
     state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
     dom.sepUser.disabled = true;
     setSepStatus("Processando...");
-    clearSepQrCanvas();
-    try {
+    clearSepQrCanvas();    try {
         const body = {
             id_pacote: idPacote,
             data_scan: dataScan,
             usuario_entrada: usuarioEntrada,
-        };
-        const {
-            queued,
-            json
-        } = await tryPostOrQueue(
-            "separacao",
-            FUNC_SEPARACAO_URL,
-            body,
-        );
-        if (queued) {
-            setSepStatus(
-                'Sem rede. Registro colocado na fila. Use "Forçar envio" ou aguarde a reconexão.', {
-                    error: true
-                },
-            );
+            svc: svcSelecionado
+        };        const {queued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);        if (queued) {
+            setSepStatus('Sem rede. Registro na fila.', {error: true});
             return;
-        }
-        const {
-            numeracao,
-            ilha,
-            insertedData,
-            pacote,
-            isDuplicate,
-            message
-        } =
-            json;
-        if (!numeracao)
-            throw new Error(json?.error || "Resposta não contém numeração");
-        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = {
-            dataForQr: idPacoteParaQr,
-            ilha,
-            mangaLabel: numeracao,
-        };
-        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printCurrentQr();
-        dom.sepScan.value = "";
-        if (isDuplicate) {
-            const friendly = message || "Pacote já bipado. Reimpressão solicitada.";
-            setSepStatus(friendly, {
-                error: true
-            });
+        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;        if (!numeracao) throw new Error(json?.error || "Erro API");        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printCurrentQr();        dom.sepScan.value = "";        if (isDuplicate) {
+            setSepStatus(message || "Já bipado.", {error: true});
         } else {
-            setSepStatus(`Sucesso! Manga ${numeracao} (Rota ${ilha}) registrada.`);
+            setSepStatus(`Sucesso! Manga ${numeracao} (${svcSelecionado}) registrada.`);
             if (insertedData && insertedData[0]) {
                 state.cacheData.unshift(insertedData[0]);
                 const id = extractElevenDigits(insertedData[0]["ID PACOTE"]);
@@ -1634,10 +1506,7 @@ let outbox = {
         }
     } catch (err) {
         console.error("Erro Separação:", err);
-        const friendly = `Erro: ${err.message || err}`;
-        setSepStatus(friendly, {
-            error: true
-        });
+        setSepStatus(`Erro: ${err.message}`, {error: true});
     } finally {
         state.isSeparaçãoProcessing = false;
         dom.sepScan.disabled = false;
@@ -1769,92 +1638,33 @@ let outbox = {
             dom.carScan.focus();
         }
     }
-}async function runCarregamentoValidation(
-    idPacoteScaneado,
-    usuarioSaida,
-    doca,
-    ilha,
-) {
-    if (!usuarioSaida)
-        return {
-            success: false,
-            message: "Digite o nome do colaborador"
-        };
-    if (!doca) return {
-        success: false,
-        message: "Selecione a DOCA"
-    };
-    if (!ilha) return {
-        success: false,
-        message: "Selecione a ILHA"
-    };
-    if (!idPacoteScaneado)
-        return {
-            success: false,
-            message: "Bipe o QR/Barra do Pacote"
-        };
-    try {
+}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {    const svcSelecionado = dom.carSVC ? dom.carSVC.value : "SBA7";    if (!usuarioSaida) return {success: false, message: "Digite o nome do colaborador"};
+    if (!doca) return {success: false, message: "Selecione a DOCA"};
+    if (!ilha) return {success: false, message: "Selecione a ILHA"};
+    if (!idPacoteScaneado) return {success: false, message: "Bipe o Pacote"};    try {
         const body = {
             id_pacote: idPacoteScaneado,
             rota_selecionada: ilha,
             usuario_saida: usuarioSaida,
             doca,
-        };
-        const {
-            queued,
-            json
-        } = await tryPostOrQueue(
-            "carregamento",
-            FUNC_CARREGAMENTO_URL,
-            body,
-        );
-        if (queued) {
-            return {
-                success: false,
-                message: 'Falha na conexão com a rede… Tentando registrar (item na fila). Clique em "Forçar envio" ou aguarde.',
-            };
-        }
-        const {
-            updatedData,
-            idempotent,
-            message
-        } = json || {};
-        if (!updatedData) {
-            throw new Error(
-                json?.error || "Backend não retornou dados da manga/pacote.",
-            );
-        }
-        const updatedNumeracao = updatedData?.NUMERACAO;
-        let successMessage = message || `OK! ${updatedNumeracao} validado.`;
-        if (idempotent)
-            successMessage =
-                message || `Manga/Pacote ${updatedNumeracao} já estava validada.`;
-        const index = state.cacheData.findIndex(
-            (itemCache) => itemCache.NUMERACAO === updatedNumeracao,
-        );
+            svc: svcSelecionado
+        };        const {queued, json} = await tryPostOrQueue("carregamento", FUNC_CARREGAMENTO_URL, body);        if (queued) {
+            return {success: false, message: 'Sem rede. Item na fila.'};
+        }        const {updatedData, idempotent, message} = json || {};
+        if (!updatedData) throw new Error(json?.error || "Erro no retorno do Backend");        const updatedNumeracao = updatedData?.NUMERACAO;
+        let successMessage = message || `OK! ${updatedNumeracao} validado (${svcSelecionado}).`;        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já validada.`;        const index = state.cacheData.findIndex(i => i.NUMERACAO === updatedNumeracao);
         if (index > -1) {
-            state.cacheData[index] = {
-                ...state.cacheData[index],
-                ...updatedData
-            };
+            state.cacheData[index] = {...state.cacheData[index], ...updatedData};
             const id = extractElevenDigits(state.cacheData[index]["ID PACOTE"]);
             if (id) state.idPacoteMap.set(id, state.cacheData[index]);
         } else {
             state.cacheData.unshift(updatedData);
             const id = extractElevenDigits(updatedData["ID PACOTE"]);
             if (id) state.idPacoteMap.set(id, updatedData);
-        }
-        return {
-            success: true,
-            message: successMessage
-        };
+        }        return {success: true, message: successMessage};
     } catch (err) {
-        console.error("Erro Carregamento (runCarregamentoValidation):", err);
-        const msg = String(err?.message || err);
-        return {
-            success: false,
-            message: `Erro: ${msg}`
-        };
+        console.error("Erro Carregamento:", err);
+        return {success: false, message: `Erro: ${err.message || err}`};
     }
 }async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
@@ -2113,7 +1923,7 @@ let outbox = {
         btn3.id = "btn-importar-consolidado";
         btn3.className =
             "group relative overflow-hidden bg-white border border-purple-200 hover:border-purple-400 p-3 rounded-lg shadow-sm hover:shadow-md transition-all text-left flex items-center gap-3 h-full w-full";
-        btn3.innerHTML = `            <div class="bg-purple-50 p-2 rounded-lg group-hover:bg-purple-600 transition-colors flex-shrink-0">                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />                </svg>            </div>            <div class="flex-grow">                <span class="block text-sm font-bold text-gray-800">3. Importar</span>                <span class="block text-[10px] text-gray-500 leading-tight">Consolidado SBA7</span>            </div>        `;
+        btn3.innerHTML = `            <div class="bg-purple-50 p-2 rounded-lg group-hover:bg-purple-600 transition-colors flex-shrink-0">                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />                </svg>            </div>            <div class="flex-grow">                <span class="block text-sm font-bold text-gray-800">3. Importar</span>                <span class="block text-[10px] text-gray-500 leading-tight">Consolidado SBA3/7</span>            </div>        `;
         dom.btnImportarConsolidado = btn3;
         container.appendChild(btn3);
         btn3.addEventListener("click", () => {
@@ -2407,21 +2217,19 @@ let outbox = {
     dom.sepQrArea = document.getElementById("sep-qr-area");
     dom.sepQrTitle = document.getElementById("sep-qr-title");
     dom.sepQrCanvas = document.getElementById("sep-qr-canvas");
-    dom.sepPrintBtn = document.getElementById("sep-print-btn");    dom.modalCarregamento = document.getElementById("modal-carregamento");
+    dom.sepPrintBtn = document.getElementById("sep-print-btn");    dom.sepSVC = document.getElementById("sep-svc-select");    dom.modalCarregamento = document.getElementById("modal-carregamento");
     dom.modalCarClose = dom.modalCarregamento?.querySelector(".modal-close");
     dom.carUser = document.getElementById("car-user-name");
     dom.carScan = document.getElementById("car-scan-input");
-    dom.carStatus = document.getElementById("car-status");    injectAuditoriaStyles();
-    const todayISO = getBrasiliaDate(false);
+    dom.carStatus = document.getElementById("car-status");    dom.carSVC = document.getElementById("car-svc-select");    injectAuditoriaStyles();    const todayISO = getBrasiliaDate(false);
     state.period.start = todayISO;
     state.period.end = todayISO;
     updatePeriodLabel();    createGlobalScannerModal();
     createRelatorioModal();
     createImportarModal();
-    injectScannerButtons();
-    ensureDockSelect();
-    ensureIlhaSelect();    ensureCarUserSelect();
-    fetchHistoricalUsers();        dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
+    injectScannerButtons();    ensureDockSelect();
+    ensureIlhaSelect();
+    ensureCarUserSelect();    fetchHistoricalUsers();    dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
     dom.tabBtnAnalise?.addEventListener("click", () => switchTab("analise"));    reorderControlsOverDashboard();
     dom.periodBtn?.addEventListener("click", openPeriodModal);    dom.btnImportarConsolidado?.addEventListener("click", () => {
         if (dom.importStatus) dom.importStatus.textContent = "";
@@ -2432,8 +2240,7 @@ let outbox = {
             dom.importSubmitBtn.textContent = "Importar Dados";
         }
         openModal(dom.modalImportar);
-    });
-    dom.importCloseBtn?.addEventListener("click", () => closeModal(dom.modalImportar));
+    });    dom.importCloseBtn?.addEventListener("click", () => closeModal(dom.modalImportar));
     dom.importSubmitBtn?.addEventListener("click", handleImportarConsolidado);    dom.btnSeparação?.addEventListener("click", () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
@@ -2443,16 +2250,22 @@ let outbox = {
         resetCarregamentoModal({
             preserveUser: true,
             preserveDock: true
-        });        populateIlhaSelect();        populateCarUserSelect();        if (dom.carUserSelect && dom.carUser && dom.carUserBackBtn) {
-            const currentVal = dom.carUser.value;            if (!currentVal) {                dom.carUser.classList.add("hidden");
+        });        populateIlhaSelect();
+        populateCarUserSelect();        if (dom.carUserSelect && dom.carUser && dom.carUserBackBtn) {
+            const currentVal = dom.carUser.value;
+            if (!currentVal) {
+                dom.carUser.classList.add("hidden");
                 dom.carUserBackBtn.classList.add("hidden");
                 dom.carUserSelect.classList.remove("hidden");
                 dom.carUserSelect.value = "";
-            } else {                dom.carUserSelect.value = currentVal;                if (dom.carUserSelect.value !== currentVal) {
+            } else {
+                dom.carUserSelect.value = currentVal;
+                if (dom.carUserSelect.value !== currentVal) {
                     dom.carUserSelect.classList.add("hidden");
                     dom.carUser.classList.remove("hidden");
                     dom.carUserBackBtn.classList.remove("hidden");
-                } else {                    dom.carUser.classList.add("hidden");
+                } else {
+                    dom.carUser.classList.add("hidden");
                     dom.carUserBackBtn.classList.add("hidden");
                     dom.carUserSelect.classList.remove("hidden");
                 }
@@ -2473,12 +2286,14 @@ let outbox = {
         ev.stopPropagation();
         closeModal(dom.modalSeparação);
         resetSeparacaoModal();
-    });
-    dom.modalCarClose?.addEventListener("click", (ev) => {
+    });    dom.modalCarClose?.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
-        resetCarregamentoModal({ preserveUser: true, preserveDock: true });
+        resetCarregamentoModal({
+            preserveUser: true,
+            preserveDock: true
+        });
     });    dom.sepUser?.addEventListener("keydown", handleSepUserKeydown);
     dom.carUser?.addEventListener("keydown", handleCarUserKeydown);
     dom.sepScan?.addEventListener("keydown", handleSeparaçãoSubmit);
@@ -2494,11 +2309,15 @@ let outbox = {
                 await printCurrentQr();
                 setSepStatus("Etiqueta reimpressa.");
             } else {
-                setSepStatus("Gere um QR Code primeiro para reimprimir.", { error: true });
+                setSepStatus("Gere um QR Code primeiro para reimprimir.", {
+                    error: true
+                });
             }
         } catch (e) {
             console.error("Falha ao reimprimir etiqueta:", e);
-            setSepStatus(`Erro ao reimprimir: ${e.message}`, { error: true });
+            setSepStatus(`Erro ao reimprimir: ${e.message}`, {
+                error: true
+            });
         }
     });    document.addEventListener("keydown", (e) => {
         if (e.key === "F6") {
@@ -2524,7 +2343,7 @@ let outbox = {
     eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);    window.addEventListener("online", eventHandlers.onOnline);
     window.addEventListener("outbox:separacao:success", eventHandlers.onSepSuccess);
     window.addEventListener("outbox:carregamento:success", eventHandlers.onCarSuccess);    if (outbox.queue.length > 0) showNetBanner("Itens pendentes: tentando enviar…");
-    setTimeout(() => processOutbox(), 2000);    console.log("Módulo de Auditoria (Dashboard) inicializado [V33 - Historical User List].");
+    setTimeout(() => processOutbox(), 2000);    console.log("Módulo de Auditoria (Dashboard) inicializado [V36 - Fix SVC Reference].");
 }export function destroy() {
     console.log("Módulo de Auditoria (Dashboard) destruído.");
     if (state.globalScannerInstance) stopGlobalScanner();
