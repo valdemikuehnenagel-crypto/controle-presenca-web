@@ -1,5 +1,3 @@
-// /supabase/functions/get-processar-carregamento-validacao/index.ts
-
 import {serve} from "https://deno.land/std@0.177.0/http/server.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -30,7 +28,8 @@ serve(async (req) => {
     }
 
     try {
-        const {id_pacote, rota_selecionada, usuario_saida, doca} = await req.json();
+
+        const {id_pacote, rota_selecionada, usuario_saida, doca, svc} = await req.json();
 
         if (!id_pacote) throw new Error("ID do pacote/manga não fornecido.");
         if (!rota_selecionada) throw new Error("Rota (ilha) não selecionada.");
@@ -42,6 +41,10 @@ serve(async (req) => {
         const normalizedPacoteId = extractElevenDigits(scannedIdStr);
         const rotaSelecionadaStr = String(rota_selecionada).trim().toUpperCase();
         const usuarioSaidaStr = String(usuario_saida).trim();
+
+        // 1. Define SVC e a Tabela de Consolidado correta
+        const svcStr = svc ? String(svc).trim() : "SBA7";
+        const tabelaConsolidado = svcStr === "SBA3" ? "Consolidado SBA3" : "Consolidado SBA7";
 
         const normalizeDock = (raw: unknown): string | null => {
             if (raw == null) return null;
@@ -75,46 +78,32 @@ serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // ######################################################
-        // ### INÍCIO DA CORREÇÃO DE LÓGICA DE BUSCA ###
-        // ######################################################
-
         const orFilterParts = [];
 
-        // 1. Adiciona o ID escaneado (para NUMERACAO completa ou "pacote solto")
         orFilterParts.push(`NUMERACAO.eq.${scannedIdStr}`);
 
-        // 2. Adiciona o ID de 11 dígitos (para QR Code ou "pacote solto")
         if (normalizedPacoteId) {
             orFilterParts.push(`"ID PACOTE".eq.${normalizedPacoteId}`);
         }
 
-        // 3. (A CORREÇÃO) Adiciona a busca por 'LIKE' se for uma etiqueta curta (ex: "D26_3242")
-        // Isso é para o caso de a NUMERACAO no DB ser "D26_PM1_3242"
         if (!normalizedPacoteId && scannedIdStr.includes('_')) {
             const parts = scannedIdStr.split('_');
             if (parts.length >= 2) {
-                const scanPrefix = parts[0]; // "D26"
-                const scanSuffix = parts[parts.length - 1]; // "3242"
-
-                // Procura por "D26%3242"
+                const scanPrefix = parts[0];
+                const scanSuffix = parts[parts.length - 1];
                 const likePattern = `${scanPrefix}%${scanSuffix}`;
                 orFilterParts.push(`NUMERACAO.like.${likePattern}`);
             }
         }
 
-        // Remove duplicados (caso scannedIdStr seja igual a normalizedPacoteId, etc.)
         const uniqueOrFilterParts = [...new Set(orFilterParts)];
         const orFilter = `or(${uniqueOrFilterParts.join(',')})`;
 
-        // ######################################################
-        // ### FIM DA CORREÇÃO DE LÓGICA DE BUSCA ###
-        // ######################################################
-
+        // Busca na tabela de operação (Carregamento)
         const {data: found, error: selErr} = await supabase
             .from("Carregamento")
             .select("*")
-            .or(orFilter) // Usa o novo filtro robusto
+            .or(orFilter)
             .limit(1);
 
         if (selErr) {
@@ -123,10 +112,8 @@ serve(async (req) => {
         }
 
         if (!found || found.length === 0) {
-            // NÃO ACHOU NA TABELA 'Carregamento'.
+            // CENÁRIO: PACOTE SOLTO (Não foi bipado na separação)
 
-            // Se não achou, SÓ PODE ser um "pacote solto".
-            // E um "pacote solto" DEVE ser um ID de 11 dígitos.
             if (!normalizedPacoteId) {
                 return new Response(
                     JSON.stringify({error: `Manga/Pacote ${scannedIdStr} não encontrado.`}),
@@ -134,22 +121,21 @@ serve(async (req) => {
                 );
             }
 
-            // OK, é um pacote solto (ID de 11 dígitos). Vamos validar no 'Consolidado SBA7'
-
+            // 2. Busca na tabela de Consolidado DINÂMICA (SBA7 ou SBA3)
             const {data: consFound, error: consErr} = await supabase
-                .from("Consolidado SBA7")
+                .from(tabelaConsolidado) // <--- MUDANÇA AQUI
                 .select(`"Rota", "Rota Otimizada"`)
                 .eq("ID", normalizedPacoteId)
                 .limit(1);
 
             if (consErr) {
-                console.error("Erro ao buscar no Consolidado:", consErr);
+                console.error(`Erro ao buscar no ${tabelaConsolidado}:`, consErr);
                 throw new Error("Erro ao consultar base consolidada.");
             }
 
             if (!consFound || consFound.length === 0) {
                 return new Response(
-                    JSON.stringify({error: `Pacote ${normalizedPacoteId} não encontrado em nenhuma base.`}),
+                    JSON.stringify({error: `Pacote ${normalizedPacoteId} não encontrado na base ${tabelaConsolidado}.`}),
                     {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 404},
                 );
             }
@@ -157,8 +143,6 @@ serve(async (req) => {
             const consolidadoRecord = consFound[0];
             const consolidadoRotaOtimizada = String(consolidadoRecord["Rota Otimizada"] || '').trim().toUpperCase();
             const consolidadoRotaCompleta = String(consolidadoRecord["Rota"] || '').trim().toUpperCase();
-
-            // A Rota selecionada no modal (ex: "D") é a otimizada
             const rotaSelecionadaOtimizada = rotaSelecionadaStr.charAt(0).toUpperCase();
 
             if (consolidadoRotaOtimizada !== rotaSelecionadaOtimizada) {
@@ -170,19 +154,18 @@ serve(async (req) => {
                 );
             }
 
-            // Rota válida! VAMOS INSERIR
-
             const insertPayload = {
                 "ID PACOTE": normalizedPacoteId,
                 "DATA": dataSaidaBrasilia,
                 "DATA SAIDA": dataSaidaBrasilia,
-                "ROTA": consolidadoRotaCompleta, // Salva a Rota *Completa* do consolidado
-                "NUMERACAO": normalizedPacoteId, // Usamos o ID do pacote como "Numeração"
+                "ROTA": consolidadoRotaCompleta,
+                "NUMERACAO": normalizedPacoteId,
                 "QTD MANGA": 1,
                 "BIPADO ENTRADA": usuarioSaidaStr,
                 "BIPADO SAIDA": usuarioSaidaStr,
                 "VALIDACAO": "BIPADO",
                 "DOCA": docaStr,
+                "SVC": svcStr
             };
 
             const {data: insertedRows, error: insertErr} = await supabase
@@ -193,7 +176,6 @@ serve(async (req) => {
             if (insertErr) {
                 console.error("Erro ao inserir pacote solto:", insertErr);
 
-                // Idempotência: (chave duplicada)
                 if (insertErr.code === "23505") {
                     const {data: updatedRows, error: updErr} = await supabase
                         .from("Carregamento")
@@ -202,6 +184,7 @@ serve(async (req) => {
                             "DATA SAIDA": dataSaidaBrasilia,
                             "VALIDACAO": "BIPADO",
                             "DOCA": docaStr,
+                            "SVC": svcStr
                         })
                         .eq("NUMERACAO", normalizedPacoteId)
                         .select();
@@ -230,30 +213,21 @@ serve(async (req) => {
                 throw new Error("Falha ao inserir pacote solto: nenhum dado retornado.");
             }
 
-            // Retorna o SUCESSO da inserção
             return new Response(
                 JSON.stringify({
-                    message: `OK! Pacote ${normalizedPacoteId} validado e registrado.`,
+                    message: `OK! Pacote ${normalizedPacoteId} validado e registrado (${svcStr}).`,
                     updatedData: insertedRows[0],
                 }),
-                {
-                    headers: {...corsHeaders, "Content-Type": "application/json"},
-                    status: 200,
-                },
+                {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 200},
             );
         }
 
-        // --- ACHOU NA TABELA 'Carregamento' ---
-        // (Seja pelo QR, Numeração completa ou Numeração curta com LIKE)
+        // --- CENÁRIO: ENCONTRADO NA TABELA CARREGAMENTO ---
 
         const record = found[0];
         const recordRota = String(record.ROTA || '').trim().toUpperCase();
         const recordNumeracao = String(record.NUMERACAO || '').trim();
 
-        // VALIDAÇÃO DA ROTA:
-        // O select do modal (rotaSelecionadaStr) é a Rota Otimizada (ex: "D")
-        // O banco (recordRota) deve conter a Rota Otimizada (ex: "D")
-        // (Seu dado de exemplo {"ROTA":"D"} está correto)
         if (recordRota !== rotaSelecionadaStr) {
             return new Response(
                 JSON.stringify({
@@ -265,15 +239,20 @@ serve(async (req) => {
 
         if (record.VALIDACAO === "BIPADO") {
             let updatedRecord = record;
-            if (docaStr && record.DOCA !== docaStr) {
+
+            if ((docaStr && record.DOCA !== docaStr) || (record.SVC !== svcStr)) {
+                const updateFields: any = {};
+                if (docaStr) updateFields.DOCA = docaStr;
+                if (svcStr) updateFields.SVC = svcStr;
+
                 const {data: updIdem, error: updIdemErr} = await supabase
                     .from("Carregamento")
-                    .update({DOCA: docaStr})
+                    .update(updateFields)
                     .eq("NUMERACAO", recordNumeracao)
                     .select()
                     .limit(1);
 
-                if (updIdemErr) console.error("Erro ao atualizar DOCA (idempotente):", updIdemErr);
+                if (updIdemErr) console.error("Erro ao atualizar (idempotente):", updIdemErr);
                 if (updIdem && updIdem.length > 0) updatedRecord = updIdem[0];
             }
 
@@ -291,6 +270,7 @@ serve(async (req) => {
             "BIPADO SAIDA": usuarioSaidaStr,
             "DATA SAIDA": dataSaidaBrasilia,
             VALIDACAO: "BIPADO",
+            "SVC": svcStr
         };
         if (docaStr) updatePayload.DOCA = docaStr;
 

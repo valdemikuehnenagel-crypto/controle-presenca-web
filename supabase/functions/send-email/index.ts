@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
 
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1500;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 serve(async (req) => {
 
   if (req.method === 'OPTIONS') {
@@ -16,11 +22,12 @@ serve(async (req) => {
 
     const { to, subject, body, attachments } = await req.json();
 
+
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPass = Deno.env.get("SMTP_PASS");
 
     if (!smtpUser || !smtpPass) {
-      throw new Error("Credenciais SMTP (SMTP_USER ou SMTP_PASS) não configuradas.");
+      throw new Error("Credenciais SMTP não configuradas no Supabase.");
     }
 
 
@@ -28,30 +35,61 @@ serve(async (req) => {
       host: "smtppro.zoho.com",
       port: 465,
       secure: true,
-      auth: { user: smtpUser, pass: smtpPass }
+      auth: { user: smtpUser, pass: smtpPass },
+
+      connectionTimeout: 10000,
+      socketTimeout: 10000
     });
 
-    await transporter.sendMail({
-      from: `"KNConecta" <${smtpUser}>`,
-      to: to,
-      subject: subject,
-      text: body,
-      attachments: attachments
-    });
 
+    let attempt = 0;
+    let lastError: any = null;
+    let sentInfo = null;
+
+    while (attempt < MAX_RETRIES) {
+      try {
+        attempt++;
+        console.log(`Tentativa de envio ${attempt}/${MAX_RETRIES} para: ${to}`);
+
+        sentInfo = await transporter.sendMail({
+          from: `"KNConecta" <${smtpUser}>`,
+          to: to,
+          subject: subject,
+          text: body,
+          attachments: attachments
+        });
+
+
+        console.log("E-mail enviado com sucesso na tentativa:", attempt);
+        break;
+
+      } catch (err) {
+        lastError = err;
+        console.warn(`Falha na tentativa ${attempt}:`, err.message);
+
+
+        if (attempt < MAX_RETRIES) {
+          await sleep(RETRY_DELAY_MS);
+        }
+      }
+    }
+
+
+    if (!sentInfo) {
+
+      throw new Error(`Falha definitiva após ${MAX_RETRIES} tentativas. Erro: ${lastError?.message}`);
+    }
 
     return new Response(JSON.stringify({ message: "E-mail enviado com sucesso!" }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200
     });
 
-  } catch (error) {
-    console.error("Erro na Edge Function:", error);
-
-
+  } catch (error: any) {
+    console.error("Erro CRÍTICO na Edge Function:", error);
     return new Response(JSON.stringify({ error: `Falha ao enviar e-mail: ${error.message}` }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200
+      status: 500
     });
   }
 });

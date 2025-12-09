@@ -21,7 +21,7 @@ serve(async (req) => {
             );
         }
 
-        const {id_pacote, data_scan, usuario_entrada} = reqBody;
+        const {id_pacote, data_scan, usuario_entrada, svc} = reqBody;
 
         if (!id_pacote) throw new Error("ID do pacote não fornecido.");
         if (!data_scan) throw new Error("Data da bipagem (data_scan) não fornecida.");
@@ -29,6 +29,10 @@ serve(async (req) => {
 
         idPacoteStr = String(id_pacote).trim();
         const usuarioEntradaStr = String(usuario_entrada).trim();
+
+        // 1. Define o SVC padrão e a Tabela correta
+        const svcStr = svc ? String(svc).trim() : "SBA7";
+        const tabelaConsolidado = svcStr === "SBA3" ? "Consolidado SBA3" : "Consolidado SBA7";
 
         const utcDate = new Date(data_scan);
         const brasiliaFormatter = new Intl.DateTimeFormat('sv-SE', {
@@ -50,48 +54,43 @@ serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // --- 3. Buscar a Rota ---
+        // 2. Busca na tabela dinâmica (SBA7 ou SBA3)
         const {data: rotaData, error: rotaError} = await supabase
-            .from("Consolidado SBA7")
-            .select("Rota, \"Rota Otimizada\"") // <-- MUDANÇA 1: Selecionar as duas colunas
+            .from(tabelaConsolidado) // <--- MUDANÇA AQUI
+            .select("Rota, \"Rota Otimizada\"")
             .eq("ID", idPacoteStr)
             .single();
 
         if (rotaError || !rotaData) {
-            console.error("Erro ao buscar rota no 'Consolidado SBA7':", rotaError);
+            console.error(`Erro ao buscar rota no '${tabelaConsolidado}':`, rotaError);
             return new Response(
-                JSON.stringify({error: `Pacote ${idPacoteStr} não encontrado na tabela 'Consolidado SBA7'.`}),
+                JSON.stringify({error: `Pacote ${idPacoteStr} não encontrado na tabela '${tabelaConsolidado}'.`}),
                 {headers: {...corsHeaders, "Content-Type": "application/json"}, status: 404},
             );
         }
 
-        // <-- MUDANÇA 2: Atribuir as duas rotas a variáveis separadas
-        const rotaCompleta: string = rotaData.Rota;         // Ex: "B19_PM1"
-        const rotaOtimizada: string = rotaData["Rota Otimizada"]; // Ex: "B"
+        const rotaCompleta: string = rotaData.Rota;
+        const rotaOtimizada: string = rotaData["Rota Otimizada"];
 
-        // --- 4. Gerar o novo ID da Manga ---
         const lastFourDigits = idPacoteStr.slice(-4);
-        // Usamos a rota *completa* para a numeração da manga
-        const numeracaoManga = `${rotaCompleta}_${lastFourDigits}`; // Ex: "B19_PM1_1574"
+        const numeracaoManga = `${rotaCompleta}_${lastFourDigits}`;
 
-        // --- 5. Salvar na tabela "Carregamento" ---
+        // 3. Insere no Carregamento (Registrando qual SVC foi usado)
         const {data, error} = await supabase
             .from("Carregamento")
             .insert({
                 "ID PACOTE": idPacoteStr,
                 "DATA": dataBrasiliaComMs,
-                "ROTA": rotaOtimizada, // <-- MUDANÇA 3: Salvar a rota otimizada ("B")
+                "ROTA": rotaOtimizada,
                 "NUMERACAO": numeracaoManga,
                 "QTD MANGA": 1,
-                "BIPADO ENTRADA": usuarioEntradaStr
+                "BIPADO ENTRADA": usuarioEntradaStr,
+                "SVC": svcStr
             })
             .select();
 
-        // --- 6. Lidar com Duplicidade (Reimpressão) ---
         if (error) {
             if (error.code === "23505") {
-                // Busca os dados existentes para reimpressão
-                // Aqui também buscamos a "Rota" completa original para a impressão
                 const {data: existingData, error: findError} = await supabase
                     .from("Carregamento")
                     .select("NUMERACAO, ROTA, \"ID PACOTE\"")
@@ -102,11 +101,9 @@ serve(async (req) => {
                     throw new Error(`Duplicidade detectada, mas falha ao buscar dados existentes: ${findError?.message}`);
                 }
 
-                // Precisamos achar a Rota Completa (B19_PM1) para a impressão funcionar
-                // (A ROTA salva no banco é só "B", o que não ajuda a impressão)
-                // Vamos buscar de novo no Consolidado (rápido)
+                // 4. Busca rota original na tabela certa para reimpressão
                 const {data: rotaOriginal} = await supabase
-                    .from("Consolidado SBA7")
+                    .from(tabelaConsolidado) // <--- MUDANÇA AQUI TAMBÉM
                     .select("Rota")
                     .eq("ID", idPacoteStr)
                     .single();
@@ -115,8 +112,7 @@ serve(async (req) => {
                     JSON.stringify({
                         message: "Pacote já bipado. Reimpressão permitida.",
                         numeracao: existingData.NUMERACAO,
-                        // A impressão precisa da rota completa (B19_PM1), não da otimizada (B)
-                        ilha: rotaOriginal?.Rota || existingData.ROTA, // Usa a rota completa do Consolidado
+                        ilha: rotaOriginal?.Rota || existingData.ROTA,
                         pacote: existingData["ID PACOTE"],
                         isDuplicate: true,
                         insertedData: null
@@ -128,12 +124,10 @@ serve(async (req) => {
             throw new Error(`Erro ao salvar no banco: ${error.message}`);
         }
 
-        // --- 7. Retornar sucesso (Pacote Novo) ---
         return new Response(
             JSON.stringify({
                 message: "Manga registrada com sucesso!",
                 numeracao: numeracaoManga,
-                // O frontend (impressão) espera a rota completa ("B19_PM1") no campo 'ilha'
                 ilha: rotaCompleta,
                 pacote: idPacoteStr,
                 isDuplicate: false,
