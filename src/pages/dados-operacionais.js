@@ -1,13 +1,19 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {garantirModalEdicaoAtivo} from './colaboradores.js';let ui;
+import {garantirModalEdicaoAtivo} from './colaboradores.js';
+
+let ui;
 const CACHE_TTL_MS = 10 * 60_000;
 const _cache = new Map();
 const _inflight = new Map();
-const _listeners = [];function keyFromMatrizes(mp) {
+const _listeners = [];
+
+function keyFromMatrizes(mp) {
     const part = Array.isArray(mp) && mp.length ? [...mp].sort().join('|') : 'ALL';
     return `dados-op:colaboradores:${part}:ativos`;
-}function fetchOnce(key, loader, ttl = CACHE_TTL_MS) {
+}
+
+function fetchOnce(key, loader, ttl = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
     if (hit && (now - hit.ts) < hit.ttl) return Promise.resolve(hit.value);
@@ -23,20 +29,26 @@ const _listeners = [];function keyFromMatrizes(mp) {
     })();
     _inflight.set(key, p);
     return p;
-}function invalidateCache(keys) {
+}
+
+function invalidateCache(keys) {
     if (!keys || !keys.length) {
         _cache.clear();
         return;
     }
     keys.forEach(k => _cache.delete(k));
-}const state = {
+}
+
+const state = {
     mounted: false,
     detailedResults: new Map(),
     totalGeralResults: {},
     filters: {matriz: '', gerente: '', svc: ''},
     universe: {svcs: [], matrizes: [], gerentes: []},
     mappings: {svcToGerente: new Map(), svcToMatriz: new Map()},
-};async function fetchAllPages(query) {
+};
+
+async function fetchAllPages(query) {
     const pageSize = 1000;
     let allData = [];
     let page = 0;
@@ -53,7 +65,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         if (!data || data.length < pageSize) keepFetching = false;
     }
     return allData;
-}async function fetchMatrizesMappings() {
+}
+
+async function fetchMatrizesMappings() {
     const matrizesPermitidas = getMatrizesPermitidas();
     let q = supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
     if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);
@@ -81,22 +95,31 @@ const _listeners = [];function keyFromMatrizes(mp) {
         gerentes: [...optGerentes].sort((a, b) => a.localeCompare(b, 'pt-BR')),
         svcs: [...optSvcs].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     };
-}async function fetchDataCached() {
+}
+
+async function fetchDataCached() {
     const matrizesPermitidas = getMatrizesPermitidas();
     const key = keyFromMatrizes(matrizesPermitidas);
     return fetchOnce(key, async () => {
         let colabQuery = supabase
             .from('Colaboradores')
             .select('Nome, SVC, "Data de admissão", "Data de nascimento", LDAP, "ID GROOT", Gestor, MATRIZ, Cargo, Escala, DSR, Genero, MatriculaKN, Contrato')
-            .eq('Ativo', 'SIM');        if (matrizesPermitidas && matrizesPermitidas.length) {
+            .eq('Ativo', 'SIM');
+        if (matrizesPermitidas && matrizesPermitidas.length) {
             colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
-        }        const todosColaboradores = await fetchAllPages(colabQuery);        const colaboradores = todosColaboradores.filter(c => {
+        }
+        const todosColaboradores = await fetchAllPages(colabQuery);
+        const colaboradores = todosColaboradores.filter(c => {
             const cargo = c.Cargo ? String(c.Cargo).toUpperCase().trim() : '';
             return cargo === 'AUXILIAR';
-        });        colaboradores.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));        const maps = await fetchMatrizesMappings();
+        });
+        colaboradores.sort((a, b) => String(a?.Nome || '').localeCompare(String(b?.Nome || ''), 'pt-BR'));
+        const maps = await fetchMatrizesMappings();
         return {colaboradores, ...maps};
     });
-}function computeCascadingOptions(current, universe, mappings) {
+}
+
+function computeCascadingOptions(current, universe, mappings) {
     const selMatriz = String(current.matriz || '').trim();
     const selGerente = String(current.gerente || '').trim();
     const selSvc = String(current.svc || '').trim();
@@ -123,7 +146,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         matrizes: [...allowedMatrizes].sort((a, b) => a.localeCompare(b, 'pt-BR')),
         gerentes: [...allowedGerentes].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     };
-}function applyUserFilters(colaboradores, filters, mappings) {
+}
+
+function applyUserFilters(colaboradores, filters, mappings) {
     const fMatriz = String(filters.matriz || '').trim().toUpperCase();
     const fGerente = String(filters.gerente || '').trim().toUpperCase();
     const fSvc = String(filters.svc || '').trim().toUpperCase();
@@ -137,15 +162,20 @@ const _listeners = [];function keyFromMatrizes(mp) {
         if (fSvc && svc.toUpperCase() !== fSvc) return false;
         return true;
     });
-}function processDataQuality(colaboradores) {
+}
+
+function processDataQuality(colaboradores) {
     state.detailedResults.clear();
     state.totalGeralResults = {};
-    const svcs = [...new Set(colaboradores.map(c => c.SVC).filter(Boolean))].sort();    const colunasParaVerificar = [
+    const svcs = [...new Set(colaboradores.map(c => c.SVC).filter(Boolean))].sort();
+    const colunasParaVerificar = [
         'Gestor', 'DSR', 'Escala', 'Cargo', 'Data de admissão',
         'MatriculaKN', 'ID GROOT', 'LDAP', 'Data de nascimento', 'Genero'
-    ];    const totalGeralColaboradores = colaboradores.length;
+    ];
+    const totalGeralColaboradores = colaboradores.length;
     const totalGeralResults = {};
-    let totalGeralPercentualSoma = 0;    if (totalGeralColaboradores > 0) {
+    let totalGeralPercentualSoma = 0;
+    if (totalGeralColaboradores > 0) {
         for (const coluna of colunasParaVerificar) {
             const pendentesGeral = colaboradores.filter(c => {
                 const valor = c[coluna];
@@ -167,14 +197,16 @@ const _listeners = [];function keyFromMatrizes(mp) {
         }
         totalGeralResults.totalGeral = totalGeralPercentualSoma / colunasParaVerificar.length;
     }
-    state.totalGeralResults = totalGeralResults;    const results = {};
+    state.totalGeralResults = totalGeralResults;
+    const results = {};
     for (const svc of svcs) {
         results[svc] = {};
         state.detailedResults.set(svc, new Map());
         const colaboradoresSVC = colaboradores.filter(c => c.SVC === svc);
         const totalColabsSVC = colaboradoresSVC.length;
         if (totalColabsSVC === 0) continue;
-        let percentualTotalSoma = 0;        for (const coluna of colunasParaVerificar) {
+        let percentualTotalSoma = 0;
+        for (const coluna of colunasParaVerificar) {
             const pendentes = colaboradoresSVC.filter(c => {
                 const valor = c[coluna];
                 const isEmpty = valor === null || valor === undefined || String(valor).trim() === '';
@@ -195,19 +227,27 @@ const _listeners = [];function keyFromMatrizes(mp) {
         results[svc].totalGeral = (colunasParaVerificar.length === 0) ? 0 : percentualTotalSoma / colunasParaVerificar.length;
     }
     return {svcs, results, colunas: colunasParaVerificar, totalGeralResults};
-}function getStatusClass(percentual) {
+}
+
+function getStatusClass(percentual) {
     if (percentual === 100) return 'status-ok';
     if (percentual > 0) return 'status-pendente';
     if (percentual === 0) return 'status-nok';
     return 'status-na';
-}function getTotalStatusClass(percentual) {
+}
+
+function getTotalStatusClass(percentual) {
     if (percentual === 100) return 'status-ok';
     if (percentual >= 90) return 'status-pendente';
     return 'status-nok';
-}function ensureFiltersBar() {    ui.matrizSelect = document.getElementById('dados-op-matriz-filter') || document.getElementById('dados-op-filter-matriz');
+}
+
+function ensureFiltersBar() {
+    ui.matrizSelect = document.getElementById('dados-op-matriz-filter') || document.getElementById('dados-op-filter-matriz');
     ui.gerenteSelect = document.getElementById('dados-op-gerente-filter') || document.getElementById('dados-op-filter-gerente');
     ui.svcSelect = document.getElementById('dados-op-svc-filter') || document.getElementById('dados-op-filter-svc');
-    ui.clearBtn = document.getElementById('dados-op-clear-filters');    if (!ui.matrizSelect) {
+    ui.clearBtn = document.getElementById('dados-op-clear-filters');
+    if (!ui.matrizSelect) {
         let bar = document.getElementById('dados-op-filters');
         if (!bar) {
             bar = document.createElement('div');
@@ -223,16 +263,19 @@ const _listeners = [];function keyFromMatrizes(mp) {
             <select id="dados-op-filter-svc" class="dados-op-filter"><option value="">SVC</option></select>
             <button id="dados-op-clear-filters" class="btn" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fafafa;">Limpar</button>
           </div>`;
-        }        const page = document.getElementById('dados-op-page');
+        }
+        const page = document.getElementById('dados-op-page');
         if (page) {
             if (bar.parentNode !== page) page.prepend(bar);
         } else if (ui.resultContainer && ui.resultContainer.parentNode) {
             ui.resultContainer.parentNode.insertBefore(bar, ui.resultContainer);
-        }        ui.matrizSelect = document.getElementById('dados-op-filter-matriz');
+        }
+        ui.matrizSelect = document.getElementById('dados-op-filter-matriz');
         ui.gerenteSelect = document.getElementById('dados-op-filter-gerente');
         ui.svcSelect = document.getElementById('dados-op-filter-svc');
         ui.clearBtn = document.getElementById('dados-op-clear-filters');
-    }    if (ui.matrizSelect) ui.matrizSelect.onchange = () => {
+    }
+    if (ui.matrizSelect) ui.matrizSelect.onchange = () => {
         state.filters.matriz = ui.matrizSelect.value || '';
         recomputeAndSyncFilterOptions();
         generateReport();
@@ -252,7 +295,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         recomputeAndSyncFilterOptions();
         generateReport();
     };
-}function populateSelect(select, items, placeholder, keepValue) {
+}
+
+function populateSelect(select, items, placeholder, keepValue) {
     if (!select) return;
     const prev = keepValue ? select.value : '';
     select.innerHTML = '';
@@ -267,7 +312,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
         select.appendChild(opt);
     });
     if (prev && items.includes(prev)) select.value = prev; else select.value = '';
-}function recomputeAndSyncFilterOptions() {
+}
+
+function recomputeAndSyncFilterOptions() {
     const allowed = computeCascadingOptions(state.filters, state.universe, state.mappings);
     populateSelect(ui.matrizSelect, allowed.matrizes, 'Matriz', true);
     populateSelect(ui.gerenteSelect, allowed.gerentes, 'Gerentes', true);
@@ -284,12 +331,18 @@ const _listeners = [];function keyFromMatrizes(mp) {
         state.filters.svc = '';
         ui.svcSelect.value = '';
     }
-}function showDetailsModal(svc, coluna) {
+}
+
+function showDetailsModal(svc, coluna) {
     const details = (svc === 'TODAS')
         ? state.totalGeralResults?.[coluna]
-        : state.detailedResults.get(svc)?.get(coluna);    if (!details) return;    const old = document.getElementById('dados-op-details-modal');
-    if (old) old.remove();    const modal = document.createElement('div');
-    modal.id = 'dados-op-details-modal';    modal.style.cssText = `
+        : state.detailedResults.get(svc)?.get(coluna);
+    if (!details) return;
+    const old = document.getElementById('dados-op-details-modal');
+    if (old) old.remove();
+    const modal = document.createElement('div');
+    modal.id = 'dados-op-details-modal';
+    modal.style.cssText = `
         position: fixed; 
         inset: 0; 
         background: rgba(0, 0, 0, .35); 
@@ -298,7 +351,8 @@ const _listeners = [];function keyFromMatrizes(mp) {
         justify-content: center; 
         z-index: 10000;
         font-family: sans-serif;
-    `;    const contentHtml = (details.pendentes.length === 0)
+    `;
+    const contentHtml = (details.pendentes.length === 0)
         ? '<p style="text-align:center; color:#6b7280; padding:20px; font-size:13px;">Nenhum colaborador com pendência neste campo.</p>'
         : `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding: 0 4px;">
@@ -340,7 +394,8 @@ const _listeners = [];function keyFromMatrizes(mp) {
             </li>
         `).join('')}
       </ul>
-    `;    modal.innerHTML = `
+    `;
+    modal.innerHTML = `
     <div class="modal-card" style="
         background: #fff; 
         border-radius: 12px; 
@@ -387,16 +442,22 @@ const _listeners = [];function keyFromMatrizes(mp) {
         </button>
       </div>
     </div>
-  `;    document.body.appendChild(modal);    const triggerEdit = (nome) => {
-        if (!nome) return;        if (typeof garantirModalEdicaoAtivo === 'function') {
+  `;
+    document.body.appendChild(modal);
+    const triggerEdit = (nome) => {
+        if (!nome) return;
+        if (typeof garantirModalEdicaoAtivo === 'function') {
             garantirModalEdicaoAtivo();
-        }        document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome: nome}}));        setTimeout(() => {
+        }
+        document.dispatchEvent(new CustomEvent('open-edit-modal', {detail: {nome: nome}}));
+        setTimeout(() => {
             const editModal = document.getElementById('editModal');
             if (editModal) {
                 editModal.style.zIndex = '12000';
             }
         }, 50);
-    };    const lista = modal.querySelector('#lista-pendencias');
+    };
+    const lista = modal.querySelector('#lista-pendencias');
     if (lista) {
         lista.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-editar-item');
@@ -406,22 +467,27 @@ const _listeners = [];function keyFromMatrizes(mp) {
                 const nome = item?.dataset?.nome;
                 triggerEdit(nome);
             }
-        });        lista.addEventListener('dblclick', (e) => {
+        });
+        lista.addEventListener('dblclick', (e) => {
             const item = e.target.closest('.pendencia-item');
             if (item) {
                 const nome = item.dataset.nome;
                 triggerEdit(nome);
             }
         });
-    }    modal.querySelectorAll('[data-close-modal]').forEach(el => {
+    }
+    modal.querySelectorAll('[data-close-modal]').forEach(el => {
         el.addEventListener('click', () => modal.remove());
     });
-}function renderTable(svcs, colunas, results, totalGeralResults) {
+}
+
+function renderTable(svcs, colunas, results, totalGeralResults) {
     if (!ui.resultContainer) return;
     const displaySvc = (svc) => {
         const matriz = state?.mappings?.svcToMatriz?.get?.(svc) || '';
         return matriz ? `(${svc}) ${matriz}` : svc;
-    };    const colunasDisplay = {
+    };
+    const colunasDisplay = {
         'Gestor': 'Gestor ⚠️',
         'DSR': 'DSR ⚠️',
         'Escala': 'Escala ⚠️',
@@ -432,7 +498,8 @@ const _listeners = [];function keyFromMatrizes(mp) {
         'MatriculaKN': 'Matricula KN ⚠️',
         'Data de nascimento': 'Dt Nascim.',
         'Genero': 'Gênero',
-    };    const headerHtml =
+    };
+    const headerHtml =
         `<tr><th>SVC</th>${colunas.map(col => `<th>${colunasDisplay[col] || col}</th>`).join('')}<th>Total</th></tr>`;
     let totalRowHtml = '';
     if (totalGeralResults && Object.keys(totalGeralResults).length > 0 && totalGeralResults.totalGeral !== undefined) {
@@ -505,7 +572,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
             showDetailsModal(cell.dataset.svc, cell.dataset.coluna);
         });
     }
-}async function generateReport() {
+}
+
+async function generateReport() {
     if (ui?.loader) ui.loader.style.display = 'flex';
     if (ui?.resultContainer) ui.resultContainer.innerHTML = `<p class="p-4 text-center">Gerando relatório...</p>`;
     try {
@@ -543,18 +612,40 @@ const _listeners = [];function keyFromMatrizes(mp) {
     } finally {
         if (ui?.loader) ui.loader.style.display = 'none';
     }
-}export async function getRankingData(filters = {}) {    const {colaboradores, svcToMatriz, svcToGerente} = await fetchDataCached();    const filtersToApply = {
+}
+
+export async function getRankingData(filters = {}) {
+    const {colaboradores, svcToMatriz, svcToGerente} = await fetchDataCached();
+
+    const filtersToApply = {
         matriz: filters.matriz || state.filters.matriz || '',
         gerente: filters.gerencia || filters.gerente || state.filters.gerente || '',
         svc: filters.svc || state.filters.svc || ''
-    };    const mappings = { svcToMatriz, svcToGerente };    const filtrados = applyUserFilters(colaboradores, filtersToApply, mappings);    const {svcs, results} = processDataQuality(filtrados);    const ranking = [];
-    svcs.forEach(svc => {        const val = results[svc]?.totalGeral || 0;        const matriz = svcToMatriz.get(svc) || '';
-        const label = matriz ? `${svc} (${matriz})` : svc;        ranking.push({label, value: Math.round(val)});
-    });    ranking.sort((a, b) => b.value - a.value);    return {
+    };
+
+    const mappings = {svcToMatriz, svcToGerente};
+    const filtrados = applyUserFilters(colaboradores, filtersToApply, mappings);
+    const {svcs, results} = processDataQuality(filtrados);
+
+    const ranking = [];
+    svcs.forEach(svc => {
+        const val = results[svc]?.totalGeral || 0;
+        const matriz = svcToMatriz.get(svc) || '';
+        const label = matriz ? `${svc} (${matriz})` : svc;
+
+
+        ranking.push({label, value: Number(val.toFixed(2))});
+    });
+
+    ranking.sort((a, b) => b.value - a.value);
+
+    return {
         labels: ranking.map(r => r.label),
         values: ranking.map(r => r.value)
     };
-}export function init() {
+}
+
+export function init() {
     if (state.mounted) return;
     if (document.getElementById('editModal')) {
         garantirModalEdicaoAtivo();
@@ -582,7 +673,9 @@ const _listeners = [];function keyFromMatrizes(mp) {
     ensureFiltersBar();
     recomputeAndSyncFilterOptions();
     generateReport();
-}export function destroy() {
+}
+
+export function destroy() {
     const modal = document.getElementById('dados-op-details-modal');
     if (modal) modal.remove();
     try {
