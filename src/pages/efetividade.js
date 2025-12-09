@@ -12,7 +12,8 @@ const state = {
     matrizGerenteMap: new Map(),
     _inited: false,
     _handlers: null,
-    _runId: 0,    cache: {
+    _runId: 0,
+    cache: {
         key: '',
         data: null
     }
@@ -118,19 +119,6 @@ const state = {
 }function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
     const css = `
- .filter-bar.efetividade-filters { display:flex; justify-content:space-between; align-items:center; width:100%; }
- .efetividade-actions { display:flex; gap:8px; align-items:center; }
- #efet-matriz-filter, #efet-gerente-filter {
-  padding:8px 12px; padding-right:2.5em; border:1px solid #ddd; border-radius:20px;
-  background-color:#fff; color:#333; font-weight:600; font-size:12px; cursor:pointer;
-  -webkit-appearance:none; appearance:none;
-  background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-  background-repeat:no-repeat; background-position:right 0.7em top 50%; background-size:0.65em auto;
-  transition:background-color .2s;
- }
- #efet-matriz-filter:hover, #efet-gerente-filter:hover { background-color:#f5f5f5; }
- #efet-period-btn { border-radius:20px !important; }
- .subtabs { flex-grow:1; display:flex; justify-content:center; }
  #efetividade-details-modal {
   position:fixed; z-index:2000; top:50%; left:50%; transform:translate(-50%,-50%);
   background:#fff; border:1px solid #e7ebf4; border-radius:12px; box-shadow:0 12px 28px rgba(0,0,0,.18);
@@ -343,36 +331,45 @@ const state = {
     const [y, m, d] = endDate.split('-').map(Number);
     const endDateObj = new Date(y, m - 1, d);
     endDateObj.setDate(endDateObj.getDate() + 1);
-    const endISONextDay = _ymdLocal(endDateObj);    let colabQuery = supabase
+    const endISONextDay = _ymdLocal(endDateObj);
+    let colabQuery = supabase
         .from('Colaboradores')
         .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor')
         .eq('Ativo', 'SIM')
         .in('Escala', ['T1', 'T2', 'T3'])
-        .order('Nome', {ascending: true});    if (matrizesPermitidas && matrizesPermitidas.length) {
+        .order('Nome', {ascending: true});
+    if (matrizesPermitidas && matrizesPermitidas.length) {
         colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
-    }    const colaboradores = await fetchAllPages(colabQuery);    const nomesColabs = [...new Set(colaboradores.map(c => c.Nome).filter(Boolean))];    const preenchimentosQuery = supabase
+    }
+    const colaboradores = await fetchAllPages(colabQuery);
+    const nomesColabs = [...new Set(colaboradores.map(c => c.Nome).filter(Boolean))];
+    const preenchimentosQuery = supabase
         .from('ControleDiario')
         .select('Nome, Data')
         .gte('Data', startDate)
         .lt('Data', endISONextDay)
         .order('Data', {ascending: true})
-        .order('Nome', {ascending: true});    const feriasQuery = supabase
+        .order('Nome', {ascending: true});
+    const feriasQuery = supabase
         .from('Ferias')
         .select('Nome, "Data Inicio", "Data Final"')
         .lte('"Data Inicio"', endDate)
         .gte('"Data Final"', startDate)
         .order('"Data Inicio"', {ascending: true})
-        .order('Nome', {ascending: true});    const afastamentosQuery = supabase
+        .order('Nome', {ascending: true});
+    const afastamentosQuery = supabase
         .from('Afastamentos')
         .select('NOME, "DATA INICIO", "DATA RETORNO"')
         .lte('"DATA INICIO"', endDate)
         .gt('"DATA RETORNO"', startDate)
         .order('"DATA INICIO"', {ascending: true})
-        .order('NOME', {ascending: true});    const [preenchimentos, ferias, afastamentos, dsrLogs] = await Promise.all([
+        .order('NOME', {ascending: true});
+    const [preenchimentos, ferias, afastamentos, dsrLogs] = await Promise.all([
         fetchAllPages(preenchimentosQuery),
         fetchAllPages(feriasQuery),
-        fetchAllPages(afastamentosQuery),        fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
-    ]);    return {colaboradores, preenchimentos, ferias, dsrLogs, afastamentos};
+        fetchAllPages(afastamentosQuery), fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
+    ]);
+    return {colaboradores, preenchimentos, ferias, dsrLogs, afastamentos};
 }function processEfetividade(
     colaboradores,
     preenchimentos,
@@ -614,19 +611,28 @@ const state = {
     }
     try {
         const dates = listDates(startDate, endDate);
-        if (dates.length > 31) throw new Error('O período selecionado não pode exceder 31 dias.');        const periodKey = `${startDate}|${endDate}`;
-        let rawData;        if (state.cache && state.cache.key === periodKey && state.cache.data) {            rawData = state.cache.data;
-        } else {            rawData = await fetchData(startDate, endDate);
+        if (dates.length > 31) throw new Error('O período selecionado não pode exceder 31 dias.');
+        const periodKey = `${startDate}|${endDate}`;
+        let rawData;
+        if (state.cache && state.cache.key === periodKey && state.cache.data) {
+            rawData = state.cache.data;
+        } else {
+            rawData = await fetchData(startDate, endDate);
             state.cache = {
                 key: periodKey,
                 data: rawData
             };
-        }        if (myRun !== state._runId) return;        let filteredColaboradores = rawData.colaboradores;        const turno = state.turnoAtual || 'GERAL';
+        }
+        if (myRun !== state._runId) return;
+        let filteredColaboradores = rawData.colaboradores;
+        const turno = state.turnoAtual || 'GERAL';
         if (turno !== 'GERAL' && turno !== 'COORDENACAO') {
             filteredColaboradores = filteredColaboradores.filter(c => c.Escala === turno);
-        }        if (state.selectedMatriz) {
+        }
+        if (state.selectedMatriz) {
             filteredColaboradores = filteredColaboradores.filter(c => c.MATRIZ === state.selectedMatriz);
-        }        if (state.selectedGerente && state.matrizGerenteMap.size > 0) {
+        }
+        if (state.selectedGerente && state.matrizGerenteMap.size > 0) {
             const normGerente = normalizeString(state.selectedGerente);
             filteredColaboradores = filteredColaboradores.filter(c => {
                 if (!c.MATRIZ) return false;
@@ -634,8 +640,10 @@ const state = {
                 const cGerente = state.matrizGerenteMap.get(cMatriz);
                 return cGerente === normGerente;
             });
-        }        const groupBy = isCoordView ? 'Gestor' : 'SVC';
-        const groupHeader = isCoordView ? 'Coordenador' : 'SVC';        const {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults} = processEfetividade(
+        }
+        const groupBy = isCoordView ? 'Gestor' : 'SVC';
+        const groupHeader = isCoordView ? 'Coordenador' : 'SVC';
+        const {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults} = processEfetividade(
             filteredColaboradores,
             rawData.preenchimentos,
             dates,
@@ -643,7 +651,8 @@ const state = {
             rawData.dsrLogs,
             rawData.afastamentos,
             groupBy
-        );        if (myRun !== state._runId) return;
+        );
+        if (myRun !== state._runId) return;
         state.detailedResults = detailedResults;
         state.totalGeralDetailedResults = totalGeralDetailedResults;
         if (groupKeys.length > 0) {
@@ -722,6 +731,67 @@ const state = {
         option.textContent = gerente;
         ui.gerenteFilterSelect.appendChild(option);
     });
+}export async function getRankingData(filters = {}) {    let start, end;    if (filters.start && filters.end) {
+        start = filters.start;
+        end = filters.end;
+    } else {
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);        if (yesterday < firstDay) {
+            return {labels: [], values: []};
+        }
+        start = _ymdLocal(firstDay);
+        end = _ymdLocal(yesterday);
+    }    if (state.matrizGerenteMap.size === 0) {
+        await fetchFilterData();
+    }    const periodKey = `${start}|${end}`;
+    let rawData;    if (state.cache && state.cache.key === periodKey && state.cache.data) {
+        rawData = state.cache.data;
+    } else {
+        rawData = await fetchData(start, end);
+        state.cache = {
+            key: periodKey,
+            data: rawData
+        };
+    }    const dates = listDates(start, end);
+    let filteredColaboradores = rawData.colaboradores;    if (filters.matriz) {
+        filteredColaboradores = filteredColaboradores.filter(c => c.MATRIZ === filters.matriz);
+    }    if (filters.gerencia) {
+        const targetGerencia = normalizeString(filters.gerencia);
+        filteredColaboradores = filteredColaboradores.filter(c => {
+            if (!c.MATRIZ) return false;
+            const matrizNorm = normalizeString(c.MATRIZ);
+            const gerenteDaMatriz = state.matrizGerenteMap.get(matrizNorm);
+            return gerenteDaMatriz === targetGerencia;
+        });
+    }    const {groupKeys, detailedResults} = processEfetividade(
+        filteredColaboradores,
+        rawData.preenchimentos,
+        dates,
+        rawData.ferias,
+        rawData.dsrLogs,
+        rawData.afastamentos,
+        'SVC'
+    );    const todayISO = _ymdLocal(new Date());    const ranking = groupKeys.map(svc => {
+        const dataMap = detailedResults.get(svc);
+        let totalElegiveis = 0;
+        let totalPendentes = 0;        dates.forEach(date => {            if (date > todayISO) return;            const dayData = dataMap.get(date);
+            if (dayData) {
+                totalElegiveis += dayData.elegiveis.length;
+                totalPendentes += dayData.pendentes.length;
+            }
+        });        let percent = 0;
+        if (totalElegiveis > 0) {
+            percent = ((totalElegiveis - totalPendentes) / totalElegiveis) * 100;
+        }        return {
+            label: svc,
+            value: Number(percent.toFixed(2))
+        };
+    });    ranking.sort((a, b) => b.value - a.value);    return {
+        labels: ranking.map(r => r.label),
+        values: ranking.map(r => r.value)
+    };
 }export async function init() {
     if (state._inited) return;
     state._inited = true;
@@ -735,22 +805,11 @@ const state = {
         coordBtn: document.getElementById('efet-view-coordenacao'),
         clearBtn: null,
     };
-    const actions = document.querySelector('#efetividade-page .efetividade-actions');
+    const actions = document.querySelector('#efetividade-page .hc-actions');
     if (actions && !document.getElementById('efet-clear-filters')) {
         const clear = document.createElement('button');
         clear.id = 'efet-clear-filters';
-        clear.textContent = 'Limpar';
-        clear.style.padding = '8px 16px';
-        clear.style.border = 'none';
-        clear.style.borderRadius = '26px';
-        clear.style.fontSize = '13px';
-        clear.style.fontWeight = '700';
-        clear.style.cursor = 'pointer';
-        clear.style.transition = 'all .2s ease';
-        clear.style.boxShadow = '0 6px 14px rgba(0,0,0,0.12)';
-        clear.style.backgroundColor = '#6c757d';
-        clear.style.color = '#fff';
-        clear.addEventListener('mouseenter', () => {
+        clear.textContent = 'Limpar';        clear.className = 'btn-action-main';         clear.style.backgroundColor = '#6c757d';        clear.addEventListener('mouseenter', () => {
             clear.style.backgroundColor = '#5a6268';
             clear.style.transform = 'translateY(-2px)';
         });
@@ -810,15 +869,14 @@ const state = {
         ui.coordBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
         ui.coordBtn.dataset.on = on ? '1' : '0';
         if (on) {
-            ui.coordBtn.classList.add('active');
-            ui.coordBtn.style.background = 'var(--d-accent, #02B1EE)';
-            ui.coordBtn.style.color = '#fff';
-            ui.coordBtn.style.boxShadow = '0 6px 14px rgba(2,177,238,.25)';
+            ui.coordBtn.classList.add('active');            ui.coordBtn.style.background = '';
+            ui.coordBtn.style.color = '';
+            ui.coordBtn.style.boxShadow = '';
         } else {
             ui.coordBtn.classList.remove('active');
-            ui.coordBtn.style.background = '#e4e6eb';
-            ui.coordBtn.style.color = '#4b4f56';
-            ui.coordBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,.08)';
+            ui.coordBtn.style.background = '';
+            ui.coordBtn.style.color = '';
+            ui.coordBtn.style.boxShadow = '';
         }
     };
     applyCoordVisual(false);

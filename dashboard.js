@@ -1,7 +1,10 @@
 import html2canvas from 'html2canvas';
-import {createClient} from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
+// Inicialização do Supabase
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
+
+// Elementos Globais
 const userInfoEl = document.getElementById('userInfo');
 const logoutBtn = document.getElementById('logoutBtn');
 const screenshotBtn = document.getElementById('screenshotBtn');
@@ -11,18 +14,26 @@ const addModal = document.getElementById('addModal');
 const cancelBtn = document.getElementById('cancelBtn');
 const menuToggleBtn = document.getElementById('menu-toggle');
 const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+// Estado da Aplicação
 let currentModule = null;
 let isLoadingPage = false;
 let loadToken = 0;
+
+// Importação Dinâmica dos Módulos das Páginas
 const pageModules = import.meta.glob('/src/pages/*.js');
 const LAST_PAGE_KEY = 'knc:lastPage';
 const normalizePage = (name) => String(name || '').trim().toLowerCase();
+
+// Elementos do Diálogo Global
 const dialogEl = document.getElementById('kn-global-dialog');
 const dialogTitle = document.getElementById('kn-dialog-title');
 const dialogMsg = document.getElementById('kn-dialog-message');
 const btnConfirm = document.getElementById('kn-dialog-btn-confirm');
 const btnCancel = document.getElementById('kn-dialog-btn-cancel');
 const iconContainer = document.getElementById('kn-dialog-icon-container');
+
+// --- Funções de Diálogo (Alert/Confirm) ---
 
 function closeDialog() {
     if (dialogEl) dialogEl.classList.add('hidden');
@@ -81,6 +92,8 @@ window.customConfirm = function (message, title = 'Confirmação', type = 'warni
     });
 };
 
+
+
 function showZoomRecommendation(userName) {
     if (sessionStorage.getItem('knc:zoomAlertShown')) return;
     const overlay = document.createElement('div');
@@ -133,6 +146,8 @@ function showZoomRecommendation(userName) {
     };
 }
 
+
+
 function setActiveTab(pageName) {
     const p = normalizePage(pageName);
     tabButtons.forEach(btn => {
@@ -140,32 +155,124 @@ function setActiveTab(pageName) {
     });
     try {
         localStorage.setItem(LAST_PAGE_KEY, p);
-    } catch (_) {
-    }
-
+    } catch (_) { }
 
     const currentPath = location.pathname.replace(/^\//, '');
     if (currentPath !== p) {
-        history.pushState({page: p}, '', `/${p}`);
+        history.pushState({ page: p }, '', `/${p}`);
     }
 }
 
 function getInitialPage() {
-
     const path = location.pathname.replace(/^\//, '');
     const ignoreList = ['', 'dashboard', 'dashboard.html'];
     const fromPath = ignoreList.includes(path) ? '' : normalizePage(path);
-
     const fromStore = normalizePage(localStorage.getItem(LAST_PAGE_KEY));
     const fallback = 'colaboradores';
-
     const exists = (pg) => !!document.querySelector(`.tab-btn[data-page="${pg}"]`);
 
     if (fromPath && exists(fromPath)) return fromPath;
     if (fromStore && exists(fromStore)) return fromStore;
-
     return fallback;
 }
+
+
+
+async function loadPage(pageName) {
+    if (!pageName || isLoadingPage) return;
+    isLoadingPage = true;
+    const myToken = ++loadToken;
+
+
+    if (contentArea) contentArea.classList.add('fade-out');
+    await new Promise(resolve => setTimeout(resolve, 250));
+
+
+    if (myToken !== loadToken) {
+        isLoadingPage = false;
+        if (contentArea) contentArea.classList.remove('fade-out');
+        return;
+    }
+
+
+    try {
+        if (currentModule && typeof currentModule.destroy === 'function') {
+            await currentModule.destroy();
+        }
+        if (contentArea) {
+            contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
+        }
+    } catch (e) {
+        console.warn('Falha ao destruir módulo anterior:', e);
+    }
+
+    if (pageName === 'inclusao-pcd') {
+        try {
+            const key = `/src/pages/inclusao-pcd.js`;
+            const loader = pageModules[key];
+            if (!loader) throw new Error(`Script ${key} não encontrado. Verifique se o arquivo existe em src/pages.`);
+
+            const module = await loader();
+            if (myToken !== loadToken) return;
+
+            currentModule = module;
+
+            // Chama a função de renderização que criamos no outro arquivo
+            if (currentModule && typeof currentModule.renderInclusaoPCD === 'function') {
+                currentModule.renderInclusaoPCD(contentArea);
+            } else if (currentModule && typeof currentModule.init === 'function') {
+                await currentModule.init();
+            } else {
+                throw new Error("Módulo PCD não possui função renderInclusaoPCD ou init.");
+            }
+
+        } catch (error) {
+            console.error('Falha ao carregar PCD:', error);
+            if (contentArea) contentArea.innerHTML = `<p class="p-4 text-red-500">Erro ao carregar módulo PCD.</p>`;
+        } finally {
+            if (myToken === loadToken) {
+                isLoadingPage = false;
+                if (contentArea) contentArea.classList.remove('fade-out');
+            }
+        }
+        return; // Sai da função, pois já carregou
+    }
+    // -------------------------------------------------------------
+
+    // Lógica Padrão (Busca HTML + JS)
+    try {
+        const response = await fetch(`/pages/${pageName}.html`, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(`HTML da página ${pageName} não encontrado (HTTP ${response.status}).`);
+        const html = await response.text();
+
+        if (myToken !== loadToken) return;
+        if (contentArea) contentArea.innerHTML = html;
+
+        const key = `/src/pages/${pageName}.js`;
+        const loader = pageModules[key];
+        if (!loader) throw new Error(`Script da página não encontrado no build: ${key}`);
+
+        const module = await loader();
+        if (myToken !== loadToken) return;
+
+        currentModule = module;
+        if (currentModule && typeof currentModule.init === 'function') {
+            await currentModule.init();
+        }
+    } catch (error) {
+        console.error('Falha ao carregar ou inicializar a aba:', error);
+        if (contentArea) {
+            contentArea.innerHTML = `<p class="p-4 text-red-500">Erro ao carregar a interface da aba "${pageName}".</p>`;
+        }
+    } finally {
+        if (myToken === loadToken) {
+            isLoadingPage = false;
+            if (contentArea) contentArea.classList.remove('fade-out');
+        }
+    }
+}
+
+// --- Menu Lateral ---
 
 if (menuToggleBtn) {
     menuToggleBtn.addEventListener('click', () => {
@@ -177,7 +284,10 @@ if (sidebarOverlay) {
         document.body.classList.add('sidebar-collapsed');
     });
 }
+// Inicia colapsado por padrão
 document.body.classList.add('sidebar-collapsed');
+
+// --- Sessão e Controle de Acesso ---
 
 function checkSession() {
     const DEFAULT_AVATAR_URL = 'https://tzbqdjwgbisntzljwbqp.supabase.co/storage/v1/object/public/avatars/avatar.png';
@@ -192,6 +302,7 @@ function checkSession() {
         const userMatriz = (user.Matriz || '').trim().toUpperCase();
         const restrictedPage = 'separacao';
 
+        // Regra para OPERAÇÃO: vê apenas a página separacao
         if (userTipo === 'OPERAÇÃO') {
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 const page = btn.dataset.page;
@@ -205,30 +316,33 @@ function checkSession() {
             });
             try {
                 localStorage.setItem(LAST_PAGE_KEY, restrictedPage);
-            } catch (_) {
-            }
+            } catch (_) { }
 
             history.replaceState(null, '', `/${restrictedPage}`);
-            return;
+            return; // Encerra aqui se for operação
         } else {
+            // Outros usuários
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.style.display = '';
             });
+            // Oculta painel gerencial se não for MASTER
             if (userTipo !== 'MASTER') {
                 const btnPainel = document.querySelector('.tab-btn[data-page="painel-gerencial"]');
                 if (btnPainel) btnPainel.style.display = 'none';
             }
+            // Oculta separação se não for de Conquista ou TODOS
             if (!userMatriz.includes('CONQUISTA') && userMatriz !== 'TODOS') {
                 const btnSeparacao = document.querySelector('.tab-btn[data-page="separacao"]');
                 if (btnSeparacao) btnSeparacao.style.display = 'none';
             }
+            // Garante que não abra numa página restrita
             try {
                 const fromStore = normalizePage(localStorage.getItem(LAST_PAGE_KEY));
                 if (fromStore === restrictedPage) {
                     localStorage.removeItem(LAST_PAGE_KEY);
                 }
-            } catch (_) {
-            }
+            } catch (_) { }
+            // Garante aba ativa
             const activeBtn = document.querySelector('.tab-btn.active');
             if (!activeBtn) {
                 const colabBtn = document.querySelector('.tab-btn[data-page="colaboradores"]');
@@ -236,7 +350,7 @@ function checkSession() {
             }
         }
 
-
+        // Redirecionamentos de Segurança baseados na URL atual
         const currentPath = normalizePage(location.pathname.replace(/^\//, ''));
 
         if (currentPath === 'painel-gerencial' && userTipo !== 'MASTER') {
@@ -250,6 +364,7 @@ function checkSession() {
             loadPage('colaboradores');
         }
 
+        // Classes de Nível no Body (para CSS)
         if (user?.Nivel) {
             document.body.classList.remove('user-level-visitante', 'user-level-usuario', 'user-level-admin');
             const nivel = user.Nivel.toUpperCase();
@@ -261,6 +376,8 @@ function checkSession() {
                 document.body.classList.add(`user-level-${user.Nivel.toLowerCase()}`);
             }
         }
+
+        // Avatar e Saudação
         const userAvatarEl = document.getElementById('userAvatar');
         if (userInfoEl) {
             const currentHour = new Date().getHours();
@@ -292,62 +409,7 @@ function checkSession() {
     }
 }
 
-function setLoading(on) {
-    isLoadingPage = !!on;
-    if (!contentArea) return;
-    if (on) {
-        contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
-    }
-}
-
-async function loadPage(pageName) {
-    if (!pageName || isLoadingPage) return;
-    isLoadingPage = true;
-    const myToken = ++loadToken;
-    if (contentArea) contentArea.classList.add('fade-out');
-    await new Promise(resolve => setTimeout(resolve, 250));
-    if (myToken !== loadToken) {
-        isLoadingPage = false;
-        if (contentArea) contentArea.classList.remove('fade-out');
-        return;
-    }
-    try {
-        if (currentModule && typeof currentModule.destroy === 'function') {
-            await currentModule.destroy();
-        }
-        if (contentArea) {
-            contentArea.innerHTML = `<div class="p-4 text-sm text-gray-500">Carregando…</div>`;
-        }
-    } catch (e) {
-        console.warn('Falha ao destruir módulo anterior:', e);
-    }
-    try {
-        const response = await fetch(`/pages/${pageName}.html`, {cache: 'no-cache'});
-        if (!response.ok) throw new Error(`HTML da página ${pageName} não encontrado (HTTP ${response.status}).`);
-        const html = await response.text();
-        if (myToken !== loadToken) return;
-        if (contentArea) contentArea.innerHTML = html;
-        const key = `/src/pages/${pageName}.js`;
-        const loader = pageModules[key];
-        if (!loader) throw new Error(`Script da página não encontrado no build: ${key}`);
-        const module = await loader();
-        if (myToken !== loadToken) return;
-        currentModule = module;
-        if (currentModule && typeof currentModule.init === 'function') {
-            await currentModule.init();
-        }
-    } catch (error) {
-        console.error('Falha ao carregar ou inicializar a aba:', error);
-        if (contentArea) {
-            contentArea.innerHTML = `<p class="p-4 text-red-500">Erro ao carregar a interface da aba "${pageName}".</p>`;
-        }
-    } finally {
-        if (myToken === loadToken) {
-            isLoadingPage = false;
-            if (contentArea) contentArea.classList.remove('fade-out');
-        }
-    }
-}
+// --- Modal Global de Adicionar (ex: Colaborador) ---
 
 function showAddModal() {
     if (addModal) addModal.classList.remove('hidden');
@@ -356,6 +418,20 @@ function showAddModal() {
 function hideAddModal() {
     if (addModal) addModal.classList.add('hidden');
 }
+
+document.addEventListener('open-add-modal', showAddModal);
+if (cancelBtn) {
+    cancelBtn.addEventListener('click', hideAddModal);
+}
+document.addEventListener('colaborador-added', () => {
+    hideAddModal();
+    const isColaboradoresAtivo = document.querySelector('[data-page="colaboradores"].active');
+    if (isColaboradoresAtivo && currentModule && typeof currentModule.init === 'function') {
+        currentModule.init();
+    }
+});
+
+// --- Upload de Avatar ---
 
 let hiddenAvatarInput = null;
 
@@ -399,8 +475,8 @@ function setupAvatarUpload(avatarElement) {
         menu.appendChild(changeButton);
         document.body.appendChild(menu);
         setTimeout(() => {
-            document.addEventListener('click', removeOldMenu, {once: true});
-            document.addEventListener('contextmenu', removeOldMenu, {once: true});
+            document.addEventListener('click', removeOldMenu, { once: true });
+            document.addEventListener('contextmenu', removeOldMenu, { once: true });
         }, 0);
     });
 }
@@ -429,22 +505,22 @@ async function uploadAvatar(file, avatarElement) {
             .replace(/\./g, '-')
             .replace(/@/g, '-at-');
         const fileName = `${safeUserName}-avatar.${fileExt}`;
-        const {error: uploadError} = await supabase.storage
+        const { error: uploadError } = await supabase.storage
             .from('avatars')
             .upload(fileName, file, {
                 cacheControl: '3600',
                 upsert: true
             });
         if (uploadError) throw uploadError;
-        const {data: publicUrlData} = supabase.storage
+        const { data: publicUrlData } = supabase.storage
             .from('avatars')
             .getPublicUrl(fileName);
         if (!publicUrlData) throw new Error('Não foi possível obter a URL pública da imagem.');
         const newAvatarUrl = `${publicUrlData.publicUrl.toLowerCase()}?t=${new Date().getTime()}`;
         const dbAvatarUrl = newAvatarUrl.split('?t=')[0];
-        const {error: updateError} = await supabase
+        const { error: updateError } = await supabase
             .from('Logins')
-            .update({avatar_url: dbAvatarUrl})
+            .update({ avatar_url: dbAvatarUrl })
             .eq('Usuario', user.Usuario);
         if (updateError) throw updateError;
         user.avatar_url = dbAvatarUrl;
@@ -459,6 +535,8 @@ async function uploadAvatar(file, avatarElement) {
     }
 }
 
+// --- Event Listeners Globais ---
+
 tabButtons.forEach((button) => {
     button.addEventListener('click', () => {
         if (isLoadingPage) return;
@@ -468,6 +546,7 @@ tabButtons.forEach((button) => {
         document.body.classList.add('sidebar-collapsed');
     });
 });
+
 if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
         sessionStorage.removeItem('knc:zoomAlertShown');
@@ -475,6 +554,7 @@ if (logoutBtn) {
         window.location.href = '/index.html';
     });
 }
+
 if (screenshotBtn) {
     screenshotBtn.addEventListener('click', () => {
         console.log('Iniciando captura de tela...');
@@ -504,7 +584,6 @@ if (screenshotBtn) {
                 logging: false,
                 allowTaint: true,
                 backgroundColor: '#ffffff',
-
                 windowWidth: fullWidth,
                 windowHeight: fullHeight,
                 x: 0,
@@ -532,26 +611,9 @@ if (screenshotBtn) {
         }, 800);
     });
 }
-document.addEventListener('open-add-modal', showAddModal);
-if (cancelBtn) {
-    cancelBtn.addEventListener('click', hideAddModal);
-}
-document.addEventListener('colaborador-added', () => {
-    hideAddModal();
-    const isColaboradoresAtivo = document.querySelector('[data-page="colaboradores"].active');
-    if (isColaboradoresAtivo && currentModule && typeof currentModule.init === 'function') {
-        currentModule.init();
-    }
-});
-checkSession();
-const firstPage = getInitialPage();
-setActiveTab(firstPage);
-loadPage(firstPage);
 
 window.addEventListener('popstate', () => {
     const pg = normalizePage(location.pathname.replace(/^\//, ''));
-
-    // Se voltou para a raiz ou dashboard, não faz nada ou carrega o padrão
     if (!pg || pg === 'dashboard' || pg === 'dashboard.html') return;
 
     try {
@@ -560,7 +622,6 @@ window.addEventListener('popstate', () => {
         const restrictedPage = 'separacao';
 
         if (userType === 'OPERAÇÃO' && pg !== restrictedPage) {
-
             history.replaceState(null, '', `/${restrictedPage}`);
             setActiveTab(restrictedPage);
             loadPage(restrictedPage);
@@ -572,9 +633,13 @@ window.addEventListener('popstate', () => {
 
     if (!document.querySelector(`.tab-btn[data-page="${pg}"]`)) return;
 
-
     tabButtons.forEach(btn => {
         btn.classList.toggle('active', normalizePage(btn.dataset.page) === pg);
     });
     loadPage(pg);
 });
+
+checkSession();
+const firstPage = getInitialPage();
+setActiveTab(firstPage);
+loadPage(firstPage);

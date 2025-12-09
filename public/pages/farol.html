@@ -1,0 +1,356 @@
+<div class="efetivacoes-component-root h-full flex flex-col relative">
+
+    <style>
+        .efetivacoes-component-root {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            min-height: 0;
+            height: 100%;
+            background: transparent;
+        }
+
+        .efet-header-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            padding: 8px;
+        }
+
+        .hc-subtabs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            flex-wrap: wrap;
+        }
+
+        .hc-subtab-btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            background: #e9eef7;
+            color: #003369;
+            transition: transform .15s ease, background .15s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, .06);
+            white-space: nowrap;
+        }
+
+        .hc-subtab-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .hc-subtab-btn.active {
+            background: #003369;
+            color: #fff;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, .12);
+        }
+
+        .hc-view {
+            display: none !important;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+            animation: fadeIn .2s ease-out both;
+        }
+
+        .hc-view.active {
+            display: flex !important;
+        }
+
+        .hcidx-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .hc-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hc-actions select, #dados-op-filters select, .dados-op-filter {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background: #fff;
+            font-weight: 600;
+            color: #333;
+            font-size: 12px;
+            min-width: 140px;
+            outline: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-action-main, #efet-period-btn, #dados-op-clear-filters, .btn-add, #farol-period-btn, #dados-op-period-btn {
+            padding: 8px 14px;
+            min-width: 100px;
+            border: none;
+            border-radius: 24px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
+            color: #fff;
+            background: #003369;
+            transition: all .2s ease;
+        }
+
+        #dados-op-clear-filters {
+            background: #6c757d;
+        }
+
+        .btn-action-main:hover, .btn-add:hover {
+            transform: translateY(-2px);
+        }
+
+        .table-container-wrapper {
+            flex-grow: 1;
+            overflow: hidden;
+            border-radius: 14px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .table-container {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: #fff;
+        }
+
+        .table-container table, #efet-result table, #dados-op-result table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+
+        .table-container th, #efet-result th, #dados-op-result th {
+            background-color: #003369;
+            font-weight: 700;
+            color: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            padding: 12px 10px;
+            text-align: left;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .table-container td, #efet-result td, #dados-op-result td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+            color: #333;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .table-container tr:hover, #efet-result tr:hover, #dados-op-result tr:hover {
+            background-color: #f6f9ff;
+        }
+
+        .status-ok {
+            background-color: #dcfce7 !important;
+            color: #166534 !important;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .status-pendente {
+            background-color: #fef9c3 !important;
+            color: #854d0e !important;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .status-nok {
+            background-color: #fee2e2 !important;
+            color: #991b1b !important;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .status-na {
+            background: #f3f4f6 !important;
+            color: #6b7280 !important;
+            text-align: center;
+        }
+
+        /* Estilo Farol */
+        .hcidx-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+            gap: 1.5rem;
+            padding: 4px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .hcidx-card {
+            background-color: #fff;
+            border-radius: 16px;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.06);
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #e0e0e0;
+            height: 100%;
+            min-height: 500px;
+        }
+
+        .hcidx-card-title {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            font-weight: 800;
+            color: #003369;
+            flex-shrink: 0;
+        }
+
+        .hcidx-canvas-wrap {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            min-height: 400px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <div class="efet-header-bar">
+        <div class="hc-subtabs">
+            <button id="nav-btn-preenchimento" class="hc-subtab-btn active">Preenchimento</button>
+            <button id="nav-btn-dados-op" class="hc-subtab-btn">Dados Operacionais</button>
+            <button id="nav-btn-farol" class="hc-subtab-btn">Farol</button>
+        </div>
+    </div>
+
+    <div id="view-preenchimento" class="hc-view active">
+        <div id="efetividade-page" style="display:flex; flex-direction:column; height:100%;">
+            <div class="hcidx-toolbar">
+                <div class="hc-actions">
+                    <select id="efet-matriz-filter">
+                        <option value="">Matriz</option>
+                    </select>
+                    <select id="efet-gerente-filter">
+                        <option value="">Gerência</option>
+                    </select>
+                    <button id="efet-period-btn" class="btn-action-main">Selecionar Período</button>
+                </div>
+                <div class="hc-subtabs p-0 bg-transparent" style="margin:0;">
+                    <button class="hc-subtab-btn subtab-btn active" data-turno="GERAL">Geral</button>
+                    <button class="hc-subtab-btn subtab-btn" data-turno="T1">T1</button>
+                    <button class="hc-subtab-btn subtab-btn" data-turno="T2">T2</button>
+                    <button class="hc-subtab-btn subtab-btn" data-turno="T3">T3</button>
+                    <button class="hc-subtab-btn subtab-btn" data-turno="COORDENACAO">Coord.</button>
+                </div>
+                <div>
+                    <button id="efet-view-coordenacao" class="hc-subtab-btn"
+                            style="border: 1px solid #ddd; background: #fff;">Visão Coordenação
+                    </button>
+                </div>
+            </div>
+            <div class="table-container-wrapper">
+                <div id="efet-result" class="table-container">
+                    <div style="display:flex; justify-content:center; align-items:center; height:100%; color:#003369; font-weight:700;">
+                        Iniciando...
+                    </div>
+                </div>
+            </div>
+            <div id="efet-loader"
+                 style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.7); z-index:50; justify-content:center; align-items:center;">
+                <div style="width:30px; height:30px; border:3px solid #003369; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-dados-op" class="hc-view">
+        <div id="dados-op-page" style="display:flex; flex-direction:column; height:100%;">
+            <div class="hcidx-toolbar">
+                <div class="hc-actions" id="dados-op-filters-container">
+                    <select id="dados-op-matriz-filter">
+                        <option value="">Matriz</option>
+                    </select>
+                    <select id="dados-op-gerente-filter">
+                        <option value="">Gerência</option>
+                    </select>
+                    <button id="dados-op-period-btn" class="btn-action-main">Selecionar Período</button>
+                    <button id="dados-op-clear-filters" class="btn-action-main" style="background-color: #6c757d;">
+                        Limpar
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-container-wrapper">
+                <div id="dados-op-result" class="table-container">
+                    <div style="display:flex; justify-content:center; align-items:center; height:100%; color:#003369; font-weight:700;">
+                        Carregando dados...
+                    </div>
+                </div>
+            </div>
+            <div id="dados-op-loader"
+                 style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.7); z-index:50; justify-content:center; align-items:center;">
+                <div style="width:30px; height:30px; border:3px solid #003369; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-farol" class="hc-view">
+        <div class="hcidx-toolbar" style="margin-bottom: 12px;">
+            <div class="hc-actions">
+                <select id="farol-filter-matriz">
+                    <option value="">Matriz</option>
+                </select>
+                <select id="farol-filter-gerencia">
+                    <option value="">Gerência</option>
+                </select>
+                <button id="farol-period-btn" class="btn-action-main">Selecionar Período</button>
+            </div>
+        </div>
+        <div class="hcidx-grid">
+            <div class="hcidx-card">
+                <h3 class="hcidx-card-title">Preenchimento (Acumulado)</h3>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="chart-preenchimento"></canvas>
+                </div>
+            </div>
+            <div class="hcidx-card">
+                <h3 class="hcidx-card-title">Qualidade Cadastral</h3>
+                <div class="hcidx-canvas-wrap">
+                    <canvas id="chart-dados-op"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>

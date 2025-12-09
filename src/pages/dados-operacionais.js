@@ -84,7 +84,8 @@ const _listeners = [];function keyFromMatrizes(mp) {
 }async function fetchDataCached() {
     const matrizesPermitidas = getMatrizesPermitidas();
     const key = keyFromMatrizes(matrizesPermitidas);
-    return fetchOnce(key, async () => {        let colabQuery = supabase
+    return fetchOnce(key, async () => {
+        let colabQuery = supabase
             .from('Colaboradores')
             .select('Nome, SVC, "Data de admissão", "Data de nascimento", LDAP, "ID GROOT", Gestor, MATRIZ, Cargo, Escala, DSR, Genero, MatriculaKN, Contrato')
             .eq('Ativo', 'SIM');        if (matrizesPermitidas && matrizesPermitidas.length) {
@@ -140,28 +141,22 @@ const _listeners = [];function keyFromMatrizes(mp) {
     state.detailedResults.clear();
     state.totalGeralResults = {};
     const svcs = [...new Set(colaboradores.map(c => c.SVC).filter(Boolean))].sort();    const colunasParaVerificar = [
-        'Gestor',
-        'DSR',
-        'Escala',
-        'Cargo',
-        'Data de admissão',
-        'MatriculaKN',
-        'ID GROOT',
-        'LDAP',
-        'Data de nascimento',
-        'Genero'
+        'Gestor', 'DSR', 'Escala', 'Cargo', 'Data de admissão',
+        'MatriculaKN', 'ID GROOT', 'LDAP', 'Data de nascimento', 'Genero'
     ];    const totalGeralColaboradores = colaboradores.length;
     const totalGeralResults = {};
     let totalGeralPercentualSoma = 0;    if (totalGeralColaboradores > 0) {
         for (const coluna of colunasParaVerificar) {
             const pendentesGeral = colaboradores.filter(c => {
                 const valor = c[coluna];
-                const isEmpty = valor === null || valor === undefined || String(valor).trim() === '';                if (coluna === 'MatriculaKN') {
+                const isEmpty = valor === null || valor === undefined || String(valor).trim() === '';
+                if (coluna === 'MatriculaKN') {
                     const contrato = String(c.Contrato || '').trim().toUpperCase();
-                    if (contrato !== 'KN') {                        return false;
-                    }
-                }                return isEmpty;
-            });            const preenchidosCountGeral = totalGeralColaboradores - pendentesGeral.length;
+                    if (contrato !== 'KN') return false;
+                }
+                return isEmpty;
+            });
+            const preenchidosCountGeral = totalGeralColaboradores - pendentesGeral.length;
             const percentualGeral = (preenchidosCountGeral / totalGeralColaboradores) * 100;
             totalGeralResults[coluna] = {
                 percentual: percentualGeral,
@@ -182,13 +177,14 @@ const _listeners = [];function keyFromMatrizes(mp) {
         let percentualTotalSoma = 0;        for (const coluna of colunasParaVerificar) {
             const pendentes = colaboradoresSVC.filter(c => {
                 const valor = c[coluna];
-                const isEmpty = valor === null || valor === undefined || String(valor).trim() === '';                if (coluna === 'MatriculaKN') {
+                const isEmpty = valor === null || valor === undefined || String(valor).trim() === '';
+                if (coluna === 'MatriculaKN') {
                     const contrato = String(c.Contrato || '').trim().toUpperCase();
-                    if (contrato !== 'KN') {
-                        return false;
-                    }
-                }                return isEmpty;
-            });            const preenchidosCount = totalColabsSVC - pendentes.length;
+                    if (contrato !== 'KN') return false;
+                }
+                return isEmpty;
+            });
+            const preenchidosCount = totalColabsSVC - pendentes.length;
             const percentual = (totalColabsSVC === 0) ? 0 : (preenchidosCount / totalColabsSVC) * 100;
             results[svc][coluna] = {percentual, pendentes};
             percentualTotalSoma += percentual;
@@ -208,57 +204,54 @@ const _listeners = [];function keyFromMatrizes(mp) {
     if (percentual === 100) return 'status-ok';
     if (percentual >= 90) return 'status-pendente';
     return 'status-nok';
-}function ensureFiltersBar() {
-    let bar = document.getElementById('dados-op-filters');
-    if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'dados-op-filters';
-        bar.className = 'dados-op-filters';
-        bar.style.display = 'block';
-        bar.style.width = '100%';
-        bar.style.margin = '0 0 12px 0';
-        bar.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <select id="dados-op-filter-matriz" class="dados-op-filter"><option value="">Matriz</option></select>
-        <select id="dados-op-filter-gerente" class="dados-op-filter"><option value="">Gerente</option></select>
-        <select id="dados-op-filter-svc" class="dados-op-filter"><option value="">SVC</option></select>
-        <button id="dados-op-clear-filters" class="btn" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fafafa;">Limpar</button>
-      </div>`;
-    }
-    const page = document.getElementById('dados-op-page');
-    if (page) {
-        if (bar.parentNode !== page) page.prepend(bar);
-        else if (page.firstElementChild !== bar) page.prepend(bar);
-    } else if (ui?.resultContainer?.parentNode) {
-        const parent = ui.resultContainer.parentNode;
-        if (bar.parentNode !== parent) parent.insertBefore(bar, ui.resultContainer);
-    } else {
-        document.body.prepend(bar);
-    }
-    ui.matrizSelect = document.getElementById('dados-op-filter-matriz');
-    ui.gerenteSelect = document.getElementById('dados-op-filter-gerente');
-    ui.svcSelect = document.getElementById('dados-op-filter-svc');
-    ui.clearBtn = document.getElementById('dados-op-clear-filters');
-    ui.matrizSelect?.addEventListener('change', () => {
+}function ensureFiltersBar() {    ui.matrizSelect = document.getElementById('dados-op-matriz-filter') || document.getElementById('dados-op-filter-matriz');
+    ui.gerenteSelect = document.getElementById('dados-op-gerente-filter') || document.getElementById('dados-op-filter-gerente');
+    ui.svcSelect = document.getElementById('dados-op-svc-filter') || document.getElementById('dados-op-filter-svc');
+    ui.clearBtn = document.getElementById('dados-op-clear-filters');    if (!ui.matrizSelect) {
+        let bar = document.getElementById('dados-op-filters');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'dados-op-filters';
+            bar.className = 'dados-op-filters';
+            bar.style.display = 'block';
+            bar.style.width = '100%';
+            bar.style.margin = '0 0 12px 0';
+            bar.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <select id="dados-op-filter-matriz" class="dados-op-filter"><option value="">Matriz</option></select>
+            <select id="dados-op-filter-gerente" class="dados-op-filter"><option value="">Gerente</option></select>
+            <select id="dados-op-filter-svc" class="dados-op-filter"><option value="">SVC</option></select>
+            <button id="dados-op-clear-filters" class="btn" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;background:#fafafa;">Limpar</button>
+          </div>`;
+        }        const page = document.getElementById('dados-op-page');
+        if (page) {
+            if (bar.parentNode !== page) page.prepend(bar);
+        } else if (ui.resultContainer && ui.resultContainer.parentNode) {
+            ui.resultContainer.parentNode.insertBefore(bar, ui.resultContainer);
+        }        ui.matrizSelect = document.getElementById('dados-op-filter-matriz');
+        ui.gerenteSelect = document.getElementById('dados-op-filter-gerente');
+        ui.svcSelect = document.getElementById('dados-op-filter-svc');
+        ui.clearBtn = document.getElementById('dados-op-clear-filters');
+    }    if (ui.matrizSelect) ui.matrizSelect.onchange = () => {
         state.filters.matriz = ui.matrizSelect.value || '';
         recomputeAndSyncFilterOptions();
         generateReport();
-    });
-    ui.gerenteSelect?.addEventListener('change', () => {
+    };
+    if (ui.gerenteSelect) ui.gerenteSelect.onchange = () => {
         state.filters.gerente = ui.gerenteSelect.value || '';
         recomputeAndSyncFilterOptions();
         generateReport();
-    });
-    ui.svcSelect?.addEventListener('change', () => {
+    };
+    if (ui.svcSelect) ui.svcSelect.onchange = () => {
         state.filters.svc = ui.svcSelect.value || '';
         recomputeAndSyncFilterOptions();
         generateReport();
-    });
-    ui.clearBtn?.addEventListener('click', () => {
+    };
+    if (ui.clearBtn) ui.clearBtn.onclick = () => {
         state.filters = {matriz: '', gerente: '', svc: ''};
         recomputeAndSyncFilterOptions();
         generateReport();
-    });
+    };
 }function populateSelect(select, items, placeholder, keepValue) {
     if (!select) return;
     const prev = keepValue ? select.value : '';
@@ -550,6 +543,17 @@ const _listeners = [];function keyFromMatrizes(mp) {
     } finally {
         if (ui?.loader) ui.loader.style.display = 'none';
     }
+}export async function getRankingData(filters = {}) {    const {colaboradores, svcToMatriz, svcToGerente} = await fetchDataCached();    const filtersToApply = {
+        matriz: filters.matriz || state.filters.matriz || '',
+        gerente: filters.gerencia || filters.gerente || state.filters.gerente || '',
+        svc: filters.svc || state.filters.svc || ''
+    };    const mappings = { svcToMatriz, svcToGerente };    const filtrados = applyUserFilters(colaboradores, filtersToApply, mappings);    const {svcs, results} = processDataQuality(filtrados);    const ranking = [];
+    svcs.forEach(svc => {        const val = results[svc]?.totalGeral || 0;        const matriz = svcToMatriz.get(svc) || '';
+        const label = matriz ? `${svc} (${matriz})` : svc;        ranking.push({label, value: Math.round(val)});
+    });    ranking.sort((a, b) => b.value - a.value);    return {
+        labels: ranking.map(r => r.label),
+        values: ranking.map(r => r.value)
+    };
 }export function init() {
     if (state.mounted) return;
     if (document.getElementById('editModal')) {
