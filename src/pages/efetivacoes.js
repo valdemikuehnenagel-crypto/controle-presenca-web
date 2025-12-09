@@ -1,19 +1,29 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {logAction} from '../../logAction.js';const _cache = new Map();
+import {logAction} from '../../logAction.js';
+
+const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
 const MIN_LABEL_FONT_PX = 12;
 const MIN_SEGMENT_PERCENT = 9;
 let inputQtdVagas;
-let btnDuplicarVaga;function cacheKeyForColabs() {
+let btnDuplicarVaga;
+
+function cacheKeyForColabs() {
     return `colabs:ALL`;
-}function toUpperTrim(str) {
+}
+
+function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}function normalizeCPF(value) {
+}
+
+function normalizeCPF(value) {
     if (!value) return null;
     return value.replace(/\D/g, '');
-}function formatDateTimeLocal(iso) {
+}
+
+function formatDateTimeLocal(iso) {
     if (!iso) return '-';
     try {
         const d = new Date(iso);
@@ -29,7 +39,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
     } catch (e) {
         return iso;
     }
-}function wireCepVagas() {
+}
+
+function wireCepVagas() {
     const form = document.getElementById('formVagas');
     if (!form) return;
     const inputCep = form.querySelector('[name="cep_candidato"]');
@@ -70,7 +82,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
             }
         });
     }
-}async function loadSheetJS() {
+}
+
+async function loadSheetJS() {
     if (window.XLSX) return;
     try {
         await new Promise((resolve, reject) => {
@@ -83,7 +97,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
     } catch (error) {
         console.error("Falha ao carregar a biblioteca XLSX:", error);
     }
-}async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
+}
+
+async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
     console.log(`[DEBUG] Iniciando busca de absenteísmo (apenas ocorrências) para: ${nomeColaborador}`);
     if (!nomeColaborador) return null;
     const dataCorte = new Date();
@@ -136,7 +152,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
         stats: {justificado, injustificado},
         attachment: attachment
     };
-}function getLocalISOString(date) {
+}
+
+function getLocalISOString(date) {
     if (!date) date = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const year = date.getFullYear();
@@ -146,13 +164,17 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
     const minute = pad(date.getMinutes());
     const second = pad(date.getSeconds());
     return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-}function ymdToday() {
+}
+
+function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}function desligamento_getCurrentUserEmail() {
+}
+
+function desligamento_getCurrentUserEmail() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -163,7 +185,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
         console.error('Erro ao ler e-mail do usuário:', e);
     }
     return '';
-}function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
+}
+
+function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
     if (!dataSolicitada) return null;
     const start = new Date(dataSolicitada);
     const end = dataFinal ? new Date(dataFinal) : new Date();
@@ -171,7 +195,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
     const diffMs = end - start;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return diffDays < 0 ? 0 : diffDays;
-}async function desligamento_fetchEmailsSugestao(contrato) {
+}
+
+async function desligamento_fetchEmailsSugestao(contrato) {
     const emailsSugestao = new Set();
     const myEmail = desligamento_getCurrentUserEmail();
     if (myEmail) {
@@ -197,7 +223,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
         });
     }
     return Array.from(emailsSugestao).join(', ');
-}async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
+}
+
+async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
     if (hit && (now - hit.ts) < hit.ttl) return hit.value;
@@ -213,7 +241,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
     })();
     _inflight.set(key, p);
     return p;
-}function invalidateCache(keys = []) {
+}
+
+function invalidateCache(keys = []) {
     if (!keys.length) {
         _cache.clear();
     } else {
@@ -224,7 +254,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
     } catch (e) {
         console.warn('Falha ao invalidar cache de colaboradores no localStorage', e);
     }
-}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+}
+
+function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
     const selSapato = document.getElementById(idSelectSapato);
     const selColete = document.getElementById(idSelectColete);
     if (selSapato) {
@@ -250,7 +282,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
         });
         if (valorAtual) selColete.value = valorAtual;
     }
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -266,7 +300,9 @@ let btnDuplicarVaga;function cacheKeyForColabs() {
         }
     }
     return allData;
-}const HOST_SEL = '#hc-indice';
+}
+
+const HOST_SEL = '#hc-indice';
 const state = {
     mounted: false,
     loading: false,
@@ -311,7 +347,9 @@ const state = {
 };
 const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const root = () => document.documentElement;
-const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;function parseRGB(str) {
+const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
+
+function parseRGB(str) {
     if (!str) return {r: 0, g: 0, b: 0};
     const s = String(str).trim();
     if (s.startsWith('#')) {
@@ -324,7 +362,9 @@ const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim()
     }
     const m = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(s);
     return m ? {r: +m[1], g: +m[2], b: +m[3]} : {r: 30, g: 64, b: 124};
-}const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+}
+
+const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
 const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
 const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'N/D'];
@@ -333,28 +373,38 @@ const MONTH_ORDER = {
     'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
 };
 const sortMesAno = (a, b) => (a.ANO * 100 + a.mesOrder) - (b.ANO * 100 + b.mesOrder);
-const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDateMaybe(s) {
+const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;
+
+function parseDateMaybe(s) {
     const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(String(s || '').trim());
     if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
-}function formatDateLocal(iso) {
+}
+
+function formatDateLocal(iso) {
     if (!iso) return '';
     const datePart = iso.split('T')[0];
     const [y, m, d] = datePart.split('-');
     if (!y || !m || !d) return '';
     return `${d}/${m}/${y}`;
-}function daysBetween(d1, d2) {
+}
+
+function daysBetween(d1, d2) {
     const ms = 24 * 60 * 60 * 1000;
     const a = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
     const b = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
     return Math.floor((b - a) / ms);
-}function daysSinceAdmission(c) {
+}
+
+function daysSinceAdmission(c) {
     const raw = c?.['Data de admissão'] ?? c?.['Data de admissao'] ?? c?.Admissao ?? c?.['Data Admissão'] ?? c?.['Data Admissao'] ?? '';
     const d = parseDateMaybe(raw);
     if (!d) return null;
     return daysBetween(d, new Date());
-}function calcAgeFromStr(s) {
+}
+
+function calcAgeFromStr(s) {
     const d = parseDateMaybe(s);
     if (!d) return null;
     const now = new Date();
@@ -362,7 +412,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     const dm = now.getMonth() - d.getMonth();
     if (dm < 0 || (dm === 0 && now.getDate() < d.getDate())) a--;
     return a;
-}function ageBucket(a) {
+}
+
+function ageBucket(a) {
     if (a == null) return 'N/D';
     if (a < 20) return '<20';
     if (a < 30) return '20-29';
@@ -370,14 +422,20 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     if (a < 50) return '40-49';
     if (a < 60) return '50-59';
     return '60+';
-}function getNascimento(c) {
+}
+
+function getNascimento(c) {
     return c?.['Data de Nascimento'] || c?.['Data de nascimento'] || c?.Nascimento || c?.['Nascimento'] || '';
-}function mapGeneroLabel(raw) {
+}
+
+function mapGeneroLabel(raw) {
     const n = norm(raw);
     if (n.startsWith('MASC')) return 'Masculino';
     if (n.startsWith('FEM')) return 'Feminino';
     return n ? 'Outros' : 'N/D';
-}function mapSvcLabel(rawSvc) {
+}
+
+function mapSvcLabel(rawSvc) {
     const svc = String(rawSvc || 'N/D').toUpperCase();
     if (svc === 'SBA2' || svc === 'SBA4') {
         return 'SBA2/4';
@@ -386,7 +444,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         return 'SBA3/7';
     }
     return svc;
-}function mapDSR(raw) {
+}
+
+function mapDSR(raw) {
     const n = norm(raw);
     if (!n) return ['N/D'];
     const days = n.split(',').map(d => d.trim());
@@ -401,7 +461,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         return null;
     }).filter(Boolean);
     return mapped.length > 0 ? mapped : ['N/D'];
-}function palette() {
+}
+
+function palette() {
     const r = root();
     return [
         css(r, '--hcidx-p-1', '#02B1EE'),
@@ -413,7 +475,11 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         css(r, '--hcidx-p-7', '#7FB8EB'),
         css(r, '--hcidx-p-8', '#99CCFF')
     ];
-}let _resizeObs = null;function setResponsiveHeights() {
+}
+
+let _resizeObs = null;
+
+function setResponsiveHeights() {
     if (window.Chart) {
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
         Object.values(state.charts).forEach(ch => {
@@ -422,7 +488,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
             ch.resize();
         });
     }
-}function wireResizeObserver() {
+}
+
+function wireResizeObserver() {
     if (_resizeObs) return;
     const rootEl = document.querySelector(HOST_SEL);
     if (!rootEl) return;
@@ -431,7 +499,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     });
     _resizeObs.observe(rootEl);
     window.addEventListener('resize', setResponsiveHeights);
-}function ensureMounted() {
+}
+
+function ensureMounted() {
     const host = document.querySelector(HOST_SEL);
     if (!host || state.mounted) return;
     ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
@@ -464,7 +534,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     state.mounted = true;
     setResponsiveHeights();
     wireResizeObserver();
-}async function ensureChartLib() {
+}
+
+async function ensureChartLib() {
     if (!window.Chart) await loadJs('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
     if (!window.ChartDataLabels) await loadJs('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js');
     try {
@@ -474,7 +546,9 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
     Chart.defaults.responsive = true;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
-}function loadJs(src) {
+}
+
+function loadJs(src) {
     return new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = src;
@@ -482,16 +556,22 @@ const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDat
         s.onerror = rej;
         document.head.appendChild(s);
     });
-}function showBusy(f) {
+}
+
+function showBusy(f) {
     const el = document.getElementById('hcidx-busy');
     if (el) el.style.display = f ? 'flex' : 'none';
-}const uniqueNonEmptySorted = (v) =>
+}
+
+const uniqueNonEmptySorted = (v) =>
     Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
+let _filtersPopulated = false;
+
+function populateFilters(allColabs, matrizesMap) {
     if (_filtersPopulated) return;
     const selM = document.getElementById('efet-filter-matriz');
     const selG = document.getElementById('efet-filter-gerencia');
@@ -512,7 +592,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         if (state.regiao) selR.value = state.regiao;
     }
     _filtersPopulated = true;
-}async function loadColabsCached() {
+}
+
+async function loadColabsCached() {
     const key = cacheKeyForColabs();
     const now = Date.now();
     const CACHE_KEY_NAME = 'knc:hcIndiceCache';
@@ -548,7 +630,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         }
         return rows;
     });
-}async function loadSpamData() {
+}
+
+async function loadSpamData() {
     return fetchOnce('spamData', async () => {
         const {data, error} = await supabase.from('Spam').select('"HC Fixo", "HC PT", SVC, REGIAO, MÊS, ANO');
         if (error) throw error;
@@ -564,7 +648,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             mesOrder: getMesOrder(r.MÊS)
         }));
     });
-}async function loadMatrizesData() {
+}
+
+async function loadMatrizesData() {
     return fetchOnce('matrizesData', async () => {
         const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
         if (error) throw error;
@@ -580,7 +666,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         });
         return map;
     });
-}function enforceMinSegmentPct(percs, minPct) {
+}
+
+function enforceMinSegmentPct(percs, minPct) {
     const arr = percs.map(v => Math.max(0, +v || 0));
     const nonZeroIdx = arr.map((v, i) => v > 0 ? i : -1).filter(i => i >= 0);
     const k = nonZeroIdx.length;
@@ -604,7 +692,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         out[maxIdx] += diff;
     }
     return out;
-}function applyMinWidthToStack(datasets, minPct) {
+}
+
+function applyMinWidthToStack(datasets, minPct) {
     if (!datasets || datasets.length === 0) return;
     const n = Math.max(...datasets.map(ds => ds.data?.length || 0));
     for (let j = 0; j < n; j++) {
@@ -620,7 +710,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     datasets.forEach(ds => {
         ds.data = ds._renderData;
     });
-}async function refresh() {
+}
+
+async function refresh() {
     if (!state.mounted || state.loading) {
         if (state.loading) console.warn("Refresh chamado enquanto já estava carregando.");
         return;
@@ -699,7 +791,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         showBusy(false);
         setTimeout(() => setResponsiveHeights(), 100);
     }
-}function wireSubtabs() {
+}
+
+function wireSubtabs() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
     const subButtons = host.querySelectorAll('.efet-subtab-btn');
@@ -746,7 +840,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }, 50);
         });
     });
-}function setDynamicChartHeight(chart, labels) {
+}
+
+function setDynamicChartHeight(chart, labels) {
     if (!chart || !chart.canvas || chart.options.indexAxis !== 'y') return;
     const pixelsPerBar = 32;
     const headerAndLegendHeight = 96;
@@ -760,7 +856,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             setTimeout(() => chart.resize(), 50);
         }
     }
-}function baseLegendConfig(pos, show) {
+}
+
+function baseLegendConfig(pos, show) {
     return {
         display: show,
         position: pos,
@@ -768,7 +866,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         align: 'center',
         labels: {boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true}
     };
-}function forceLegendBottom(chart) {
+}
+
+function forceLegendBottom(chart) {
     if (!chart?.options) return;
     const leg = chart.options.plugins.legend || (chart.options.plugins.legend = {});
     const lbls = leg.labels || (leg.labels = {});
@@ -783,7 +883,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     const w = chart.canvas?.parentElement?.clientWidth || 800;
     const size = Math.max(13, Math.min(16, Math.round(w / 48)));
     lbls.font = {size};
-}function baseOptsPercent(canvas, onClick, axis = 'x') {
+}
+
+function baseOptsPercent(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(13, Math.min(16, Math.round(w / 48)));
     const isHorizontal = axis === 'y';
@@ -855,7 +957,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}function baseOptsNumber(canvas, onClick, axis = 'x') {
+}
+
+function baseOptsNumber(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(12, Math.min(14, Math.round(w / 55)));
     const isHorizontal = axis === 'y';
@@ -918,7 +1022,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}function createStackedBar(canvasId, onClick, axis = 'x') {
+}
+
+function createStackedBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsPercent(canvas, onClick, axis);
@@ -933,7 +1039,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     });
     forceLegendBottom(chart);
     return chart;
-}function createBar(canvasId, onClick, axis = 'x') {
+}
+
+function createBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsNumber(canvas, onClick, axis);
@@ -945,12 +1053,16 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     });
     forceLegendBottom(chart);
     return chart;
-}function splitByTurno(colabs) {
+}
+
+function splitByTurno(colabs) {
     const t1 = colabs.filter(c => c.Escala === 'T1');
     const t2 = colabs.filter(c => c.Escala === 'T2');
     const t3 = colabs.filter(c => c.Escala === 'T3');
     return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, colabs]};
-}function splitByRegiao(colabs) {
+}
+
+function splitByRegiao(colabs) {
     const map = new Map();
     colabs.forEach(c => {
         const r = String(c?.REGIAO || 'N/D');
@@ -963,7 +1075,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     labels.push('GERAL');
     groups.push(colabs.slice());
     return {labels, groups};
-}function ensureChartsCreatedService() {
+}
+
+function ensureChartsCreatedService() {
     if (!state.charts.idade) {
         state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'x');
     }
@@ -1023,7 +1137,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     if (!state.charts.consultoriaSvc) {
         state.charts.consultoriaSvc = createStackedBar('ind-consultoria-svc-bar', null, 'y');
     }
-}function ensureChartsCreatedRegional() {
+}
+
+function ensureChartsCreatedRegional() {
     if (!state.charts.idadeRegiao) {
         const id = document.getElementById('reg-idade-bar') ? 'reg-idade-bar' : 'ind-idade-regiao-bar';
         state.charts.idadeRegiao = createStackedBar(id, null, 'x');
@@ -1040,7 +1156,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const id = document.getElementById('reg-aux-30-60-90-bar') ? 'reg-aux-30-60-90-bar' : 'ind-contrato-90d-regiao-bar';
         state.charts.auxPrazoRegiao = createStackedBar(id, null, 'x');
     }
-}function toggleFilter(type, chart, element) {
+}
+
+function toggleFilter(type, chart, element) {
     const set = state.interactive[type];
     if (!set) return;
     let label = (type === 'dsr')
@@ -1052,7 +1170,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}function applyInteractiveFilter(colabs) {
+}
+
+function applyInteractiveFilter(colabs) {
     let out = [...colabs];
     if (state.interactive.idade.size > 0) out = out.filter(c => state.interactive.idade.has(ageBucket(calcAgeFromStr(getNascimento(c)))));
     if (state.interactive.genero.size > 0) out = out.filter(c => state.interactive.genero.has(mapGeneroLabel(c.Genero)));
@@ -1063,13 +1183,17 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         });
     }
     return out;
-}function clearAllFilters() {
+}
+
+function clearAllFilters() {
     Object.values(state.interactive).forEach(set => set.clear());
     const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}function updateChartsNow() {
+}
+
+function updateChartsNow() {
     if (!state.charts.idade) {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
@@ -1438,7 +1562,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             ch.update();
         }
     }
-}function updateRegionalChartsNow() {
+}
+
+function updateRegionalChartsNow() {
     if (!state.charts.idadeRegiao) {
         console.warn("Tentando atualizar gráficos Regionais, mas eles não estão inicializados.");
         return;
@@ -1579,7 +1705,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             ch.update();
         }
     }
-}function updateEmEfetivacaoTable() {
+}
+
+function updateEmEfetivacaoTable() {
     const tbody = document.getElementById('efet-table-tbody');
     if (!tbody) {
         console.warn("Elemento #efet-table-tbody não encontrado. A tabela 'Em Efetivação' não pode ser populada.");
@@ -1609,7 +1737,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         `;
         tbody.appendChild(tr);
     });
-}function ensureChartsCreatedSpam() {
+}
+
+function ensureChartsCreatedSpam() {
     const pal = palette();
     if (!state.charts.spamHcEvolucaoSvc) {
         const chart = createBar('spam-chart-evolucao-svc', null, 'x');
@@ -1764,7 +1894,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             state.charts.spamContractDonut = chart;
         }
     }
-}async function updateSpamCharts(matrizesMap, svcsDoGerente) {
+}
+
+async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
     const [allSpamData] = await Promise.all([loadSpamData()]);
@@ -2064,7 +2196,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
     }
-}function desligamento_getCurrentUser() {
+}
+
+function desligamento_getCurrentUser() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -2075,7 +2209,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         console.error('Erro ao ler sessão do usuário:', e);
     }
     return 'Usuário RH Desconhecido';
-}async function desligamento_fetchPendentes() {
+}
+
+async function desligamento_fetchPendentes() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">Carregando...</td></tr>';
@@ -2137,7 +2273,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     }
     state.desligamentoModule.pendentes = allItems;
     desligamento_renderTable();
-}function desligamento_renderTable() {
+}
+
+function desligamento_renderTable() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
     if (state.desligamentoModule.pendentes.length === 0) {
@@ -2153,7 +2291,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
         const diasSla = desligamento_calcularSLA(colab.DataDesligamentoSolicitada, colab.DataRetorno);
         let slaDisplay = '-';
-        let slaStyle = '';        if (diasSla !== null) {
+        let slaStyle = '';
+        if (diasSla !== null) {
             let sufixo = 'Dias';
             if (diasSla === 0 || diasSla === 1) {
                 sufixo = diasSla === 0 ? 'dia' : 'Dia';
@@ -2170,7 +2309,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             } else {
                 slaStyle = 'color: #4b5563; font-weight: 500; font-style: italic;';
             }
-        }        if (!state.isUserRH) {
+        }
+        if (!state.isUserRH) {
             switch (colab.StatusDesligamento) {
                 case 'PENDENTE':
                     statusClass = 'row-pending';
@@ -2199,12 +2339,14 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 cursor: pointer;
                 transition: background 0.2s;
             `;
-            const btnDeleteIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;            switch (colab.StatusDesligamento) {
+            const btnDeleteIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+            switch (colab.StatusDesligamento) {
                 case 'PENDENTE':
                     statusClass = 'row-pending';
-                                        const btnAprovarAction = 'approve';
+                    const btnAprovarAction = 'approve';
                     const btnLabel = isKN ? 'Desligar KN' : 'Aprovar';
-                    const btnColor = isKN ? 'background-color: #4338ca;' : '';                    actionsHtml = `
+                    const btnColor = isKN ? 'background-color: #4338ca;' : '';
+                    actionsHtml = `
                         <div style="display:flex; align-items:center; gap:6px;">
                             <button data-action="${btnAprovarAction}" data-nome="${colab.Nome}" style="${btnColor}" class="btn-salvar text-xs !px-2 !py-1">${btnLabel}</button>
                             <button data-action="reject" data-nome="${colab.Nome}" class="btn-cancelar text-xs !px-2 !py-1">Recusar</button>
@@ -2258,7 +2400,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         `;
         tbody.appendChild(tr);
     });
-}function desligamento_handleTableClick(event) {
+}
+
+function desligamento_handleTableClick(event) {
     const target = event.target.closest('button');
     if (!target) return;
     const action = target.dataset.action;
@@ -2277,7 +2421,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     } else if (action === 'delete-request') {
         desligamento_handleDeleteRequest();
     }
-}async function desligamento_handleDeleteRequest() {
+}
+
+async function desligamento_handleDeleteRequest() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
     const ok = await window.customConfirm(
@@ -2307,7 +2453,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     logAction(`Excluiu/Limpou solicitação de desligamento de: ${mod.colaboradorAtual.Nome}`);
     invalidateCache();
     desligamento_fetchPendentes();
-}async function desligamento_handleDirectKN() {
+}
+
+async function desligamento_handleDirectKN() {
     const mod = state.desligamentoModule;
     const colab = mod.colaboradorAtual;
     if (!colab) return;
@@ -2376,60 +2524,80 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             btn.disabled = false;
         }
     }
-}async function desligamento_openApproveModal() {
+}
+
+async function desligamento_openApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal || !mod.colaboradorAtual) return;
-    const colab = mod.colaboradorAtual;        const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
-    const isResend = colab.StatusDesligamento === 'CONCLUIDO';    mod.currentAttachment = null;
+    const colab = mod.colaboradorAtual;
+    const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
+    const isResend = colab.StatusDesligamento === 'CONCLUIDO';
+    mod.currentAttachment = null;
     document.getElementById('approveNome').textContent = colab.Nome;
     document.getElementById('approveSolicitante').textContent = colab.SolicitanteDesligamento || 'N/A';
     document.getElementById('approveGestor').textContent = colab.Gestor || 'N/A';
     document.getElementById('approveSVC').textContent = colab.SVC || 'N/A';
-    document.getElementById('approveDataSolicitacao').textContent = formatDateTimeLocal(colab.DataDesligamentoSolicitada);    const dateInput = document.getElementById('approveDataInput');
+    document.getElementById('approveDataSolicitacao').textContent = formatDateTimeLocal(colab.DataDesligamentoSolicitada);
+    const dateInput = document.getElementById('approveDataInput');
     const rhInput = document.getElementById('approveRH');
     const emailInput = document.getElementById('approveEmails');
     const bodyInput = document.getElementById('approveBody');
-    const submitBtn = mod.submitBtn;            const emailContainer = emailInput.closest('.form-group');
-    const bodyContainer = bodyInput.closest('.form-group');    if (isKN) {
-                if (emailContainer) emailContainer.style.display = 'none';
-        if (bodyContainer) bodyContainer.style.display = 'none';                submitBtn.textContent = 'Confirmar Desligamento';
-        submitBtn.style.backgroundColor = '#4338ca';     } else {
-                if (emailContainer) emailContainer.style.display = '';
-        if (bodyContainer) bodyContainer.style.display = '';        if (isResend) submitBtn.textContent = 'Reenviar E-mail';
+    const submitBtn = mod.submitBtn;
+    const emailContainer = emailInput.closest('.form-group');
+    const bodyContainer = bodyInput.closest('.form-group');
+    if (isKN) {
+        if (emailContainer) emailContainer.style.display = 'none';
+        if (bodyContainer) bodyContainer.style.display = 'none';
+        submitBtn.textContent = 'Confirmar Desligamento';
+        submitBtn.style.backgroundColor = '#4338ca';
+    } else {
+        if (emailContainer) emailContainer.style.display = '';
+        if (bodyContainer) bodyContainer.style.display = '';
+        if (isResend) submitBtn.textContent = 'Reenviar E-mail';
         else submitBtn.textContent = 'Confirmar e Enviar E-mail';
-        submitBtn.style.backgroundColor = '';     }    let dataAlvo = null;
+        submitBtn.style.backgroundColor = '';
+    }
+    let dataAlvo = null;
     if (isResend) {
         dateInput.value = '';
     } else {
-                if (colab.MotivoDesligamento) {
+        if (colab.MotivoDesligamento) {
             const match = colab.MotivoDesligamento.match(/Data Prevista:\s*(\d{2}\/\d{2}\/\d{4})/i);
             if (match && match[1]) {
                 dataAlvo = match[1].split('/').reverse().join('-');
             }
         }
-                if (!dataAlvo && colab.DataDesligamentoSolicitada) {
+        if (!dataAlvo && colab.DataDesligamentoSolicitada) {
             dataAlvo = colab.DataDesligamentoSolicitada.split('T')[0];
         }
-                if (!dataAlvo) {
+        if (!dataAlvo) {
             dataAlvo = ymdToday();
         }
         dateInput.value = dataAlvo;
-    }        if (!isResend && rhInput) rhInput.value = mod.currentUser || '';
-    if (isResend && rhInput && !rhInput.value) rhInput.value = mod.currentUser || '';        if (!isKN) {
+    }
+    if (!isResend && rhInput) rhInput.value = mod.currentUser || '';
+    if (isResend && rhInput && !rhInput.value) rhInput.value = mod.currentUser || '';
+    if (!isKN) {
         const nomeAprovador = rhInput.value || mod.currentUser || 'RH';
-        const dataVisual = dataAlvo ? formatDateLocal(dataAlvo) : 'DATA_A_DEFINIR';        let templateBody = `Olá, prezado(a)\n\nKNConecta solicita o desligamento do colaborador abaixo:\n\n` +
+        const dataVisual = dataAlvo ? formatDateLocal(dataAlvo) : 'DATA_A_DEFINIR';
+        let templateBody = `Olá, prezado(a)\n\nKNConecta solicita o desligamento do colaborador abaixo:\n\n` +
             `COLABORADOR: ${colab.Nome}\n` +
             `PARA A DATA: ${dataVisual}\n` +
             `MOTIVO: ${colab.MotivoDesligamento || 'N/A'}\n` +
             `SOLICITADO PELA GESTÃO: ${colab.Gestor || 'N/A'}\n` +
             `APROVADO POR: ${nomeAprovador}\n` +
-            `MATRIZ: ${colab.MATRIZ || 'N/A'}\n\n`;        bodyInput.value = templateBody + "Carregando dados de absenteísmo...";        emailInput.value = 'Carregando e-mails sugeridos...';
+            `MATRIZ: ${colab.MATRIZ || 'N/A'}\n\n`;
+        bodyInput.value = templateBody + "Carregando dados de absenteísmo...";
+        emailInput.value = 'Carregando e-mails sugeridos...';
         emailInput.disabled = true;
-        submitBtn.disabled = true;        try {
+        submitBtn.disabled = true;
+        try {
             const [emailsAuto, absData] = await Promise.all([
                 desligamento_fetchEmailsSugestao(colab.Contrato),
                 desligamento_prepararDadosAbsenteismo(colab.Nome)
-            ]);            emailInput.value = emailsAuto;            let absTexto = "";
+            ]);
+            emailInput.value = emailsAuto;
+            let absTexto = "";
             if (absData && absData.stats) {
                 absTexto = `Resumo Absenteísmo (Últimos 45 dias):\n` +
                     `Injustificado: ${absData.stats.injustificado}\n` +
@@ -2440,8 +2608,10 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 }
             } else {
                 absTexto = "Não foi possível recuperar dados de absenteísmo recentes.";
-            }            bodyInput.value = templateBody + absTexto +
-                `\n\n--\nE-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;        } catch (error) {
+            }
+            bodyInput.value = templateBody + absTexto +
+                `\n\n--\nE-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;
+        } catch (error) {
             console.error("Erro ao carregar dados:", error);
             emailInput.value = '';
             bodyInput.value = templateBody + `\n\n--\nE-mail gerado automático.`;
@@ -2449,22 +2619,28 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             emailInput.disabled = false;
             submitBtn.disabled = false;
             if (isResend) emailInput.focus();
-        }                dateInput.onchange = () => {
+        }
+        dateInput.onchange = () => {
             if (dateInput.value) {
                 const novaDataFmt = formatDateLocal(dateInput.value);
                 bodyInput.value = bodyInput.value.replace(/PARA A DATA: .*/, `PARA A DATA: ${novaDataFmt}`);
             }
         };
     } else {
-                submitBtn.disabled = false;
-    }    mod.modal.classList.remove('hidden');
-}function desligamento_closeApproveModal() {
+        submitBtn.disabled = false;
+    }
+    mod.modal.classList.remove('hidden');
+}
+
+function desligamento_closeApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal) return;
     mod.modal.classList.add('hidden');
     if (mod.form) mod.form.reset();
     mod.colaboradorAtual = null;
-}async function desligamento_handleReject() {
+}
+
+async function desligamento_handleReject() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
     const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
@@ -2491,7 +2667,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     logAction(`Recusou o desligamento de: ${mod.colaboradorAtual.Nome}. Motivo: ${motivoRecusa || 'N/A'}`);
     invalidateCache();
     desligamento_fetchPendentes();
-}function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+}
+
+function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -2511,16 +2689,23 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}async function desligamento_handleApproveSubmit(event) {
+}
+
+async function desligamento_handleApproveSubmit(event) {
     event.preventDefault();
     const mod = state.desligamentoModule;
-    if (!mod.colaboradorAtual) return;    const submitBtn = mod.submitBtn;
-    submitBtn.disabled = true;    const colab = mod.colaboradorAtual;
+    if (!mod.colaboradorAtual) return;
+    const submitBtn = mod.submitBtn;
+    submitBtn.disabled = true;
+    const colab = mod.colaboradorAtual;
     const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
-    const isResend = colab.StatusDesligamento === 'CONCLUIDO';    const nomeRH = document.getElementById('approveRH').value.trim();
-        const emails = !isKN ? document.getElementById('approveEmails').value.trim() : 'skip@kn';
+    const isResend = colab.StatusDesligamento === 'CONCLUIDO';
+    const nomeRH = document.getElementById('approveRH').value.trim();
+    const emails = !isKN ? document.getElementById('approveEmails').value.trim() : 'skip@kn';
     const emailBodyContent = !isKN ? document.getElementById('approveBody').value : '';
-    const dataEfetivaInput = document.getElementById('approveDataInput').value;    submitBtn.textContent = isResend ? 'Enviando E-mail...' : 'Processando...';        if (!nomeRH) {
+    const dataEfetivaInput = document.getElementById('approveDataInput').value;
+    submitBtn.textContent = isResend ? 'Enviando E-mail...' : 'Processando...';
+    if (!nomeRH) {
         await window.customAlert('Por favor, preencha o campo "Aprovado por (RH)".', 'Campo Obrigatório');
         submitBtn.disabled = false;
         return;
@@ -2534,17 +2719,23 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         await window.customAlert('Por favor, preencha os E-mails para notificar.', 'Campo Obrigatório');
         submitBtn.disabled = false;
         return;
-    }    try {
-        let dataDesligamentoFinal = dataEfetivaInput;        if (isResend) {
+    }
+    try {
+        let dataDesligamentoFinal = dataEfetivaInput;
+        if (isResend) {
             const {data: colabCompleto} = await supabase.from('Desligados').select('*').eq('Nome', colab.Nome).single();
             if (colabCompleto) dataDesligamentoFinal = colabCompleto['Data de Desligamento'];
-        }                if (!isResend) {
+        }
+        if (!isResend) {
             submitBtn.textContent = 'Desligando no sistema...';
             const {
                 data: colabCompleto,
                 error: fetchError
-            } = await supabase.from('Colaboradores').select('*').eq('Nome', colab.Nome).single();            if (fetchError || !colabCompleto) throw fetchError || new Error('Colaborador não encontrado.');            const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamentoFinal);
-            const dataHoraDecisao = getLocalISOString(new Date());            const desligadoData = {
+            } = await supabase.from('Colaboradores').select('*').eq('Nome', colab.Nome).single();
+            if (fetchError || !colabCompleto) throw fetchError || new Error('Colaborador não encontrado.');
+            const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamentoFinal);
+            const dataHoraDecisao = getLocalISOString(new Date());
+            const desligadoData = {
                 Nome: colab.Nome,
                 Contrato: colab.Contrato || null,
                 Cargo: colabCompleto.Cargo || null,
@@ -2559,12 +2750,16 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 SolicitanteDesligamento: colab.SolicitanteDesligamento || null,
                 AprovadorDesligamento: nomeRH,
                 DataRetorno: dataHoraDecisao
-            };            const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
+            };
+            const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
                 p_nome: colab.Nome,
                 p_payload_desligado: desligadoData
-            });            if (rpcError) throw new Error(`Erro ao processar no banco: ${rpcError.message}`);            logAction(`Aprovou desligamento (${isKN ? 'KN - Sem Email' : 'Consultoria'}): ${colab.Nome}`);
+            });
+            if (rpcError) throw new Error(`Erro ao processar no banco: ${rpcError.message}`);
+            logAction(`Aprovou desligamento (${isKN ? 'KN - Sem Email' : 'Consultoria'}): ${colab.Nome}`);
             invalidateCache();
-        }                if (!isKN) {
+        }
+        if (!isKN) {
             submitBtn.textContent = 'Enviando e-mail...';
             const emailPayload = {
                 to: emails,
@@ -2573,10 +2768,13 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             };
             if (mod.currentAttachment) {
                 emailPayload.attachments = [mod.currentAttachment];
-            }            const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
+            }
+            const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
                 body: JSON.stringify(emailPayload)
-            });                        desligamento_closeApproveModal();
-            desligamento_fetchPendentes();            if (emailError) {
+            });
+            desligamento_closeApproveModal();
+            desligamento_fetchPendentes();
+            if (emailError) {
                 let msg = emailError.message;
                 try {
                     if (fnData && JSON.parse(fnData).error) msg = JSON.parse(fnData).error;
@@ -2588,15 +2786,19 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
             if (isResend) logAction(`Reenviou e-mail de desligamento para: ${colab.Nome}`);
         } else {
-                                    desligamento_closeApproveModal();
-            desligamento_fetchPendentes();            await window.customAlert('Colaborador desligado com sucesso!', 'Sucesso');
-        }    } catch (error) {
+            desligamento_closeApproveModal();
+            desligamento_fetchPendentes();
+            await window.customAlert('Colaborador desligado com sucesso!', 'Sucesso');
+        }
+    } catch (error) {
         console.error('Erro no fluxo:', error);
         await window.customAlert('Falha no processo: ' + error.message, 'Erro Crítico');
-                submitBtn.disabled = false;
+        submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
     }
-    }function wireDesligamentoLogic() {
+}
+
+function wireDesligamentoLogic() {
     const mod = state.desligamentoModule;
     mod.tbody = document.getElementById('desligamento-tbody');
     mod.modal = document.getElementById('approveModal');
@@ -2623,7 +2825,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             rhInput.value = rhInput.value.toUpperCase();
         });
     }
-}function desligamento_destroy() {
+}
+
+function desligamento_destroy() {
     const mod = state.desligamentoModule;
     console.log('Destruindo módulo de Desligamento...');
     if (mod.tbody) {
@@ -2644,7 +2848,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     mod.tbody = null;
     mod.modal = null;
     mod.form = null;
-}function checkUserRHStatus() {
+}
+
+function checkUserRHStatus() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -2660,7 +2866,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         console.warn('Erro ao verificar tipo de usuário (RH/Gerente/Master):', e);
         state.isUserRH = false;
     }
-}export async function init() {
+}
+
+export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         console.warn('Host #hc-indice não encontrado.');
@@ -2696,7 +2904,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     } else {
         await refresh();
     }
-}export function destroy() {
+}
+
+export function destroy() {
     if (state.mounted) {
         console.log('Destruindo estado de Efetivações.');
         Object.values(state.charts).forEach(chart => chart?.destroy());
@@ -2725,7 +2935,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         state.isUserRH = false;
         document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
     }
-}let vagasData = [];
+}
+
+let vagasData = [];
 let matrizesData = [];
 let gestoresData = [];
 let vagasModal;
@@ -2746,35 +2958,71 @@ let filterStatus;
 let filterGestor;
 let filterRecrutadora;
 let filterCargo;
-let inputCc;function initControleVagas() {
-    if (!document.getElementById('efet-controle-vagas')) return;    vagasModal = document.getElementById('vagasModal');
+let inputCc;
+
+function initControleVagas() {
+    if (!document.getElementById('efet-controle-vagas')) return;
+
+    vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     btnDuplicarVaga = document.getElementById('btn-duplicar-vaga');
     formVagas = document.getElementById('formVagas');
-    tbodyVagas = document.getElementById('vagas-tbody');        const btnExportarModelo = document.getElementById('btn-exportar-modelo');
+    tbodyVagas = document.getElementById('vagas-tbody');
+
+
+    const btnExportarModelo = document.getElementById('btn-exportar-modelo');
     const btnImportarVaga = document.getElementById('btn-importar-vaga');
-    const inputImportarFile = document.getElementById('input-importar-vaga');    if (btnExportarModelo) {
+    const inputImportarFile = document.getElementById('input-importar-vaga');
+
+    if (btnExportarModelo) {
         btnExportarModelo.addEventListener('click', downloadTemplateVaga);
-    }    if (btnImportarVaga && inputImportarFile) {
+    }
+
+    if (btnImportarVaga && inputImportarFile) {
         btnImportarVaga.addEventListener('click', () => {
-                        inputImportarFile.value = '';
+            inputImportarFile.value = '';
             inputImportarFile.click();
-        });        inputImportarFile.addEventListener('change', async (e) => {
+        });
+        inputImportarFile.addEventListener('change', async (e) => {
             if (e.target.files && e.target.files[0]) {
                 await processarArquivoImportacao(e.target.files[0]);
             }
         });
-    }    if (btnGerarVaga) {
+    }
+
+
+    const btnImportarModal = document.getElementById('btn-importar-modal');
+    const inputImportarModal = document.getElementById('input-importar-modal');
+
+    if (btnImportarModal && inputImportarModal) {
+        btnImportarModal.addEventListener('click', () => {
+            inputImportarModal.value = '';
+            inputImportarModal.click();
+        });
+
+        inputImportarModal.addEventListener('change', async (e) => {
+            if (e.target.files && e.target.files[0]) {
+                await processarImportacaoModal(e.target.files[0]);
+            }
+        });
+    }
+
+
+    if (btnGerarVaga) {
         if (!state.isUserRH) {
             btnGerarVaga.style.display = 'none';
-                        if (btnExportarModelo) btnExportarModelo.style.display = 'none';
+            if (btnExportarModelo) btnExportarModelo.style.display = 'none';
             if (btnImportarVaga) btnImportarVaga.style.display = 'none';
+
+            if (btnImportarModal) btnImportarModal.style.display = 'none';
         } else {
             btnGerarVaga.style.display = '';
             btnGerarVaga.addEventListener('click', () => openVagasModal());
         }
-    }    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
+    }
+
+    inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
     inputPrazoRS = formVagas?.querySelector('[name="prazo_entrega_rs"]');
@@ -2782,101 +3030,147 @@ let inputCc;function initControleVagas() {
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
     inputCc = formVagas?.querySelector('[name="cc"]');
-    inputQtdVagas = formVagas?.querySelector('[name="qtd_vagas"]');    searchInput = document.getElementById('vagas-search');
+    inputQtdVagas = formVagas?.querySelector('[name="qtd_vagas"]');
+
+    searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
     filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
-    filterCargo = document.getElementById('filter-vagas-cargo');    fetchMatrizes();
+    filterCargo = document.getElementById('filter-vagas-cargo');
+
+    fetchMatrizes();
     fetchGestores();
-    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
-    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);    if (btnDuplicarVaga) {
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
+
+    if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
+    if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
+
+    if (btnDuplicarVaga) {
         btnDuplicarVaga.addEventListener('click', duplicarVagaAtual);
-    }    if (selectFilial) {
+    }
+
+    if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
             atualizarSVC(matrizSelecionada);
             atualizarCC(matrizSelecionada);
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
-    }    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
+    }
+
+    if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
-    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
+    if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
+
+    if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
-    if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);    fetchVagas();
+    if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);
+
+    fetchVagas();
     wireCepVagas();
-}async function downloadTemplateVaga() {
-    await loadSheetJS();     if (!window.XLSX) {
+}
+
+async function downloadTemplateVaga() {
+    await loadSheetJS();
+    if (!window.XLSX) {
         alert("Erro ao carregar biblioteca de planilhas.");
         return;
-    }        const headers = [
+    }
+    const headers = [
         "AGÊNCIA", "INÍCIO", "CARGO", "TURNO (INSERIR HORÁRIO, ESCALA, DSR)",
         "NOME", "CPF", "DATA DE NASCIMENTO", "RG", "PIS", "TELEFONE",
         "E-MAIL", "SAPATO", "COLETE", "CEP", "ENDEREÇO (RUA)",
         "NÚMERO", "BAIRRO", "CIDADE"
-    ];        const ws = XLSX.utils.aoa_to_sheet([headers]);
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Modelo Importacao");        XLSX.writeFile(wb, "Modelo_Importacao_Vaga_KN.xlsx");
-}async function processarArquivoImportacao(file) {
+    XLSX.utils.book_append_sheet(wb, ws, "Modelo Importacao");
+    XLSX.writeFile(wb, "Modelo_Importacao_Vaga_KN.xlsx");
+}
+
+async function processarArquivoImportacao(file) {
     await loadSheetJS();
-    if (!window.XLSX) return;    const reader = new FileReader();    reader.onload = (e) => {
+    if (!window.XLSX) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
         try {
             const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});                        const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];                        const json = XLSX.utils.sheet_to_json(worksheet, {defval: ""});            if (json.length === 0) {
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
+            if (json.length === 0) {
                 alert("O arquivo parece estar vazio.");
                 return;
-            }                                    const row = json[0];                        const dadosMapeados = mapearDadosImportacao(row);                        openVagasModal(dadosMapeados, true);                        document.getElementById('modal-title').textContent = "Nova Vaga (Importada)";                        window.customAlert(`Dados importados!\nCandidato: ${dadosMapeados.CandidatoAprovado || 'N/A'}\nVerifique os campos antes de salvar.`, "Importação Concluída");        } catch (error) {
+            }
+            const row = json[0];
+            const dadosMapeados = mapearDadosImportacao(row);
+            openVagasModal(dadosMapeados, true);
+            document.getElementById('modal-title').textContent = "Nova Vaga (Importada)";
+            window.customAlert(`Dados importados!\nCandidato: ${dadosMapeados.CandidatoAprovado || 'N/A'}\nVerifique os campos antes de salvar.`, "Importação Concluída");
+        } catch (error) {
             console.error("Erro ao processar arquivo:", error);
             alert("Erro ao ler o arquivo. Verifique se é um Excel válido.");
         }
-    };    reader.readAsArrayBuffer(file);
-}function mapearDadosImportacao(row) {
-        const r = {};
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function mapearDadosImportacao(row) {
+    const r = {};
     Object.keys(row).forEach(k => {
         r[k.toUpperCase().trim()] = row[k];
-    });        const parseExcelDate = (val) => {
+    });
+    const parseExcelDate = (val) => {
         if (!val) return "";
-                if (typeof val === 'string' && val.includes('/')) {
+        if (typeof val === 'string' && val.includes('/')) {
             const parts = val.split('/');
             if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
-                if (typeof val === 'number') {
+        if (typeof val === 'number') {
             const date = new Date(Math.round((val - 25569) * 86400 * 1000));
             return date.toISOString().split('T')[0];
         }
-        return "";     };        const cleanNum = (v) => v ? String(v).replace(/\D/g, '') : "";        let horaEnt = "";
+        return "";
+    };
+    const cleanNum = (v) => v ? String(v).replace(/\D/g, '') : "";
+    let horaEnt = "";
     let horaSai = "";
     let diasSemana = "";
-    const turnoTexto = r["TURNO (INSERIR HORÁRIO, ESCALA, DSR)"] || r["TURNO"] || "";        const timeMatch = turnoTexto.match(/(\d{2}:\d{2})/g);
+    const turnoTexto = r["TURNO (INSERIR HORÁRIO, ESCALA, DSR)"] || r["TURNO"] || "";
+    const timeMatch = turnoTexto.match(/(\d{2}:\d{2})/g);
     if (timeMatch && timeMatch.length >= 1) horaEnt = timeMatch[0];
-    if (timeMatch && timeMatch.length >= 2) horaSai = timeMatch[1];        if (turnoTexto.includes("6x1") || turnoTexto.includes("6X1")) diasSemana = "SEG A SAB";
+    if (timeMatch && timeMatch.length >= 2) horaSai = timeMatch[1];
+    if (turnoTexto.includes("6x1") || turnoTexto.includes("6X1")) diasSemana = "SEG A SAB";
     else if (turnoTexto.includes("5x2") || turnoTexto.includes("5X2")) diasSemana = "SEG A SEX";
     else diasSemana = turnoTexto;
-        return {
-                Recrutadora: toUpperTrim(r["AGÊNCIA"] || r["AGENCIA"]),
+    return {
+        Recrutadora: toUpperTrim(r["AGÊNCIA"] || r["AGENCIA"]),
         DataInicioDesejado: parseExcelDate(r["INÍCIO"] || r["INICIO"]),
         Cargo: toUpperTrim(r["CARGO"]),
-                HoraEntrada: horaEnt,
+        HoraEntrada: horaEnt,
         HoraSaida: horaSai,
-        DiasSemana: diasSemana,                CandidatoAprovado: toUpperTrim(r["NOME"]),
+        DiasSemana: diasSemana, CandidatoAprovado: toUpperTrim(r["NOME"]),
         CPFCandidato: cleanNum(r["CPF"]),
         DataNascimento: parseExcelDate(r["DATA DE NASCIMENTO"] || r["NASCIMENTO"]),
         rg: String(r["RG"] || ""),
         pis: cleanNum(r["PIS"]),
         telefone: String(r["TELEFONE"] || ""),
-        email: (r["E-MAIL"] || r["EMAIL"] || "").toLowerCase(),                sapato: String(r["SAPATO"] || ""),
-        colete: toUpperTrim(r["COLETE"] || ""),                CEP: cleanNum(r["CEP"]),
+        email: (r["E-MAIL"] || r["EMAIL"] || "").toLowerCase(), sapato: String(r["SAPATO"] || ""),
+        colete: toUpperTrim(r["COLETE"] || ""), CEP: cleanNum(r["CEP"]),
         endereco_completo: toUpperTrim(r["ENDEREÇO (RUA)"] || r["ENDEREÇO"] || r["RUA"]),
         numero: String(r["NÚMERO"] || r["NUMERO"] || ""),
         bairro: toUpperTrim(r["BAIRRO"]),
-        cidade: toUpperTrim(r["CIDADE"]),                Status: "ABERTA",
-        Vagas_WC_BC: "WC",         pcd: "NÃO"
+        cidade: toUpperTrim(r["CIDADE"]), Status: "ABERTA",
+        Vagas_WC_BC: "WC", pcd: "NÃO"
     };
-}async function fetchMatrizes() {
+}
+
+async function fetchMatrizes() {
     const {data, error} = await supabase
         .from('Matrizes')
         .select('MATRIZ, SERVICE, CC, GERENCIA, REGIAO')
@@ -2887,7 +3181,9 @@ let inputCc;function initControleVagas() {
     }
     matrizesData = data || [];
     populateFilialSelect();
-}function atualizarCC(nomeMatriz) {
+}
+
+function atualizarCC(nomeMatriz) {
     if (!inputCc) return;
     if (!nomeMatriz) {
         inputCc.value = '';
@@ -2895,7 +3191,9 @@ let inputCc;function initControleVagas() {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputCc.value = encontrada ? (encontrada.CC || '-') : '';
-}async function fetchGestores() {
+}
+
+async function fetchGestores() {
     const {data, error} = await supabase
         .from('Gestores')
         .select('NOME, MATRIZ')
@@ -2905,7 +3203,9 @@ let inputCc;function initControleVagas() {
         return;
     }
     gestoresData = data || [];
-}function populateFilialSelect() {
+}
+
+function populateFilialSelect() {
     if (!selectFilial) return;
     selectFilial.innerHTML = '<option value="">- Selecione uma Matriz -</option>';
     const matrizesUnicas = [...new Set(matrizesData.map(item => item.MATRIZ).filter(Boolean))].sort();
@@ -2915,7 +3215,9 @@ let inputCc;function initControleVagas() {
         option.textContent = matrizNome;
         selectFilial.appendChild(option);
     });
-}function atualizarSVC(nomeMatriz) {
+}
+
+function atualizarSVC(nomeMatriz) {
     if (!inputSvc) return;
     if (!nomeMatriz) {
         inputSvc.value = '';
@@ -2923,7 +3225,9 @@ let inputCc;function initControleVagas() {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputSvc.value = encontrada ? (encontrada.SERVICE || '-') : '';
-}function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
+}
+
+function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (!selectGestor) return;
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
     if (!nomeMatriz) return;
@@ -2939,7 +3243,9 @@ let inputCc;function initControleVagas() {
     if (gestorPreSelecionado) {
         selectGestor.value = gestorPreSelecionado;
     }
-}function formatCargo(cargo) {
+}
+
+function formatCargo(cargo) {
     if (!cargo) return '-';
     return cargo
         .replace('OPERADOR DE EMPILHADEIRA', 'OP. EMPILHADEIRA')
@@ -2949,13 +3255,17 @@ let inputCc;function initControleVagas() {
         .replace('SEGURANÇA DO TRABALHO', 'SEG. TRAB.')
         .replace('ADMINISTRATIVO', 'ADM.')
         .replace('PLANEJAMENTO DE LOGÍSTICA', 'PLAN. LOG.');
-}function calcularSLA() {
+}
+
+function calcularSLA() {
     const tipo = inputWcBc.value;
     if (tipo === 'WC') inputSla.value = 17;
     else if (tipo === 'BC') inputSla.value = 12;
     else inputSla.value = 12;
     calcularPrazoEntrega();
-}function calcularPrazoEntrega() {
+}
+
+function calcularPrazoEntrega() {
     const dataAprov = inputDataAprovacao.value;
     const diasSla = parseInt(inputSla.value);
     if (dataAprov && !isNaN(diasSla)) {
@@ -2966,7 +3276,9 @@ let inputCc;function initControleVagas() {
         const dd = String(data.getDate()).padStart(2, '0');
         inputPrazoRS.value = `${yyyy}-${mm}-${dd}`;
     }
-}/**
+}
+
+/**
  * Abre o modal de vagas.
  * @param {Object|null} vagaData - Dados da vaga (se edição ou cópia)
  * @param {boolean} isCopy - Se true, abre como NOVA vaga copiando os dados
@@ -2974,7 +3286,15 @@ let inputCc;function initControleVagas() {
 function openVagasModal(vagaData = null, isCopy = false) {
     if (!vagasModal) return;
     vagasModal.classList.remove('hidden');
+
+    const btnImportarModal = document.getElementById('btn-importar-modal');
+
+    if (btnImportarModal && state.isUserRH) {
+        btnImportarModal.style.display = 'inline-block';
+    }
+
     if (!vagaData) {
+
         formVagas.reset();
         formVagas.querySelectorAll('select').forEach(sel => {
             if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
@@ -2986,11 +3306,15 @@ function openVagasModal(vagaData = null, isCopy = false) {
         inputSvc.value = "";
         if (inputCc) inputCc.value = "";
         if (inputQtdVagas) inputQtdVagas.value = "1";
+
         document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
         formVagas.dataset.mode = 'create';
         delete formVagas.dataset.id;
+
         if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';
+
     } else {
+
         if (isCopy) {
             document.getElementById('modal-title').textContent = `Copiando Vaga (Origem #${vagaData.ID_Vaga})`;
             formVagas.dataset.mode = 'create';
@@ -3004,18 +3328,22 @@ function openVagasModal(vagaData = null, isCopy = false) {
             if (inputQtdVagas) inputQtdVagas.value = "1";
             if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'inline-block';
         }
+
+
         const f = formVagas.elements;
         if (f.status) f.status.value = vagaData.Status || '';
         if (f.data_aprovacao) f.data_aprovacao.value = vagaData.DataAprovacao || '';
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
         if (f.cargo) f.cargo.value = vagaData.Cargo || '';
+
         if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
             atualizarCC(vagaData.MATRIZ);
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
         }
+
         if (f.cliente) f.cliente.value = vagaData.Cliente || '';
         if (f.setor) f.setor.value = vagaData.Setor || '';
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
@@ -3048,12 +3376,81 @@ function openVagasModal(vagaData = null, isCopy = false) {
         if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';
         if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
         if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';
+
         toggleSubstituicao(vagaData.Motivo);
     }
+
     populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-}/**
- * Função acionada pelo botão "Duplicar Vaga" dentro do modal de edição.
- */function duplicarVagaAtual(e) {
+}
+
+async function processarImportacaoModal(file) {
+    await loadSheetJS();
+    if (!window.XLSX) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            if (json.length === 0) {
+                alert("O arquivo parece estar vazio.");
+                return;
+            }
+
+
+            const row = json[0];
+
+            const vagaData = mapearDadosImportacao(row);
+            const f = formVagas.elements;
+
+
+
+
+            if (vagaData.Recrutadora) f.recrutadora.value = vagaData.Recrutadora;
+            if (vagaData.DataInicioDesejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado;
+            if (vagaData.Cargo) f.cargo.value = vagaData.Cargo;
+
+
+            if (vagaData.HoraEntrada) f.hora_entrada.value = vagaData.HoraEntrada;
+            if (vagaData.HoraSaida) f.hora_saida.value = vagaData.HoraSaida;
+            if (vagaData.DiasSemana) f.dias_semana.value = vagaData.DiasSemana;
+
+
+            if (vagaData.CandidatoAprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado;
+            if (vagaData.CPFCandidato) f.cpf_candidato.value = vagaData.CPFCandidato;
+            if (vagaData.DataNascimento) f.data_nascimento_candidato.value = vagaData.DataNascimento;
+            if (vagaData.rg) f.rg_candidato.value = vagaData.rg;
+            if (vagaData.pis) f.pis_candidato.value = vagaData.pis;
+            if (vagaData.telefone) f.telefone_candidato.value = vagaData.telefone;
+            if (vagaData.email) f.email_candidato.value = vagaData.email;
+
+
+            if (vagaData.CEP) f.cep_candidato.value = vagaData.CEP;
+            if (vagaData.endereco_completo) f.endereco_candidato.value = vagaData.endereco_completo;
+            if (vagaData.numero) f.numero_candidato.value = vagaData.numero;
+            if (vagaData.bairro) f.bairro_candidato.value = vagaData.bairro;
+            if (vagaData.cidade) f.cidade_candidato.value = vagaData.cidade;
+
+
+            if (vagaData.sapato) f.vaga_sapato.value = vagaData.sapato;
+            if (vagaData.colete) f.vaga_colete.value = vagaData.colete;
+
+
+            window.customAlert('Dados do formulário atualizados com sucesso via Excel!', 'Sucesso');
+
+        } catch (error) {
+            console.error("Erro ao importar no modal:", error);
+            alert("Erro ao ler o arquivo.");
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function duplicarVagaAtual(e) {
     e.preventDefault();
     const confirmacao = confirm("Deseja criar uma cópia desta vaga? \n\nO formulário será aberto como 'Nova Vaga' com os mesmos dados preenchidos.");
     if (!confirmacao) return;
@@ -3101,15 +3498,20 @@ function openVagasModal(vagaData = null, isCopy = false) {
         sapato: raw.vaga_sapato
     };
     openVagasModal(dadosParaCopia, true);
-}function closeVagasModal() {
+}
+
+function closeVagasModal() {
     if (vagasModal) vagasModal.classList.add('hidden');
-}window.toggleSubstituicao = function (val) {
+}
+
+window.toggleSubstituicao = function (val) {
     const div = document.getElementById('div-substituido');
     if (div) {
         if (val === 'SUBSTITUIÇÃO') div.classList.remove('hidden');
         else div.classList.add('hidden');
     }
 }
+
 async function fetchVagas() {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando vagas...</td></tr>';
@@ -3125,7 +3527,9 @@ async function fetchVagas() {
     vagasData = data || [];
     populateFilterOptions();
     filtrarVagas();
-}async function handleVagaSubmit(e) {
+}
+
+async function handleVagaSubmit(e) {
     e.preventDefault();
     const formData = new FormData(formVagas);
     const raw = Object.fromEntries(formData.entries());
@@ -3211,7 +3615,9 @@ async function fetchVagas() {
     btn.disabled = false;
     closeVagasModal();
     fetchVagas();
-}function populateFilterOptions() {
+}
+
+function populateFilterOptions() {
     const matrizes = [...new Set(vagasData.map(v => v.MATRIZ).filter(Boolean))].sort();
     const gestores = [...new Set(vagasData.map(v => v.Gestor).filter(Boolean))].sort();
     const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();
@@ -3227,7 +3633,9 @@ async function fetchVagas() {
     populate(filterGestor, gestores, 'Todos Gestores');
     populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');
     populate(filterCargo, cargos, 'Todos Cargos');
-}function filtrarVagas() {
+}
+
+function filtrarVagas() {
     const termo = searchInput.value.toLowerCase();
     const fFilial = filterFilial.value;
     const fStatus = filterStatus.value;
@@ -3263,7 +3671,9 @@ async function fetchVagas() {
         return true;
     });
     renderVagasTable(filtrados);
-}function renderVagasTable(lista) {
+}
+
+function renderVagasTable(lista) {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '';
     if (lista.length === 0) {
