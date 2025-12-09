@@ -498,72 +498,86 @@
             </div>
 
             <div id="efet-controle-vagas" class="efet-view">
-    <div class="space-y-4"
-         style="width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;">
-        <div></div>
-        <div class="efet-header-bar" style="margin-bottom: 10px; align-items: flex-end; flex-shrink: 0;">
-            <div class="vagas-filters" style="display:flex; flex-wrap:wrap; gap:8px;">
-                <input type="text" id="vagas-search"
-                       placeholder="Buscar (ID, candidato, CPF, fluxo, matriz...)"
-                       style="min-width: 220px;"/>
+                <div class="space-y-4"
+                     style="width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;">
+                    <div></div>
+                    <div class="efet-header-bar" style="margin-bottom: 10px; align-items: flex-end; flex-shrink: 0;">
+                        <div class="vagas-filters" style="display:flex; flex-wrap:wrap; gap:8px;">
+                            <input type="text" id="vagas-search"
+                                   placeholder="Buscar (ID, candidato, CPF, fluxo, matriz...)"
+                                   style="min-width: 220px;"/>
 
-                <select id="filter-vagas-filial">
-                    <option value="">Todas as Filiais</option>
-                </select>
+                            <select id="filter-vagas-filial">
+                                <option value="">Todas as Filiais</option>
+                            </select>
 
-                <select id="filter-vagas-status">
-                    <option value="">Todos Status</option>
-                    <option value="ABERTA">ABERTA</option>
-                    <option value="EM ADMISSÃO">EM ADMISSÃO</option>
-                    <option value="FECHADA">FECHADA</option>
-                    <option value="CANCELADA">CANCELADA</option>
-                </select>
+                            <select id="filter-vagas-status">
+                                <option value="">Todos Status</option>
+                                <option value="ABERTA">ABERTA</option>
+                                <option value="EM ADMISSÃO">EM ADMISSÃO</option>
+                                <option value="FECHADA">FECHADA</option>
+                                <option value="CANCELADA">CANCELADA</option>
+                            </select>
 
-                <select id="filter-vagas-gestor">
-                    <option value="">Todos Gestores</option>
-                </select>
+                            <select id="filter-vagas-gestor">
+                                <option value="">Todos Gestores</option>
+                            </select>
 
-                <select id="filter-vagas-recrutadora">
-                    <option value="">Todas Recrutadoras</option>
-                </select>
+                            <select id="filter-vagas-recrutadora">
+                                <option value="">Todas Recrutadoras</option>
+                            </select>
 
-                <select id="filter-vagas-cargo">
-                    <option value="">Todos Cargos</option>
-                </select>
+                            <select id="filter-vagas-cargo">
+                                <option value="">Todos Cargos</option>
+                            </select>
+                        </div>
+                        <button id="btn-gerar-vaga" class="btn-add" style="background-color: #003369;">
+                            <i class="fas fa-plus"></i> Gerar Vaga
+                        </button>
+
+                        <button id="btn-exportar-modelo" class="btn-salvar"
+                                style="margin-left: 8px; background-color: #64748b;">
+                            📥 Baixar Modelo
+                        </button>
+
+                        <button id="btn-importar-vaga" class="btn-salvar"
+                                style="margin-left: 8px; background-color: #059669;">
+                            📤 Importar Vaga
+                        </button>
+
+                        <input type="file" id="input-importar-vaga" accept=".xlsx, .csv" style="display: none;"/>
+
+
+                    </div>
+                    <div class="table-container-wrapper">
+                        <div class="table-container">
+                            <table id="vagas-table">
+                                <thead>
+                                <tr>
+                                    <th>#ID</th>
+                                    <th>Status</th>
+                                    <th>Aprovação</th>
+                                    <th>Início Desejado</th>
+                                    <th>Candidato</th>
+                                    <th>Cargo</th>
+                                    <th>Recrutadora</th>
+                                    <th>Filial</th>
+                                    <th>Gestor</th>
+                                    <th>Empresa</th>
+                                    <th>Prazo R&S</th>
+                                    <th>Ações</th>
+                                </tr>
+                                </thead>
+                                <tbody id="vagas-tbody">
+                                <tr>
+                                    <td colspan="12" class="text-center p-4">Carregando vagas...</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-            <button id="btn-gerar-vaga" class="btn-add" style="background-color: #003369;">
-                <i class="fas fa-plus"></i> Gerar Vaga
-            </button>
-        </div>
-        <div class="table-container-wrapper">
-            <div class="table-container">
-                <table id="vagas-table">
-                    <thead>
-                    <tr>
-                        <th>#ID</th>
-                        <th>Status</th>
-                        <th>Aprovação</th>
-                        <th>Início Desejado</th>
-                        <th>Candidato</th>
-                        <th>Cargo</th>
-                        <th>Recrutadora</th>
-                        <th>Filial</th>
-                        <th>Gestor</th>
-                        <th>Empresa</th>
-                        <th>Prazo R&S</th>
-                        <th>Ações</th>
-                    </tr>
-                    </thead>
-                    <tbody id="vagas-tbody">
-                    <tr>
-                        <td colspan="12" class="text-center p-4">Carregando vagas...</td>
-                    </tr>
-                    </tbody>
-                </table>
             </div>
-        </div>
-    </div>
-</div>
 
         </div>
         <div id="hcidx-busy" class="hcidx-loading" style="display:none;">Carregando…</div>
@@ -984,9 +998,13 @@
                 </div>
             </div>
 
-            <div class="form-actions" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; display:flex; justify-content: flex-end; gap: 8px;">
-                <button type="button" id="btn-cancelar-vaga" class="btn-cancelar" style="margin-right: auto;">Cancelar</button>
-                <button type="button" id="btn-duplicar-vaga" class="btn-neutral" style="background: #f59e0b; color:white; display:none;">Duplicar Vaga</button>
+            <div class="form-actions"
+                 style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; display:flex; justify-content: flex-end; gap: 8px;">
+                <button type="button" id="btn-cancelar-vaga" class="btn-cancelar" style="margin-right: auto;">Cancelar
+                </button>
+                <button type="button" id="btn-duplicar-vaga" class="btn-neutral"
+                        style="background: #f59e0b; color:white; display:none;">Duplicar Vaga
+                </button>
                 <button type="submit" class="btn-salvar">Salvar Vaga</button>
             </div>
         </form>

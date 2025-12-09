@@ -4,8 +4,9 @@ import {logAction} from '../../logAction.js';const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
 const MIN_LABEL_FONT_PX = 12;
-const MIN_SEGMENT_PERCENT = 9;let inputQtdVagas;
-let btnDuplicarVaga; function cacheKeyForColabs() {
+const MIN_SEGMENT_PERCENT = 9;
+let inputQtdVagas;
+let btnDuplicarVaga;function cacheKeyForColabs() {
     return `colabs:ALL`;
 }function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
@@ -2152,8 +2153,7 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
         const diasSla = desligamento_calcularSLA(colab.DataDesligamentoSolicitada, colab.DataRetorno);
         let slaDisplay = '-';
-        let slaStyle = '';
-        if (diasSla !== null) {
+        let slaStyle = '';        if (diasSla !== null) {
             let sufixo = 'Dias';
             if (diasSla === 0 || diasSla === 1) {
                 sufixo = diasSla === 0 ? 'dia' : 'Dia';
@@ -2170,8 +2170,7 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             } else {
                 slaStyle = 'color: #4b5563; font-weight: 500; font-style: italic;';
             }
-        }
-        if (!state.isUserRH) {
+        }        if (!state.isUserRH) {
             switch (colab.StatusDesligamento) {
                 case 'PENDENTE':
                     statusClass = 'row-pending';
@@ -2200,14 +2199,12 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 cursor: pointer;
                 transition: background 0.2s;
             `;
-            const btnDeleteIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-            switch (colab.StatusDesligamento) {
+            const btnDeleteIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;            switch (colab.StatusDesligamento) {
                 case 'PENDENTE':
                     statusClass = 'row-pending';
-                    const btnAprovarAction = isKN ? 'approve-direct-kn' : 'approve';
+                                        const btnAprovarAction = 'approve';
                     const btnLabel = isKN ? 'Desligar KN' : 'Aprovar';
-                    const btnColor = isKN ? 'background-color: #4338ca;' : '';
-                    actionsHtml = `
+                    const btnColor = isKN ? 'background-color: #4338ca;' : '';                    actionsHtml = `
                         <div style="display:flex; align-items:center; gap:6px;">
                             <button data-action="${btnAprovarAction}" data-nome="${colab.Nome}" style="${btnColor}" class="btn-salvar text-xs !px-2 !py-1">${btnLabel}</button>
                             <button data-action="reject" data-nome="${colab.Nome}" class="btn-cancelar text-xs !px-2 !py-1">Recusar</button>
@@ -2382,90 +2379,85 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
 }async function desligamento_openApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal || !mod.colaboradorAtual) return;
-    const colab = mod.colaboradorAtual;
-    const isResend = colab.StatusDesligamento === 'CONCLUIDO';
-    mod.currentAttachment = null;
+    const colab = mod.colaboradorAtual;        const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
+    const isResend = colab.StatusDesligamento === 'CONCLUIDO';    mod.currentAttachment = null;
     document.getElementById('approveNome').textContent = colab.Nome;
     document.getElementById('approveSolicitante').textContent = colab.SolicitanteDesligamento || 'N/A';
     document.getElementById('approveGestor').textContent = colab.Gestor || 'N/A';
     document.getElementById('approveSVC').textContent = colab.SVC || 'N/A';
-    document.getElementById('approveDataSolicitacao').textContent = formatDateTimeLocal(colab.DataDesligamentoSolicitada);
-    const dateInput = document.getElementById('approveDataInput');
+    document.getElementById('approveDataSolicitacao').textContent = formatDateTimeLocal(colab.DataDesligamentoSolicitada);    const dateInput = document.getElementById('approveDataInput');
     const rhInput = document.getElementById('approveRH');
     const emailInput = document.getElementById('approveEmails');
     const bodyInput = document.getElementById('approveBody');
-    const submitBtn = mod.submitBtn;
-    let dataAlvo = null;
+    const submitBtn = mod.submitBtn;            const emailContainer = emailInput.closest('.form-group');
+    const bodyContainer = bodyInput.closest('.form-group');    if (isKN) {
+                if (emailContainer) emailContainer.style.display = 'none';
+        if (bodyContainer) bodyContainer.style.display = 'none';                submitBtn.textContent = 'Confirmar Desligamento';
+        submitBtn.style.backgroundColor = '#4338ca';     } else {
+                if (emailContainer) emailContainer.style.display = '';
+        if (bodyContainer) bodyContainer.style.display = '';        if (isResend) submitBtn.textContent = 'Reenviar E-mail';
+        else submitBtn.textContent = 'Confirmar e Enviar E-mail';
+        submitBtn.style.backgroundColor = '';     }    let dataAlvo = null;
     if (isResend) {
         dateInput.value = '';
     } else {
-        if (colab.MotivoDesligamento) {
+                if (colab.MotivoDesligamento) {
             const match = colab.MotivoDesligamento.match(/Data Prevista:\s*(\d{2}\/\d{2}\/\d{4})/i);
             if (match && match[1]) {
                 dataAlvo = match[1].split('/').reverse().join('-');
             }
         }
-        if (!dataAlvo && colab.DataDesligamentoSolicitada) {
+                if (!dataAlvo && colab.DataDesligamentoSolicitada) {
             dataAlvo = colab.DataDesligamentoSolicitada.split('T')[0];
         }
-        if (!dataAlvo) {
+                if (!dataAlvo) {
             dataAlvo = ymdToday();
         }
         dateInput.value = dataAlvo;
-    }
-    if (!isResend && rhInput) rhInput.value = mod.currentUser || '';
-    if (isResend && rhInput && !rhInput.value) rhInput.value = mod.currentUser || '';
-    const nomeAprovador = rhInput.value || mod.currentUser || 'RH';
-    const dataVisual = dataAlvo ? formatDateLocal(dataAlvo) : 'DATA_A_DEFINIR';
-    let templateBody = `Olá, prezado(a)\n\nKNConecta solicita o desligamento do colaborador abaixo:\n\n` +
-        `COLABORADOR: ${colab.Nome}\n` +
-        `PARA A DATA: ${dataVisual}\n` +
-        `MOTIVO: ${colab.MotivoDesligamento || 'N/A'}\n` +
-        `SOLICITADO PELA GESTÃO: ${colab.Gestor || 'N/A'}\n` +
-        `APROVADO POR: ${nomeAprovador}\n` +
-        `MATRIZ: ${colab.MATRIZ || 'N/A'}\n\n`;
-    bodyInput.value = templateBody + "Carregando dados de absenteísmo...";
-    if (isResend) submitBtn.textContent = 'Reenviar E-mail';
-    else submitBtn.textContent = 'Confirmar e Enviar E-mail';
-    emailInput.value = 'Carregando e-mails sugeridos...';
-    emailInput.disabled = true;
-    submitBtn.disabled = true;
-    try {
-        const [emailsAuto, absData] = await Promise.all([
-            desligamento_fetchEmailsSugestao(colab.Contrato),
-            desligamento_prepararDadosAbsenteismo(colab.Nome)
-        ]);
-        emailInput.value = emailsAuto;
-        let absTexto = "";
-        if (absData && absData.stats) {
-            absTexto = `Resumo Absenteísmo (Últimos 45 dias):\n` +
-                `Injustificado: ${absData.stats.injustificado}\n` +
-                `Justificado: ${absData.stats.justificado}\n\n` +
-                `*Segue em anexo o relatório detalhado de absenteísmo.*`;
-            if (absData.attachment) {
-                mod.currentAttachment = absData.attachment;
+    }        if (!isResend && rhInput) rhInput.value = mod.currentUser || '';
+    if (isResend && rhInput && !rhInput.value) rhInput.value = mod.currentUser || '';        if (!isKN) {
+        const nomeAprovador = rhInput.value || mod.currentUser || 'RH';
+        const dataVisual = dataAlvo ? formatDateLocal(dataAlvo) : 'DATA_A_DEFINIR';        let templateBody = `Olá, prezado(a)\n\nKNConecta solicita o desligamento do colaborador abaixo:\n\n` +
+            `COLABORADOR: ${colab.Nome}\n` +
+            `PARA A DATA: ${dataVisual}\n` +
+            `MOTIVO: ${colab.MotivoDesligamento || 'N/A'}\n` +
+            `SOLICITADO PELA GESTÃO: ${colab.Gestor || 'N/A'}\n` +
+            `APROVADO POR: ${nomeAprovador}\n` +
+            `MATRIZ: ${colab.MATRIZ || 'N/A'}\n\n`;        bodyInput.value = templateBody + "Carregando dados de absenteísmo...";        emailInput.value = 'Carregando e-mails sugeridos...';
+        emailInput.disabled = true;
+        submitBtn.disabled = true;        try {
+            const [emailsAuto, absData] = await Promise.all([
+                desligamento_fetchEmailsSugestao(colab.Contrato),
+                desligamento_prepararDadosAbsenteismo(colab.Nome)
+            ]);            emailInput.value = emailsAuto;            let absTexto = "";
+            if (absData && absData.stats) {
+                absTexto = `Resumo Absenteísmo (Últimos 45 dias):\n` +
+                    `Injustificado: ${absData.stats.injustificado}\n` +
+                    `Justificado: ${absData.stats.justificado}\n\n` +
+                    `*Segue em anexo o relatório detalhado de absenteísmo.*`;
+                if (absData.attachment) {
+                    mod.currentAttachment = absData.attachment;
+                }
+            } else {
+                absTexto = "Não foi possível recuperar dados de absenteísmo recentes.";
+            }            bodyInput.value = templateBody + absTexto +
+                `\n\n--\nE-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;        } catch (error) {
+            console.error("Erro ao carregar dados:", error);
+            emailInput.value = '';
+            bodyInput.value = templateBody + `\n\n--\nE-mail gerado automático.`;
+        } finally {
+            emailInput.disabled = false;
+            submitBtn.disabled = false;
+            if (isResend) emailInput.focus();
+        }                dateInput.onchange = () => {
+            if (dateInput.value) {
+                const novaDataFmt = formatDateLocal(dateInput.value);
+                bodyInput.value = bodyInput.value.replace(/PARA A DATA: .*/, `PARA A DATA: ${novaDataFmt}`);
             }
-        } else {
-            absTexto = "Não foi possível recuperar dados de absenteísmo recentes.";
-        }
-        bodyInput.value = templateBody + absTexto +
-            `\n\n--\nE-mail gerado automático pelo sistema, qualquer dúvida entre em contato com o RH.`;
-    } catch (error) {
-        console.error("Erro ao carregar dados:", error);
-        emailInput.value = '';
-        bodyInput.value = templateBody + `\n\n--\nE-mail gerado automático.`;
-    } finally {
-        emailInput.disabled = false;
-        submitBtn.disabled = false;
-        if (isResend) emailInput.focus();
-    }
-    dateInput.onchange = () => {
-        if (dateInput.value) {
-            const novaDataFmt = formatDateLocal(dateInput.value);
-            bodyInput.value = bodyInput.value.replace(/PARA A DATA: .*/, `PARA A DATA: ${novaDataFmt}`);
-        }
-    };
-    mod.modal.classList.remove('hidden');
+        };
+    } else {
+                submitBtn.disabled = false;
+    }    mod.modal.classList.remove('hidden');
 }function desligamento_closeApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal) return;
@@ -2522,17 +2514,13 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
 }async function desligamento_handleApproveSubmit(event) {
     event.preventDefault();
     const mod = state.desligamentoModule;
-    if (!mod.colaboradorAtual) return;
-    const submitBtn = mod.submitBtn;
-    submitBtn.disabled = true;
-    const colab = mod.colaboradorAtual;
-    const nomeRH = document.getElementById('approveRH').value.trim();
-    const emails = document.getElementById('approveEmails').value.trim();
-    const emailBodyContent = document.getElementById('approveBody').value;
-    const dataEfetivaInput = document.getElementById('approveDataInput').value;
-    const isResend = colab.StatusDesligamento === 'CONCLUIDO';
-    submitBtn.textContent = isResend ? 'Enviando E-mail...' : 'Processando...';
-    if (!nomeRH) {
+    if (!mod.colaboradorAtual) return;    const submitBtn = mod.submitBtn;
+    submitBtn.disabled = true;    const colab = mod.colaboradorAtual;
+    const isKN = (colab.Contrato || '').trim().toUpperCase() === 'KN';
+    const isResend = colab.StatusDesligamento === 'CONCLUIDO';    const nomeRH = document.getElementById('approveRH').value.trim();
+        const emails = !isKN ? document.getElementById('approveEmails').value.trim() : 'skip@kn';
+    const emailBodyContent = !isKN ? document.getElementById('approveBody').value : '';
+    const dataEfetivaInput = document.getElementById('approveDataInput').value;    submitBtn.textContent = isResend ? 'Enviando E-mail...' : 'Processando...';        if (!nomeRH) {
         await window.customAlert('Por favor, preencha o campo "Aprovado por (RH)".', 'Campo Obrigatório');
         submitBtn.disabled = false;
         return;
@@ -2542,27 +2530,21 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         submitBtn.disabled = false;
         return;
     }
-    if (!emails) {
+    if (!isKN && !emails) {
         await window.customAlert('Por favor, preencha os E-mails para notificar.', 'Campo Obrigatório');
         submitBtn.disabled = false;
         return;
-    }
-    try {
-        let dataDesligamentoFinal = dataEfetivaInput;
-        if (isResend) {
+    }    try {
+        let dataDesligamentoFinal = dataEfetivaInput;        if (isResend) {
             const {data: colabCompleto} = await supabase.from('Desligados').select('*').eq('Nome', colab.Nome).single();
             if (colabCompleto) dataDesligamentoFinal = colabCompleto['Data de Desligamento'];
-        }
-        if (!isResend) {
-            submitBtn.textContent = 'Aprovando no banco...';
+        }                if (!isResend) {
+            submitBtn.textContent = 'Desligando no sistema...';
             const {
                 data: colabCompleto,
                 error: fetchError
-            } = await supabase.from('Colaboradores').select('*').eq('Nome', colab.Nome).single();
-            if (fetchError || !colabCompleto) throw fetchError || new Error('Colaborador não encontrado.');
-            const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamentoFinal);
-            const dataHoraDecisao = getLocalISOString(new Date());
-            const desligadoData = {
+            } = await supabase.from('Colaboradores').select('*').eq('Nome', colab.Nome).single();            if (fetchError || !colabCompleto) throw fetchError || new Error('Colaborador não encontrado.');            const periodoTrabalhado = desligamento_calcularPeriodoTrabalhado(colabCompleto['Data de admissão'], dataDesligamentoFinal);
+            const dataHoraDecisao = getLocalISOString(new Date());            const desligadoData = {
                 Nome: colab.Nome,
                 Contrato: colab.Contrato || null,
                 Cargo: colabCompleto.Cargo || null,
@@ -2577,48 +2559,44 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 SolicitanteDesligamento: colab.SolicitanteDesligamento || null,
                 AprovadorDesligamento: nomeRH,
                 DataRetorno: dataHoraDecisao
-            };
-            const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
+            };            const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
                 p_nome: colab.Nome,
                 p_payload_desligado: desligadoData
-            });
-            if (rpcError) throw new Error(`Erro ao processar no banco: ${rpcError.message}`);
-            logAction(`Aprovou desligamento (E-mail): ${colab.Nome}`);
+            });            if (rpcError) throw new Error(`Erro ao processar no banco: ${rpcError.message}`);            logAction(`Aprovou desligamento (${isKN ? 'KN - Sem Email' : 'Consultoria'}): ${colab.Nome}`);
             invalidateCache();
-        }
-        submitBtn.textContent = 'Enviando e-mail...';
-        const emailPayload = {
-            to: emails,
-            subject: `SOLICITAÇÃO DE DESLIGAMENTO - COLABORADOR: ${colab.Nome}`,
-            body: emailBodyContent
-        };
-        if (mod.currentAttachment) {
-            emailPayload.attachments = [mod.currentAttachment];
-        }
-        const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
-            body: JSON.stringify(emailPayload)
-        });
-        if (emailError) {
-            let msg = emailError.message;
-            try {
-                if (fnData && JSON.parse(fnData).error) msg = JSON.parse(fnData).error;
-            } catch (e) {
+        }                if (!isKN) {
+            submitBtn.textContent = 'Enviando e-mail...';
+            const emailPayload = {
+                to: emails,
+                subject: `SOLICITAÇÃO DE DESLIGAMENTO - COLABORADOR: ${colab.Nome}`,
+                body: emailBodyContent
+            };
+            if (mod.currentAttachment) {
+                emailPayload.attachments = [mod.currentAttachment];
+            }            const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
+                body: JSON.stringify(emailPayload)
+            });                        desligamento_closeApproveModal();
+            desligamento_fetchPendentes();            if (emailError) {
+                let msg = emailError.message;
+                try {
+                    if (fnData && JSON.parse(fnData).error) msg = JSON.parse(fnData).error;
+                } catch (e) {
+                }
+                await window.customAlert(`Salvo, mas erro ao enviar e-mail: ${msg}`, 'Alerta');
+            } else {
+                await window.customAlert('Processo concluído com sucesso!', 'Sucesso');
             }
-            await window.customAlert(`Salvo, mas erro ao enviar e-mail: ${msg}`, 'Alerta');
+            if (isResend) logAction(`Reenviou e-mail de desligamento para: ${colab.Nome}`);
         } else {
-            await window.customAlert('Processo concluído com sucesso!', 'Sucesso');
-        }
-        if (isResend) logAction(`Reenviou e-mail de desligamento para: ${colab.Nome}`);
-        desligamento_closeApproveModal();
-        desligamento_fetchPendentes();
-    } catch (error) {
+                                    desligamento_closeApproveModal();
+            desligamento_fetchPendentes();            await window.customAlert('Colaborador desligado com sucesso!', 'Sucesso');
+        }    } catch (error) {
         console.error('Erro no fluxo:', error);
         await window.customAlert('Falha no processo: ' + error.message, 'Erro Crítico');
-    } finally {
-        submitBtn.disabled = false;
+                submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
     }
-}function wireDesligamentoLogic() {
+    }function wireDesligamentoLogic() {
     const mod = state.desligamentoModule;
     mod.tbody = document.getElementById('desligamento-tbody');
     mod.modal = document.getElementById('approveModal');
@@ -2771,10 +2749,27 @@ let filterCargo;
 let inputCc;function initControleVagas() {
     if (!document.getElementById('efet-controle-vagas')) return;    vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
-    btnCancelarVaga = document.getElementById('btn-cancelar-vaga');    btnDuplicarVaga = document.getElementById('btn-duplicar-vaga');    formVagas = document.getElementById('formVagas');
-    tbodyVagas = document.getElementById('vagas-tbody');    if (btnGerarVaga) {
+    btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
+    btnDuplicarVaga = document.getElementById('btn-duplicar-vaga');
+    formVagas = document.getElementById('formVagas');
+    tbodyVagas = document.getElementById('vagas-tbody');        const btnExportarModelo = document.getElementById('btn-exportar-modelo');
+    const btnImportarVaga = document.getElementById('btn-importar-vaga');
+    const inputImportarFile = document.getElementById('input-importar-vaga');    if (btnExportarModelo) {
+        btnExportarModelo.addEventListener('click', downloadTemplateVaga);
+    }    if (btnImportarVaga && inputImportarFile) {
+        btnImportarVaga.addEventListener('click', () => {
+                        inputImportarFile.value = '';
+            inputImportarFile.click();
+        });        inputImportarFile.addEventListener('change', async (e) => {
+            if (e.target.files && e.target.files[0]) {
+                await processarArquivoImportacao(e.target.files[0]);
+            }
+        });
+    }    if (btnGerarVaga) {
         if (!state.isUserRH) {
             btnGerarVaga.style.display = 'none';
+                        if (btnExportarModelo) btnExportarModelo.style.display = 'none';
+            if (btnImportarVaga) btnImportarVaga.style.display = 'none';
         } else {
             btnGerarVaga.style.display = '';
             btnGerarVaga.addEventListener('click', () => openVagasModal());
@@ -2786,7 +2781,8 @@ let inputCc;function initControleVagas() {
     selectFilial = formVagas?.querySelector('[name="filial"]');
     selectGestor = formVagas?.querySelector('[name="gestor"]');
     inputSvc = formVagas?.querySelector('[name="svc"]');
-    inputCc = formVagas?.querySelector('[name="cc"]');    inputQtdVagas = formVagas?.querySelector('[name="qtd_vagas"]');    searchInput = document.getElementById('vagas-search');
+    inputCc = formVagas?.querySelector('[name="cc"]');
+    inputQtdVagas = formVagas?.querySelector('[name="qtd_vagas"]');    searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
@@ -2812,6 +2808,74 @@ let inputCc;function initControleVagas() {
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
     if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);    fetchVagas();
     wireCepVagas();
+}async function downloadTemplateVaga() {
+    await loadSheetJS();     if (!window.XLSX) {
+        alert("Erro ao carregar biblioteca de planilhas.");
+        return;
+    }        const headers = [
+        "AGÊNCIA", "INÍCIO", "CARGO", "TURNO (INSERIR HORÁRIO, ESCALA, DSR)",
+        "NOME", "CPF", "DATA DE NASCIMENTO", "RG", "PIS", "TELEFONE",
+        "E-MAIL", "SAPATO", "COLETE", "CEP", "ENDEREÇO (RUA)",
+        "NÚMERO", "BAIRRO", "CIDADE"
+    ];        const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Modelo Importacao");        XLSX.writeFile(wb, "Modelo_Importacao_Vaga_KN.xlsx");
+}async function processarArquivoImportacao(file) {
+    await loadSheetJS();
+    if (!window.XLSX) return;    const reader = new FileReader();    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});                        const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];                        const json = XLSX.utils.sheet_to_json(worksheet, {defval: ""});            if (json.length === 0) {
+                alert("O arquivo parece estar vazio.");
+                return;
+            }                                    const row = json[0];                        const dadosMapeados = mapearDadosImportacao(row);                        openVagasModal(dadosMapeados, true);                        document.getElementById('modal-title').textContent = "Nova Vaga (Importada)";                        window.customAlert(`Dados importados!\nCandidato: ${dadosMapeados.CandidatoAprovado || 'N/A'}\nVerifique os campos antes de salvar.`, "Importação Concluída");        } catch (error) {
+            console.error("Erro ao processar arquivo:", error);
+            alert("Erro ao ler o arquivo. Verifique se é um Excel válido.");
+        }
+    };    reader.readAsArrayBuffer(file);
+}function mapearDadosImportacao(row) {
+        const r = {};
+    Object.keys(row).forEach(k => {
+        r[k.toUpperCase().trim()] = row[k];
+    });        const parseExcelDate = (val) => {
+        if (!val) return "";
+                if (typeof val === 'string' && val.includes('/')) {
+            const parts = val.split('/');
+            if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+                if (typeof val === 'number') {
+            const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+            return date.toISOString().split('T')[0];
+        }
+        return "";     };        const cleanNum = (v) => v ? String(v).replace(/\D/g, '') : "";        let horaEnt = "";
+    let horaSai = "";
+    let diasSemana = "";
+    const turnoTexto = r["TURNO (INSERIR HORÁRIO, ESCALA, DSR)"] || r["TURNO"] || "";        const timeMatch = turnoTexto.match(/(\d{2}:\d{2})/g);
+    if (timeMatch && timeMatch.length >= 1) horaEnt = timeMatch[0];
+    if (timeMatch && timeMatch.length >= 2) horaSai = timeMatch[1];        if (turnoTexto.includes("6x1") || turnoTexto.includes("6X1")) diasSemana = "SEG A SAB";
+    else if (turnoTexto.includes("5x2") || turnoTexto.includes("5X2")) diasSemana = "SEG A SEX";
+    else diasSemana = turnoTexto;
+        return {
+                Recrutadora: toUpperTrim(r["AGÊNCIA"] || r["AGENCIA"]),
+        DataInicioDesejado: parseExcelDate(r["INÍCIO"] || r["INICIO"]),
+        Cargo: toUpperTrim(r["CARGO"]),
+                HoraEntrada: horaEnt,
+        HoraSaida: horaSai,
+        DiasSemana: diasSemana,                CandidatoAprovado: toUpperTrim(r["NOME"]),
+        CPFCandidato: cleanNum(r["CPF"]),
+        DataNascimento: parseExcelDate(r["DATA DE NASCIMENTO"] || r["NASCIMENTO"]),
+        rg: String(r["RG"] || ""),
+        pis: cleanNum(r["PIS"]),
+        telefone: String(r["TELEFONE"] || ""),
+        email: (r["E-MAIL"] || r["EMAIL"] || "").toLowerCase(),                sapato: String(r["SAPATO"] || ""),
+        colete: toUpperTrim(r["COLETE"] || ""),                CEP: cleanNum(r["CEP"]),
+        endereco_completo: toUpperTrim(r["ENDEREÇO (RUA)"] || r["ENDEREÇO"] || r["RUA"]),
+        numero: String(r["NÚMERO"] || r["NUMERO"] || ""),
+        bairro: toUpperTrim(r["BAIRRO"]),
+        cidade: toUpperTrim(r["CIDADE"]),                Status: "ABERTA",
+        Vagas_WC_BC: "WC",         pcd: "NÃO"
+    };
 }async function fetchMatrizes() {
     const {data, error} = await supabase
         .from('Matrizes')
@@ -2909,7 +2973,8 @@ let inputCc;function initControleVagas() {
  */
 function openVagasModal(vagaData = null, isCopy = false) {
     if (!vagasModal) return;
-    vagasModal.classList.remove('hidden');    if (!vagaData) {
+    vagasModal.classList.remove('hidden');
+    if (!vagaData) {
         formVagas.reset();
         formVagas.querySelectorAll('select').forEach(sel => {
             if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
@@ -2920,28 +2985,38 @@ function openVagasModal(vagaData = null, isCopy = false) {
         selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
         inputSvc.value = "";
         if (inputCc) inputCc.value = "";
-        if (inputQtdVagas) inputQtdVagas.value = "1";         document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
+        if (inputQtdVagas) inputQtdVagas.value = "1";
+        document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
         formVagas.dataset.mode = 'create';
-        delete formVagas.dataset.id;        if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';    } else {        if (isCopy) {
+        delete formVagas.dataset.id;
+        if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';
+    } else {
+        if (isCopy) {
             document.getElementById('modal-title').textContent = `Copiando Vaga (Origem #${vagaData.ID_Vaga})`;
             formVagas.dataset.mode = 'create';
             delete formVagas.dataset.id;
-            if (inputQtdVagas) inputQtdVagas.value = "1";             if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';
+            if (inputQtdVagas) inputQtdVagas.value = "1";
+            if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';
         } else {
             document.getElementById('modal-title').textContent = `Editar Vaga #${vagaData.ID_Vaga}`;
             formVagas.dataset.mode = 'edit';
             formVagas.dataset.id = vagaData.ID_Vaga;
-            if (inputQtdVagas) inputQtdVagas.value = "1";            if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'inline-block';
-        }        const f = formVagas.elements;        if (f.status) f.status.value = vagaData.Status || '';
+            if (inputQtdVagas) inputQtdVagas.value = "1";
+            if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'inline-block';
+        }
+        const f = formVagas.elements;
+        if (f.status) f.status.value = vagaData.Status || '';
         if (f.data_aprovacao) f.data_aprovacao.value = vagaData.DataAprovacao || '';
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
-        if (f.cargo) f.cargo.value = vagaData.Cargo || '';        if (f.filial) {
+        if (f.cargo) f.cargo.value = vagaData.Cargo || '';
+        if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
             atualizarCC(vagaData.MATRIZ);
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
-        }        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
+        }
+        if (f.cliente) f.cliente.value = vagaData.Cliente || '';
         if (f.setor) f.setor.value = vagaData.Setor || '';
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
         if (f.recrutadora) f.recrutadora.value = vagaData.Recrutadora || '';
@@ -2972,21 +3047,26 @@ function openVagasModal(vagaData = null, isCopy = false) {
         if (f.bairro_candidato) f.bairro_candidato.value = vagaData.bairro || '';
         if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';
         if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
-        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';        toggleSubstituicao(vagaData.Motivo);
-    }    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
+        if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';
+        toggleSubstituicao(vagaData.Motivo);
+    }
+    populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
 }/**
  * Função acionada pelo botão "Duplicar Vaga" dentro do modal de edição.
  */function duplicarVagaAtual(e) {
-    e.preventDefault();    const confirmacao = confirm("Deseja criar uma cópia desta vaga? \n\nO formulário será aberto como 'Nova Vaga' com os mesmos dados preenchidos.");
-    if (!confirmacao) return;    const formData = new FormData(formVagas);
-    const raw = Object.fromEntries(formData.entries());    const dadosParaCopia = {
+    e.preventDefault();
+    const confirmacao = confirm("Deseja criar uma cópia desta vaga? \n\nO formulário será aberto como 'Nova Vaga' com os mesmos dados preenchidos.");
+    if (!confirmacao) return;
+    const formData = new FormData(formVagas);
+    const raw = Object.fromEntries(formData.entries());
+    const dadosParaCopia = {
         ID_Vaga: formVagas.dataset.id,
         Status: raw.status,
         DataAprovacao: raw.data_aprovacao,
         DataInicioDesejado: raw.data_inicio_desejado,
         FluxoSmart: raw.fluxo_smart,
         Cargo: raw.cargo,
-        MATRIZ: raw.filial,        Cliente: raw.cliente,
+        MATRIZ: raw.filial, Cliente: raw.cliente,
         Setor: raw.setor,
         TipoContrato: raw.tipo_contrato,
         Recrutadora: raw.recrutadora,
@@ -3019,7 +3099,8 @@ function openVagasModal(vagaData = null, isCopy = false) {
         cidade: raw.cidade_candidato,
         colete: raw.vaga_colete,
         sapato: raw.vaga_sapato
-    };    openVagasModal(dadosParaCopia, true);
+    };
+    openVagasModal(dadosParaCopia, true);
 }function closeVagasModal() {
     if (vagasModal) vagasModal.classList.add('hidden');
 }window.toggleSubstituicao = function (val) {
@@ -3049,11 +3130,13 @@ async function fetchVagas() {
     const formData = new FormData(formVagas);
     const raw = Object.fromEntries(formData.entries());
     const mode = formVagas.dataset.mode;
-    const id = formVagas.dataset.id;    let qtdCopias = 1;
+    const id = formVagas.dataset.id;
+    let qtdCopias = 1;
     if (raw.qtd_vagas && !isNaN(parseInt(raw.qtd_vagas))) {
         qtdCopias = parseInt(raw.qtd_vagas);
     }
-    if (qtdCopias < 1) qtdCopias = 1;    const payloadBase = {
+    if (qtdCopias < 1) qtdCopias = 1;
+    const payloadBase = {
         Status: raw.status,
         DataAprovacao: raw.data_aprovacao || null,
         DataInicioDesejado: raw.data_inicio_desejado || null,
@@ -3094,26 +3177,36 @@ async function fetchVagas() {
         PrazoEntregaRS: raw.prazo_entrega_rs || null,
         DataEncaminhadoAdmissao: raw.data_encaminhado_admissao || null,
         DataAdmissaoReal: raw.data_admissao_real || null
-    };    const btn = formVagas.querySelector('.btn-salvar');
+    };
+    const btn = formVagas.querySelector('.btn-salvar');
     const txt = btn.textContent;
     btn.textContent = 'Salvando...';
-    btn.disabled = true;    let error;    if (mode === 'edit' && id) {        const res = await supabase.from('Vagas').update(payloadBase).eq('ID_Vaga', id);
+    btn.disabled = true;
+    let error;
+    if (mode === 'edit' && id) {
+        const res = await supabase.from('Vagas').update(payloadBase).eq('ID_Vaga', id);
         error = res.error;
-    } else {        if (qtdCopias > 1) {            const bulkPayload = Array(qtdCopias).fill(payloadBase);
+    } else {
+        if (qtdCopias > 1) {
+            const bulkPayload = Array(qtdCopias).fill(payloadBase);
             const res = await supabase.from('Vagas').insert(bulkPayload);
             error = res.error;
-        } else {            const res = await supabase.from('Vagas').insert([payloadBase]);
+        } else {
+            const res = await supabase.from('Vagas').insert([payloadBase]);
             error = res.error;
         }
-    }    if (error) {
+    }
+    if (error) {
         alert('Erro: ' + error.message);
         btn.textContent = txt;
         btn.disabled = false;
         return;
-    }    let successMsg = mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada com sucesso!';
+    }
+    let successMsg = mode === 'edit' ? 'Vaga atualizada!' : 'Vaga criada com sucesso!';
     if (mode === 'create' && qtdCopias > 1) {
         successMsg = `${qtdCopias} vagas criadas com sucesso!`;
-    }    alert(successMsg);
+    }
+    alert(successMsg);
     btn.textContent = txt;
     btn.disabled = false;
     closeVagasModal();
