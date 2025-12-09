@@ -1,5 +1,5 @@
 import html2canvas from 'html2canvas';
-import { createClient } from '@supabase/supabase-js';
+import {createClient} from '@supabase/supabase-js';
 
 // Inicialização do Supabase
 const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
@@ -92,8 +92,6 @@ window.customConfirm = function (message, title = 'Confirmação', type = 'warni
     });
 };
 
-
-
 function showZoomRecommendation(userName) {
     if (sessionStorage.getItem('knc:zoomAlertShown')) return;
     const overlay = document.createElement('div');
@@ -146,8 +144,6 @@ function showZoomRecommendation(userName) {
     };
 }
 
-
-
 function setActiveTab(pageName) {
     const p = normalizePage(pageName);
     tabButtons.forEach(btn => {
@@ -155,11 +151,12 @@ function setActiveTab(pageName) {
     });
     try {
         localStorage.setItem(LAST_PAGE_KEY, p);
-    } catch (_) { }
+    } catch (_) {
+    }
 
     const currentPath = location.pathname.replace(/^\//, '');
     if (currentPath !== p) {
-        history.pushState({ page: p }, '', `/${p}`);
+        history.pushState({page: p}, '', `/${p}`);
     }
 }
 
@@ -176,24 +173,19 @@ function getInitialPage() {
     return fallback;
 }
 
-
-
 async function loadPage(pageName) {
     if (!pageName || isLoadingPage) return;
     isLoadingPage = true;
     const myToken = ++loadToken;
 
-
     if (contentArea) contentArea.classList.add('fade-out');
     await new Promise(resolve => setTimeout(resolve, 250));
-
 
     if (myToken !== loadToken) {
         isLoadingPage = false;
         if (contentArea) contentArea.classList.remove('fade-out');
         return;
     }
-
 
     try {
         if (currentModule && typeof currentModule.destroy === 'function') {
@@ -217,7 +209,6 @@ async function loadPage(pageName) {
 
             currentModule = module;
 
-            // Chama a função de renderização que criamos no outro arquivo
             if (currentModule && typeof currentModule.renderInclusaoPCD === 'function') {
                 currentModule.renderInclusaoPCD(contentArea);
             } else if (currentModule && typeof currentModule.init === 'function') {
@@ -235,13 +226,12 @@ async function loadPage(pageName) {
                 if (contentArea) contentArea.classList.remove('fade-out');
             }
         }
-        return; // Sai da função, pois já carregou
+        return;
     }
-    // -------------------------------------------------------------
 
     // Lógica Padrão (Busca HTML + JS)
     try {
-        const response = await fetch(`/pages/${pageName}.html`, { cache: 'no-cache' });
+        const response = await fetch(`/pages/${pageName}.html`, {cache: 'no-cache'});
         if (!response.ok) throw new Error(`HTML da página ${pageName} não encontrado (HTTP ${response.status}).`);
         const html = await response.text();
 
@@ -284,7 +274,6 @@ if (sidebarOverlay) {
         document.body.classList.add('sidebar-collapsed');
     });
 }
-// Inicia colapsado por padrão
 document.body.classList.add('sidebar-collapsed');
 
 // --- Sessão e Controle de Acesso ---
@@ -316,52 +305,36 @@ function checkSession() {
             });
             try {
                 localStorage.setItem(LAST_PAGE_KEY, restrictedPage);
-            } catch (_) { }
+            } catch (_) {
+            }
 
-            history.replaceState(null, '', `/${restrictedPage}`);
-            return; // Encerra aqui se for operação
+            // Se a URL não for separação, força mudança
+            const currentPath = normalizePage(location.pathname.replace(/^\//, ''));
+            if (currentPath !== restrictedPage) {
+                history.replaceState(null, '', `/${restrictedPage}`);
+                // Não chamamos loadPage aqui para evitar duplo carregamento no init,
+                // deixamos a lógica final do arquivo lidar com isso.
+            }
         } else {
             // Outros usuários
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.style.display = '';
             });
-            // Oculta painel gerencial se não for MASTER
+
+            // Oculta painel gerencial e PCD se não for MASTER
             if (userTipo !== 'MASTER') {
                 const btnPainel = document.querySelector('.tab-btn[data-page="painel-gerencial"]');
                 if (btnPainel) btnPainel.style.display = 'none';
+
+                const btnPcd = document.querySelector('.tab-btn[data-page="inclusao-pcd"]');
+                if (btnPcd) btnPcd.style.display = 'none';
             }
+
             // Oculta separação se não for de Conquista ou TODOS
             if (!userMatriz.includes('CONQUISTA') && userMatriz !== 'TODOS') {
                 const btnSeparacao = document.querySelector('.tab-btn[data-page="separacao"]');
                 if (btnSeparacao) btnSeparacao.style.display = 'none';
             }
-            // Garante que não abra numa página restrita
-            try {
-                const fromStore = normalizePage(localStorage.getItem(LAST_PAGE_KEY));
-                if (fromStore === restrictedPage) {
-                    localStorage.removeItem(LAST_PAGE_KEY);
-                }
-            } catch (_) { }
-            // Garante aba ativa
-            const activeBtn = document.querySelector('.tab-btn.active');
-            if (!activeBtn) {
-                const colabBtn = document.querySelector('.tab-btn[data-page="colaboradores"]');
-                if (colabBtn) colabBtn.classList.add('active');
-            }
-        }
-
-        // Redirecionamentos de Segurança baseados na URL atual
-        const currentPath = normalizePage(location.pathname.replace(/^\//, ''));
-
-        if (currentPath === 'painel-gerencial' && userTipo !== 'MASTER') {
-            console.warn("Acesso negado ao Painel. Redirecionando.");
-            setActiveTab('colaboradores');
-            loadPage('colaboradores');
-        }
-        if (currentPath === 'separacao' && !userMatriz.includes('CONQUISTA') && userMatriz !== 'TODOS') {
-            console.warn("Acesso negado à Separação. Redirecionando.");
-            setActiveTab('colaboradores');
-            loadPage('colaboradores');
         }
 
         // Classes de Nível no Body (para CSS)
@@ -431,7 +404,6 @@ document.addEventListener('colaborador-added', () => {
     }
 });
 
-// --- Upload de Avatar ---
 
 let hiddenAvatarInput = null;
 
@@ -475,8 +447,8 @@ function setupAvatarUpload(avatarElement) {
         menu.appendChild(changeButton);
         document.body.appendChild(menu);
         setTimeout(() => {
-            document.addEventListener('click', removeOldMenu, { once: true });
-            document.addEventListener('contextmenu', removeOldMenu, { once: true });
+            document.addEventListener('click', removeOldMenu, {once: true});
+            document.addEventListener('contextmenu', removeOldMenu, {once: true});
         }, 0);
     });
 }
@@ -505,22 +477,22 @@ async function uploadAvatar(file, avatarElement) {
             .replace(/\./g, '-')
             .replace(/@/g, '-at-');
         const fileName = `${safeUserName}-avatar.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
+        const {error: uploadError} = await supabase.storage
             .from('avatars')
             .upload(fileName, file, {
                 cacheControl: '3600',
                 upsert: true
             });
         if (uploadError) throw uploadError;
-        const { data: publicUrlData } = supabase.storage
+        const {data: publicUrlData} = supabase.storage
             .from('avatars')
             .getPublicUrl(fileName);
         if (!publicUrlData) throw new Error('Não foi possível obter a URL pública da imagem.');
         const newAvatarUrl = `${publicUrlData.publicUrl.toLowerCase()}?t=${new Date().getTime()}`;
         const dbAvatarUrl = newAvatarUrl.split('?t=')[0];
-        const { error: updateError } = await supabase
+        const {error: updateError} = await supabase
             .from('Logins')
-            .update({ avatar_url: dbAvatarUrl })
+            .update({avatar_url: dbAvatarUrl})
             .eq('Usuario', user.Usuario);
         if (updateError) throw updateError;
         user.avatar_url = dbAvatarUrl;
@@ -616,20 +588,36 @@ window.addEventListener('popstate', () => {
     const pg = normalizePage(location.pathname.replace(/^\//, ''));
     if (!pg || pg === 'dashboard' || pg === 'dashboard.html') return;
 
+    // --- VERIFICAÇÃO DE SEGURANÇA NO BOTÃO VOLTAR ---
     try {
-        const user = JSON.parse(localStorage.getItem('userSession'));
-        const userType = (user && user.Tipo) ? user.Tipo.trim().toUpperCase() : '';
-        const restrictedPage = 'separacao';
+        const user = JSON.parse(localStorage.getItem('userSession') || '{}');
+        const userTipo = (user.Tipo || '').trim().toUpperCase();
+        const userMatriz = (user.Matriz || '').trim().toUpperCase();
 
-        if (userType === 'OPERAÇÃO' && pg !== restrictedPage) {
-            history.replaceState(null, '', `/${restrictedPage}`);
-            setActiveTab(restrictedPage);
-            loadPage(restrictedPage);
+        if (pg === 'inclusao-pcd' && userTipo !== 'MASTER') {
+            history.replaceState(null, '', '/colaboradores');
+            setActiveTab('colaboradores');
+            loadPage('colaboradores');
+            return;
+        }
+
+        if (pg === 'painel-gerencial' && userTipo !== 'MASTER') {
+            history.replaceState(null, '', '/colaboradores');
+            setActiveTab('colaboradores');
+            loadPage('colaboradores');
+            return;
+        }
+
+        if (userTipo === 'OPERAÇÃO' && pg !== 'separacao') {
+            history.replaceState(null, '', '/separacao');
+            setActiveTab('separacao');
+            loadPage('separacao');
             return;
         }
     } catch (e) {
-        console.error('Falha ao ler sessão no popstate', e);
+        console.error(e);
     }
+
 
     if (!document.querySelector(`.tab-btn[data-page="${pg}"]`)) return;
 
@@ -639,7 +627,48 @@ window.addEventListener('popstate', () => {
     loadPage(pg);
 });
 
+// --- EXECUÇÃO INICIAL ---
+
 checkSession();
-const firstPage = getInitialPage();
+
+// --- LÓGICA DE SEGURANÇA E CARREGAMENTO BLINDADO ---
+
+let firstPage = getInitialPage();
+
+try {
+    const user = JSON.parse(localStorage.getItem('userSession') || '{}');
+    const userTipo = (user.Tipo || '').trim().toUpperCase();
+    const userMatriz = (user.Matriz || '').trim().toUpperCase();
+
+    // 1. Bloqueio PCD
+    if (firstPage === 'inclusao-pcd' && userTipo !== 'MASTER') {
+        console.warn('Acesso direto bloqueado: PCD');
+        firstPage = 'colaboradores';
+    }
+
+    // 2. Bloqueio Painel Gerencial
+    if (firstPage === 'painel-gerencial' && userTipo !== 'MASTER') {
+        console.warn('Acesso direto bloqueado: Painel');
+        firstPage = 'colaboradores';
+    }
+
+    // 3. Bloqueio Operação (só vê separacao)
+    if (userTipo === 'OPERAÇÃO' && firstPage !== 'separacao') {
+        console.warn('Acesso direto bloqueado: Operação');
+        firstPage = 'separacao';
+    }
+
+    // 4. Bloqueio Separação para quem não é da área
+    if (firstPage === 'separacao' && !userMatriz.includes('CONQUISTA') && userMatriz !== 'TODOS') {
+        console.warn('Acesso direto bloqueado: Separação');
+        firstPage = 'colaboradores';
+    }
+
+} catch (e) {
+    console.error("Erro na verificação de segurança inicial", e);
+    firstPage = 'colaboradores'; // Fallback seguro
+}
+
+
 setActiveTab(firstPage);
 loadPage(firstPage);
