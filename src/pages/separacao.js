@@ -1,6 +1,8 @@
 import {Html5Qrcode, Html5QrcodeSupportedFormats} from "html5-qrcode";
 import qrcode from "qrcode-generator";
-import {createClient} from "@supabase/supabase-js";const SUPABASE_URL = "https://tzbqdjwgbisntzljwbqp.supabase.co";
+import {createClient} from "@supabase/supabase-js";
+
+const SUPABASE_URL = "https://tzbqdjwgbisntzljwbqp.supabase.co";
 const SUPABASE_ANON_KEY =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6YnFkandnYmlzbnR6bGp3YnFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY0MTQyNTUsImV4cCI6MjA3MTk5MDI1NX0.fl0GBdHF_Pc56FSCVkKmCrCQANMVGvQ8sKLDoqK7eAQ";
 const FUNC_SEPARACAO_URL = `${SUPABASE_URL}/functions/v1/get-processar-manga-separacao`;
@@ -100,7 +102,9 @@ const OUTBOX_KEY = "auditoriaOutboxV1";
 let outbox = {
     queue: [],
     sending: false
-};async function ensureApexCharts() {
+};
+
+async function ensureApexCharts() {
     if (window.ApexCharts) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement("script");
@@ -109,7 +113,25 @@ let outbox = {
         s.onerror = () => reject(new Error("Falha ao carregar ApexCharts"));
         document.head.appendChild(s);
     });
-}function getBrazilDateKey(isoString) {
+}
+
+
+function getOperationalDateKey(isoStringOrDate) {
+    if (!isoStringOrDate) return null;
+
+
+    let dateObj = typeof isoStringOrDate === 'object' ? isoStringOrDate : new Date(isoStringOrDate);
+
+
+    let adjustedDate = new Date(dateObj.getTime());
+
+    adjustedDate.setHours(adjustedDate.getHours() - 6);
+
+
+    return getBrazilDateKey(adjustedDate.toISOString());
+}
+
+function getBrazilDateKey(isoString) {
     if (!isoString) return null;
     try {
         let dateToParse = isoString;
@@ -127,7 +149,9 @@ let outbox = {
     } catch (e) {
         return isoString ? isoString.split("T")[0] : null;
     }
-}async function fetchHistoricalUsers() {
+}
+
+async function fetchHistoricalUsers() {
     try {
         const {data, error} = await supabase
             .from("Carregamento")
@@ -154,7 +178,9 @@ let outbox = {
     } catch (err) {
         console.error("Erro ao buscar histórico de usuários:", err);
     }
-}function ensureCarUserSelect() {
+}
+
+function ensureCarUserSelect() {
     if (dom.carUserSelect) return;
     const inputOriginal = document.getElementById("car-user-name");
     if (!inputOriginal) return;
@@ -192,7 +218,9 @@ let outbox = {
         select.value = "";
         inputOriginal.value = "";
     });
-}function populateCarUserSelect() {
+}
+
+function populateCarUserSelect() {
     if (!dom.carUserSelect) return;
     let sourceList = state.allUsersList || [];
     if (sourceList.length === 0 && state.cacheData && state.cacheData.length > 0) {
@@ -233,7 +261,9 @@ let outbox = {
     manualOpt.style.fontWeight = "bold";
     manualOpt.style.color = "#003369";
     dom.carUserSelect.appendChild(manualOpt);
-}function switchTab(tabName) {
+}
+
+function switchTab(tabName) {
     if (!dom.subtabSeparacao || !dom.subtabAnalise) return;
     const activeBtnClass = ["bg-white", "text-blue-700", "shadow"];
     const inactiveBtnClass = [
@@ -266,7 +296,9 @@ let outbox = {
         }
         renderAnalysisTab();
     }
-}async function renderAnalysisTab() {
+}
+
+async function renderAnalysisTab() {
     await ensureApexCharts();
     const data = state.cacheData;
     if (!data) return;
@@ -526,7 +558,9 @@ let outbox = {
             },
         },
     });
-}function renderChart(domId, chartKey, options) {
+}
+
+function renderChart(domId, chartKey, options) {
     const defaultOpts = {
         chart: {
             toolbar: {
@@ -570,12 +604,15 @@ let outbox = {
             state.charts[chartKey].render();
         }
     }
-}function createImportarModal() {
+}
+
+function createImportarModal() {
     if (document.getElementById("modal-importar-consolidado")) return;
     const modal = document.createElement("div");
     modal.id = "modal-importar-consolidado";
     modal.className = "modal-overlay hidden";
-    modal.style.zIndex = "1200";    modal.innerHTML = `
+    modal.style.zIndex = "1200";
+    modal.innerHTML = `
         <div class="modal-content" style="width: 95vw; max-width: 800px;">
             <div class="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 class="text-xl font-semibold">Importar Consolidado</h3>
@@ -595,61 +632,83 @@ let outbox = {
                 </div>
             </div>
         </div>
-    `;    document.body.appendChild(modal);
+    `;
+    document.body.appendChild(modal);
     dom.modalImportar = modal;
     dom.importCloseBtn = modal.querySelector("#importar-consolidado-close");
     dom.importTextarea = modal.querySelector("#importar-textarea");
     dom.importSubmitBtn = modal.querySelector("#importar-submit-btn");
-    dom.importStatus = modal.querySelector("#importar-status");    dom.importTargetSelect = modal.querySelector("#import-target-svc");
-}async function handleImportarConsolidado() {
-    if (state.isImporting) return;    const rawText = dom.importTextarea.value;    const targetSvc = dom.importTargetSelect ? dom.importTargetSelect.value : "SBA7";
-    const tableName = targetSvc === "SBA3" ? "Consolidado SBA3" : "Consolidado SBA7";    if (!rawText || !rawText.trim()) {
+    dom.importStatus = modal.querySelector("#importar-status");
+    dom.importTargetSelect = modal.querySelector("#import-target-svc");
+}
+
+async function handleImportarConsolidado() {
+    if (state.isImporting) return;
+    const rawText = dom.importTextarea.value;
+    const targetSvc = dom.importTargetSelect ? dom.importTargetSelect.value : "SBA7";
+    const tableName = targetSvc === "SBA3" ? "Consolidado SBA3" : "Consolidado SBA7";
+    if (!rawText || !rawText.trim()) {
         dom.importStatus.textContent = "Área de texto vazia.";
         dom.importStatus.className = "mt-2 text-sm font-medium text-red-600 h-6";
         return;
-    }    state.isImporting = true;
+    }
+    state.isImporting = true;
     dom.importSubmitBtn.disabled = true;
     dom.importSubmitBtn.textContent = `Importando para ${targetSvc}...`;
     dom.importStatus.className = "mt-2 text-sm font-medium text-blue-600 h-6";
-    dom.importStatus.textContent = "Preparando dados...";    const lines = rawText.trim().split("\n");
+    dom.importStatus.textContent = "Preparando dados...";
+    const lines = rawText.trim().split("\n");
     const rows = [];
-    let idx = 0;    for (const line of lines) {
+    let idx = 0;
+    for (const line of lines) {
         const trimmedLine = line.trim();
         if (!trimmedLine) continue;
-        const parts = trimmedLine.split(/\s+/);        if (parts.length >= 2 && parts[0].length >= 11) {
+        const parts = trimmedLine.split(/\s+/);
+        if (parts.length >= 2 && parts[0].length >= 11) {
             const id = parts[0].trim();
             const rota = parts[1].trim();
-            const rotaOtimizada = rota.charAt(0).toUpperCase();            rows.push({
+            const rotaOtimizada = rota.charAt(0).toUpperCase();
+            rows.push({
                 ID: id,
                 Rota: rota,
                 "Rota Otimizada": rotaOtimizada,
             });
             idx++;
         }
-    }    if (rows.length === 0) {
+    }
+    if (rows.length === 0) {
         dom.importStatus.textContent = "Nenhum dado válido encontrado.";
         dom.importStatus.className = "mt-2 text-sm font-medium text-red-600 h-6";
         state.isImporting = false;
         dom.importSubmitBtn.disabled = false;
         dom.importSubmitBtn.textContent = "Importar Dados";
         return;
-    }    try {
-        dom.importStatus.textContent = `Limpa tabela ${tableName}...`;        const {error: deleteError} = await supabase
+    }
+    try {
+        dom.importStatus.textContent = `Limpa tabela ${tableName}...`;
+        const {error: deleteError} = await supabase
             .from(tableName)
             .delete()
-            .neq("ID", "dummy-id");        if (deleteError) {
+            .neq("ID", "dummy-id");
+        if (deleteError) {
             console.error("Erro ao limpar:", deleteError);
             throw new Error(`Falha ao limpar ${tableName}: ${deleteError.message}`);
-        }        dom.importStatus.textContent = `Inserindo ${rows.length} registros em ${tableName}...`;        const {error: insertError} = await supabase
+        }
+        dom.importStatus.textContent = `Inserindo ${rows.length} registros em ${tableName}...`;
+        const {error: insertError} = await supabase
             .from(tableName)
-            .insert(rows);        if (insertError) {
+            .insert(rows);
+        if (insertError) {
             console.error("Erro ao inserir:", insertError);
             throw new Error(`Falha ao inserir em ${tableName}: ${insertError.message}`);
-        }        dom.importStatus.textContent = `Sucesso! ${rows.length} registros em ${tableName}.`;
+        }
+        dom.importStatus.textContent = `Sucesso! ${rows.length} registros em ${tableName}.`;
         dom.importStatus.className = "mt-2 text-sm font-medium text-green-600 h-6";
-        dom.importTextarea.value = "";        setTimeout(() => {
+        dom.importTextarea.value = "";
+        setTimeout(() => {
             closeModal(dom.modalImportar);
-        }, 2000);    } catch (err) {
+        }, 2000);
+    } catch (err) {
         console.error("Erro na importação:", err);
         dom.importStatus.textContent = `Erro: ${err.message}`;
         dom.importStatus.className = "mt-2 text-sm font-medium text-red-600 h-6";
@@ -658,7 +717,9 @@ let outbox = {
         dom.importSubmitBtn.disabled = false;
         dom.importSubmitBtn.textContent = "Importar Dados";
     }
-}function loadOutbox() {
+}
+
+function loadOutbox() {
     try {
         const raw = localStorage.getItem(OUTBOX_KEY);
         outbox = raw ? JSON.parse(raw) : {
@@ -672,12 +733,16 @@ let outbox = {
             sending: false
         };
     }
-}function saveOutbox() {
+}
+
+function saveOutbox() {
     try {
         localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
     } catch {
     }
-}function installNetworkBanner() {
+}
+
+function installNetworkBanner() {
     if (document.getElementById("net-banner")) return;
     const wrap = document.createElement("div");
     wrap.id = "net-banner";
@@ -690,22 +755,32 @@ let outbox = {
     dom.netCloseBtn = wrap.querySelector("#net-close");
     dom.netForceBtn.addEventListener("click", () => processOutbox(true));
     dom.netCloseBtn.addEventListener("click", () => hideNetBanner());
-}function showNetBanner(msg) {
+}
+
+function showNetBanner(msg) {
     if (!dom.netBanner) installNetworkBanner();
     if (dom.netMsg && msg) dom.netMsg.textContent = msg;
     dom.netBanner.classList.remove("hidden");
-}function updateNetBannerCount() {
+}
+
+function updateNetBannerCount() {
     const n = outbox.queue.length;
     showNetBanner(
         `Falha na conexão com a rede… Tentando registrar (${n} na fila)`,
     );
-}function hideNetBannerSoon(okMsg = "Tudo certo: itens enviados") {
+}
+
+function hideNetBannerSoon(okMsg = "Tudo certo: itens enviados") {
     if (!dom.netBanner) return;
     if (dom.netMsg) dom.netMsg.textContent = okMsg;
     setTimeout(() => dom.netBanner.classList.add("hidden"), 1500);
-}function hideNetBanner() {
+}
+
+function hideNetBanner() {
     dom.netBanner?.classList.add("hidden");
-}function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
+}
+
+function fetchWithTimeout(url, opt = {}, timeoutMs = NET_TIMEOUT_MS) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const merged = {
@@ -713,7 +788,9 @@ let outbox = {
         signal: ctrl.signal
     };
     return fetch(url, merged).finally(() => clearTimeout(t));
-}function isNetworkLikeError(err) {
+}
+
+function isNetworkLikeError(err) {
     const s = String(err?.message || err || "").toLowerCase();
     return (
         s.includes("network") ||
@@ -721,13 +798,17 @@ let outbox = {
         s.includes("abort") ||
         s.includes("timeout")
     );
-}function enqueueTask(task) {
+}
+
+function enqueueTask(task) {
     loadOutbox();
     outbox.queue.push(task);
     saveOutbox();
     updateNetBannerCount();
     setTimeout(() => processOutbox(), 1200);
-}async function processOutbox(force = false) {
+}
+
+async function processOutbox(force = false) {
     loadOutbox();
     if (outbox.sending) return;
     if (!force && !navigator.onLine) {
@@ -807,7 +888,9 @@ let outbox = {
         if (outbox.queue.length === 0) hideNetBannerSoon();
         else updateNetBannerCount();
     }
-}async function tryPostOrQueue(kind, url, body) {
+}
+
+async function tryPostOrQueue(kind, url, body) {
     try {
         const res = await fetchWithTimeout(url, {
             method: "POST",
@@ -841,7 +924,9 @@ let outbox = {
         }
         throw err;
     }
-}function handleOutboxSepSuccess(ev) {
+}
+
+function handleOutboxSepSuccess(ev) {
     const {
         json
     } = ev.detail || {};
@@ -882,7 +967,9 @@ let outbox = {
     } catch (e) {
         console.error("[Outbox] pós-sucesso separação falhou:", e);
     }
-}function handleOutboxCarSuccess(ev) {
+}
+
+function handleOutboxCarSuccess(ev) {
     const {
         json
     } = ev.detail || {};
@@ -919,7 +1006,9 @@ let outbox = {
     } catch (e) {
         console.error("[Outbox] pós-sucesso carregamento falhou:", e);
     }
-}function getBrasiliaDate(asDateObject = false) {
+}
+
+function getBrasiliaDate(asDateObject = false) {
     const date = new Date();
     const formatter = new Intl.DateTimeFormat("sv-SE", {
         timeZone: BRASILIA_TIMEZONE,
@@ -932,27 +1021,37 @@ let outbox = {
         return new Date(parts[0], parts[1] - 1, parts[2]);
     }
     return formatter.format(date);
-}function clampEndToToday(startStr, endStr) {
+}
+
+function clampEndToToday(startStr, endStr) {
     const todayISO = getBrasiliaDate(false);
     if (endStr > todayISO) endStr = todayISO;
     if (startStr > endStr) startStr = endStr;
     return [startStr, endStr];
-}function toast(message, type = "info") {
+}
+
+function toast(message, type = "info") {
     console.warn(`TOAST (${type}):`, message);
     alert(message);
-}function buildFunctionHeaders() {
+}
+
+function buildFunctionHeaders() {
     return {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}function buildSelectHeaders() {
+}
+
+function buildSelectHeaders() {
     return {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     };
-}function formatarDataHack(isoString, formatOptions) {
+}
+
+function formatarDataHack(isoString, formatOptions) {
     if (!isoString) return "---";
     try {
         let dt;
@@ -966,7 +1065,9 @@ let outbox = {
     } catch {
         return "---";
     }
-}function formatarDataHora(isoString) {
+}
+
+function formatarDataHora(isoString) {
     const options = {
         day: "2-digit",
         month: "2-digit",
@@ -976,7 +1077,9 @@ let outbox = {
         second: "2-digit",
     };
     return formatarDataHack(isoString, options);
-}function formatarDataInicio(isoString) {
+}
+
+function formatarDataInicio(isoString) {
     if (!isoString) return "---";
     const options = {
         day: "2-digit",
@@ -989,13 +1092,19 @@ let outbox = {
     } catch {
         return "---";
     }
-}function waitForPaint() {
+}
+
+function waitForPaint() {
     return new Promise((r) => {
         requestAnimationFrame(() => requestAnimationFrame(r));
     });
-}function sleep(ms) {
+}
+
+function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
-}async function printCurrentQr() {
+}
+
+async function printCurrentQr() {
     if (!dom.sepQrArea || dom.sepQrArea.style.display === "none") {
         setSepStatus("Primeiro gere um QR Code para imprimir.", {
             error: true
@@ -1007,12 +1116,16 @@ let outbox = {
     await waitForPaint();
     await sleep(400);
     window.print();
-}function extractElevenDigits(str) {
+}
+
+function extractElevenDigits(str) {
     if (str == null) return null;
     const digits = String(str).replace(/\D+/g, "");
     if (digits.length >= 11) return digits.slice(-11);
     return null;
-}function normalizeScanned(input) {
+}
+
+function normalizeScanned(input) {
     if (!input) return "";
     const s = String(input).trim();
     if (s.startsWith("{") && s.endsWith("}")) {
@@ -1028,7 +1141,9 @@ let outbox = {
     if (seq) return seq[0].slice(-11);
     const cleaned = extractElevenDigits(s);
     return cleaned || s;
-}function openModal(modal) {
+}
+
+function openModal(modal) {
     if (!modal || !modal.classList.contains("hidden")) return;
     modal.classList.remove("hidden");
     modal.setAttribute("aria-hidden", "false");
@@ -1060,7 +1175,9 @@ let outbox = {
         'input, button, textarea, [tabindex]:not([tabindex="-1"])',
     );
     if (first) setTimeout(() => first.focus(), 50);
-}function closeModal(modal) {
+}
+
+function closeModal(modal) {
     if (!modal || modal.classList.contains("hidden")) return;
     if (state.globalScannerInstance) stopGlobalScanner();
     modal.classList.add("hidden");
@@ -1070,12 +1187,16 @@ let outbox = {
     if (modal._bound?.onOverlayClick)
         modal.removeEventListener("click", modal._bound.onOverlayClick, true);
     dom._currentModal = null;
-}function resetSeparacaoModal() {
+}
+
+function resetSeparacaoModal() {
     if (state.globalScannerInstance) stopGlobalScanner();
     if (dom.sepScan) dom.sepScan.value = "";
     setSepStatus("");
     clearSepQrCanvas();
-}function resetCarregamentoModal({
+}
+
+function resetCarregamentoModal({
                                     preserveUser = true,
                                     preserveDock = true,
                                 } = {}) {
@@ -1089,7 +1210,9 @@ let outbox = {
     if (dom.carIlhaSelect) dom.carIlhaSelect.value = "";
     if (dom.carScan) dom.carScan.value = "";
     setCarStatus("");
-}function showScannerFeedback(type, message, sticky = false) {
+}
+
+function showScannerFeedback(type, message, sticky = false) {
     if (!dom.scannerFeedbackOverlay) return;
     const textEl = dom.scannerFeedbackOverlay.querySelector("span");
     if (textEl) textEl.textContent = message;
@@ -1111,7 +1234,9 @@ let outbox = {
                 1500,
             );
     }
-}function showScannerConfirm(decodedText, onYes, onNo) {
+}
+
+function showScannerConfirm(decodedText, onYes, onNo) {
     if (!dom.scannerConfirmOverlay) return;
     state.pendingDecodedText = decodedText;
     dom.scannerConfirmText.textContent = decodedText;
@@ -1130,7 +1255,9 @@ let outbox = {
     };
     dom.scannerConfirmYesBtn.addEventListener("click", yesHandler);
     dom.scannerConfirmNoBtn.addEventListener("click", noHandler);
-}function createGlobalScannerModal() {
+}
+
+function createGlobalScannerModal() {
     if (document.getElementById("auditoria-scanner-modal")) return;
     const modal = document.createElement("div");
     modal.id = "auditoria-scanner-modal";
@@ -1168,7 +1295,9 @@ let outbox = {
             }
         }
     });
-}function injectScannerButtons() {
+}
+
+function injectScannerButtons() {
     const cameraIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M12 9a3.75 3.75 0 100 7.5A3.75 3.75 0 0012 9z" /><path fill-rule="evenodd" d="M9.344 3.071a.75.75 0 015.312 0l1.173 1.173a.75.75 0 00.53.22h2.172a3 3 0 013 3v10.5a3 3 0 01-3 3H5.47a3 3 0 01-3-3V7.464a3 3 0 013-3h2.172a.75.75 0 00.53-.22L9.344 3.071zM12 18a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" /></svg>`;
     [{
         input: dom.sepScan,
@@ -1202,7 +1331,9 @@ let outbox = {
     dom.carCamBtn?.addEventListener("click", () =>
         startGlobalScanner("carregamento"),
     );
-}function startGlobalScanner(targetModal) {
+}
+
+function startGlobalScanner(targetModal) {
     if (state.globalScannerInstance || !dom.scannerModal) return;
     state.currentScannerTarget = targetModal;
     if (dom._currentModal) {
@@ -1278,7 +1409,9 @@ let outbox = {
         });
         stopGlobalScanner();
     }
-}function stopGlobalScanner() {
+}
+
+function stopGlobalScanner() {
     if (!state.globalScannerInstance) {
         dom.scannerModal?.classList.add("hidden");
         if (dom._currentModal) {
@@ -1307,7 +1440,9 @@ let outbox = {
             state.currentScannerTarget = null;
             state.pendingDecodedText = null;
         });
-}async function onGlobalScanSuccess(decodedText) {
+}
+
+async function onGlobalScanSuccess(decodedText) {
     const target = state.currentScannerTarget;
     if (!target || !state.globalScannerInstance) {
         stopGlobalScanner();
@@ -1335,8 +1470,12 @@ let outbox = {
             state.globalScannerInstance?.resume();
         },
     );
-}function onGlobalScanError(_) {
-}async function processarPacote(idPacote, dataScan, usuarioEntrada) {
+}
+
+function onGlobalScanError(_) {
+}
+
+async function processarPacote(idPacote, dataScan, usuarioEntrada) {
     const body = {
         id_pacote: idPacote,
         data_scan: dataScan,
@@ -1352,30 +1491,43 @@ let outbox = {
         throw new Error(json?.error || "Erro desconhecido");
     }
     return json;
-}async function handleSeparacaoFromScanner(idPacote) {
+}
+
+async function handleSeparacaoFromScanner(idPacote) {
     if (state.isSeparaçãoProcessing) return;
-    const usuarioEntrada = dom.sepUser?.value?.trim();    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";    if (!usuarioEntrada) {
+    const usuarioEntrada = dom.sepUser?.value?.trim();
+    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";
+    if (!usuarioEntrada) {
         showScannerFeedback("error", "Colaborador não definido.", true);
         stopGlobalScanner();
         setSepStatus("Digite o nome do colaborador", {error: true});
         dom.sepUser?.focus();
         return;
-    }    state.isSeparaçãoProcessing = true;
-    const dataScan = new Date().toISOString();    try {
+    }
+    state.isSeparaçãoProcessing = true;
+    const dataScan = new Date().toISOString();
+    try {
         const body = {
             id_pacote: idPacote,
             data_scan: dataScan,
             usuario_entrada: usuarioEntrada,
             svc: svcSelecionado
-        };        const {queued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);        if (queued) {
+        };
+        const {queued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);
+        if (queued) {
             showScannerFeedback("error", "Sem rede... Tentando registrar", true);
             stopGlobalScanner();
             setSepStatus('Sem rede. Na fila.', {error: true});
             dom.sepScan.value = idPacote;
             dom.sepScan.focus();
             return;
-        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;        if (!numeracao) throw new Error(json?.error || "Resposta sem numeração");        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);        if (isDuplicate) {
+        }
+        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
+        if (!numeracao) throw new Error(json?.error || "Resposta sem numeração");
+        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        if (isDuplicate) {
             const friendly = message || "PACOTE JÁ BIPADO.";
             showScannerFeedback("error", friendly, true);
             stopGlobalScanner();
@@ -1406,22 +1558,31 @@ let outbox = {
     } finally {
         state.isSeparaçãoProcessing = false;
     }
-}function handleSepUserKeydown(e) {
+}
+
+function handleSepUserKeydown(e) {
     if (e.key === "Enter") {
         e.preventDefault();
         dom.sepScan.focus();
     }
-}function parseBulkEntries(raw) {
+}
+
+function parseBulkEntries(raw) {
     if (!raw) return [];
     return String(raw)
         .split(/[,;\s\n\r\t]+/g)
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
-}async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
+}
+
+async function processarSeparacaoEmMassa(ids, usuarioEntrada) {
     const total = ids.length;
-    let ok = 0, fail = 0, dup = 0, queued = 0;    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";    state.isSeparaçãoProcessing = true;
+    let ok = 0, fail = 0, dup = 0, queued = 0;
+    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";
+    state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
-    dom.sepUser.disabled = true;    for (let i = 0; i < total; i++) {
+    dom.sepUser.disabled = true;
+    for (let i = 0; i < total; i++) {
         const idPacote = ids[i];
         setSepStatus(`Processando ${i + 1}/${total}: ${idPacote}...`);
         try {
@@ -1432,13 +1593,18 @@ let outbox = {
                 usuario_entrada: usuarioEntrada,
                 svc: svcSelecionado
             };
-            const {queued: wasQueued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);            if (wasQueued) {
+            const {queued: wasQueued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);
+            if (wasQueued) {
                 queued++;
                 continue;
-            }            const {numeracao, ilha, insertedData, pacote, isDuplicate} = json || {};
-            if (!numeracao) throw new Error(json?.error || "Erro no retorno");            const idPacoteParaQr = pacote || idPacote;
-            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};            await generateQRCode(idPacoteParaQr, ilha, numeracao);
-            await printCurrentQr();            if (isDuplicate) {
+            }
+            const {numeracao, ilha, insertedData, pacote, isDuplicate} = json || {};
+            if (!numeracao) throw new Error(json?.error || "Erro no retorno");
+            const idPacoteParaQr = pacote || idPacote;
+            state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
+            await generateQRCode(idPacoteParaQr, ilha, numeracao);
+            await printCurrentQr();
+            if (isDuplicate) {
                 dup++;
             } else {
                 if (insertedData && insertedData[0]) {
@@ -1459,11 +1625,16 @@ let outbox = {
     state.isSeparaçãoProcessing = false;
     dom.sepScan.disabled = false;
     dom.sepUser.disabled = false;
-}async function handleSeparaçãoSubmit(e) {
+}
+
+async function handleSeparaçãoSubmit(e) {
     if (e.key !== "Enter") return;
     if (state.isSeparaçãoProcessing) return;
-    e.preventDefault();    const raw = dom.sepScan?.value ?? "";
-    const usuarioEntrada = dom.sepUser?.value?.trim();    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";    if (!usuarioEntrada) {
+    e.preventDefault();
+    const raw = dom.sepScan?.value ?? "";
+    const usuarioEntrada = dom.sepUser?.value?.trim();
+    const svcSelecionado = dom.sepSVC ? dom.sepSVC.value : "SBA7";
+    if (!usuarioEntrada) {
         setSepStatus("Digite o nome do colaborador", {error: true});
         dom.sepUser.focus();
         return;
@@ -1472,28 +1643,40 @@ let outbox = {
         setSepStatus("Digite um código válido", {error: true});
         dom.sepScan.focus();
         return;
-    }    const idsRaw = parseBulkEntries(raw);
-    const ids = idsRaw.map(normalizeScanned).filter(Boolean);    if (ids.length > 1) {
+    }
+    const idsRaw = parseBulkEntries(raw);
+    const ids = idsRaw.map(normalizeScanned).filter(Boolean);
+    if (ids.length > 1) {
         await processarSeparacaoEmMassa(ids, usuarioEntrada);
         return;
-    }    const idPacote = ids[0];
+    }
+    const idPacote = ids[0];
     const dataScan = new Date().toISOString();
     state.isSeparaçãoProcessing = true;
     dom.sepScan.disabled = true;
     dom.sepUser.disabled = true;
     setSepStatus("Processando...");
-    clearSepQrCanvas();    try {
+    clearSepQrCanvas();
+    try {
         const body = {
             id_pacote: idPacote,
             data_scan: dataScan,
             usuario_entrada: usuarioEntrada,
             svc: svcSelecionado
-        };        const {queued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);        if (queued) {
+        };
+        const {queued, json} = await tryPostOrQueue("separacao", FUNC_SEPARACAO_URL, body);
+        if (queued) {
             setSepStatus('Sem rede. Registro na fila.', {error: true});
             return;
-        }        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;        if (!numeracao) throw new Error(json?.error || "Erro API");        const idPacoteParaQr = pacote || idPacote;
-        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};        await generateQRCode(idPacoteParaQr, ilha, numeracao);
-        await printCurrentQr();        dom.sepScan.value = "";        if (isDuplicate) {
+        }
+        const {numeracao, ilha, insertedData, pacote, isDuplicate, message} = json;
+        if (!numeracao) throw new Error(json?.error || "Erro API");
+        const idPacoteParaQr = pacote || idPacote;
+        state.lastPrintData = {dataForQr: idPacoteParaQr, ilha, mangaLabel: numeracao};
+        await generateQRCode(idPacoteParaQr, ilha, numeracao);
+        await printCurrentQr();
+        dom.sepScan.value = "";
+        if (isDuplicate) {
             setSepStatus(message || "Já bipado.", {error: true});
         } else {
             setSepStatus(`Sucesso! Manga ${numeracao} (${svcSelecionado}) registrada.`);
@@ -1513,7 +1696,9 @@ let outbox = {
         dom.sepUser.disabled = false;
         if (!state.globalScannerInstance) dom.sepScan.focus();
     }
-}function setCarStatus(message, {
+}
+
+function setCarStatus(message, {
     error = false
 } = {}) {
     if (!dom.carStatus) return;
@@ -1524,9 +1709,13 @@ let outbox = {
         "text-gray-500",
     );
     dom.carStatus.classList.add(error ? "text-red-600" : "text-green-600");
-}function formatDockLabel(n) {
+}
+
+function formatDockLabel(n) {
     return `DOCA ${String(n).padStart(2, "0")}`;
-}function ensureDockSelect() {
+}
+
+function ensureDockSelect() {
     if (dom.carDockSelect && dom.carDockSelect.parentElement) return;
     dom.carDockSelect = document.getElementById("car-dock-select");
     if (!dom.carDockSelect) {
@@ -1561,7 +1750,9 @@ let outbox = {
     dom.carDockSelect.addEventListener("change", () => {
         state.selectedDock = dom.carDockSelect.value || null;
     });
-}function ensureIlhaSelect() {
+}
+
+function ensureIlhaSelect() {
     if (dom.carIlhaSelect && dom.carIlhaSelect.parentElement) return;
     dom.carIlhaSelect = document.getElementById("car-ilha-select");
     if (!dom.carIlhaSelect) {
@@ -1579,7 +1770,9 @@ let outbox = {
     dom.carIlhaSelect.addEventListener("change", () => {
         state.selectedIlha = dom.carIlhaSelect.value || null;
     });
-}function populateIlhaSelect() {
+}
+
+function populateIlhaSelect() {
     if (!dom.carIlhaSelect) return;
     const rotas = [
         ...new Set(state.cacheData.map((item) => item.ROTA).filter(Boolean)),
@@ -1600,7 +1793,9 @@ let outbox = {
         dom.carIlhaSelect.appendChild(opt);
     }
     if (state.selectedIlha) dom.carIlhaSelect.value = state.selectedIlha;
-}async function processarValidacao(
+}
+
+async function processarValidacao(
     idPacoteScaneado,
     rotaSelecionada,
     usuarioSaida,
@@ -1627,7 +1822,9 @@ let outbox = {
         throw new Error(msg);
     }
     return json || {};
-}function handleCarUserKeydown(e) {
+}
+
+function handleCarUserKeydown(e) {
     if (e.key === "Enter") {
         e.preventDefault();
         if (!state.selectedDock && dom.carDockSelect) {
@@ -1638,21 +1835,32 @@ let outbox = {
             dom.carScan.focus();
         }
     }
-}async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {    const svcSelecionado = dom.carSVC ? dom.carSVC.value : "SBA7";    if (!usuarioSaida) return {success: false, message: "Digite o nome do colaborador"};
+}
+
+async function runCarregamentoValidation(idPacoteScaneado, usuarioSaida, doca, ilha) {
+    const svcSelecionado = dom.carSVC ? dom.carSVC.value : "SBA7";
+    if (!usuarioSaida) return {success: false, message: "Digite o nome do colaborador"};
     if (!doca) return {success: false, message: "Selecione a DOCA"};
     if (!ilha) return {success: false, message: "Selecione a ILHA"};
-    if (!idPacoteScaneado) return {success: false, message: "Bipe o Pacote"};    try {
+    if (!idPacoteScaneado) return {success: false, message: "Bipe o Pacote"};
+    try {
         const body = {
             id_pacote: idPacoteScaneado,
             rota_selecionada: ilha,
             usuario_saida: usuarioSaida,
             doca,
             svc: svcSelecionado
-        };        const {queued, json} = await tryPostOrQueue("carregamento", FUNC_CARREGAMENTO_URL, body);        if (queued) {
+        };
+        const {queued, json} = await tryPostOrQueue("carregamento", FUNC_CARREGAMENTO_URL, body);
+        if (queued) {
             return {success: false, message: 'Sem rede. Item na fila.'};
-        }        const {updatedData, idempotent, message} = json || {};
-        if (!updatedData) throw new Error(json?.error || "Erro no retorno do Backend");        const updatedNumeracao = updatedData?.NUMERACAO;
-        let successMessage = message || `OK! ${updatedNumeracao} validado (${svcSelecionado}).`;        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já validada.`;        const index = state.cacheData.findIndex(i => i.NUMERACAO === updatedNumeracao);
+        }
+        const {updatedData, idempotent, message} = json || {};
+        if (!updatedData) throw new Error(json?.error || "Erro no retorno do Backend");
+        const updatedNumeracao = updatedData?.NUMERACAO;
+        let successMessage = message || `OK! ${updatedNumeracao} validado (${svcSelecionado}).`;
+        if (idempotent) successMessage = message || `Manga ${updatedNumeracao} já validada.`;
+        const index = state.cacheData.findIndex(i => i.NUMERACAO === updatedNumeracao);
         if (index > -1) {
             state.cacheData[index] = {...state.cacheData[index], ...updatedData};
             const id = extractElevenDigits(state.cacheData[index]["ID PACOTE"]);
@@ -1661,12 +1869,15 @@ let outbox = {
             state.cacheData.unshift(updatedData);
             const id = extractElevenDigits(updatedData["ID PACOTE"]);
             if (id) state.idPacoteMap.set(id, updatedData);
-        }        return {success: true, message: successMessage};
+        }
+        return {success: true, message: successMessage};
     } catch (err) {
         console.error("Erro Carregamento:", err);
         return {success: false, message: `Erro: ${err.message || err}`};
     }
-}async function handleCarregamentoFromScanner(decodedText) {
+}
+
+async function handleCarregamentoFromScanner(decodedText) {
     if (state.isCarregamentoProcessing) return;
     const cleaned = normalizeScanned(decodedText);
     try {
@@ -1695,7 +1906,9 @@ let outbox = {
     } finally {
         state.isCarregamentoProcessing = false;
     }
-}async function handleCarregamentoSubmit(e) {
+}
+
+async function handleCarregamentoSubmit(e) {
     if (e.key !== "Enter" || state.isCarregamentoProcessing) return;
     e.preventDefault();
     state.isCarregamentoProcessing = true;
@@ -1744,7 +1957,9 @@ let outbox = {
             dom.carScan.focus();
         }
     }
-}async function fetchDashboardData() {
+}
+
+async function fetchDashboardData() {
     if (!state.period.start || !state.period.end) {
         const today = new Date();
         const endISO = getBrasiliaDate(false);
@@ -1799,7 +2014,9 @@ let outbox = {
             dom.summaryContainer.innerHTML = `<p class="text-red-500 text-xs p-2">Erro ao carregar dados.</p>`;
         }
     }
-}function processDashboardData(data) {
+}
+
+function processDashboardData(data) {
     if (!data || data.length === 0) return [];
     const rotasMap = new Map();
     for (const item of data) {
@@ -1858,17 +2075,33 @@ let outbox = {
     }
     rotasConsolidadas.sort((a, b) => a.percentual - b.percentual);
     return rotasConsolidadas;
-}function renderDashboard() {
+}
+
+// --- Função renderDashboard Completa e Atualizada ---
+function renderDashboard() {
     const summaryContainer = dom.summaryContainer;
     const routesContainer = dom.routesContainer;
+
     if (!summaryContainer || !routesContainer) return;
-    const todayISO = getBrasiliaDate(false);
-    const todayFormatted = todayISO.split("-").reverse().join("/");
+
+    // --- MUDANÇA AQUI: Lógica de Data Operacional ---
+    // Pega a data de "agora" considerando a regra das 6h da manhã
+    const currentOperationalKey = getOperationalDateKey(new Date());
+
+    // Formata para exibição (DD/MM/AAAA)
+    // currentOperationalKey vem como YYYY-MM-DD (ex: 2023-10-25)
+    const parts = currentOperationalKey.split("-");
+    const todayFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+    // Filtra os dados: Compara o Dia Operacional do item com o Dia Operacional atual
     const operacaoData = state.cacheData.filter((item) => {
-        const itemDate = getBrazilDateKey(item.DATA);
-        return itemDate === todayISO;
+        const itemOpKey = getOperationalDateKey(item.DATA);
+        return itemOpKey === currentOperationalKey;
     });
+    // ------------------------------------------------
+
     const rotasConsolidadas = processDashboardData(operacaoData);
+
     const totalGeralPacotes = rotasConsolidadas.reduce(
         (acc, r) => acc + r.total,
         0,
@@ -1877,45 +2110,134 @@ let outbox = {
         (acc, r) => acc + r.verificados,
         0,
     );
+
     const totalGeralPendentes = totalGeralPacotes - totalGeralVerificados;
+
     const percVerificados =
         totalGeralPacotes > 0 ?
             (totalGeralVerificados / totalGeralPacotes) * 100 :
             0;
+
     const percPendentes =
         totalGeralPacotes > 0 ? (totalGeralPendentes / totalGeralPacotes) * 100 : 0;
-    let resumoHtml = `    <div class="flex items-center justify-between mb-2">         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">            Visão: ${todayFormatted}         </span>         <span class="text-[10px] text-gray-400">${state.cacheData.length} regs</span>    </div>    <div class="grid grid-cols-3 gap-3 mb-2">        <!-- Carregamentos -->        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">            <span class="text-[10px] font-bold text-gray-400 uppercase">Carregamentos</span>            <span class="text-xl font-bold text-auditoria-primary leading-none mt-1">                ${totalGeralVerificados}            </span>            <span class="text-[10px] text-gray-400">de ${totalGeralPacotes}</span>        </div>        <!-- Concluído -->        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">            <span class="text-[10px] font-bold text-gray-400 uppercase">Concluído</span>            <span class="text-xl font-bold text-green-600 leading-none mt-1">                ${percVerificados.toFixed(2)}%            </span>            <span class="text-[10px] text-gray-400">                (${totalGeralVerificados} concluídos)            </span>        </div>        <!-- Em Andamento -->        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">            <span class="text-[10px] font-bold text-gray-400 uppercase">Em Andamento</span>            <span class="text-xl font-bold text-yellow-600 leading-none mt-1">                ${percPendentes.toFixed(2)}%            </span>            <span class="text-[10px] text-gray-400">                (${totalGeralPendentes} pendentes)            </span>        </div>    </div>    `;
+
+    let resumoHtml = `
+    <div class="flex items-center justify-between mb-2">
+         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            Visão: ${todayFormatted} (Turno)
+         </span>
+         <span class="text-[10px] text-gray-400">${operacaoData.length} regs</span>
+    </div>
+    <div class="grid grid-cols-3 gap-3 mb-2">
+        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+            <span class="text-[10px] font-bold text-gray-400 uppercase">Carregamentos</span>
+            <span class="text-xl font-bold text-auditoria-primary leading-none mt-1">
+                ${totalGeralVerificados}
+            </span>
+            <span class="text-[10px] text-gray-400">de ${totalGeralPacotes}</span>
+        </div>
+        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+            <span class="text-[10px] font-bold text-gray-400 uppercase">Concluído</span>
+            <span class="text-xl font-bold text-green-600 leading-none mt-1">
+                ${percVerificados.toFixed(2)}%
+            </span>
+            <span class="text-[10px] text-gray-400">
+                (${totalGeralVerificados} concluídos)
+            </span>
+        </div>
+        <div class="bg-white px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center">
+            <span class="text-[10px] font-bold text-gray-400 uppercase">Em Andamento</span>
+            <span class="text-xl font-bold text-yellow-600 leading-none mt-1">
+                ${percPendentes.toFixed(2)}%
+            </span>
+            <span class="text-[10px] text-gray-400">
+                (${totalGeralPendentes} pendentes)
+            </span>
+        </div>
+    </div>
+    `;
+
     summaryContainer.innerHTML = resumoHtml;
+
     if (rotasConsolidadas.length === 0) {
-        routesContainer.innerHTML = `            <div class="text-center py-8 bg-white rounded-lg border border-dashed border-gray-200">                <p class="text-sm text-gray-400">Sem movimentação hoje.</p>            </div>`;
+        routesContainer.innerHTML = `
+            <div class="text-center py-8 bg-white rounded-lg border border-dashed border-gray-200">
+                <p class="text-sm text-gray-400">Sem movimentação neste turno.</p>
+            </div>`;
         return;
     }
+
     const concluidaIcon = `<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
     const emAndamentoIcon = `<svg class="w-4 h-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+
     let rotasHtml = '<div class="space-y-2">';
+
     for (const rota of rotasConsolidadas) {
         const statusHtml = rota.concluida ?
             `<div class="flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded text-green-700 text-[10px] font-bold border border-green-100">OK</div>` :
             `<div class="flex items-center gap-1 bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 text-[10px] font-bold border border-yellow-100">${rota.pendentes} pend</div>`;
+
         const circleColor =
             rota.percentual === 100 ? "text-green-500" : "text-blue-500";
-        rotasHtml += `        <div class="rota-card bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:border-blue-300 transition-colors" data-rota="${rota.rota}">            <div class="flex items-center justify-between">                <div class="flex items-center gap-3">                    <div class="bg-gray-100 h-10 w-10 rounded-full flex items-center justify-center font-bold text-gray-600 text-sm border border-gray-200">                        ${rota.rota}                    </div>                    <div>                        <div class="flex items-center gap-2">                            <span class="text-sm font-bold text-gray-800">Rota ${rota.rota}</span>                            ${statusHtml}                        </div>                        <div class="text-[10px] text-gray-400 mt-0.5 flex gap-2">                             <span>Início: ${rota.inicio.split(" ")[1] || "--:--"}</span>                             <span>•</span>                             <span>Ult: ${rota.ultimoCarregamento.split(" ")[1] || "--:--"}</span>                        </div>                    </div>                </div>                <div class="flex items-center gap-3">                    <div class="text-right hidden sm:block">                        <div class="text-xs font-bold text-gray-700">${rota.verificados}/${rota.total}</div>                        <div class="text-[10px] text-gray-400">Verificados</div>                    </div>                    <div class="relative w-10 h-10">                         <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">                            <path class="text-gray-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke="currentColor" />                            <path class="${circleColor}" stroke-dasharray="${rota.percentual}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke-linecap="round" stroke="currentColor" />                        </svg>                        <div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-600">                            ${rota.percentual}%                        </div>                    </div>                </div>            </div>        </div>`;
+
+        rotasHtml += `
+        <div class="rota-card bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-pointer hover:border-blue-300 transition-colors" data-rota="${rota.rota}">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="bg-gray-100 h-10 w-10 rounded-full flex items-center justify-center font-bold text-gray-600 text-sm border border-gray-200">
+                        ${rota.rota}
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-gray-800">Rota ${rota.rota}</span>
+                            ${statusHtml}
+                        </div>
+                        <div class="text-[10px] text-gray-400 mt-0.5 flex gap-2">
+                             <span>Início: ${rota.inicio.split(" ")[1] || "--:--"}</span>
+                             <span>•</span>
+                             <span>Ult: ${rota.ultimoCarregamento.split(" ")[1] || "--:--"}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <div class="text-xs font-bold text-gray-700">${rota.verificados}/${rota.total}</div>
+                        <div class="text-[10px] text-gray-400">Verificados</div>
+                    </div>
+                    <div class="relative w-10 h-10">
+                         <svg class="w-full h-full" viewBox="0 0 36 36" transform="rotate(-90)">
+                            <path class="text-gray-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke="currentColor" />
+                            <path class="${circleColor}" stroke-dasharray="${rota.percentual}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke-width="4" stroke-linecap="round" stroke="currentColor" />
+                        </svg>
+                        <div class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-600">
+                            ${rota.percentual}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>`;
     }
+
     rotasHtml += "</div>";
     routesContainer.innerHTML = rotasHtml;
+
     routesContainer.querySelectorAll(".rota-card").forEach((card) => {
         card.addEventListener("dblclick", () => {
             const rota = card.getAttribute("data-rota");
             openRelatorioModal(rota);
         });
     });
-}async function fetchAndRenderDashboard() {
+}
+
+async function fetchAndRenderDashboard() {
     await fetchDashboardData();
     renderDashboard();
     if (!dom.subtabAnalise.classList.contains("hidden")) {
         renderAnalysisTab();
     }
-}function reorderControlsOverDashboard() {
+}
+
+function reorderControlsOverDashboard() {
     const container = document.getElementById("extra-controls-container");
     if (!container) return;
     if (!dom.btnImportarConsolidado) {
@@ -1937,7 +2259,9 @@ let outbox = {
             openModal(dom.modalImportar);
         });
     }
-}function setSepStatus(message, {
+}
+
+function setSepStatus(message, {
     error = false
 } = {}) {
     if (!dom.sepStatus) return;
@@ -1948,12 +2272,16 @@ let outbox = {
         "text-gray-500",
     );
     dom.sepStatus.classList.add(error ? "text-red-600" : "text-green-600");
-}function clearSepQrCanvas() {
+}
+
+function clearSepQrCanvas() {
     if (dom.sepQrCanvas) dom.sepQrCanvas.innerHTML = "";
     if (dom.sepQrTitle) dom.sepQrTitle.innerHTML = "";
     if (dom.sepQrArea) dom.sepQrArea.style.display = "none";
     state.lastPrintData = null;
-}function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
+}
+
+function generateQRCode(dataForQr, ilha = null, mangaLabel = null) {
     return new Promise((resolve, reject) => {
         if (!dom.sepQrCanvas || !dom.sepQrTitle || !dom.sepQrArea) {
             console.warn("DOM do QR Code não encontrado, pulando geração.");
@@ -2004,7 +2332,9 @@ let outbox = {
             reject(err);
         }
     });
-}function createRelatorioModal() {
+}
+
+function createRelatorioModal() {
     if (document.getElementById("modal-relatorio-rota")) return;
     const modal = document.createElement("div");
     modal.id = "modal-relatorio-rota";
@@ -2019,7 +2349,9 @@ let outbox = {
     dom.relatorioModalClose?.addEventListener("click", () => {
         closeModal(dom.relatorioModal);
     });
-}function openRelatorioModal(rota) {
+}
+
+function openRelatorioModal(rota) {
     if (!dom.relatorioModal || !rota) return;
     const items = state.cacheData.filter((item) => item.ROTA === rota);
     dom.relatorioTitle.textContent = `Relatório - Rota ${rota} (${items.length} pacotes)`;
@@ -2034,7 +2366,9 @@ let outbox = {
     tableHtml += `</tbody></table>`;
     dom.relatorioBody.innerHTML = tableHtml;
     openModal(dom.relatorioModal);
-}function updatePeriodLabel() {
+}
+
+function updatePeriodLabel() {
     if (!dom.periodBtn) return;
     if (!state.period.start || !state.period.end) {
         dom.periodBtn.textContent = "Selecionar Período";
@@ -2052,7 +2386,9 @@ let outbox = {
     const end = format(state.period.end);
     dom.periodBtn.textContent =
         start === end ? `Período: ${start}` : `Período: ${start} - ${end}`;
-}function openPeriodModal() {
+}
+
+function openPeriodModal() {
     const today = getBrasiliaDate(true);
     const pad2 = (n) => String(n).padStart(2, "0");
     const toISO = (d) =>
@@ -2135,7 +2471,9 @@ let outbox = {
         close();
         fetchAndRenderDashboard();
     };
-}function injectAuditoriaStyles() {
+}
+
+function injectAuditoriaStyles() {
     if (document.getElementById("auditoria-styles")) return;
     const style = document.createElement("style");
     style.id = "auditoria-styles";
@@ -2198,18 +2536,30 @@ let outbox = {
         }
     `;
     document.head.appendChild(style);
-}let initOnce = false;export function init() {
+}
+
+let initOnce = false;
+
+export function init() {
     if (initOnce) return;
-    initOnce = true;    dom.dashboard = document.getElementById("dashboard-stats");
+    initOnce = true;
+
+    dom.dashboard = document.getElementById("dashboard-stats");
     dom.tabBtnSeparacao = document.getElementById("tab-btn-separacao");
     dom.tabBtnAnalise = document.getElementById("tab-btn-analise");
     dom.subtabSeparacao = document.getElementById("subtab-separacao");
     dom.subtabAnalise = document.getElementById("subtab-analise");
     dom.summaryContainer = document.getElementById("auditoria-summary");
-    dom.routesContainer = document.getElementById("auditoria-routes");    if (!dom.summaryContainer) dom.summaryContainer = document.getElementById("dashboard-stats");
-    if (!dom.routesContainer) dom.routesContainer = document.getElementById("dashboard-stats");    dom.btnSeparação = document.getElementById("btn-iniciar-separacao");
+    dom.routesContainer = document.getElementById("auditoria-routes");
+
+    if (!dom.summaryContainer) dom.summaryContainer = document.getElementById("dashboard-stats");
+    if (!dom.routesContainer) dom.routesContainer = document.getElementById("dashboard-stats");
+
+    dom.btnSeparação = document.getElementById("btn-iniciar-separacao");
     dom.btnCarregamento = document.getElementById("btn-iniciar-carregamento");
-    dom.periodBtn = document.getElementById("auditoria-period-btn");    dom.modalSeparação = document.getElementById("modal-separacao");
+    dom.periodBtn = document.getElementById("auditoria-period-btn");
+
+    dom.modalSeparação = document.getElementById("modal-separacao");
     dom.modalSepClose = dom.modalSeparação?.querySelector(".modal-close");
     dom.sepUser = document.getElementById("sep-user-name");
     dom.sepScan = document.getElementById("sep-scan-input");
@@ -2217,21 +2567,67 @@ let outbox = {
     dom.sepQrArea = document.getElementById("sep-qr-area");
     dom.sepQrTitle = document.getElementById("sep-qr-title");
     dom.sepQrCanvas = document.getElementById("sep-qr-canvas");
-    dom.sepPrintBtn = document.getElementById("sep-print-btn");    dom.sepSVC = document.getElementById("sep-svc-select");    dom.modalCarregamento = document.getElementById("modal-carregamento");
+    dom.sepPrintBtn = document.getElementById("sep-print-btn");
+    dom.sepSVC = document.getElementById("sep-svc-select");
+
+    dom.modalCarregamento = document.getElementById("modal-carregamento");
     dom.modalCarClose = dom.modalCarregamento?.querySelector(".modal-close");
     dom.carUser = document.getElementById("car-user-name");
     dom.carScan = document.getElementById("car-scan-input");
-    dom.carStatus = document.getElementById("car-status");    dom.carSVC = document.getElementById("car-svc-select");    injectAuditoriaStyles();    const todayISO = getBrasiliaDate(false);
-    state.period.start = todayISO;
-    state.period.end = todayISO;
-    updatePeriodLabel();    createGlobalScannerModal();
+    dom.carStatus = document.getElementById("car-status");
+    dom.carSVC = document.getElementById("car-svc-select");
+
+    injectAuditoriaStyles();
+
+    // --- LÓGICA DE TURNO NOTURNO (Alteração aqui) ---
+    // Verifica a hora atual. Se for antes das 06:00, considera que ainda é continuação
+    // do dia anterior (turno da noite).
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    // Formatador auxiliar para garantir o padrão YYYY-MM-DD correto
+    const formatISO = (dateObj) => {
+        const formatter = new Intl.DateTimeFormat("sv-SE", {
+            timeZone: "America/Sao_Paulo",
+            year: "numeric", month: "2-digit", day: "2-digit"
+        });
+        return formatter.format(dateObj);
+    };
+
+    if (currentHour < 6) {
+        // Madrugada (00:00 - 05:59): Pega desde ontem até agora
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        state.period.start = formatISO(yesterday);
+        state.period.end = formatISO(now);
+    } else {
+        // Dia normal (06:00 em diante): Pega apenas hoje
+        const todayISO = getBrasiliaDate(false);
+        state.period.start = todayISO;
+        state.period.end = todayISO;
+    }
+    updatePeriodLabel();
+    // ------------------------------------------------
+
+    createGlobalScannerModal();
     createRelatorioModal();
     createImportarModal();
-    injectScannerButtons();    ensureDockSelect();
+    injectScannerButtons();
+
+    ensureDockSelect();
     ensureIlhaSelect();
-    ensureCarUserSelect();    fetchHistoricalUsers();    dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
-    dom.tabBtnAnalise?.addEventListener("click", () => switchTab("analise"));    reorderControlsOverDashboard();
-    dom.periodBtn?.addEventListener("click", openPeriodModal);    dom.btnImportarConsolidado?.addEventListener("click", () => {
+    ensureCarUserSelect();
+
+    fetchHistoricalUsers();
+
+    dom.tabBtnSeparacao?.addEventListener("click", () => switchTab("separacao"));
+    dom.tabBtnAnalise?.addEventListener("click", () => switchTab("analise"));
+
+    reorderControlsOverDashboard();
+    dom.periodBtn?.addEventListener("click", openPeriodModal);
+
+    dom.btnImportarConsolidado?.addEventListener("click", () => {
         if (dom.importStatus) dom.importStatus.textContent = "";
         if (dom.importTextarea) dom.importTextarea.value = "";
         state.isImporting = false;
@@ -2240,18 +2636,27 @@ let outbox = {
             dom.importSubmitBtn.textContent = "Importar Dados";
         }
         openModal(dom.modalImportar);
-    });    dom.importCloseBtn?.addEventListener("click", () => closeModal(dom.modalImportar));
-    dom.importSubmitBtn?.addEventListener("click", handleImportarConsolidado);    dom.btnSeparação?.addEventListener("click", () => {
+    });
+
+    dom.importCloseBtn?.addEventListener("click", () => closeModal(dom.modalImportar));
+    dom.importSubmitBtn?.addEventListener("click", handleImportarConsolidado);
+
+    dom.btnSeparação?.addEventListener("click", () => {
         resetSeparacaoModal();
         openModal(dom.modalSeparação);
         if (dom.sepUser && !dom.sepUser.value) dom.sepUser.focus();
         else dom.sepScan?.focus();
-    });    dom.btnCarregamento?.addEventListener("click", () => {
+    });
+
+    dom.btnCarregamento?.addEventListener("click", () => {
         resetCarregamentoModal({
             preserveUser: true,
             preserveDock: true
-        });        populateIlhaSelect();
-        populateCarUserSelect();        if (dom.carUserSelect && dom.carUser && dom.carUserBackBtn) {
+        });
+        populateIlhaSelect();
+        populateCarUserSelect();
+
+        if (dom.carUserSelect && dom.carUser && dom.carUserBackBtn) {
             const currentVal = dom.carUser.value;
             if (!currentVal) {
                 dom.carUser.classList.add("hidden");
@@ -2270,7 +2675,10 @@ let outbox = {
                     dom.carUserSelect.classList.remove("hidden");
                 }
             }
-        }        openModal(dom.modalCarregamento);        if (dom.carUserSelect && !dom.carUserSelect.classList.contains("hidden") && !dom.carUserSelect.value) {
+        }
+        openModal(dom.modalCarregamento);
+
+        if (dom.carUserSelect && !dom.carUserSelect.classList.contains("hidden") && !dom.carUserSelect.value) {
             dom.carUserSelect.focus();
         } else if (dom.carUser && !dom.carUser.classList.contains("hidden") && !dom.carUser.value) {
             dom.carUser.focus();
@@ -2281,12 +2689,16 @@ let outbox = {
         } else {
             dom.carScan.value ? dom.carScan.select() : dom.carScan.focus();
         }
-    });    dom.modalSepClose?.addEventListener("click", (ev) => {
+    });
+
+    dom.modalSepClose?.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalSeparação);
         resetSeparacaoModal();
-    });    dom.modalCarClose?.addEventListener("click", (ev) => {
+    });
+
+    dom.modalCarClose?.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         closeModal(dom.modalCarregamento);
@@ -2294,10 +2706,14 @@ let outbox = {
             preserveUser: true,
             preserveDock: true
         });
-    });    dom.sepUser?.addEventListener("keydown", handleSepUserKeydown);
+    });
+
+    dom.sepUser?.addEventListener("keydown", handleSepUserKeydown);
     dom.carUser?.addEventListener("keydown", handleCarUserKeydown);
     dom.sepScan?.addEventListener("keydown", handleSeparaçãoSubmit);
-    dom.carScan?.addEventListener("keydown", handleCarregamentoSubmit);    dom.sepPrintBtn?.addEventListener("click", async () => {
+    dom.carScan?.addEventListener("keydown", handleCarregamentoSubmit);
+
+    dom.sepPrintBtn?.addEventListener("click", async () => {
         try {
             if (state.lastPrintData) {
                 setSepStatus("Reimprimindo...");
@@ -2319,7 +2735,9 @@ let outbox = {
                 error: true
             });
         }
-    });    document.addEventListener("keydown", (e) => {
+    });
+
+    document.addEventListener("keydown", (e) => {
         if (e.key === "F6") {
             if (dom._currentModal === dom.modalCarregamento && dom.carScan) {
                 e.preventDefault();
@@ -2329,22 +2747,36 @@ let outbox = {
                 dom.sepScan.focus();
             }
         }
-    });    [dom.sepScan, dom.carScan].forEach((inp) => {
+    });
+
+    [dom.sepScan, dom.carScan].forEach((inp) => {
         if (!inp) return;
         inp.addEventListener("paste", () => {
             setTimeout(() => {
                 inp.value = normalizeScanned(inp.value);
             }, 0);
         });
-    });    fetchAndRenderDashboard();
+    });
+
+    fetchAndRenderDashboard();
     installNetworkBanner();
-    loadOutbox();    eventHandlers.onOnline = () => processOutbox(true);
+    loadOutbox();
+
+    eventHandlers.onOnline = () => processOutbox(true);
     eventHandlers.onSepSuccess = (ev) => handleOutboxSepSuccess(ev);
-    eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);    window.addEventListener("online", eventHandlers.onOnline);
+    eventHandlers.onCarSuccess = (ev) => handleOutboxCarSuccess(ev);
+
+    window.addEventListener("online", eventHandlers.onOnline);
     window.addEventListener("outbox:separacao:success", eventHandlers.onSepSuccess);
-    window.addEventListener("outbox:carregamento:success", eventHandlers.onCarSuccess);    if (outbox.queue.length > 0) showNetBanner("Itens pendentes: tentando enviar…");
-    setTimeout(() => processOutbox(), 2000);    console.log("Módulo de Auditoria (Dashboard) inicializado [V36 - Fix SVC Reference].");
-}export function destroy() {
+    window.addEventListener("outbox:carregamento:success", eventHandlers.onCarSuccess);
+
+    if (outbox.queue.length > 0) showNetBanner("Itens pendentes: tentando enviar…");
+    setTimeout(() => processOutbox(), 2000);
+
+    console.log("Módulo de Auditoria (Dashboard) inicializado [V37 - Fix Turno Noturno].");
+}
+
+export function destroy() {
     console.log("Módulo de Auditoria (Dashboard) destruído.");
     if (state.globalScannerInstance) stopGlobalScanner();
     const styleTag = document.getElementById("auditoria-styles");
@@ -2404,7 +2836,9 @@ let outbox = {
     };
     dom = {};
     initOnce = false;
-}if (typeof document !== "undefined") {
+}
+
+if (typeof document !== "undefined") {
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => {
             try {
