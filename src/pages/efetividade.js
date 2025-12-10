@@ -1,5 +1,7 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let ui;
+import {getMatrizesPermitidas} from '../session.js';
+
+let ui;
 const state = {
     turnoAtual: 'GERAL',
     detailedResults: new Map(),
@@ -17,15 +19,20 @@ const state = {
         key: '',
         data: null
     }
-};const normalizeString = (str) => {
+};
+const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
-};function _ymdLocal(dateObj) {
+};
+
+function _ymdLocal(dateObj) {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}async function copyTableToClipboard(tableElement) {
+}
+
+async function copyTableToClipboard(tableElement) {
     if (!tableElement) {
         console.warn('Função copyTableToClipboard chamada sem um elemento de tabela.');
         return;
@@ -50,7 +57,9 @@ const state = {
         console.error('Falha ao copiar tabela: ', err);
         alert('FALHA AO COPIAR TEXTO:\n\nErro: ' + err.message);
     }
-}async function exportModalAsPNG(fileName) {
+}
+
+async function exportModalAsPNG(fileName) {
     const modalContent = document.getElementById('efetividade-details-modal');
     if (!modalContent) return;
     const exportButton = document.getElementById('export-png-btn');
@@ -86,7 +95,9 @@ const state = {
             scrollableContent.style.border = originalStyles.border || '';
         }
     }
-}async function copyTableAsImage() {
+}
+
+async function copyTableAsImage() {
     const resultContainer = document.getElementById('efet-result');
     if (!resultContainer) return;
     const tableElement = resultContainer.querySelector('.main-table');
@@ -116,7 +127,9 @@ const state = {
     } finally {
         showLoading(false);
     }
-}function ensureEfetividadeModalStyles() {
+}
+
+function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
     const css = `
  #efetividade-details-modal {
@@ -140,7 +153,9 @@ const state = {
     style.id = 'efetividade-details-modal-style';
     style.textContent = css;
     document.head.appendChild(style);
-}function showDetailsModal(groupKey, date) {
+}
+
+function showDetailsModal(groupKey, date) {
     ensureEfetividadeModalStyles();
     const details = (groupKey === 'TODAS')
         ? state.totalGeralDetailedResults.get(date)
@@ -199,13 +214,19 @@ const state = {
         const fileName = `pendentes_${groupKey.replace(/\s+/g, '_')}_${date.replace(/-/g, '')}`;
         exportModalAsPNG(fileName);
     });
-}function showLoading(on = true) {
+}
+
+function showLoading(on = true) {
     if (ui?.loader) ui.loader.style.display = on ? 'flex' : 'none';
-}function weekdayPT(iso) {
+}
+
+function weekdayPT(iso) {
     const d = new Date(iso + 'T00:00:00');
     const dias = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
     return dias[d.getDay()];
-}function listDates(startISO, endISO) {
+}
+
+function listDates(startISO, endISO) {
     const [y1, m1, d1] = startISO.split('-').map(Number);
     const [y2, m2, d2] = endISO.split('-').map(Number);
     let start = new Date(y1, m1 - 1, d1);
@@ -214,9 +235,13 @@ const state = {
     const out = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(_ymdLocal(d));
     return out;
-}function updatePeriodLabel() {
+}
+
+function updatePeriodLabel() {
     if (ui?.periodBtn) ui.periodBtn.textContent = 'Selecionar Período';
-}function openPeriodModal() {
+}
+
+function openPeriodModal() {
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
     overlay.innerHTML = `
@@ -273,11 +298,15 @@ const state = {
             endInput.value = _ymdLocal(ultimoDiaMesAnterior);
         }
     });
-}function chunkArray(arr, size) {
+}
+
+function chunkArray(arr, size) {
     const chunks = [];
     for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
     return chunks;
-}async function fetchAllPages(query) {
+}
+
+async function fetchAllPages(query) {
     const pageSize = 1000;
     let allData = [];
     let page = 0;
@@ -294,7 +323,9 @@ const state = {
         if (data && data.length < pageSize) keep = false;
     }
     return allData;
-}async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
+}
+
+async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
     if (!names || names.length === 0) return [];
     const chunks = chunkArray(names, chunkSize);
     const results = await Promise.all(chunks.map(async (subset, idx) => {
@@ -324,25 +355,36 @@ const state = {
         }
     }
     return merged;
-}function endOfLocalDayISO(dateYMD) {
+}
+
+function endOfLocalDayISO(dateYMD) {
     return new Date(`${dateYMD}T23:59:59-03:00`);
-}async function fetchData(startDate, endDate) {
+}
+
+async function fetchData(startDate, endDate) {
     const matrizesPermitidas = getMatrizesPermitidas();
     const [y, m, d] = endDate.split('-').map(Number);
     const endDateObj = new Date(y, m - 1, d);
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endISONextDay = _ymdLocal(endDateObj);
+
     let colabQuery = supabase
         .from('Colaboradores')
-        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor')
-        .eq('Ativo', 'SIM')
+        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor, Ativo') // Adicionei 'Ativo' no select para debug se necessário
+        .eq('Ativo', 'SIM') // Reforçando: Somente 'SIM'. 'PEN' ou 'NÃO' serão excluídos.
         .in('Escala', ['T1', 'T2', 'T3'])
         .order('Nome', {ascending: true});
+
     if (matrizesPermitidas && matrizesPermitidas.length) {
         colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
     }
+
     const colaboradores = await fetchAllPages(colabQuery);
-    const nomesColabs = [...new Set(colaboradores.map(c => c.Nome).filter(Boolean))];
+
+    const colaboradoresFiltrados = colaboradores.filter(c => c.Ativo === 'SIM');
+
+    const nomesColabs = [...new Set(colaboradoresFiltrados.map(c => c.Nome).filter(Boolean))];
+
     const preenchimentosQuery = supabase
         .from('ControleDiario')
         .select('Nome, Data')
@@ -350,6 +392,7 @@ const state = {
         .lt('Data', endISONextDay)
         .order('Data', {ascending: true})
         .order('Nome', {ascending: true});
+
     const feriasQuery = supabase
         .from('Ferias')
         .select('Nome, "Data Inicio", "Data Final"')
@@ -357,6 +400,7 @@ const state = {
         .gte('"Data Final"', startDate)
         .order('"Data Inicio"', {ascending: true})
         .order('Nome', {ascending: true});
+
     const afastamentosQuery = supabase
         .from('Afastamentos')
         .select('NOME, "DATA INICIO", "DATA RETORNO"')
@@ -364,13 +408,19 @@ const state = {
         .gt('"DATA RETORNO"', startDate)
         .order('"DATA INICIO"', {ascending: true})
         .order('NOME', {ascending: true});
+
     const [preenchimentos, ferias, afastamentos, dsrLogs] = await Promise.all([
         fetchAllPages(preenchimentosQuery),
         fetchAllPages(feriasQuery),
-        fetchAllPages(afastamentosQuery), fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
+        fetchAllPages(afastamentosQuery),
+        fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
     ]);
-    return {colaboradores, preenchimentos, ferias, dsrLogs, afastamentos};
-}function processEfetividade(
+
+
+    return {colaboradores: colaboradoresFiltrados, preenchimentos, ferias, dsrLogs, afastamentos};
+}
+
+function processEfetividade(
     colaboradores,
     preenchimentos,
     dates,
@@ -390,7 +440,9 @@ const state = {
     }
     for (const history of dsrHistoryMap.values()) {
         history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-    }    function getDSRForDate(colaborador, dateYMD, historyMap) {
+    }
+
+    function getDSRForDate(colaborador, dateYMD, historyMap) {
         const name = normalizeString(colaborador.Nome);
         const history = historyMap.get(name);
         const fallbackCadastro = (colaborador.DSR && String(colaborador.DSR).trim()) || null;
@@ -412,7 +464,9 @@ const state = {
         const first = history[0];
         if (first?.DsrAnterior && String(first.DsrAnterior).trim()) return first.DsrAnterior;
         return fallbackCadastro;
-    }    const feriasPorDia = new Map();
+    }
+
+    const feriasPorDia = new Map();
     for (const r of ferias) {
         if (r.Nome && r['Data Inicio'] && r['Data Final']) {
             for (const dia of listDates(r['Data Inicio'], r['Data Final'])) {
@@ -518,7 +572,9 @@ const state = {
         }
     }
     return {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults};
-}function getStatusClass(status) {
+}
+
+function getStatusClass(status) {
     switch (status) {
         case 'OK':
             return 'status-ok';
@@ -533,7 +589,9 @@ const state = {
         default:
             return '';
     }
-}function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
+}
+
+function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
     if (!ui?.resultContainer) return;
     const formattedDates = dates.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
     const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;
@@ -586,7 +644,9 @@ const state = {
             showDetailsModal(cell.dataset.groupKey, cell.dataset.date);
         });
     }
-}async function generateReport() {
+}
+
+async function generateReport() {
     const myRun = (state._runId = (state._runId || 0) + 1);
     const startDate = state.period.start;
     const endDate = state.period.end;
@@ -684,7 +744,9 @@ const state = {
         if (myRun !== state._runId) return;
         showLoading(false);
     }
-}async function fetchFilterData() {
+}
+
+async function fetchFilterData() {
     try {
         const {data: colabMatrizes, error: colabError} = await supabase
             .from('Colaboradores')
@@ -710,7 +772,9 @@ const state = {
         state.allMatrizes = [];
         state.allGerentes = [];
     }
-}function populateMatrizFilter() {
+}
+
+function populateMatrizFilter() {
     if (!ui?.matrizFilterSelect) return;
     while (ui.matrizFilterSelect.options.length > 1) ui.matrizFilterSelect.remove(1);
     state.allMatrizes.forEach((matriz) => {
@@ -719,7 +783,9 @@ const state = {
         option.textContent = matriz;
         ui.matrizFilterSelect.appendChild(option);
     });
-}function populateGerenteFilter() {
+}
+
+function populateGerenteFilter() {
     if (!ui?.gerenteFilterSelect) {
         console.warn('Elemento #efet-gerente-filter não encontrado.');
         return;
@@ -731,22 +797,30 @@ const state = {
         option.textContent = gerente;
         ui.gerenteFilterSelect.appendChild(option);
     });
-}export async function getRankingData(filters = {}) {    let start, end;    if (filters.start && filters.end) {
+}
+
+export async function getRankingData(filters = {}) {
+    let start, end;
+    if (filters.start && filters.end) {
         start = filters.start;
         end = filters.end;
     } else {
         const today = new Date();
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);        if (yesterday < firstDay) {
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        if (yesterday < firstDay) {
             return {labels: [], values: []};
         }
         start = _ymdLocal(firstDay);
         end = _ymdLocal(yesterday);
-    }    if (state.matrizGerenteMap.size === 0) {
+    }
+    if (state.matrizGerenteMap.size === 0) {
         await fetchFilterData();
-    }    const periodKey = `${start}|${end}`;
-    let rawData;    if (state.cache && state.cache.key === periodKey && state.cache.data) {
+    }
+    const periodKey = `${start}|${end}`;
+    let rawData;
+    if (state.cache && state.cache.key === periodKey && state.cache.data) {
         rawData = state.cache.data;
     } else {
         rawData = await fetchData(start, end);
@@ -754,10 +828,13 @@ const state = {
             key: periodKey,
             data: rawData
         };
-    }    const dates = listDates(start, end);
-    let filteredColaboradores = rawData.colaboradores;    if (filters.matriz) {
+    }
+    const dates = listDates(start, end);
+    let filteredColaboradores = rawData.colaboradores;
+    if (filters.matriz) {
         filteredColaboradores = filteredColaboradores.filter(c => c.MATRIZ === filters.matriz);
-    }    if (filters.gerencia) {
+    }
+    if (filters.gerencia) {
         const targetGerencia = normalizeString(filters.gerencia);
         filteredColaboradores = filteredColaboradores.filter(c => {
             if (!c.MATRIZ) return false;
@@ -765,7 +842,8 @@ const state = {
             const gerenteDaMatriz = state.matrizGerenteMap.get(matrizNorm);
             return gerenteDaMatriz === targetGerencia;
         });
-    }    const {groupKeys, detailedResults} = processEfetividade(
+    }
+    const {groupKeys, detailedResults} = processEfetividade(
         filteredColaboradores,
         rawData.preenchimentos,
         dates,
@@ -773,26 +851,37 @@ const state = {
         rawData.dsrLogs,
         rawData.afastamentos,
         'SVC'
-    );    const todayISO = _ymdLocal(new Date());    const ranking = groupKeys.map(svc => {
+    );
+    const todayISO = _ymdLocal(new Date());
+    const ranking = groupKeys.map(svc => {
         const dataMap = detailedResults.get(svc);
         let totalElegiveis = 0;
-        let totalPendentes = 0;        dates.forEach(date => {            if (date > todayISO) return;            const dayData = dataMap.get(date);
+        let totalPendentes = 0;
+        dates.forEach(date => {
+            if (date > todayISO) return;
+            const dayData = dataMap.get(date);
             if (dayData) {
                 totalElegiveis += dayData.elegiveis.length;
                 totalPendentes += dayData.pendentes.length;
             }
-        });        let percent = 0;
+        });
+        let percent = 0;
         if (totalElegiveis > 0) {
             percent = ((totalElegiveis - totalPendentes) / totalElegiveis) * 100;
-        }        return {
+        }
+        return {
             label: svc,
             value: Number(percent.toFixed(2))
         };
-    });    ranking.sort((a, b) => b.value - a.value);    return {
+    });
+    ranking.sort((a, b) => b.value - a.value);
+    return {
         labels: ranking.map(r => r.label),
         values: ranking.map(r => r.value)
     };
-}export async function init() {
+}
+
+export async function init() {
     if (state._inited) return;
     state._inited = true;
     ui = {
@@ -809,7 +898,10 @@ const state = {
     if (actions && !document.getElementById('efet-clear-filters')) {
         const clear = document.createElement('button');
         clear.id = 'efet-clear-filters';
-        clear.textContent = 'Limpar';        clear.className = 'btn-action-main';         clear.style.backgroundColor = '#6c757d';        clear.addEventListener('mouseenter', () => {
+        clear.textContent = 'Limpar';
+        clear.className = 'btn-action-main';
+        clear.style.backgroundColor = '#6c757d';
+        clear.addEventListener('mouseenter', () => {
             clear.style.backgroundColor = '#5a6268';
             clear.style.transform = 'translateY(-2px)';
         });
@@ -869,7 +961,8 @@ const state = {
         ui.coordBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
         ui.coordBtn.dataset.on = on ? '1' : '0';
         if (on) {
-            ui.coordBtn.classList.add('active');            ui.coordBtn.style.background = '';
+            ui.coordBtn.classList.add('active');
+            ui.coordBtn.style.background = '';
             ui.coordBtn.style.color = '';
             ui.coordBtn.style.boxShadow = '';
         } else {
@@ -897,7 +990,9 @@ const state = {
     populateGerenteFilter();
     updatePeriodLabel();
     generateReport();
-}export function destroy() {
+}
+
+export function destroy() {
     state._runId = (state._runId || 0) + 1;
     try {
         ui?.periodBtn?.removeEventListener('click', state._handlers?.onPeriodClick);
