@@ -93,11 +93,11 @@ const formatNomeComId = (nome, id) => {
     svcToMatriz: new Map(),
     matrizInfoMap: new Map(),
     matrizesList: [],
+    gerenciasList: [],
     records: [],
     baseByMatriz: new Map(),
     baseLoaded: false,
-    filters: {start: '', end: '', svc: '', matriz: '', turno: ''},
-    gerenciar: {loaded: false, all: [], filtered: [], searchRaw: '', editing: null, selectedNames: new Set()},
+    filters: {start: '', end: '', gerencia: '', matriz: '', turno: ''},
     _listeners: [],
     _popover: null
 };
@@ -175,42 +175,45 @@ const isGerenciarOpen = () => {
     state.svcToMatriz.clear();
     state.matrizInfoMap.clear();
     state.matrizesList = [];
+    state.gerenciasList = [];
     const matrizesPermitidas = getMatrizesPermitidas();
     try {
-        let q = supabase.from('Matrizes').select('SERVICE, MATRIZ, REGIAO').not('SERVICE', 'is', null).not('MATRIZ', 'is', null).order('SERVICE', {ascending: true}).limit(10000);
+        let q = supabase
+            .from('Matrizes')
+            .select('SERVICE, MATRIZ, REGIAO, GERENCIA')
+            .not('SERVICE', 'is', null)
+            .not('MATRIZ', 'is', null)
+            .order('MATRIZ', {ascending: true})
+            .limit(10000);
         if (matrizesPermitidas?.length) q = q.in('MATRIZ', matrizesPermitidas);
         const {data, error} = await q;
         if (error) throw error;
         const all = (data || []).map(r => ({
             SERVICE: String(r.SERVICE || '').trim(),
             MATRIZ: String(r.MATRIZ || '').trim(),
-            REGIAO: String(r.REGIAO || '').trim()
-        }))
-            .filter(r => r.SERVICE && r.MATRIZ);
+            REGIAO: String(r.REGIAO || '').trim(),
+            GERENCIA: String(r.GERENCIA || '').trim().toUpperCase()
+        })).filter(r => r.SERVICE && r.MATRIZ);
         const matrizesSet = new Set();
+        const gerenciasSet = new Set();
         for (const r of all) {
             if (!state.svcToMatriz.has(r.SERVICE)) state.svcToMatriz.set(r.SERVICE, r.MATRIZ);
             if (r.MATRIZ) {
                 matrizesSet.add(r.MATRIZ);
-                if (!state.matrizInfoMap.has(r.MATRIZ)) state.matrizInfoMap.set(r.MATRIZ, {
-                    service: r.SERVICE,
-                    regiao: r.REGIAO
-                });
+                if (!state.matrizInfoMap.has(r.MATRIZ)) {
+                    state.matrizInfoMap.set(r.MATRIZ, {
+                        service: r.SERVICE,
+                        regiao: r.REGIAO,
+                        gerencia: r.GERENCIA
+                    });
+                }
+            }
+            if (r.GERENCIA) {
+                gerenciasSet.add(r.GERENCIA);
             }
         }
         state.matrizesList = [...matrizesSet].sort((a, b) => a.localeCompare(b));
-        const uniqueSvcs = [...new Set(all.map(r => r.SERVICE))].sort();
-        for (const id of ['f-svc', 'flt-svc']) {
-            const el = document.getElementById(id);
-            if (!el) continue;
-            el.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
-            uniqueSvcs.forEach(s => {
-                const o = document.createElement('option');
-                o.value = s;
-                o.textContent = s;
-                el.appendChild(o);
-            });
-        }
+        state.gerenciasList = [...gerenciasSet].sort((a, b) => a.localeCompare(b));
         const formMtz = document.getElementById('f-matriz');
         if (formMtz) {
             formMtz.querySelectorAll('option:not([value=""])').forEach(o => o.remove());
@@ -221,6 +224,7 @@ const isGerenciarOpen = () => {
                 formMtz.appendChild(o);
             });
         }
+        fillFilterCombos();
     } catch (e) {
         console.error('Erro loadMatrizInfo:', e);
     }
@@ -275,9 +279,13 @@ const isGerenciarOpen = () => {
             if (hasStartEnd) {
                 if (!Number.isFinite(tRow) || tRow < tStart || tRow > tEnd) return false;
             }
-            if (s.svc && String(r.SVC || '') !== s.svc) return false;
             if (s.matriz && String(r.MATRIZ || '') !== s.matriz) return false;
             if (s.turno && String(r.Turno || '') !== s.turno) return false;
+            if (s.gerencia) {
+                const info = state.matrizInfoMap.get(r.MATRIZ);
+                const gerenciaDoRegistro = info ? info.gerencia : '';
+                if (gerenciaDoRegistro !== s.gerencia) return false;
+            }
             return true;
         })
         .sort((a, b) => {
@@ -288,8 +296,27 @@ const isGerenciarOpen = () => {
             return Number(b.Numero || 0) - Number(a.Numero || 0);
         });
 }function fillFilterCombos() {
-    if (document.getElementById('flt-svc')?.options.length <= 1) {
-        loadMatrizInfo();
+    const elGer = document.getElementById('flt-gerencia');
+    if (elGer) {
+        while (elGer.options.length > 2) elGer.remove(2);
+        state.gerenciasList.forEach(g => {
+            const o = document.createElement('option');
+            o.value = g;
+            o.textContent = g;
+            elGer.appendChild(o);
+        });
+        elGer.value = state.filters.gerencia || '';
+    }
+    const elMtz = document.getElementById('flt-matriz');
+    if (elMtz) {
+        while (elMtz.options.length > 2) elMtz.remove(2);
+        state.matrizesList.forEach(m => {
+            const o = document.createElement('option');
+            o.value = m;
+            o.textContent = m;
+            elMtz.appendChild(o);
+        });
+        elMtz.value = state.filters.matriz || '';
     }
 }function renderKPIs() {
     const rows = filteredRows();
@@ -355,14 +382,39 @@ const isGerenciarOpen = () => {
       <td>${escapeHtml(r.SVC)}</td>
       <td>${escapeHtml(r.MATRIZ)}</td>
       <td><button type="button" class="btn-nomes" title="Ver nomes">🗒️</button></td>
-      <td><button type="button" class="btn-ajuste" title="Editar lançamento">⚙️</button></td>
+      <td>
+        <div style="display:flex; align-items:center; justify-content:center; gap:10px;">
+            <button type="button" class="btn-ajuste" title="Editar lançamento" style="border:none; background:transparent; cursor:pointer; font-size:16px;">⚙️</button>
+            <button type="button" class="btn-excluir" title="Excluir lançamento" style="border:none; background:transparent; cursor:pointer; font-size:16px;">🗑️</button>
+        </div>
+      </td>
     `;
         tr.querySelector('.btn-nomes')?.addEventListener('click', () => openNamesPopover(parseNomeDiaristaField(r['Nome Diarista'])));
         tr.querySelector('.btn-ajuste')?.addEventListener('click', () => openEditDiaristaModal(r));
+        tr.querySelector('.btn-excluir')?.addEventListener('click', () => deleteDiaristaLaunch(r));
         frag.appendChild(tr);
     });
     tbody.innerHTML = '';
     tbody.appendChild(frag);
+}async function deleteDiaristaLaunch(record) {    if (document.body.classList.contains('user-level-visitante')) {
+        await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
+        return;
+    }    const tipo = await getUserTipo();    const cargosPermitidos = ['COORDENADOR', 'SUPERVISOR', 'GERENTE', 'MASTER'];    if (!cargosPermitidos.includes(tipo)) {
+        await window.customAlert('Permissão insuficiente.\nApenas Coordenador, Supervisor e Gerente podem excluir lançamentos.', 'Acesso Negado');
+        return;
+    }    const confirmacao = await window.customConfirm(
+        `Tem certeza que deseja EXCLUIR o lançamento #${record.Numero}?\nEsta ação não pode ser desfeita.`,
+        'Confirmar Exclusão',
+        'danger'
+    );    if (!confirmacao) return;    try {
+        const {error} = await supabase
+            .from('Diarista')
+            .delete()
+            .eq('Numero', record.Numero);        if (error) throw error;        state.records = state.records.filter(r => Number(r.Numero) !== Number(record.Numero));        renderKPIs();
+        renderTable();        await window.customAlert('Lançamento excluído com sucesso.', 'Sucesso');    } catch (e) {
+        console.error('Erro ao excluir lançamento:', e);
+        await window.customAlert('Falha ao excluir. Veja o console para mais detalhes.', 'Erro');
+    }
 }function ensurePopoverStyles() {
     if (document.getElementById('diaristas-names-popover-style')) return;
     const css = `
@@ -602,22 +654,22 @@ const isGerenciarOpen = () => {
     d0.setDate(1);
     if (!state.filters.start) state.filters.start = dateToISO_BR(d0);
     if (!state.filters.end) state.filters.end = todayISO_BR();
-    const $svc = document.getElementById('flt-svc');
+    const $gerencia = document.getElementById('flt-gerencia');
     const $turno = document.getElementById('flt-turno');
     const $matriz = document.getElementById('flt-matriz');
     on(document.getElementById('btn-period-select'), 'click', openPeriodModalDiarista);
     on(document.getElementById('btn-limpar-filtros'), 'click', () => {
-        state.filters.svc = '';
+        state.filters.gerencia = '';
         state.filters.matriz = '';
         state.filters.turno = '';
-        if ($svc) $svc.value = '';
+        if ($gerencia) $gerencia.value = '';
         if ($matriz) $matriz.value = '';
         if ($turno) $turno.value = '';
         renderKPIs();
         renderTable();
     });
-    on($svc, 'change', e => {
-        state.filters.svc = e.target.value;
+    on($gerencia, 'change', e => {
+        state.filters.gerencia = e.target.value;
         renderKPIs();
         renderTable();
     });
@@ -827,25 +879,30 @@ const isGerenciarOpen = () => {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
     }
-    const tipo = await getUserTipo();    if (!['SUPERVISOR', 'GERENTE', 'COORDENADOR', 'MASTER'].includes(tipo)) {
+    const tipo = await getUserTipo();
+    if (!['SUPERVISOR', 'GERENTE', 'COORDENADOR', 'MASTER'].includes(tipo)) {
         await window.customAlert('Apenas Supervisor, Gerente, Coordenador ou Master podem editar esse cadastro.', 'Acesso Negado');
         return;
-    }    const getBaseListForMatriz = (mtz) => {
+    }
+    const getBaseListForMatriz = (mtz) => {
         const k = String(mtz || '').trim().toUpperCase();
         return state.baseByMatriz.get(k) || [];
-    };    const mkGroup = (labelTxt, inputEl) => {
+    };
+    const mkGroup = (labelTxt, inputEl) => {
         const g = document.createElement('div');
         g.className = 'form-group';
         const l = document.createElement('label');
         l.textContent = labelTxt;
         g.append(l, inputEl);
         return g;
-    };    const overlay = document.createElement('div');
+    };
+    const overlay = document.createElement('div');
     Object.assign(overlay.style, {
         position: 'fixed', inset: '0', background: 'rgba(0,0,0,.45)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: '10050'
     });
-    overlay.id = 'diarista-edit-modal';    const modal = document.createElement('div');
+    overlay.id = 'diarista-edit-modal';
+    const modal = document.createElement('div');
     Object.assign(modal.style, {
         background: '#fff', borderRadius: '12px', padding: '16px',
         minWidth: '760px',
@@ -853,73 +910,106 @@ const isGerenciarOpen = () => {
         maxHeight: '90vh', overflowY: 'auto',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 10px 30px rgba(0,0,0,.25)'
-    });    const title = document.createElement('h3');
+    });
+    const title = document.createElement('h3');
     title.textContent = `Editar Lançamento #${record.Numero}`;
-    Object.assign(title.style, {margin: '0 0 12px 0', textAlign: 'center', color: '#003369'});    const grid = document.createElement('div');
+    Object.assign(title.style, {margin: '0 0 12px 0', textAlign: 'center', color: '#003369'});
+    const grid = document.createElement('div');
     Object.assign(grid.style, {
         display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
         gap: '12px', marginBottom: '14px', flexShrink: '0'
-    });    const iQtd = document.createElement('input');
+    });
+    const iQtd = document.createElement('input');
     iQtd.type = 'number';
     iQtd.min = '1';
     iQtd.step = '1';
     iQtd.id = 'ed-quantidade';
     const parsedNames = parseNomeDiaristaField(record['Nome Diarista']);
     const initialQty = Number(record.Quantidade || 0) || parsedNames.length || 1;
-    iQtd.value = String(initialQty);    const iEmp = document.createElement('input');
-    iEmp.type = 'text'; iEmp.id = 'ed-empresa'; iEmp.value = String(record.Empresa || '');    const iDat = document.createElement('input');
-    iDat.type = 'date'; iDat.id = 'ed-data'; iDat.value = diaristaToISO(record.Data) || todayISO_BR();    const iSol = document.createElement('input');
-    iSol.type = 'text'; iSol.id = 'ed-solicitado'; iSol.value = String(record['Solicitado Por'] || '');    const iAut = document.createElement('input');
-    iAut.type = 'text'; iAut.id = 'ed-autorizado'; iAut.value = String(record['Autorizado Por'] || '');    const iTur = document.createElement('select');
+    iQtd.value = String(initialQty);
+    const iEmp = document.createElement('input');
+    iEmp.type = 'text';
+    iEmp.id = 'ed-empresa';
+    iEmp.value = String(record.Empresa || '');
+    const iDat = document.createElement('input');
+    iDat.type = 'date';
+    iDat.id = 'ed-data';
+    iDat.value = diaristaToISO(record.Data) || todayISO_BR();
+    const iSol = document.createElement('input');
+    iSol.type = 'text';
+    iSol.id = 'ed-solicitado';
+    iSol.value = String(record['Solicitado Por'] || '');
+    const iAut = document.createElement('input');
+    iAut.type = 'text';
+    iAut.id = 'ed-autorizado';
+    iAut.value = String(record['Autorizado Por'] || '');
+    const iTur = document.createElement('select');
     iTur.id = 'ed-turno';
     ['', 'T1', 'T2', 'T3'].forEach(optVal => {
         const o = document.createElement('option');
-        o.value = optVal; o.textContent = optVal || 'Turno';
+        o.value = optVal;
+        o.textContent = optVal || 'Turno';
         iTur.appendChild(o);
     });
-    iTur.value = String(record.Turno || '');    const iSvc = document.createElement('select');
+    iTur.value = String(record.Turno || '');
+    const iSvc = document.createElement('select');
     iSvc.id = 'ed-svc';
     {
         const opt0 = document.createElement('option');
-        opt0.value = ''; opt0.textContent = 'Selecione SVC...';
+        opt0.value = '';
+        opt0.textContent = 'Selecione SVC...';
         iSvc.appendChild(opt0);
         [...state.svcToMatriz.keys()].sort().forEach(s => {
             const o = document.createElement('option');
-            o.value = s; o.textContent = s;
+            o.value = s;
+            o.textContent = s;
             iSvc.appendChild(o);
         });
         iSvc.value = String(record.SVC || '');
-    }    const iMtz = document.createElement('select');
+    }
+    const iMtz = document.createElement('select');
     iMtz.id = 'ed-matriz';
     {
         const opt0 = document.createElement('option');
-        opt0.value = ''; opt0.textContent = 'Selecione a Matriz...';
+        opt0.value = '';
+        opt0.textContent = 'Selecione a Matriz...';
         iMtz.appendChild(opt0);
         state.matrizesList.forEach(m => {
             const o = document.createElement('option');
-            o.value = m; o.textContent = m;
+            o.value = m;
+            o.textContent = m;
             iMtz.appendChild(o);
         });
         const sessMtz = getSessionMatriz();
         if (sessMtz && sessMtz !== 'TODOS') {
-            iMtz.value = sessMtz; iMtz.disabled = true;
+            iMtz.value = sessMtz;
+            iMtz.disabled = true;
         } else {
             iMtz.value = String(record.MATRIZ || '');
         }
-    }    iSvc.addEventListener('change', () => {
+    }
+    iSvc.addEventListener('change', () => {
         const mapped = state.svcToMatriz.get(iSvc.value) || '';
         if (mapped) iMtz.value = mapped;
         updateEditNameInputs(true);
     });
-    iMtz.addEventListener('change', () => updateEditNameInputs(true));    grid.append(
+    iMtz.addEventListener('change', () => updateEditNameInputs(true));
+    grid.append(
         mkGroup('Quantidade', iQtd), mkGroup('Empresa', iEmp), mkGroup('Data', iDat),
         mkGroup('Solicitado Por', iSol), mkGroup('Autorizado Por', iAut), mkGroup('Turno', iTur),
         mkGroup('SVC', iSvc), mkGroup('MATRIZ', iMtz)
-    );    const namesWrap = document.createElement('div');
+    );
+    const namesWrap = document.createElement('div');
     namesWrap.style.margin = '8px 0 12px';
     namesWrap.style.display = 'flex';
-    namesWrap.style.flexDirection = 'column';    const header = document.createElement('div');
-    Object.assign(header.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' });
+    namesWrap.style.flexDirection = 'column';
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '6px'
+    });
     const titleNames = document.createElement('div');
     titleNames.textContent = 'Diaristas deste lançamento';
     titleNames.style.fontWeight = '700';
@@ -927,9 +1017,11 @@ const isGerenciarOpen = () => {
     hint.style.fontSize = '12px';
     hint.style.color = '#56607f';
     hint.textContent = 'Edite os nomes. Use o botão "X" para remover.';
-    header.append(titleNames, hint);    const namesBox = document.createElement('div');
+    header.append(titleNames, hint);
+    const namesBox = document.createElement('div');
     namesBox.id = 'ed-names-list';
-    namesBox.className = 'form-grid';    Object.assign(namesBox.style, {
+    namesBox.className = 'form-grid';
+    Object.assign(namesBox.style, {
         gridTemplateColumns: '1fr 1fr 40px',
         gap: '10px',
         maxHeight: '320px',
@@ -941,59 +1033,86 @@ const isGerenciarOpen = () => {
     });    function updateEditNameInputs(preserve = true, forceNames = null, forceIds = null) {
         const mtzSel = iMtz.value;
         const baseList = getBaseListForMatriz(mtzSel);
-        const hasBase = baseList.length > 0;        let prevNames = [], prevIds = [];        if (forceNames && forceIds) {            prevNames = forceNames;
+        const hasBase = baseList.length > 0;
+        let prevNames = [], prevIds = [];
+        if (forceNames && forceIds) {
+            prevNames = forceNames;
             prevIds = forceIds;
-        } else if (preserve) {            prevNames = Array.from(namesBox.querySelectorAll('.ed-nome-sel,.ed-nome')).map(el => String(el.value || ''));
+        } else if (preserve) {
+            prevNames = Array.from(namesBox.querySelectorAll('.ed-nome-sel,.ed-nome')).map(el => String(el.value || ''));
             prevIds = Array.from(namesBox.querySelectorAll('.ed-groot')).map(el => String(el.value || ''));
-        } else {            const parsed = parseNomeDiaristaField(record['Nome Diarista']);
+        } else {
+            const parsed = parseNomeDiaristaField(record['Nome Diarista']);
             prevNames = parsed.map(e => e.nome);
             prevIds = parsed.map(e => e.id);
-        }        const currentQty = Math.max(1, parseInt(iQtd.value, 10) || 1);        while (prevNames.length < currentQty) prevNames.push('');
-        while (prevIds.length < currentQty) prevIds.push('');        if (prevNames.length > currentQty) prevNames = prevNames.slice(0, currentQty);
-        if (prevIds.length > currentQty) prevIds = prevIds.slice(0, currentQty);        namesBox.innerHTML = '';        for (let i = 0; i < currentQty; i++) {            const wrapNome = document.createElement('div');
+        }
+        const currentQty = Math.max(1, parseInt(iQtd.value, 10) || 1);
+        while (prevNames.length < currentQty) prevNames.push('');
+        while (prevIds.length < currentQty) prevIds.push('');
+        if (prevNames.length > currentQty) prevNames = prevNames.slice(0, currentQty);
+        if (prevIds.length > currentQty) prevIds = prevIds.slice(0, currentQty);
+        namesBox.innerHTML = '';
+        for (let i = 0; i < currentQty; i++) {
+            const wrapNome = document.createElement('div');
             wrapNome.className = 'form-group';
             const lblNome = document.createElement('label');
             lblNome.setAttribute('for', `ed-nome-${i + 1}`);
             lblNome.textContent = `Nome ${i + 1}`;
-            wrapNome.appendChild(lblNome);            let nomeControl;
+            wrapNome.appendChild(lblNome);
+            let nomeControl;
             const prevName = prevNames[i] || '';
-            const prevId = prevIds[i] || '';            if (hasBase) {
+            const prevId = prevIds[i] || '';
+            if (hasBase) {
                 nomeControl = document.createElement('select');
                 nomeControl.className = 'ed-nome-sel';
                 nomeControl.id = `ed-nome-${i + 1}`;
                 const opt0 = document.createElement('option');
-                opt0.value = ''; opt0.textContent = 'Selecione...';
+                opt0.value = '';
+                opt0.textContent = 'Selecione...';
                 nomeControl.appendChild(opt0);
                 const selectedNorm = normalizeNameForMatch(prevName);
                 let found = false;
                 baseList.forEach(p => {
                     const o = document.createElement('option');
-                    o.value = p.NOME; o.textContent = p.NOME; o.dataset.idgroot = p.IDGROOT || '';
+                    o.value = p.NOME;
+                    o.textContent = p.NOME;
+                    o.dataset.idgroot = p.IDGROOT || '';
                     if (prevName && normalizeNameForMatch(p.NOME) === selectedNorm) {
-                        o.selected = true; found = true;
+                        o.selected = true;
+                        found = true;
                     }
                     nomeControl.appendChild(o);
                 });
                 if (!found && prevName) {
                     const o = document.createElement('option');
-                    o.value = prevName; o.textContent = `${prevName} (manual)`; o.dataset.idgroot = prevId || '';
+                    o.value = prevName;
+                    o.textContent = `${prevName} (manual)`;
+                    o.dataset.idgroot = prevId || '';
                     o.selected = true;
                     nomeControl.appendChild(o);
                 }
             } else {
                 nomeControl = document.createElement('input');
-                nomeControl.type = 'text'; nomeControl.className = 'ed-nome';
-                nomeControl.id = `ed-nome-${i + 1}`; nomeControl.placeholder = `Nome ${i + 1}`;
-                nomeControl.value = prevName; nomeControl.required = true;
+                nomeControl.type = 'text';
+                nomeControl.className = 'ed-nome';
+                nomeControl.id = `ed-nome-${i + 1}`;
+                nomeControl.placeholder = `Nome ${i + 1}`;
+                nomeControl.value = prevName;
+                nomeControl.required = true;
             }
-            wrapNome.appendChild(nomeControl);            const wrapId = document.createElement('div');
+            wrapNome.appendChild(nomeControl);
+            const wrapId = document.createElement('div');
             wrapId.className = 'form-group';
             const lblId = document.createElement('label');
             lblId.setAttribute('for', `ed-groot-${i + 1}`);
             lblId.textContent = `ID GROOT ${i + 1}`;
             const idInput = document.createElement('input');
-            idInput.type = 'text'; idInput.id = `ed-groot-${i + 1}`; idInput.className = 'ed-groot';
-            idInput.placeholder = `ID ${i + 1}`; idInput.value = prevId;            if (nomeControl.tagName === 'SELECT') {
+            idInput.type = 'text';
+            idInput.id = `ed-groot-${i + 1}`;
+            idInput.className = 'ed-groot';
+            idInput.placeholder = `ID ${i + 1}`;
+            idInput.value = prevId;
+            if (nomeControl.tagName === 'SELECT') {
                 nomeControl.addEventListener('change', () => {
                     const opt = nomeControl.options[nomeControl.selectedIndex];
                     const maybe = opt?.dataset?.idgroot || '';
@@ -1005,10 +1124,12 @@ const isGerenciarOpen = () => {
                     if (maybe && !idInput.value) idInput.value = maybe;
                 }, 0);
             }
-            wrapId.append(lblId, idInput);            const wrapBtn = document.createElement('div');
+            wrapId.append(lblId, idInput);
+            const wrapBtn = document.createElement('div');
             wrapBtn.style.display = 'flex';
             wrapBtn.style.alignItems = 'flex-end';
-            wrapBtn.style.paddingBottom = '2px';            const btnDel = document.createElement('button');
+            wrapBtn.style.paddingBottom = '2px';
+            const btnDel = document.createElement('button');
             btnDel.type = 'button';
             btnDel.textContent = '✕';
             btnDel.title = 'Remover este diarista';
@@ -1016,32 +1137,56 @@ const isGerenciarOpen = () => {
                 background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626',
                 borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold',
                 width: '100%', height: '36px', fontSize: '14px'
-            });            btnDel.addEventListener('click', () => {                const allNames = Array.from(namesBox.querySelectorAll('.ed-nome-sel,.ed-nome')).map(el => String(el.value || ''));
-                const allIds = Array.from(namesBox.querySelectorAll('.ed-groot')).map(el => String(el.value || ''));                allNames.splice(i, 1);
-                allIds.splice(i, 1);                const newQtd = Math.max(1, allNames.length);
-                iQtd.value = String(newQtd);                updateEditNameInputs(true, allNames, allIds);
-            });            wrapBtn.appendChild(btnDel);            namesBox.append(wrapNome, wrapId, wrapBtn);
+            });
+            btnDel.addEventListener('click', () => {
+                const allNames = Array.from(namesBox.querySelectorAll('.ed-nome-sel,.ed-nome')).map(el => String(el.value || ''));
+                const allIds = Array.from(namesBox.querySelectorAll('.ed-groot')).map(el => String(el.value || ''));
+                allNames.splice(i, 1);
+                allIds.splice(i, 1);
+                const newQtd = Math.max(1, allNames.length);
+                iQtd.value = String(newQtd);
+                updateEditNameInputs(true, allNames, allIds);
+            });
+            wrapBtn.appendChild(btnDel);
+            namesBox.append(wrapNome, wrapId, wrapBtn);
         }
     }    const actions = document.createElement('div');
-    Object.assign(actions.style, { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px', flexShrink: '0' });
+    Object.assign(actions.style, {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '8px',
+        marginTop: '10px',
+        flexShrink: '0'
+    });
     const btnCancel = document.createElement('button');
-    btnCancel.textContent = 'Cancelar'; btnCancel.className = 'btn-cancelar'; btnCancel.id = 'ed-cancel';
+    btnCancel.textContent = 'Cancelar';
+    btnCancel.className = 'btn-cancelar';
+    btnCancel.id = 'ed-cancel';
     const btnSave = document.createElement('button');
-    btnSave.textContent = 'Salvar'; btnSave.className = 'btn-salvar'; btnSave.id = 'ed-save';
-    actions.append(btnCancel, btnSave);    namesWrap.append(header, namesBox);
+    btnSave.textContent = 'Salvar';
+    btnSave.className = 'btn-salvar';
+    btnSave.id = 'ed-save';
+    actions.append(btnCancel, btnSave);
+    namesWrap.append(header, namesBox);
     modal.append(title, grid, namesWrap, actions);
     overlay.appendChild(modal);
-    document.body.appendChild(overlay);    btnCancel.addEventListener('click', closeEditDiaristaModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeEditDiaristaModal(); });
-    btnSave.addEventListener('click', () => saveEditDiarista(record.Numero));    iQtd.addEventListener('input', () => updateEditNameInputs(true));
-    iQtd.addEventListener('change', () => updateEditNameInputs(true));    updateEditNameInputs(false);
+    document.body.appendChild(overlay);
+    btnCancel.addEventListener('click', closeEditDiaristaModal);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeEditDiaristaModal();
+    });
+    btnSave.addEventListener('click', () => saveEditDiarista(record.Numero));
+    iQtd.addEventListener('input', () => updateEditNameInputs(true));
+    iQtd.addEventListener('change', () => updateEditNameInputs(true));
+    updateEditNameInputs(false);
     setTimeout(() => document.getElementById('ed-empresa')?.focus(), 0);
 }async function saveEditDiarista(numero) {
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
         return;
     }
-    const tipo = await getUserTipo();    if (!['SUPERVISOR', 'GERENTE', 'COORDENADOR', 'MASTER'].includes(tipo)) {
+    const tipo = await getUserTipo();
+    if (!['SUPERVISOR', 'GERENTE', 'COORDENADOR', 'MASTER'].includes(tipo)) {
         await window.customAlert('Apenas Supervisor, Gerente, Coordenador ou Master podem editar esse cadastro.', 'Acesso Negado');
         return;
     }
@@ -1052,23 +1197,28 @@ const isGerenciarOpen = () => {
     const turno = String(document.getElementById('ed-turno').value || '').trim();
     const svc = String(document.getElementById('ed-svc').value || '').trim();
     const matriz = String(document.getElementById('ed-matriz').value || '').trim();
-    const dataISO = diaristaToISO(document.getElementById('ed-data').value);    if (!dataISO) {
+    const dataISO = diaristaToISO(document.getElementById('ed-data').value);
+    if (!dataISO) {
         await window.customAlert('Data inválida.', 'Erro');
         return;
-    }    const nomeSelects = Array.from(document.querySelectorAll('.ed-nome-sel'));
+    }
+    const nomeSelects = Array.from(document.querySelectorAll('.ed-nome-sel'));
     const nomeInputs = Array.from(document.querySelectorAll('.ed-nome'));
     const idsInputs = Array.from(document.querySelectorAll('.ed-groot'));
     let nomes = nomeSelects.length
         ? nomeSelects.map(s => String(s.value || '').trim()).filter(Boolean)
         : nomeInputs.map(i => String(i.value || '').trim()).filter(Boolean);
-    const ids = idsInputs.map(i => String(i.value || '').trim());    if (nomes.length !== qtd || idsInputs.length !== qtd) {
+    const ids = idsInputs.map(i => String(i.value || '').trim());
+    if (nomes.length !== qtd || idsInputs.length !== qtd) {
         await window.customAlert('Quantidade e nomes/IDs não conferem. Ajuste "Quantidade" e preencha todas as linhas.', 'Erro');
         return;
-    }    const dupMsg = checkDuplicadosDiaristas(nomes, ids);
+    }
+    const dupMsg = checkDuplicadosDiaristas(nomes, ids);
     if (dupMsg) {
         await window.customAlert(dupMsg, 'Duplicidade');
         return;
-    }    const nomeDiarista = nomes.map((n, idx) => formatNomeComId(n, ids[idx])).join(', ');
+    }
+    const nomeDiarista = nomes.map((n, idx) => formatNomeComId(n, ids[idx])).join(', ');
     const payload = {
         Quantidade: Number(qtd),
         Empresa: empresa,
