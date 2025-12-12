@@ -1250,31 +1250,41 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .toLowerCase()
         .trim();
 }function applyFiltersAndSearch() {
-    const searchInputString = (searchInput?.value || '').trim();    const searchTerms = searchInputString
+    const searchInputString = (searchInput?.value || '').trim();
+    const searchTerms = searchInputString
         .split(',')
         .map(term => normalizeText(term))
-        .filter(term => term.length > 0);    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {        for (const key in state.filtrosAtivos) {
+        .filter(term => term.length > 0);
+    state.dadosFiltrados = state.colaboradoresData.filter((colaborador) => {
+        for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
-            if (!activeVal) continue;            if (key === 'Contrato' && activeVal === 'Consultorias') {
+            if (!activeVal) continue;
+            if (key === 'Contrato' && activeVal === 'Consultorias') {
                 if (String(colaborador?.['Contrato'] ?? '').toUpperCase() === 'KN') {
                     return false;
                 }
                 continue;
-            }            let colVal;
+            }
+            let colVal;
             if (key.toUpperCase() === 'GERENCIA') {
                 const mtzColab = String(colaborador.MATRIZ || '').toUpperCase().trim();
                 colVal = state.matrizGerenciaMap.get(mtzColab) || '';
             } else {
                 colVal = String(colaborador?.[key] ?? '');
-            }            if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
-        }        if (searchTerms.length === 0) {
+            }
+            if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
+        }
+        if (searchTerms.length === 0) {
             return true;
-        }        const nomeNorm = normalizeText(colaborador.Nome);
+        }
+        const nomeNorm = normalizeText(colaborador.Nome);
         const cpfNorm = normalizeText(colaborador.CPF);
         const idGrootNorm = normalizeText(colaborador['ID GROOT']);
         const ldapNorm = normalizeText(colaborador.LDAP);
-        const fluxoNorm = normalizeText(colaborador.Fluxo);        const matriculaKnNorm = normalizeText(colaborador.MatriculaKN);        return searchTerms.some(term =>
+        const fluxoNorm = normalizeText(colaborador.Fluxo);
+        const matriculaKnNorm = normalizeText(colaborador.MatriculaKN);
+        return searchTerms.some(term =>
             nomeNorm.includes(term) ||
             cpfNorm.includes(term) ||
             idGrootNorm.includes(term) ||
@@ -1282,32 +1292,46 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             fluxoNorm.includes(term) ||
             matriculaKnNorm.includes(term)
         );
-    });    itensVisiveis = ITENS_POR_PAGINA;
+    });
+    itensVisiveis = ITENS_POR_PAGINA;
     repopulateFilterOptionsCascade();
-    updateDisplay();    if (typeof updatePendingImportCounter === 'function') {
+    updateDisplay();
+    if (typeof updatePendingImportCounter === 'function') {
         updatePendingImportCounter();
     }
 }function repopulateFilterOptionsCascade() {
-    if (!filtrosSelect || !filtrosSelect.length) return;    filtrosSelect.forEach((selectEl) => {
+    if (!filtrosSelect || !filtrosSelect.length) return;
+    filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
-        if (!key) return;        const searchTerm = normalizeText(searchInput?.value);        const tempFiltrado = state.colaboradoresData.filter((c) => {            for (const k in state.filtrosAtivos) {
+        if (!key) return;
+        const searchTerm = normalizeText(searchInput?.value);
+        const tempFiltrado = state.colaboradoresData.filter((c) => {
+            for (const k in state.filtrosAtivos) {
                 if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, k)) continue;
-                if (k === key) continue;                const activeVal = state.filtrosAtivos[k];
-                if (!activeVal) continue;                if (k === 'Contrato' && activeVal === 'Consultorias') {
+                if (k === key) continue;
+                const activeVal = state.filtrosAtivos[k];
+                if (!activeVal) continue;
+                if (k === 'Contrato' && activeVal === 'Consultorias') {
                     if (String(c?.['Contrato'] ?? '').toUpperCase() === 'KN') return false;
                     continue;
-                }                let colVal;
+                }
+                let colVal;
                 if (k === 'Gerencia') {
                     const mtzColab = String(c.MATRIZ || '').toUpperCase().trim();
                     colVal = state.matrizGerenciaMap.get(mtzColab) || '';
                 } else {
                     colVal = String(c?.[k] ?? '');
-                }                if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
-            }            if (!searchTerm) return true;            const nomeNorm = normalizeText(c.Nome);
+                }
+                if (colVal.toUpperCase().trim() !== activeVal.toUpperCase().trim()) return false;
+            }
+            if (!searchTerm) return true;
+            const nomeNorm = normalizeText(c.Nome);
             const cpfNorm = normalizeText(c.CPF);
             const idGrootNorm = normalizeText(c['ID GROOT']);
             const ldapNorm = normalizeText(c.LDAP);
-            const fluxoNorm = normalizeText(c.Fluxo);            const matriculaKnNorm = normalizeText(c.MatriculaKN);            return (
+            const fluxoNorm = normalizeText(c.Fluxo);
+            const matriculaKnNorm = normalizeText(c.MatriculaKN);
+            return (
                 nomeNorm.includes(searchTerm) ||
                 cpfNorm.includes(searchTerm) ||
                 idGrootNorm.includes(searchTerm) ||
@@ -1315,7 +1339,8 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 fluxoNorm.includes(searchTerm) ||
                 matriculaKnNorm.includes(searchTerm)
             );
-        });        const valores = new Set();
+        });
+        const valores = new Set();
         tempFiltrado.forEach((c) => {
             let v;
             if (key === 'Gerencia') {
@@ -1325,19 +1350,24 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 v = c?.[key];
             }
             if (v != null && v !== '') valores.add(String(v).toUpperCase().trim());
-        });        const selecionadoAntes = selectEl.value || '';        while (selectEl.options.length > 1) selectEl.remove(1);        Array.from(valores)
+        });
+        const selecionadoAntes = selectEl.value || '';
+        while (selectEl.options.length > 1) selectEl.remove(1);
+        Array.from(valores)
             .sort((a, b) => a.localeCompare(b, 'pt-BR'))
             .forEach((optVal) => {
                 const o = document.createElement('option');
                 o.value = optVal;
                 o.textContent = optVal;
                 selectEl.appendChild(o);
-            });        if (key === 'Contrato') {
+            });
+        if (key === 'Contrato') {
             const o = document.createElement('option');
             o.value = 'Consultorias';
             o.textContent = 'Consultorias';
             selectEl.appendChild(o);
-        }        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
+        }
+        if (selecionadoAntes && (valores.has(selecionadoAntes) || (key === 'Contrato' && selecionadoAntes === 'Consultorias'))) {
             selectEl.value = selecionadoAntes;
         } else {
             if (state.filtrosAtivos[key]) delete state.filtrosAtivos[key];
@@ -3252,8 +3282,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}export async function init() {
-    colaboradoresTbody = document.getElementById('colaboradores-tbody');
+}export async function init() {    state.isModuleActive = true;    colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
@@ -3268,21 +3297,13 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     btnImportarRH = document.getElementById('btnImportarRH');
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
-    fecharModalRH = document.getElementById('fecharModalRH');
-    checkUserAdminStatus();
-    setOnFeriasChangeCallback(async () => {
-        console.log("Status de férias atualizado em background. Atualizando tela...");
+    fecharModalRH = document.getElementById('fecharModalRH');    checkUserAdminStatus();    setOnFeriasChangeCallback(async () => {        if (!state.isModuleActive) return;        console.log("Status de férias atualizado em background. Atualizando tela...");
         invalidateColaboradoresCache();
         await fetchColaboradores();
-    });
-    wireFerias();
-    await ensureMatrizesDataLoaded();
-    fetchColaboradores();
-    processarStatusFerias().then(() => {
+    });    wireFerias();
+    await ensureMatrizesDataLoaded();    fetchColaboradores();    processarStatusFerias().then(() => {
         console.log("Verificação inicial de férias concluída (background).");
-    }).catch(err => console.error("Erro na verificação de férias background:", err));
-    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
-    if (filtrosSelect && filtrosSelect.length) {
+    }).catch(err => console.error("Erro na verificação de férias background:", err));    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);    if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
             selectEl.addEventListener('change', (event) => {
                 const filterKey = selectEl.dataset.filterKey;
@@ -3292,8 +3313,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 applyFiltersAndSearch();
             });
         });
-    }
-    if (limparFiltrosBtn) {
+    }    if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
@@ -3305,55 +3325,46 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
             applyFiltersAndSearch();
         });
-    }
-    if (mostrarMaisBtn) {
+    }    if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
             updateDisplay();
         });
-    }
-    if (mostrarMenosBtn) {
+    }    if (mostrarMenosBtn) {
         mostrarMenosBtn.addEventListener('click', () => {
             itensVisiveis = Math.max(ITENS_POR_PAGINA, itensVisiveis - ITENS_POR_PAGINA);
             updateDisplay();
         });
-    }
-    if (addColaboradorBtn) {
+    }    if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
-    }
-    document.addEventListener('click', (event) => {
+    }    document.addEventListener('click', (event) => {
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
-    });
-    if (btnAdicionarManual) {
+    });    if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
             await prepararFormularioAdicao();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
             preencherFormularioAdicao({});
         });
-    }
-    if (btnImportarRH) {
+    }    if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
             modalListaRH.classList.remove('hidden');
             fetchCandidatosAprovados();
         });
-    }
-    if (fecharModalRH) {
+    }    if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
-    }
-    window.addEventListener('click', (e) => {
+    }    window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
-    });
-    if (addForm) {
+    });    if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
         const svcSelect = document.getElementById('addSVC');
@@ -3370,8 +3381,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 openDsrModal(document.getElementById('addDSR'));
             });
         }
-    }
-    if (colaboradoresTbody) {
+    }    if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
@@ -3393,8 +3403,7 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 invalidateColaboradoresCache();
             }
         });
-    }
-    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
+    }    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
             if (!state.colaboradoresData.length) {
@@ -3415,12 +3424,10 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 exportColaboradoresBtn.disabled = false;
             }
         });
-    }
-    const gerarQRBtn = document.getElementById('gerar-qr-btn');
+    }    const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
-    }
-    wireEdit();
+    }    wireEdit();
     wireDesligar();
     wireFluxoEfetivacao();
     wireDsrModal();
