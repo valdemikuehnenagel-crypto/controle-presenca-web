@@ -1374,22 +1374,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             selectEl.selectedIndex = 0;
         }
     });
-}function updatePendingImportCounter() {
-    if (!state.pendingImportsRaw || state.pendingImportsRaw.length === 0) {
+}function updatePendingImportCounter() {    if (state.isModuleActive === false) return;    if (!state.pendingImportsRaw || state.pendingImportsRaw.length === 0) {
         hidePendingImportAlert();
         return;
-    }
-    const nomesCadastrados = new Set(
+    }    const nomesCadastrados = new Set(
         state.colaboradoresData.map(c => (c.Nome || '').toUpperCase().trim())
-    );
-    const pendentesFiltrados = state.pendingImportsRaw.filter(vaga => {
+    );    const pendentesFiltrados = state.pendingImportsRaw.filter(vaga => {
         const nomeCandidato = (vaga.CandidatoAprovado || '').toUpperCase().trim();
-        if (!nomeCandidato || nomesCadastrados.has(nomeCandidato)) return false;
-        for (const key in state.filtrosAtivos) {
+        if (!nomeCandidato || nomesCadastrados.has(nomeCandidato)) return false;        for (const key in state.filtrosAtivos) {
             if (!Object.prototype.hasOwnProperty.call(state.filtrosAtivos, key)) continue;
             const activeVal = state.filtrosAtivos[key];
-            if (!activeVal) continue;
-            let vagaVal = '';
+            if (!activeVal) continue;            let vagaVal = '';
             if (key === 'MATRIZ') {
                 vagaVal = vaga.MATRIZ;
             } else if (key === 'Contrato') {
@@ -1403,14 +1398,12 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 vagaVal = computeRegiaoFromSvcMatriz(null, vaga.MATRIZ);
             } else {
                 continue;
-            }
-            if (vagaVal && String(vagaVal).toUpperCase().trim() !== String(activeVal).toUpperCase().trim()) {
+            }            if (vagaVal && String(vagaVal).toUpperCase().trim() !== String(activeVal).toUpperCase().trim()) {
                 return false;
             }
         }
         return true;
-    });
-    if (pendentesFiltrados.length > 0) {
+    });    if (pendentesFiltrados.length > 0) {
         showPendingImportAlert(pendentesFiltrados.length);
     } else {
         hidePendingImportAlert();
@@ -3282,7 +3275,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}export async function init() {    state.isModuleActive = true;    colaboradoresTbody = document.getElementById('colaboradores-tbody');
+}export async function init() {
+    state.isModuleActive = true;
+    colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
@@ -3297,13 +3292,22 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     btnImportarRH = document.getElementById('btnImportarRH');
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
-    fecharModalRH = document.getElementById('fecharModalRH');    checkUserAdminStatus();    setOnFeriasChangeCallback(async () => {        if (!state.isModuleActive) return;        console.log("Status de férias atualizado em background. Atualizando tela...");
+    fecharModalRH = document.getElementById('fecharModalRH');
+    checkUserAdminStatus();
+    setOnFeriasChangeCallback(async () => {
+        if (!state.isModuleActive) return;
+        console.log("Status de férias atualizado em background. Atualizando tela...");
         invalidateColaboradoresCache();
         await fetchColaboradores();
-    });    wireFerias();
-    await ensureMatrizesDataLoaded();    fetchColaboradores();    processarStatusFerias().then(() => {
+    });
+    wireFerias();
+    await ensureMatrizesDataLoaded();
+    fetchColaboradores();
+    processarStatusFerias().then(() => {
         console.log("Verificação inicial de férias concluída (background).");
-    }).catch(err => console.error("Erro na verificação de férias background:", err));    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);    if (filtrosSelect && filtrosSelect.length) {
+    }).catch(err => console.error("Erro na verificação de férias background:", err));
+    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
+    if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
             selectEl.addEventListener('change', (event) => {
                 const filterKey = selectEl.dataset.filterKey;
@@ -3313,7 +3317,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 applyFiltersAndSearch();
             });
         });
-    }    if (limparFiltrosBtn) {
+    }
+    if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
@@ -3325,46 +3330,55 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
             applyFiltersAndSearch();
         });
-    }    if (mostrarMaisBtn) {
+    }
+    if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
             updateDisplay();
         });
-    }    if (mostrarMenosBtn) {
+    }
+    if (mostrarMenosBtn) {
         mostrarMenosBtn.addEventListener('click', () => {
             itensVisiveis = Math.max(ITENS_POR_PAGINA, itensVisiveis - ITENS_POR_PAGINA);
             updateDisplay();
         });
-    }    if (addColaboradorBtn) {
+    }
+    if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
-    }    document.addEventListener('click', (event) => {
+    }
+    document.addEventListener('click', (event) => {
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
-    });    if (btnAdicionarManual) {
+    });
+    if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
             await prepararFormularioAdicao();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
             preencherFormularioAdicao({});
         });
-    }    if (btnImportarRH) {
+    }
+    if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
             modalListaRH.classList.remove('hidden');
             fetchCandidatosAprovados();
         });
-    }    if (fecharModalRH) {
+    }
+    if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
-    }    window.addEventListener('click', (e) => {
+    }
+    window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
-    });    if (addForm) {
+    });
+    if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
         const svcSelect = document.getElementById('addSVC');
@@ -3381,7 +3395,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 openDsrModal(document.getElementById('addDSR'));
             });
         }
-    }    if (colaboradoresTbody) {
+    }
+    if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
@@ -3403,7 +3418,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 invalidateColaboradoresCache();
             }
         });
-    }    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
+    }
+    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
             if (!state.colaboradoresData.length) {
@@ -3424,50 +3440,31 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 exportColaboradoresBtn.disabled = false;
             }
         });
-    }    const gerarQRBtn = document.getElementById('gerar-qr-btn');
+    }
+    const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
-    }    wireEdit();
+    }
+    wireEdit();
     wireDesligar();
     wireFluxoEfetivacao();
     wireDsrModal();
     wireCepEvents();
-}export function destroy() {
-    cachedColaboradores = null;
+}export function destroy() {    state.isModuleActive = false;    const alertDiv = document.getElementById('pending-import-alert');
+    if (alertDiv) {
+        alertDiv.remove();
+    }    cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
     state.colaboradoresData = [];
     state.dadosFiltrados = [];
-    state.filtrosAtivos = {};
-    try {
-        state.gestoresData = [];
-    } catch {
-    }
-    try {
-        state.matrizesData = [];
-    } catch {
-    }
-    try {
-        state.serviceMatrizMap?.clear?.();
-    } catch {
-    }
-    try {
-        state.serviceRegiaoMap?.clear?.();
-    } catch {
-    }
-    try {
-        state.matrizRegiaoMap?.clear?.();
-    } catch {
-    }
-    try {
-        state.selectedNames?.clear?.();
-    } catch {
-    }
-    try {
-        state.feriasAtivasMap?.clear?.();
-    } catch {
-    }
-    console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
+    state.filtrosAtivos = {};    try { state.gestoresData = []; } catch {}
+    try { state.matrizesData = []; } catch {}
+    try { state.serviceMatrizMap?.clear?.(); } catch {}
+    try { state.serviceRegiaoMap?.clear?.(); } catch {}
+    try { state.matrizRegiaoMap?.clear?.(); } catch {}
+    try { state.selectedNames?.clear?.(); } catch {}
+    try { state.feriasAtivasMap?.clear?.(); } catch {}    console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
 }export function garantirModalEdicaoAtivo() {
     if (!editModal || editModal.dataset.wired !== '1') {
         console.log("Iniciando Modal de Edição via Dados Operacionais...");
