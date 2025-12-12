@@ -220,14 +220,14 @@ async function loadMatrizInfo() {
             .select('SERVICE, MATRIZ, REGIAO, GERENCIA')
             .not('SERVICE', 'is', null)
             .not('MATRIZ', 'is', null)
-            .order('MATRIZ', { ascending: true })
+            .order('MATRIZ', {ascending: true})
             .limit(10000);
 
         if (matrizesPermitidas?.length) {
             q = q.in('MATRIZ', matrizesPermitidas);
         }
 
-        const { data, error } = await q;
+        const {data, error} = await q;
         if (error) throw error;
 
         const all = (data || []).map(r => ({
@@ -851,8 +851,6 @@ function wireUI() {
     on(document.getElementById('f-quantidade'), 'change', () => updateNameInputs(true));
 
 
-
-
     on(document.getElementById('f-svc'), 'change', (e) => {
         const svc = e.target.value;
         const mtzEl = document.getElementById('f-matriz');
@@ -895,9 +893,9 @@ function wireUI() {
 
     document.addEventListener('click', (e) => {
         if (state._popover && !state._popover.contains(e.target) && !e.target.closest('.btn-nomes')) closeNamesPopover();
-    }, { passive: true });
+    }, {passive: true});
 
-    window.addEventListener('scroll', closeNamesPopover, { passive: true });
+    window.addEventListener('scroll', closeNamesPopover, {passive: true});
 }
 
 export async function init() {
@@ -1701,19 +1699,41 @@ function buildGerenciarModal() {
 }
 
 async function openGerenciarModal() {
+    if (!state.gerenciar) {
+        state.gerenciar = {
+            all: [],
+            filtered: [],
+            loaded: false,
+            searchRaw: '',
+            selectedNames: new Set(),
+            editing: null
+        };
+    }
+
     ensureGerenciarStyles();
     buildGerenciarModal();
+
     const $input = document.getElementById('gerenciar-search-input');
     if ($input) $input.value = '';
+
     state.gerenciar.searchRaw = '';
     state.gerenciar.selectedNames = new Set();
+
     const overlay = document.getElementById('gerenciar-modal');
-    overlay.classList.remove('hidden');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+
     await ensureBancoDiaristasLoaded();
+
     const $matrizFilter = document.getElementById('gerenciar-filter-matriz');
     if ($matrizFilter) {
         while ($matrizFilter.options.length > 1) $matrizFilter.remove(1);
-        [...new Set(state.gerenciar.all.map(r => r.MATRIZ))].filter(Boolean).sort()
+
+
+        const lista = state.gerenciar.all || [];
+
+        [...new Set(lista.map(r => r.MATRIZ))].filter(Boolean).sort()
             .forEach(m => {
                 const o = document.createElement('option');
                 o.value = m;
@@ -1722,6 +1742,7 @@ async function openGerenciarModal() {
             });
         $matrizFilter.value = '';
     }
+
     applyGerenciarFilters();
 }
 
