@@ -1,29 +1,19 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
-import {logAction} from '../../logAction.js';
-
-const _cache = new Map();
+import {logAction} from '../../logAction.js';const _cache = new Map();
 const _inflight = new Map();
 const CACHE_TTL_MS = 10 * 60_000;
 const MIN_LABEL_FONT_PX = 12;
 const MIN_SEGMENT_PERCENT = 9;
 let inputQtdVagas;
-let btnDuplicarVaga;
-
-function cacheKeyForColabs() {
+let btnDuplicarVaga;function cacheKeyForColabs() {
     return `colabs:ALL`;
-}
-
-function toUpperTrim(str) {
+}function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}
-
-function normalizeCPF(value) {
+}function normalizeCPF(value) {
     if (!value) return null;
     return value.replace(/\D/g, '');
-}
-
-function formatDateTimeLocal(iso) {
+}function formatDateTimeLocal(iso) {
     if (!iso) return '-';
     try {
         const d = new Date(iso);
@@ -39,9 +29,16 @@ function formatDateTimeLocal(iso) {
     } catch (e) {
         return iso;
     }
-}
-
-function wireCepVagas() {
+}async function loadVagasAbertasCached() {
+    return fetchOnce('vagasAbertasData', async () => {
+        const {data, error} = await supabase
+            .from('Vagas')
+            .select('MATRIZ, Status, ID_Vaga')
+            .in('Status', ['ABERTA', 'EM ADMISSÃO']);
+        if (error) throw error;
+        return data || [];
+    });
+}function wireCepVagas() {
     const form = document.getElementById('formVagas');
     if (!form) return;
     const inputCep = form.querySelector('[name="cep_candidato"]');
@@ -82,9 +79,7 @@ function wireCepVagas() {
             }
         });
     }
-}
-
-async function loadSheetJS() {
+}async function loadSheetJS() {
     if (window.XLSX) return;
     try {
         await new Promise((resolve, reject) => {
@@ -97,9 +92,7 @@ async function loadSheetJS() {
     } catch (error) {
         console.error("Falha ao carregar a biblioteca XLSX:", error);
     }
-}
-
-async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
+}async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
     console.log(`[DEBUG] Iniciando busca de absenteísmo (apenas ocorrências) para: ${nomeColaborador}`);
     if (!nomeColaborador) return null;
     const dataCorte = new Date();
@@ -152,9 +145,7 @@ async function desligamento_prepararDadosAbsenteismo(nomeColaborador) {
         stats: {justificado, injustificado},
         attachment: attachment
     };
-}
-
-function getLocalISOString(date) {
+}function getLocalISOString(date) {
     if (!date) date = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const year = date.getFullYear();
@@ -164,17 +155,13 @@ function getLocalISOString(date) {
     const minute = pad(date.getMinutes());
     const second = pad(date.getSeconds());
     return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
-}
-
-function ymdToday() {
+}function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}
-
-function desligamento_getCurrentUserEmail() {
+}function desligamento_getCurrentUserEmail() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -185,9 +172,7 @@ function desligamento_getCurrentUserEmail() {
         console.error('Erro ao ler e-mail do usuário:', e);
     }
     return '';
-}
-
-function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
+}function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
     if (!dataSolicitada) return null;
     const start = new Date(dataSolicitada);
     const end = dataFinal ? new Date(dataFinal) : new Date();
@@ -195,9 +180,7 @@ function desligamento_calcularSLA(dataSolicitada, dataFinal = null) {
     const diffMs = end - start;
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     return diffDays < 0 ? 0 : diffDays;
-}
-
-async function desligamento_fetchEmailsSugestao(contrato) {
+}async function desligamento_fetchEmailsSugestao(contrato) {
     const emailsSugestao = new Set();
     const myEmail = desligamento_getCurrentUserEmail();
     if (myEmail) {
@@ -223,9 +206,7 @@ async function desligamento_fetchEmailsSugestao(contrato) {
         });
     }
     return Array.from(emailsSugestao).join(', ');
-}
-
-async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
+}async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     const now = Date.now();
     const hit = _cache.get(key);
     if (hit && (now - hit.ts) < hit.ttl) return hit.value;
@@ -241,9 +222,7 @@ async function fetchOnce(key, loaderFn, ttlMs = CACHE_TTL_MS) {
     })();
     _inflight.set(key, p);
     return p;
-}
-
-function invalidateCache(keys = []) {
+}function invalidateCache(keys = []) {
     if (!keys.length) {
         _cache.clear();
     } else {
@@ -254,9 +233,7 @@ function invalidateCache(keys = []) {
     } catch (e) {
         console.warn('Falha ao invalidar cache de colaboradores no localStorage', e);
     }
-}
-
-function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
     const selSapato = document.getElementById(idSelectSapato);
     const selColete = document.getElementById(idSelectColete);
     if (selSapato) {
@@ -282,9 +259,7 @@ function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
         });
         if (valorAtual) selColete.value = valorAtual;
     }
-}
-
-async function fetchAllWithPagination(queryBuilder) {
+}async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -300,9 +275,7 @@ async function fetchAllWithPagination(queryBuilder) {
         }
     }
     return allData;
-}
-
-const HOST_SEL = '#hc-indice';
+}const HOST_SEL = '#hc-indice';
 const state = {
     mounted: false,
     loading: false,
@@ -347,9 +320,7 @@ const state = {
 };
 const norm = (v) => String(v ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const root = () => document.documentElement;
-const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;
-
-function parseRGB(str) {
+const css = (el, name, fb) => getComputedStyle(el).getPropertyValue(name).trim() || fb;function parseRGB(str) {
     if (!str) return {r: 0, g: 0, b: 0};
     const s = String(str).trim();
     if (s.startsWith('#')) {
@@ -362,9 +333,7 @@ function parseRGB(str) {
     }
     const m = /rgba?\((\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(s);
     return m ? {r: +m[1], g: +m[2], b: +m[3]} : {r: 30, g: 64, b: 124};
-}
-
-const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
+}const lum = ({r, g, b}) => 0.2126 * (r / 255) + 0.7152 * (g / 255) + 0.0722 * (b / 255);
 const bestLabel = (bg) => lum(parseRGB(bg)) < 0.45 ? '#fff' : css(root(), '--hcidx-primary', '#003369');
 const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
 const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB', 'N/D'];
@@ -373,38 +342,28 @@ const MONTH_ORDER = {
     'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
 };
 const sortMesAno = (a, b) => (a.ANO * 100 + a.mesOrder) - (b.ANO * 100 + b.mesOrder);
-const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;
-
-function parseDateMaybe(s) {
+const getMesOrder = (mesStr) => MONTH_ORDER[norm(mesStr)] || 0;function parseDateMaybe(s) {
     const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(String(s || '').trim());
     if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
     const d = new Date(s);
     return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function formatDateLocal(iso) {
+}function formatDateLocal(iso) {
     if (!iso) return '';
     const datePart = iso.split('T')[0];
     const [y, m, d] = datePart.split('-');
     if (!y || !m || !d) return '';
     return `${d}/${m}/${y}`;
-}
-
-function daysBetween(d1, d2) {
+}function daysBetween(d1, d2) {
     const ms = 24 * 60 * 60 * 1000;
     const a = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
     const b = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
     return Math.floor((b - a) / ms);
-}
-
-function daysSinceAdmission(c) {
+}function daysSinceAdmission(c) {
     const raw = c?.['Data de admissão'] ?? c?.['Data de admissao'] ?? c?.Admissao ?? c?.['Data Admissão'] ?? c?.['Data Admissao'] ?? '';
     const d = parseDateMaybe(raw);
     if (!d) return null;
     return daysBetween(d, new Date());
-}
-
-function calcAgeFromStr(s) {
+}function calcAgeFromStr(s) {
     const d = parseDateMaybe(s);
     if (!d) return null;
     const now = new Date();
@@ -412,9 +371,7 @@ function calcAgeFromStr(s) {
     const dm = now.getMonth() - d.getMonth();
     if (dm < 0 || (dm === 0 && now.getDate() < d.getDate())) a--;
     return a;
-}
-
-function ageBucket(a) {
+}function ageBucket(a) {
     if (a == null) return 'N/D';
     if (a < 20) return '<20';
     if (a < 30) return '20-29';
@@ -422,31 +379,23 @@ function ageBucket(a) {
     if (a < 50) return '40-49';
     if (a < 60) return '50-59';
     return '60+';
-}
-
-function getNascimento(c) {
+}function getNascimento(c) {
     return c?.['Data de Nascimento'] || c?.['Data de nascimento'] || c?.Nascimento || c?.['Nascimento'] || '';
-}
-
-function mapGeneroLabel(raw) {
+}function mapGeneroLabel(raw) {
     const n = norm(raw);
     if (n.startsWith('MASC')) return 'Masculino';
     if (n.startsWith('FEM')) return 'Feminino';
     return n ? 'Outros' : 'N/D';
-}
-
-function mapSvcLabel(rawSvc) {
-    const svc = String(rawSvc || 'N/D').toUpperCase();
+}function mapSvcLabel(rawSvc) {
+    const svc = String(rawSvc || 'N/D').toUpperCase().trim();
     if (svc === 'SBA2' || svc === 'SBA4') {
         return 'SBA2/4';
     }
-    if (svc === 'SBA3' || svc === 'SBA7') {
+    if (svc === 'SBA3' || svc === 'SBA7' || svc === 'XBA3') {
         return 'SBA3/7';
     }
     return svc;
-}
-
-function mapDSR(raw) {
+}function mapDSR(raw) {
     const n = norm(raw);
     if (!n) return ['N/D'];
     const days = n.split(',').map(d => d.trim());
@@ -461,9 +410,7 @@ function mapDSR(raw) {
         return null;
     }).filter(Boolean);
     return mapped.length > 0 ? mapped : ['N/D'];
-}
-
-function palette() {
+}function palette() {
     const r = root();
     return [
         css(r, '--hcidx-p-1', '#02B1EE'),
@@ -475,11 +422,7 @@ function palette() {
         css(r, '--hcidx-p-7', '#7FB8EB'),
         css(r, '--hcidx-p-8', '#99CCFF')
     ];
-}
-
-let _resizeObs = null;
-
-function setResponsiveHeights() {
+}let _resizeObs = null;function setResponsiveHeights() {
     if (window.Chart) {
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
         Object.values(state.charts).forEach(ch => {
@@ -488,9 +431,7 @@ function setResponsiveHeights() {
             ch.resize();
         });
     }
-}
-
-function wireResizeObserver() {
+}function wireResizeObserver() {
     if (_resizeObs) return;
     const rootEl = document.querySelector(HOST_SEL);
     if (!rootEl) return;
@@ -499,9 +440,7 @@ function wireResizeObserver() {
     });
     _resizeObs.observe(rootEl);
     window.addEventListener('resize', setResponsiveHeights);
-}
-
-function ensureMounted() {
+}function ensureMounted() {
     const host = document.querySelector(HOST_SEL);
     if (!host || state.mounted) return;
     ['hc-refresh', 'colaborador-added', 'colaborador-updated', 'colaborador-removed']
@@ -534,9 +473,7 @@ function ensureMounted() {
     state.mounted = true;
     setResponsiveHeights();
     wireResizeObserver();
-}
-
-async function ensureChartLib() {
+}async function ensureChartLib() {
     if (!window.Chart) await loadJs('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
     if (!window.ChartDataLabels) await loadJs('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js');
     try {
@@ -546,9 +483,7 @@ async function ensureChartLib() {
     Chart.defaults.responsive = true;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
-}
-
-function loadJs(src) {
+}function loadJs(src) {
     return new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = src;
@@ -556,22 +491,16 @@ function loadJs(src) {
         s.onerror = rej;
         document.head.appendChild(s);
     });
-}
-
-function showBusy(f) {
+}function showBusy(f) {
     const el = document.getElementById('hcidx-busy');
     if (el) el.style.display = f ? 'flex' : 'none';
-}
-
-const uniqueNonEmptySorted = (v) =>
+}const uniqueNonEmptySorted = (v) =>
     Array.from(new Set((v || []).map(x => String(x ?? '')).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'pt-BR', {sensitivity: 'base'}));
 const escapeHtml = s => String(s)
     .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-let _filtersPopulated = false;
-
-function populateFilters(allColabs, matrizesMap) {
+let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     if (_filtersPopulated) return;
     const selM = document.getElementById('efet-filter-matriz');
     const selG = document.getElementById('efet-filter-gerencia');
@@ -592,9 +521,7 @@ function populateFilters(allColabs, matrizesMap) {
         if (state.regiao) selR.value = state.regiao;
     }
     _filtersPopulated = true;
-}
-
-async function loadColabsCached() {
+}async function loadColabsCached() {
     const key = cacheKeyForColabs();
     const now = Date.now();
     const CACHE_KEY_NAME = 'knc:hcIndiceCache';
@@ -630,9 +557,7 @@ async function loadColabsCached() {
         }
         return rows;
     });
-}
-
-async function loadSpamData() {
+}async function loadSpamData() {
     return fetchOnce('spamData', async () => {
         const {data, error} = await supabase.from('Spam').select('"HC Fixo", "HC PT", SVC, REGIAO, MÊS, ANO');
         if (error) throw error;
@@ -648,9 +573,7 @@ async function loadSpamData() {
             mesOrder: getMesOrder(r.MÊS)
         }));
     });
-}
-
-async function loadMatrizesData() {
+}async function loadMatrizesData() {
     return fetchOnce('matrizesData', async () => {
         const {data, error} = await supabase.from('Matrizes').select('SERVICE, MATRIZ, GERENCIA, REGIAO');
         if (error) throw error;
@@ -666,9 +589,7 @@ async function loadMatrizesData() {
         });
         return map;
     });
-}
-
-function enforceMinSegmentPct(percs, minPct) {
+}function enforceMinSegmentPct(percs, minPct) {
     const arr = percs.map(v => Math.max(0, +v || 0));
     const nonZeroIdx = arr.map((v, i) => v > 0 ? i : -1).filter(i => i >= 0);
     const k = nonZeroIdx.length;
@@ -692,9 +613,7 @@ function enforceMinSegmentPct(percs, minPct) {
         out[maxIdx] += diff;
     }
     return out;
-}
-
-function applyMinWidthToStack(datasets, minPct) {
+}function applyMinWidthToStack(datasets, minPct) {
     if (!datasets || datasets.length === 0) return;
     const n = Math.max(...datasets.map(ds => ds.data?.length || 0));
     for (let j = 0; j < n; j++) {
@@ -710,9 +629,7 @@ function applyMinWidthToStack(datasets, minPct) {
     datasets.forEach(ds => {
         ds.data = ds._renderData;
     });
-}
-
-async function refresh() {
+}async function refresh() {
     if (!state.mounted || state.loading) {
         if (state.loading) console.warn("Refresh chamado enquanto já estava carregando.");
         return;
@@ -791,9 +708,7 @@ async function refresh() {
         showBusy(false);
         setTimeout(() => setResponsiveHeights(), 100);
     }
-}
-
-function wireSubtabs() {
+}function wireSubtabs() {
     const host = document.querySelector(HOST_SEL);
     if (!host) return;
     const subButtons = host.querySelectorAll('.efet-subtab-btn');
@@ -840,9 +755,7 @@ function wireSubtabs() {
             }, 50);
         });
     });
-}
-
-function setDynamicChartHeight(chart, labels) {
+}function setDynamicChartHeight(chart, labels) {
     if (!chart || !chart.canvas || chart.options.indexAxis !== 'y') return;
     const pixelsPerBar = 32;
     const headerAndLegendHeight = 96;
@@ -856,9 +769,7 @@ function setDynamicChartHeight(chart, labels) {
             setTimeout(() => chart.resize(), 50);
         }
     }
-}
-
-function baseLegendConfig(pos, show) {
+}function baseLegendConfig(pos, show) {
     return {
         display: show,
         position: pos,
@@ -866,9 +777,7 @@ function baseLegendConfig(pos, show) {
         align: 'center',
         labels: {boxWidth: 10, boxHeight: 10, padding: 10, usePointStyle: true}
     };
-}
-
-function forceLegendBottom(chart) {
+}function forceLegendBottom(chart) {
     if (!chart?.options) return;
     const leg = chart.options.plugins.legend || (chart.options.plugins.legend = {});
     const lbls = leg.labels || (leg.labels = {});
@@ -883,9 +792,7 @@ function forceLegendBottom(chart) {
     const w = chart.canvas?.parentElement?.clientWidth || 800;
     const size = Math.max(13, Math.min(16, Math.round(w / 48)));
     lbls.font = {size};
-}
-
-function baseOptsPercent(canvas, onClick, axis = 'x') {
+}function baseOptsPercent(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(13, Math.min(16, Math.round(w / 48)));
     const isHorizontal = axis === 'y';
@@ -957,9 +864,7 @@ function baseOptsPercent(canvas, onClick, axis = 'x') {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}
-
-function baseOptsNumber(canvas, onClick, axis = 'x') {
+}function baseOptsNumber(canvas, onClick, axis = 'x') {
     const w = canvas?.parentElement?.clientWidth || 800;
     const baseSize = Math.max(12, Math.min(14, Math.round(w / 55)));
     const isHorizontal = axis === 'y';
@@ -1022,9 +927,7 @@ function baseOptsNumber(canvas, onClick, axis = 'x') {
         scales: {x: isHorizontal ? valueScale : categoryScale, y: isHorizontal ? categoryScale : valueScale},
         elements: {bar: {borderSkipped: false, borderRadius: 4}}
     };
-}
-
-function createStackedBar(canvasId, onClick, axis = 'x') {
+}function createStackedBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsPercent(canvas, onClick, axis);
@@ -1039,9 +942,7 @@ function createStackedBar(canvasId, onClick, axis = 'x') {
     });
     forceLegendBottom(chart);
     return chart;
-}
-
-function createBar(canvasId, onClick, axis = 'x') {
+}function createBar(canvasId, onClick, axis = 'x') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return null;
     const options = baseOptsNumber(canvas, onClick, axis);
@@ -1053,16 +954,12 @@ function createBar(canvasId, onClick, axis = 'x') {
     });
     forceLegendBottom(chart);
     return chart;
-}
-
-function splitByTurno(colabs) {
+}function splitByTurno(colabs) {
     const t1 = colabs.filter(c => c.Escala === 'T1');
     const t2 = colabs.filter(c => c.Escala === 'T2');
     const t3 = colabs.filter(c => c.Escala === 'T3');
     return {labels: ['T1', 'T2', 'T3', 'GERAL'], groups: [t1, t2, t3, colabs]};
-}
-
-function splitByRegiao(colabs) {
+}function splitByRegiao(colabs) {
     const map = new Map();
     colabs.forEach(c => {
         const r = String(c?.REGIAO || 'N/D');
@@ -1075,9 +972,7 @@ function splitByRegiao(colabs) {
     labels.push('GERAL');
     groups.push(colabs.slice());
     return {labels, groups};
-}
-
-function ensureChartsCreatedService() {
+}function ensureChartsCreatedService() {
     if (!state.charts.idade) {
         state.charts.idade = createStackedBar('ind-idade-bar', (chart, element) => toggleFilter('idade', chart, element), 'x');
     }
@@ -1137,9 +1032,7 @@ function ensureChartsCreatedService() {
     if (!state.charts.consultoriaSvc) {
         state.charts.consultoriaSvc = createStackedBar('ind-consultoria-svc-bar', null, 'y');
     }
-}
-
-function ensureChartsCreatedRegional() {
+}function ensureChartsCreatedRegional() {
     if (!state.charts.idadeRegiao) {
         const id = document.getElementById('reg-idade-bar') ? 'reg-idade-bar' : 'ind-idade-regiao-bar';
         state.charts.idadeRegiao = createStackedBar(id, null, 'x');
@@ -1156,9 +1049,7 @@ function ensureChartsCreatedRegional() {
         const id = document.getElementById('reg-aux-30-60-90-bar') ? 'reg-aux-30-60-90-bar' : 'ind-contrato-90d-regiao-bar';
         state.charts.auxPrazoRegiao = createStackedBar(id, null, 'x');
     }
-}
-
-function toggleFilter(type, chart, element) {
+}function toggleFilter(type, chart, element) {
     const set = state.interactive[type];
     if (!set) return;
     let label = (type === 'dsr')
@@ -1170,9 +1061,7 @@ function toggleFilter(type, chart, element) {
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}
-
-function applyInteractiveFilter(colabs) {
+}function applyInteractiveFilter(colabs) {
     let out = [...colabs];
     if (state.interactive.idade.size > 0) out = out.filter(c => state.interactive.idade.has(ageBucket(calcAgeFromStr(getNascimento(c)))));
     if (state.interactive.genero.size > 0) out = out.filter(c => state.interactive.genero.has(mapGeneroLabel(c.Genero)));
@@ -1183,17 +1072,13 @@ function applyInteractiveFilter(colabs) {
         });
     }
     return out;
-}
-
-function clearAllFilters() {
+}function clearAllFilters() {
     Object.values(state.interactive).forEach(set => set.clear());
     const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
     const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
     if (visaoServiceAtiva) updateChartsNow();
     if (visaoRegionalAtiva) updateRegionalChartsNow();
-}
-
-function updateChartsNow() {
+}function updateChartsNow() {
     if (!state.charts.idade) {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
@@ -1562,9 +1447,7 @@ function updateChartsNow() {
             ch.update();
         }
     }
-}
-
-function updateRegionalChartsNow() {
+}function updateRegionalChartsNow() {
     if (!state.charts.idadeRegiao) {
         console.warn("Tentando atualizar gráficos Regionais, mas eles não estão inicializados.");
         return;
@@ -1705,9 +1588,7 @@ function updateRegionalChartsNow() {
             ch.update();
         }
     }
-}
-
-function updateEmEfetivacaoTable() {
+}function updateEmEfetivacaoTable() {
     const tbody = document.getElementById('efet-table-tbody');
     if (!tbody) {
         console.warn("Elemento #efet-table-tbody não encontrado. A tabela 'Em Efetivação' não pode ser populada.");
@@ -1737,11 +1618,8 @@ function updateEmEfetivacaoTable() {
         `;
         tbody.appendChild(tr);
     });
-}
-
-function ensureChartsCreatedSpam() {
-    const pal = palette();
-    if (!state.charts.spamHcEvolucaoSvc) {
+}function ensureChartsCreatedSpam() {
+    const pal = palette();    if (!state.charts.spamHcEvolucaoSvc) {
         const chart = createBar('spam-chart-evolucao-svc', null, 'x');
         if (chart) {
             chart.options.plugins.datalabels = {
@@ -1751,19 +1629,15 @@ function ensureChartsCreatedSpam() {
                         display: (ctx) => (ctx.dataset.label === ctx.chart.data._mesAtualLabel && ctx.dataset.data[ctx.dataIndex] > 0),
                         formatter: (v) => v.toFixed(0),
                         font: {weight: 'bold', size: 14},
-                        anchor: 'end',
-                        align: 'end',
-                        offset: 8,
-                        color: '#333'
-                    }, previousValue: {
+                        anchor: 'end', align: 'end', offset: 4, color: '#333'
+                    },
+                    previousValue: {
                         display: (ctx) => (ctx.dataset.label === ctx.chart.data._mesAnteriorLabel && ctx.dataset.data[ctx.dataIndex] > 0),
                         formatter: (v) => v.toFixed(0),
                         font: {weight: 'bold', size: 14},
-                        anchor: 'end',
-                        align: 'end',
-                        offset: 8,
-                        color: '#333'
-                    }, delta: {
+                        anchor: 'end', align: 'end', offset: 4, color: '#333'
+                    },
+                    delta: {
                         display: (ctx) => {
                             const deltas = ctx.dataset._deltas;
                             if (!deltas) return false;
@@ -1779,63 +1653,78 @@ function ensureChartsCreatedSpam() {
                         color: (ctx) => (ctx.dataset._deltas[ctx.dataIndex] > 0 ? '#28a745' : '#dc3545'),
                         textAlign: 'center',
                         font: {weight: '800', size: 16, lineHeight: 1.15},
-                        anchor: 'end',
-                        align: 'end',
-                        offset: 35
+                        anchor: 'end', align: 'end', offset: 28
                     }
                 }
             };
             state.charts.spamHcEvolucaoSvc = chart;
         }
-    }
-    if (!state.charts.spamHcEvolucaoRegiao) {
+    }    if (!state.charts.spamHcEvolucaoRegiao) {
         const chart = createBar('spam-chart-evolucao-regiao', null, 'x');
         if (chart) {
             chart.options.plugins.datalabels = {
                 clamp: false,
                 display: true,
-                align: 'center',
-                anchor: 'center',
+                align: 'center', anchor: 'center',
                 color: (ctx) => bestLabel(ctx.dataset.backgroundColor),
                 font: {weight: 'bold', size: 14},
                 formatter: (v) => v > 0 ? v.toFixed(0) : ''
             };
             state.charts.spamHcEvolucaoRegiao = chart;
         }
-    }
-    if (!state.charts.spamHcGerente) {
+    }    if (!state.charts.spamHcGerente) {
         const chart = createBar('spam-chart-gerente-mes', null, 'y');
         if (chart) {
-            chart.options.plugins.datalabels = {
+            chart.options.scales.x.stacked = true;
+            chart.options.scales.y.stacked = true;            chart.options.plugins.datalabels = {
                 clamp: false,
-                display: true,
-                anchor: 'end',
-                align: 'right',
-                color: '#333',
-                font: {size: 14, weight: 'bold'},
-                formatter: (v) => v.toFixed(0),
-                offset: 4
+                labels: {
+                    hcReal: {
+                        display: (ctx) => ctx.datasetIndex === 0 && (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+                        formatter: (v) => v.toFixed(0),
+                        color: '#fff',
+                        font: {size: 13, weight: 'bold'},
+                        anchor: 'center', align: 'center'
+                    },
+                    vagas: {
+                        display: (ctx) => ctx.datasetIndex === 1 && (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+                        formatter: (v, ctx) => {
+                            const hcReal = ctx.chart.data.datasets[0].data[ctx.dataIndex] || 0;
+                            const totalProjetado = hcReal + v;
+                            return `+${v.toFixed(0)} (${totalProjetado})`;
+                        },
+                        color: '#FCB803',
+                        font: {size: 14, weight: '900'},
+                        anchor: 'end', align: 'end', offset: 4
+                    }
+                }
             };
             state.charts.spamHcGerente = chart;
         }
-    }
-    if (!state.charts.spamHcVsAux) {
+    }    if (!state.charts.spamHcVsAux) {
         const chart = createBar('spam-chart-hc-vs-aux', null, 'x');
         if (chart) {
-            chart.options.scales.x.stacked = false;
-            chart.options.scales.y.stacked = false;
-            chart.options.plugins.datalabels = {
+            chart.options.scales.x.stacked = true;
+            chart.options.scales.y.stacked = true;
+            chart.options.layout.padding = {top: 75, left: 10, right: 18, bottom: 10};            chart.options.plugins.datalabels = {
                 clamp: false,
+                clip: false,
                 labels: {
-                    value: {
-                        display: (ctx) => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+                    spamValue: {
+                        display: (ctx) => ctx.datasetIndex === 0 && (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
                         formatter: (v) => v.toFixed(0),
                         font: {size: 14, weight: 'bold'},
-                        anchor: 'end',
-                        align: 'end',
-                        offset: 8,
-                        color: '#333'
-                    }, delta: {
+                        color: '#333',
+                        anchor: 'end', align: 'end', offset: 4
+                    },
+                    hcValue: {
+                        display: (ctx) => ctx.datasetIndex === 1 && (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+                        formatter: (v) => v.toFixed(0),
+                        color: '#333',
+                        font: {size: 14, weight: 'bold'},
+                        anchor: 'end', align: 'end', offset: 4
+                    },
+                    hcDelta: {
                         display: (ctx) => {
                             if (ctx.datasetIndex !== 1) return false;
                             const deltas = ctx.dataset._deltas;
@@ -1843,63 +1732,53 @@ function ensureChartsCreatedSpam() {
                         },
                         formatter: (v, ctx) => {
                             const d = ctx.dataset._deltas[ctx.dataIndex];
-                            return d > 0 ? `+${d.toFixed(0)}\n▲` : `${d.toFixed(0)}\n▼`;
+                            const abs = Math.abs(d).toFixed(0);
+                            return d > 0 ? `+${abs}\n▲` : `-${abs}\n▼`;
                         },
                         color: (ctx) => (ctx.dataset._deltas[ctx.dataIndex] > 0 ? '#28a745' : '#dc3545'),
+                        textAlign: 'center',                        font: {weight: '800', size: 14, lineHeight: 1.15},
+                        anchor: 'end', align: 'end', offset: 24
+                    },
+                    vagasLabel: {
+                        display: (ctx) => {
+                            if (ctx.datasetIndex !== 1) return false;
+                            const vagasVal = ctx.chart.data.datasets[2]?.data[ctx.dataIndex] || 0;
+                            return vagasVal > 0;
+                        },
+                        formatter: (v, ctx) => {
+                            const vagasVal = ctx.chart.data.datasets[2]?.data[ctx.dataIndex] || 0;
+                            const hcRealVal = ctx.dataset.data[ctx.dataIndex] || 0;
+                            const totalProjetado = hcRealVal + vagasVal;
+                            return `(${totalProjetado})\n+${vagasVal.toFixed(0)}`;
+                        },
                         textAlign: 'center',
-                        font: {weight: '800', size: 16, lineHeight: 1.15},
-                        anchor: 'end',
-                        align: 'end',
-                        offset: 35
+                        color: '#FCB803',
+                        font: {weight: '900', size: 14, lineHeight: 1.1},
+                        anchor: 'end', align: 'end',
+                        offset: 65
                     }
                 }
             };
             state.charts.spamHcVsAux = chart;
         }
-    }
-    if (!state.charts.spamContractDonut) {
-        const canvas = document.getElementById('spam-chart-contrato-donut');
-        if (canvas) {
-            const baseSize = Math.max(13, Math.min(15, Math.round((canvas?.parentElement?.clientWidth || 600) / 45)));
-            const options = {
-                layout: {padding: 6},
-                animation: {duration: 800, easing: 'easeOutQuart'},
-                plugins: {
-                    legend: baseLegendConfig('bottom', true),
-                    datalabels: {
-                        display: true,
-                        formatter: (v) => `${Math.round(+v)}%`,
-                        color: (ctx) => bestLabel(Array.isArray(ctx.dataset.backgroundColor) ? ctx.dataset.backgroundColor[ctx.dataIndex] : ctx.dataset.backgroundColor),
-                        font: {size: Math.max(MIN_LABEL_FONT_PX, baseSize), weight: 'bold'},
-                        anchor: 'center',
-                        align: 'center',
-                        clamp: true
-                    },
-                    tooltip: {
-                        displayColors: false,
-                        callbacks: {
-                            label: (ctx) => `${ctx.label || ''}: ${Math.round(ctx.parsed ?? 0)}% (${(ctx.dataset._rawCounts || [])[ctx.dataIndex] ?? 0})`
-                        }
-                    }
-                },
-                cutout: '40%'
-            };
-            const chart = new Chart(canvas.getContext('2d'), {
-                type: 'doughnut',
-                data: {labels: [], datasets: [{data: [], backgroundColor: palette()}]},
-                options,
-                plugins: [ChartDataLabels]
-            });
-            forceLegendBottom(chart);
-            state.charts.spamContractDonut = chart;
+    }    if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
+        if (state.charts.spamContractDonut) {
+            state.charts.spamContractDonut.destroy();
         }
+        state.charts.spamContractDonut = createStackedBar('spam-chart-contrato-donut', null, 'x');
     }
-}
-
-async function updateSpamCharts(matrizesMap, svcsDoGerente) {
+}async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
-    const [allSpamData] = await Promise.all([loadSpamData()]);
+    const fixSsaLabel = (str) => {
+        if (!str) return '';
+        if (str.replace(/\s+/g, '').toUpperCase() === 'SSAAIR') return 'SSA AIR';
+        return str;
+    };
+    const [allSpamData, allVagasData] = await Promise.all([
+        loadSpamData(),
+        loadVagasAbertasCached()
+    ]);
     const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
     const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');
     const spamData = allSpamData.filter(r => {
@@ -1930,12 +1809,15 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         return;
     }
-    const {MÊS: mesUltimo, ANO: anoUltimo} = latestMonth;
+    const {MÊS: mesUltimoRaw, ANO: anoUltimo} = latestMonth;
+    const mesUltimo = String(mesUltimoRaw || '');
     const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;
     const previousMonth = allMonths
         .filter(m => m.ANO < anoUltimo || (m.ANO === anoUltimo && m.mesOrder < latestMonth.mesOrder))
         .pop();
-    const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;
+    const mesAnteriorRaw = previousMonth ? previousMonth.MÊS : '';
+    const mesAnteriorStr = String(mesAnteriorRaw || '');
+    const mesAnteriorLabel = previousMonth ? `${mesAnteriorStr.slice(0, 3)}/${previousMonth.ANO}` : null;
     const hoje = new Date();
     const anoSistema = hoje.getFullYear();
     const mesSistemaOrder = hoje.getMonth() + 1;
@@ -1948,13 +1830,16 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         mesReferenciaSpamVsReal = spamMesAtualSistema[0].MÊS;
         anoReferenciaSpamVsReal = spamMesAtualSistema[0].ANO;
     }
+    mesReferenciaSpamVsReal = String(mesReferenciaSpamVsReal || '');
     if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
         const svcsSet = new Set();
         spamData.forEach(r => {
-            const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
-            const svcAgrupado = mapSvcLabel(r.SVC);
+            const mesStr = String(r.MÊS || '');
+            const mesLabel = `${mesStr.slice(0, 3)}/${r.ANO}`;
+            let svcAgrupado = mapSvcLabel(r.SVC);
+            svcAgrupado = fixSsaLabel(svcAgrupado);
             const key = `${svcAgrupado}__${mesLabel}`;
             const totalAnterior = dadosPorSvcMes.get(key) || 0;
             dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
@@ -1969,37 +1854,22 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
-            return {
-                label: mesLabel,
-                data,
-                backgroundColor: pal[i % pal.length]
-            };
+            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
-        let maxHcParaEscala = 0;
+        let maxHc = 0;
         datasets.forEach(ds => {
-            const max = ds.data.length > 0 ? Math.max(...ds.data) : 0;
-            if (max > maxHcParaEscala) maxHcParaEscala = max;
+            const max = Math.max(...ds.data, 0);
+            if (max > maxHc) maxHc = max;
         });
         const chart = state.charts.spamHcEvolucaoSvc;
-        if (chart.options.scales.y) {
-            chart.options.scales.y.max = maxHcParaEscala + 100;
-            if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
-        }
+        if (chart.options.scales.y) chart.options.scales.y.max = maxHc + 100;
         const datasetAtual = datasets.find(d => d.label === mesUltimoLabel);
         if (datasetAtual && mesAnteriorLabel) {
             const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
             if (datasetAnterior) {
-                datasetAtual._deltas = labels.map((svc, idx) => {
-                    const atual = datasetAtual.data[idx] || 0;
-                    const anterior = datasetAnterior.data[idx] || 0;
-                    return atual - anterior;
-                });
-            } else {
-                datasetAtual._deltas = labels.map(() => 0);
-            }
-        } else if (datasetAtual) {
-            datasetAtual._deltas = labels.map(() => 0);
-        }
+                datasetAtual._deltas = labels.map((svc, idx) => (datasetAtual.data[idx] || 0) - (datasetAnterior.data[idx] || 0));
+            } else datasetAtual._deltas = labels.map(() => 0);
+        } else if (datasetAtual) datasetAtual._deltas = labels.map(() => 0);
         chart.data._mesAtualLabel = mesUltimoLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
         chart.data.labels = labels;
@@ -2012,12 +1882,13 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         const regioesSet = new Set();
         spamData.forEach(r => {
             const regiao = r.REGIAO || 'N/D';
-            const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
+            const mesStr = String(r.MÊS || '');
+            const mesLabel = `${mesStr.slice(0, 3)}/${r.ANO}`;
             const key = `${regiao}__${mesLabel}`;
             mesesSet.add(mesLabel);
             regioesSet.add(regiao);
-            const totalAnterior = dadosPorRegiaoMes.get(key) || 0;
-            dadosPorRegiaoMes.set(key, totalAnterior + r.HC_Total);
+            const total = dadosPorRegiaoMes.get(key) || 0;
+            dadosPorRegiaoMes.set(key, total + r.HC_Total);
         });
         const labels = [...regioesSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
@@ -2027,39 +1898,27 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);
-            const totalMes = data.reduce((a, b) => a + b, 0);
-            data.push(totalMes);
-            return {
-                label: mesLabel,
-                data,
-                backgroundColor: pal[i % pal.length]
-            };
+            data.push(data.reduce((a, b) => a + b, 0));
+            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
         labels.push('GERAL');
-        const chart = state.charts.spamHcEvolucaoRegiao;
-        chart.data.labels = labels;
-        chart.data.datasets = datasets;
-        chart.update();
+        state.charts.spamHcEvolucaoRegiao.data.labels = labels;
+        state.charts.spamHcEvolucaoRegiao.data.datasets = datasets;
+        state.charts.spamHcEvolucaoRegiao.update();
     }
     if (state.charts.spamHcGerente) {
         const hcPorGerente = new Map();
+        const vagasPorGerente = new Map();
         colabsAuxiliaresAtivos.forEach(c => {
             let gerente = 'SEM GERENTE';
             if (c.SVC) {
-                const rawSvc = mapSvcLabel(c.SVC);
-                const svcNorm = norm(rawSvc).replace(/\s+/g, '');
-                let infoSvc = matrizesMap.get(norm(c.SVC).replace(/\s+/g, ''));
-                if (!infoSvc) {
-                    infoSvc = matrizesMap.get(svcNorm);
-                }
-                if (infoSvc && infoSvc.GERENCIA) {
-                    gerente = infoSvc.GERENCIA;
-                }
+                const svcNorm = norm(mapSvcLabel(c.SVC)).replace(/\s+/g, '');
+                let infoSvc = matrizesMap.get(svcNorm) || matrizesMap.get(norm(c.SVC).replace(/\s+/g, ''));
+                if (infoSvc?.GERENCIA) gerente = infoSvc.GERENCIA;
             }
             if (gerente === 'SEM GERENTE' && c.MATRIZ) {
-                const matrizColab = String(c.MATRIZ).trim();
                 for (const info of matrizesMap.values()) {
-                    if (info.MATRIZ === matrizColab && info.GERENCIA) {
+                    if (info.MATRIZ === c.MATRIZ.trim() && info.GERENCIA) {
                         gerente = info.GERENCIA;
                         break;
                     }
@@ -2067,58 +1926,102 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             }
             hcPorGerente.set(gerente, (hcPorGerente.get(gerente) || 0) + 1);
         });
-        const chart = state.charts.spamHcGerente;
-        if (hcPorGerente.size === 0) {
-            chart.data.labels = [];
-            chart.data.datasets = [];
-            chart.update();
-        } else {
-            const dataSorted = [...hcPorGerente.entries()].sort((a, b) => b[1] - a[1]);
-            const labels = dataSorted.map(d => d[0]);
-            const dataValues = dataSorted.map(d => d[1]);
-            const totalGeral = dataValues.reduce((acc, val) => acc + val, 0);
-            labels.push('GERAL');
-            dataValues.push(totalGeral);
-            const maxHc = dataValues.length > 0 ? Math.max(...dataValues) : 1;
-            if (chart.options.scales.x) {
-                chart.options.scales.x.max = maxHc * 1.25;
+        allVagasData.forEach(vaga => {
+            let gerente = 'SEM GERENTE';
+            const matrizVaga = (vaga.MATRIZ || '').trim();
+            for (const info of matrizesMap.values()) {
+                if (info.MATRIZ === matrizVaga && info.GERENCIA) {
+                    gerente = info.GERENCIA;
+                    break;
+                }
             }
-            setDynamicChartHeight(chart, labels);
-            chart.data.labels = labels;
-            chart.data.datasets = [{
-                label: 'HC Real (Auxiliares Ativos)',
-                data: dataValues,
-                backgroundColor: pal[1]
-            }];
-            chart.update();
+            if (state.gerencia && gerente !== state.gerencia) return;
+            if (state.matriz && matrizVaga !== state.matriz) return;
+            vagasPorGerente.set(gerente, (vagasPorGerente.get(gerente) || 0) + 1);
+        });
+        const allGerentes = new Set([...hcPorGerente.keys(), ...vagasPorGerente.keys()]);
+        const labels = [...allGerentes].sort((a, b) => (hcPorGerente.get(b) || 0) - (hcPorGerente.get(a) || 0));
+        const dataHcReal = labels.map(g => hcPorGerente.get(g) || 0);
+        const dataVagas = labels.map(g => vagasPorGerente.get(g) || 0);
+        labels.push('GERAL');
+        dataHcReal.push(dataHcReal.reduce((a, b) => a + b, 0));
+        dataVagas.push(dataVagas.reduce((a, b) => a + b, 0));
+        const chart = state.charts.spamHcGerente;
+        let maxVal = 0;
+        for (let i = 0; i < dataHcReal.length; i++) {
+            const soma = dataHcReal[i] + dataVagas[i];
+            if (soma > maxVal) maxVal = soma;
         }
+        if (chart.options.scales.x) chart.options.scales.x.max = maxVal * 1.25;
+        setDynamicChartHeight(chart, labels);
+        chart.data.labels = labels;
+        chart.data.datasets = [
+            {
+                label: 'HC Real',
+                data: dataHcReal,
+                backgroundColor: pal[1],
+                stack: 'stack1'
+            },
+            {
+                label: 'Vagas (+)',
+                data: dataVagas,
+                backgroundColor: '#FCB803',
+                stack: 'stack1'
+            }
+        ];
+        chart.update();
     }
     if (state.charts.spamHcVsAux) {
         const auxPorSvc = new Map();
         colabsAuxiliaresAtivos.forEach(c => {
-            const svcAgrupado = mapSvcLabel(c.SVC || '');
+            let svcAgrupado = mapSvcLabel(c.SVC || '');
+            svcAgrupado = fixSsaLabel(svcAgrupado);
             auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
         });
         const hcPorSvc = new Map();
         spamData
-            .filter(r => r.MÊS === mesReferenciaSpamVsReal && r.ANO === anoReferenciaSpamVsReal)
+            .filter(r => String(r.MÊS) === mesReferenciaSpamVsReal && r.ANO == anoReferenciaSpamVsReal)
             .forEach(r => {
-                const svcAgrupado = mapSvcLabel(r.SVC);
-                const totalAnterior = hcPorSvc.get(svcAgrupado) || 0;
-                hcPorSvc.set(svcAgrupado, totalAnterior + r.HC_Total);
+                let svcAgrupado = mapSvcLabel(r.SVC);
+                svcAgrupado = fixSsaLabel(svcAgrupado);
+                hcPorSvc.set(svcAgrupado, (hcPorSvc.get(svcAgrupado) || 0) + r.HC_Total);
             });
-        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys()]);
+        const vagasPorSvc = new Map();
+        allVagasData.forEach(vaga => {
+            let svcEncontrado = 'N/D';
+            for (const [svcKey, info] of matrizesMap.entries()) {
+                if (info.MATRIZ === vaga.MATRIZ) {
+                    svcEncontrado = mapSvcLabel(svcKey);
+                    svcEncontrado = fixSsaLabel(svcEncontrado);
+                    break;
+                }
+            }
+            let valida = true;
+            if (state.matriz && vaga.MATRIZ !== state.matriz) valida = false;
+            if (valida && (state.gerencia || state.regiao || svcsDoGerente)) {
+                if (svcEncontrado === 'N/D') valida = false;
+                else {
+                    const svcPermitido = spamData.some(r => fixSsaLabel(mapSvcLabel(r.SVC)) === svcEncontrado);
+                    if (!svcPermitido) valida = false;
+                }
+            }
+            if (valida && svcEncontrado !== 'N/D') {
+                vagasPorSvc.set(svcEncontrado, (vagasPorSvc.get(svcEncontrado) || 0) + 1);
+            }
+        });
+        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys(), ...vagasPorSvc.keys()]);
         const labels = [...allSvcs].sort();
         const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
         const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
-        const maxSpam = dataHcTotalSpam.length > 0 ? Math.max(...dataHcTotalSpam) : 0;
-        const maxReal = dataAuxAtivoReal.length > 0 ? Math.max(...dataAuxAtivoReal) : 0;
-        const maxHcParaEscala = Math.max(maxSpam, maxReal);
+        const dataVagas = labels.map(svc => vagasPorSvc.get(svc) || 0);
+        let maxVal = 0;
+        dataHcTotalSpam.forEach((v, i) => {
+            const realStack = dataAuxAtivoReal[i] + dataVagas[i];
+            const m = Math.max(v, realStack);
+            if (m > maxVal) maxVal = m;
+        });
         const chart = state.charts.spamHcVsAux;
-        if (chart.options.scales.y) {
-            chart.options.scales.y.max = maxHcParaEscala + 100;
-            if (chart.options.scales.y.max < 10) chart.options.scales.y.max = 10;
-        }
+        if (chart.options.scales.y) chart.options.scales.y.max = maxVal + 80;
         const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);
         chart.data.labels = labels;
         chart.data.datasets = [
@@ -2126,28 +2029,28 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                 label: `HC Total (SPAM - ${mesReferenciaSpamVsReal.slice(0, 3)}/${anoReferenciaSpamVsReal})`,
                 data: dataHcTotalSpam,
                 backgroundColor: pal[1],
+                stack: 'stack0',
                 _deltas: deltas.map(() => 0)
             },
             {
                 label: 'HC Real (Auxiliares Ativos)',
                 data: dataAuxAtivoReal,
                 backgroundColor: pal[0],
+                stack: 'stack1',
                 _deltas: deltas
+            },
+            {
+                label: 'Vagas (Abertas + Admissão)',
+                data: dataVagas,
+                backgroundColor: '#FCB803',
+                stack: 'stack1',
+                _deltas: deltas.map(() => 0)
             }
         ];
         chart.update();
     }
-    if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
-        if (state.charts.spamContractDonut) {
-            state.charts.spamContractDonut.destroy();
-        }
-        state.charts.spamContractDonut = createStackedBar('spam-chart-contrato-donut', null, 'x');
-    }
     if (state.charts.spamContractDonut) {
-        const targetColabs = colabsAuxiliaresAtivos.filter(c => {
-            const contrato = norm(c.Contrato || 'OUTROS');
-            return !contrato.includes('KN');
-        });
+        const targetColabs = colabsAuxiliaresAtivos.filter(c => !norm(c.Contrato || 'OUTROS').includes('KN'));
         const dataMap = new Map();
         const globalCounts = new Map();
         const allContracts = new Set();
@@ -2167,8 +2070,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             const dataPct = [];
             const dataRaw = [];
             labels.forEach(reg => {
-                let count = 0;
-                let totalReg = 0;
+                let count = 0, totalReg = 0;
                 if (reg === 'GERAL') {
                     count = globalCounts.get(ctype) || 0;
                     totalReg = Array.from(globalCounts.values()).reduce((a, b) => a + b, 0) || 1;
@@ -2179,8 +2081,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                         totalReg = Array.from(regMap.values()).reduce((a, b) => a + b, 0) || 1;
                     }
                 }
-                const pct = (count * 100) / totalReg;
-                dataPct.push(pct);
+                dataPct.push((count * 100) / totalReg);
                 dataRaw.push(count);
             });
             return {
@@ -2196,9 +2097,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
     }
-}
-
-function desligamento_getCurrentUser() {
+}function desligamento_getCurrentUser() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -2209,9 +2108,7 @@ function desligamento_getCurrentUser() {
         console.error('Erro ao ler sessão do usuário:', e);
     }
     return 'Usuário RH Desconhecido';
-}
-
-async function desligamento_fetchPendentes() {
+}async function desligamento_fetchPendentes() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">Carregando...</td></tr>';
@@ -2273,9 +2170,7 @@ async function desligamento_fetchPendentes() {
     }
     state.desligamentoModule.pendentes = allItems;
     desligamento_renderTable();
-}
-
-function desligamento_renderTable() {
+}function desligamento_renderTable() {
     const tbody = state.desligamentoModule.tbody;
     if (!tbody) return;
     if (state.desligamentoModule.pendentes.length === 0) {
@@ -2400,9 +2295,7 @@ function desligamento_renderTable() {
         `;
         tbody.appendChild(tr);
     });
-}
-
-function desligamento_handleTableClick(event) {
+}function desligamento_handleTableClick(event) {
     const target = event.target.closest('button');
     if (!target) return;
     const action = target.dataset.action;
@@ -2421,9 +2314,7 @@ function desligamento_handleTableClick(event) {
     } else if (action === 'delete-request') {
         desligamento_handleDeleteRequest();
     }
-}
-
-async function desligamento_handleDeleteRequest() {
+}async function desligamento_handleDeleteRequest() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
     const ok = await window.customConfirm(
@@ -2453,9 +2344,7 @@ async function desligamento_handleDeleteRequest() {
     logAction(`Excluiu/Limpou solicitação de desligamento de: ${mod.colaboradorAtual.Nome}`);
     invalidateCache();
     desligamento_fetchPendentes();
-}
-
-async function desligamento_handleDirectKN() {
+}async function desligamento_handleDirectKN() {
     const mod = state.desligamentoModule;
     const colab = mod.colaboradorAtual;
     if (!colab) return;
@@ -2524,9 +2413,7 @@ async function desligamento_handleDirectKN() {
             btn.disabled = false;
         }
     }
-}
-
-async function desligamento_openApproveModal() {
+}async function desligamento_openApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal || !mod.colaboradorAtual) return;
     const colab = mod.colaboradorAtual;
@@ -2630,17 +2517,13 @@ async function desligamento_openApproveModal() {
         submitBtn.disabled = false;
     }
     mod.modal.classList.remove('hidden');
-}
-
-function desligamento_closeApproveModal() {
+}function desligamento_closeApproveModal() {
     const mod = state.desligamentoModule;
     if (!mod.modal) return;
     mod.modal.classList.add('hidden');
     if (mod.form) mod.form.reset();
     mod.colaboradorAtual = null;
-}
-
-async function desligamento_handleReject() {
+}async function desligamento_handleReject() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
     const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
@@ -2667,9 +2550,7 @@ async function desligamento_handleReject() {
     logAction(`Recusou o desligamento de: ${mod.colaboradorAtual.Nome}. Motivo: ${motivoRecusa || 'N/A'}`);
     invalidateCache();
     desligamento_fetchPendentes();
-}
-
-function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
+}function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) {
     if (!dataAdmissao) return '0';
     const inicio = new Date(dataAdmissao);
     const fim = new Date(dataDesligamento);
@@ -2689,9 +2570,7 @@ function desligamento_calcularPeriodoTrabalhado(dataAdmissao, dataDesligamento) 
     if (meses < 2) return '1 mês';
     if (anos > 0) return mesesRestantes > 0 ? `${anos} ano(s) e ${mesesRestantes} mes(es)` : `${anos} ano(s)`;
     return `${meses} mes(es)`;
-}
-
-async function desligamento_handleApproveSubmit(event) {
+}async function desligamento_handleApproveSubmit(event) {
     event.preventDefault();
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
@@ -2796,9 +2675,7 @@ async function desligamento_handleApproveSubmit(event) {
         submitBtn.disabled = false;
         submitBtn.textContent = isResend ? 'Reenviar E-mail' : 'Confirmar e Enviar E-mail';
     }
-}
-
-function wireDesligamentoLogic() {
+}function wireDesligamentoLogic() {
     const mod = state.desligamentoModule;
     mod.tbody = document.getElementById('desligamento-tbody');
     mod.modal = document.getElementById('approveModal');
@@ -2825,9 +2702,7 @@ function wireDesligamentoLogic() {
             rhInput.value = rhInput.value.toUpperCase();
         });
     }
-}
-
-function desligamento_destroy() {
+}function desligamento_destroy() {
     const mod = state.desligamentoModule;
     console.log('Destruindo módulo de Desligamento...');
     if (mod.tbody) {
@@ -2848,9 +2723,7 @@ function desligamento_destroy() {
     mod.tbody = null;
     mod.modal = null;
     mod.form = null;
-}
-
-function checkUserRHStatus() {
+}function checkUserRHStatus() {
     try {
         const userDataString = localStorage.getItem('userSession');
         if (userDataString) {
@@ -2866,9 +2739,7 @@ function checkUserRHStatus() {
         console.warn('Erro ao verificar tipo de usuário (RH/Gerente/Master):', e);
         state.isUserRH = false;
     }
-}
-
-export async function init() {
+}export async function init() {
     const host = document.querySelector(HOST_SEL);
     if (!host) {
         console.warn('Host #hc-indice não encontrado.');
@@ -2904,9 +2775,7 @@ export async function init() {
     } else {
         await refresh();
     }
-}
-
-export function destroy() {
+}export function destroy() {
     if (state.mounted) {
         console.log('Destruindo estado de Efetivações.');
         Object.values(state.charts).forEach(chart => chart?.destroy());
@@ -2935,9 +2804,7 @@ export function destroy() {
         state.isUserRH = false;
         document.querySelector('.container')?.classList.remove('travar-scroll-pagina');
     }
-}
-
-let vagasData = [];
+}let vagasData = [];
 let matrizesData = [];
 let gestoresData = [];
 let vagasModal;
@@ -2958,27 +2825,20 @@ let filterStatus;
 let filterGestor;
 let filterRecrutadora;
 let filterCargo;
-let inputCc;
-
-function initControleVagas() {
+let inputCc;function initControleVagas() {
     if (!document.getElementById('efet-controle-vagas')) return;
-
     vagasModal = document.getElementById('vagasModal');
     btnGerarVaga = document.getElementById('btn-gerar-vaga');
     btnCancelarVaga = document.getElementById('btn-cancelar-vaga');
     btnDuplicarVaga = document.getElementById('btn-duplicar-vaga');
     formVagas = document.getElementById('formVagas');
     tbodyVagas = document.getElementById('vagas-tbody');
-
-
     const btnExportarModelo = document.getElementById('btn-exportar-modelo');
     const btnImportarVaga = document.getElementById('btn-importar-vaga');
     const inputImportarFile = document.getElementById('input-importar-vaga');
-
     if (btnExportarModelo) {
         btnExportarModelo.addEventListener('click', downloadTemplateVaga);
     }
-
     if (btnImportarVaga && inputImportarFile) {
         btnImportarVaga.addEventListener('click', () => {
             inputImportarFile.value = '';
@@ -2990,38 +2850,30 @@ function initControleVagas() {
             }
         });
     }
-
-
     const btnImportarModal = document.getElementById('btn-importar-modal');
     const inputImportarModal = document.getElementById('input-importar-modal');
-
     if (btnImportarModal && inputImportarModal) {
         btnImportarModal.addEventListener('click', () => {
             inputImportarModal.value = '';
             inputImportarModal.click();
         });
-
         inputImportarModal.addEventListener('change', async (e) => {
             if (e.target.files && e.target.files[0]) {
                 await processarImportacaoModal(e.target.files[0]);
             }
         });
     }
-
-
     if (btnGerarVaga) {
         if (!state.isUserRH) {
             btnGerarVaga.style.display = 'none';
             if (btnExportarModelo) btnExportarModelo.style.display = 'none';
             if (btnImportarVaga) btnImportarVaga.style.display = 'none';
-
             if (btnImportarModal) btnImportarModal.style.display = 'none';
         } else {
             btnGerarVaga.style.display = '';
             btnGerarVaga.addEventListener('click', () => openVagasModal());
         }
     }
-
     inputWcBc = formVagas?.querySelector('[name="vagas_wc_bc"]');
     inputSla = formVagas?.querySelector('[name="sla_acordada"]');
     inputDataAprovacao = formVagas?.querySelector('[name="data_aprovacao"]');
@@ -3031,25 +2883,20 @@ function initControleVagas() {
     inputSvc = formVagas?.querySelector('[name="svc"]');
     inputCc = formVagas?.querySelector('[name="cc"]');
     inputQtdVagas = formVagas?.querySelector('[name="qtd_vagas"]');
-
     searchInput = document.getElementById('vagas-search');
     filterFilial = document.getElementById('filter-vagas-filial');
     filterStatus = document.getElementById('filter-vagas-status');
     filterGestor = document.getElementById('filter-vagas-gestor');
     filterRecrutadora = document.getElementById('filter-vagas-recrutadora');
     filterCargo = document.getElementById('filter-vagas-cargo');
-
     fetchMatrizes();
     fetchGestores();
     populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-
     if (btnCancelarVaga) btnCancelarVaga.addEventListener('click', closeVagasModal);
     if (formVagas) formVagas.addEventListener('submit', handleVagaSubmit);
-
     if (btnDuplicarVaga) {
         btnDuplicarVaga.addEventListener('click', duplicarVagaAtual);
     }
-
     if (selectFilial) {
         selectFilial.addEventListener('change', (e) => {
             const matrizSelecionada = e.target.value;
@@ -3058,23 +2905,18 @@ function initControleVagas() {
             filtrarGestoresPorMatriz(matrizSelecionada);
         });
     }
-
     if (inputWcBc) inputWcBc.addEventListener('change', calcularSLA);
     if (inputSla) inputSla.addEventListener('change', calcularPrazoEntrega);
     if (inputDataAprovacao) inputDataAprovacao.addEventListener('change', calcularPrazoEntrega);
-
     if (searchInput) searchInput.addEventListener('input', filtrarVagas);
     if (filterFilial) filterFilial.addEventListener('change', filtrarVagas);
     if (filterStatus) filterStatus.addEventListener('change', filtrarVagas);
     if (filterGestor) filterGestor.addEventListener('change', filtrarVagas);
     if (filterRecrutadora) filterRecrutadora.addEventListener('change', filtrarVagas);
     if (filterCargo) filterCargo.addEventListener('change', filtrarVagas);
-
     fetchVagas();
     wireCepVagas();
-}
-
-async function downloadTemplateVaga() {
+}async function downloadTemplateVaga() {
     await loadSheetJS();
     if (!window.XLSX) {
         alert("Erro ao carregar biblioteca de planilhas.");
@@ -3090,9 +2932,7 @@ async function downloadTemplateVaga() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Modelo Importacao");
     XLSX.writeFile(wb, "Modelo_Importacao_Vaga_KN.xlsx");
-}
-
-async function processarArquivoImportacao(file) {
+}async function processarArquivoImportacao(file) {
     await loadSheetJS();
     if (!window.XLSX) return;
     const reader = new FileReader();
@@ -3118,9 +2958,7 @@ async function processarArquivoImportacao(file) {
         }
     };
     reader.readAsArrayBuffer(file);
-}
-
-function mapearDadosImportacao(row) {
+}function mapearDadosImportacao(row) {
     const r = {};
     Object.keys(row).forEach(k => {
         r[k.toUpperCase().trim()] = row[k];
@@ -3168,9 +3006,7 @@ function mapearDadosImportacao(row) {
         cidade: toUpperTrim(r["CIDADE"]), Status: "ABERTA",
         Vagas_WC_BC: "WC", pcd: "NÃO"
     };
-}
-
-async function fetchMatrizes() {
+}async function fetchMatrizes() {
     const {data, error} = await supabase
         .from('Matrizes')
         .select('MATRIZ, SERVICE, CC, GERENCIA, REGIAO')
@@ -3181,9 +3017,7 @@ async function fetchMatrizes() {
     }
     matrizesData = data || [];
     populateFilialSelect();
-}
-
-function atualizarCC(nomeMatriz) {
+}function atualizarCC(nomeMatriz) {
     if (!inputCc) return;
     if (!nomeMatriz) {
         inputCc.value = '';
@@ -3191,9 +3025,7 @@ function atualizarCC(nomeMatriz) {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputCc.value = encontrada ? (encontrada.CC || '-') : '';
-}
-
-async function fetchGestores() {
+}async function fetchGestores() {
     const {data, error} = await supabase
         .from('Gestores')
         .select('NOME, MATRIZ')
@@ -3203,9 +3035,7 @@ async function fetchGestores() {
         return;
     }
     gestoresData = data || [];
-}
-
-function populateFilialSelect() {
+}function populateFilialSelect() {
     if (!selectFilial) return;
     selectFilial.innerHTML = '<option value="">- Selecione uma Matriz -</option>';
     const matrizesUnicas = [...new Set(matrizesData.map(item => item.MATRIZ).filter(Boolean))].sort();
@@ -3215,9 +3045,7 @@ function populateFilialSelect() {
         option.textContent = matrizNome;
         selectFilial.appendChild(option);
     });
-}
-
-function atualizarSVC(nomeMatriz) {
+}function atualizarSVC(nomeMatriz) {
     if (!inputSvc) return;
     if (!nomeMatriz) {
         inputSvc.value = '';
@@ -3225,9 +3053,7 @@ function atualizarSVC(nomeMatriz) {
     }
     const encontrada = matrizesData.find(m => m.MATRIZ === nomeMatriz);
     inputSvc.value = encontrada ? (encontrada.SERVICE || '-') : '';
-}
-
-function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
+}function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (!selectGestor) return;
     selectGestor.innerHTML = '<option value="">- Selecione um Gestor -</option>';
     if (!nomeMatriz) return;
@@ -3243,9 +3069,7 @@ function filtrarGestoresPorMatriz(nomeMatriz, gestorPreSelecionado = null) {
     if (gestorPreSelecionado) {
         selectGestor.value = gestorPreSelecionado;
     }
-}
-
-function formatCargo(cargo) {
+}function formatCargo(cargo) {
     if (!cargo) return '-';
     return cargo
         .replace('OPERADOR DE EMPILHADEIRA', 'OP. EMPILHADEIRA')
@@ -3255,17 +3079,13 @@ function formatCargo(cargo) {
         .replace('SEGURANÇA DO TRABALHO', 'SEG. TRAB.')
         .replace('ADMINISTRATIVO', 'ADM.')
         .replace('PLANEJAMENTO DE LOGÍSTICA', 'PLAN. LOG.');
-}
-
-function calcularSLA() {
+}function calcularSLA() {
     const tipo = inputWcBc.value;
     if (tipo === 'WC') inputSla.value = 17;
     else if (tipo === 'BC') inputSla.value = 12;
     else inputSla.value = 12;
     calcularPrazoEntrega();
-}
-
-function calcularPrazoEntrega() {
+}function calcularPrazoEntrega() {
     const dataAprov = inputDataAprovacao.value;
     const diasSla = parseInt(inputSla.value);
     if (dataAprov && !isNaN(diasSla)) {
@@ -3276,9 +3096,7 @@ function calcularPrazoEntrega() {
         const dd = String(data.getDate()).padStart(2, '0');
         inputPrazoRS.value = `${yyyy}-${mm}-${dd}`;
     }
-}
-
-/**
+}/**
  * Abre o modal de vagas.
  * @param {Object|null} vagaData - Dados da vaga (se edição ou cópia)
  * @param {boolean} isCopy - Se true, abre como NOVA vaga copiando os dados
@@ -3286,15 +3104,11 @@ function calcularPrazoEntrega() {
 function openVagasModal(vagaData = null, isCopy = false) {
     if (!vagasModal) return;
     vagasModal.classList.remove('hidden');
-
     const btnImportarModal = document.getElementById('btn-importar-modal');
-
     if (btnImportarModal && state.isUserRH) {
         btnImportarModal.style.display = 'inline-block';
     }
-
     if (!vagaData) {
-
         formVagas.reset();
         formVagas.querySelectorAll('select').forEach(sel => {
             if (sel.name !== 'filial' && sel.id !== 'vaga_sapato' && sel.id !== 'vaga_colete') {
@@ -3306,15 +3120,11 @@ function openVagasModal(vagaData = null, isCopy = false) {
         inputSvc.value = "";
         if (inputCc) inputCc.value = "";
         if (inputQtdVagas) inputQtdVagas.value = "1";
-
         document.getElementById('modal-title').textContent = 'Gerar Nova Vaga';
         formVagas.dataset.mode = 'create';
         delete formVagas.dataset.id;
-
         if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'none';
-
     } else {
-
         if (isCopy) {
             document.getElementById('modal-title').textContent = `Copiando Vaga (Origem #${vagaData.ID_Vaga})`;
             formVagas.dataset.mode = 'create';
@@ -3328,22 +3138,18 @@ function openVagasModal(vagaData = null, isCopy = false) {
             if (inputQtdVagas) inputQtdVagas.value = "1";
             if (btnDuplicarVaga) btnDuplicarVaga.style.display = 'inline-block';
         }
-
-
         const f = formVagas.elements;
         if (f.status) f.status.value = vagaData.Status || '';
         if (f.data_aprovacao) f.data_aprovacao.value = vagaData.DataAprovacao || '';
         if (f.data_inicio_desejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado || '';
         if (f.fluxo_smart) f.fluxo_smart.value = vagaData.FluxoSmart || '';
         if (f.cargo) f.cargo.value = vagaData.Cargo || '';
-
         if (f.filial) {
             f.filial.value = vagaData.MATRIZ || '';
             atualizarSVC(vagaData.MATRIZ);
             atualizarCC(vagaData.MATRIZ);
             filtrarGestoresPorMatriz(vagaData.MATRIZ, vagaData.Gestor);
         }
-
         if (f.cliente) f.cliente.value = vagaData.Cliente || '';
         if (f.setor) f.setor.value = vagaData.Setor || '';
         if (f.tipo_contrato) f.tipo_contrato.value = vagaData.TipoContrato || '';
@@ -3376,50 +3182,33 @@ function openVagasModal(vagaData = null, isCopy = false) {
         if (f.cidade_candidato) f.cidade_candidato.value = vagaData.cidade || '';
         if (f.vaga_colete) f.vaga_colete.value = vagaData.colete || '';
         if (f.vaga_sapato) f.vaga_sapato.value = vagaData.sapato || '';
-
         toggleSubstituicao(vagaData.Motivo);
     }
-
     populateOptionsTamanhos('vaga_sapato', 'vaga_colete');
-}
-
-async function processarImportacaoModal(file) {
+}async function processarImportacaoModal(file) {
     await loadSheetJS();
     if (!window.XLSX) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
             const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
+            const workbook = XLSX.read(data, {type: 'array'});
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
+            const json = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
             if (json.length === 0) {
                 alert("O arquivo parece estar vazio.");
                 return;
             }
-
-
             const row = json[0];
-
             const vagaData = mapearDadosImportacao(row);
             const f = formVagas.elements;
-
-
-
-
             if (vagaData.Recrutadora) f.recrutadora.value = vagaData.Recrutadora;
             if (vagaData.DataInicioDesejado) f.data_inicio_desejado.value = vagaData.DataInicioDesejado;
             if (vagaData.Cargo) f.cargo.value = vagaData.Cargo;
-
-
             if (vagaData.HoraEntrada) f.hora_entrada.value = vagaData.HoraEntrada;
             if (vagaData.HoraSaida) f.hora_saida.value = vagaData.HoraSaida;
             if (vagaData.DiasSemana) f.dias_semana.value = vagaData.DiasSemana;
-
-
             if (vagaData.CandidatoAprovado) f.candidato_aprovado.value = vagaData.CandidatoAprovado;
             if (vagaData.CPFCandidato) f.cpf_candidato.value = vagaData.CPFCandidato;
             if (vagaData.DataNascimento) f.data_nascimento_candidato.value = vagaData.DataNascimento;
@@ -3427,30 +3216,21 @@ async function processarImportacaoModal(file) {
             if (vagaData.pis) f.pis_candidato.value = vagaData.pis;
             if (vagaData.telefone) f.telefone_candidato.value = vagaData.telefone;
             if (vagaData.email) f.email_candidato.value = vagaData.email;
-
-
             if (vagaData.CEP) f.cep_candidato.value = vagaData.CEP;
             if (vagaData.endereco_completo) f.endereco_candidato.value = vagaData.endereco_completo;
             if (vagaData.numero) f.numero_candidato.value = vagaData.numero;
             if (vagaData.bairro) f.bairro_candidato.value = vagaData.bairro;
             if (vagaData.cidade) f.cidade_candidato.value = vagaData.cidade;
-
-
             if (vagaData.sapato) f.vaga_sapato.value = vagaData.sapato;
             if (vagaData.colete) f.vaga_colete.value = vagaData.colete;
-
-
             window.customAlert('Dados do formulário atualizados com sucesso via Excel!', 'Sucesso');
-
         } catch (error) {
             console.error("Erro ao importar no modal:", error);
             alert("Erro ao ler o arquivo.");
         }
     };
     reader.readAsArrayBuffer(file);
-}
-
-function duplicarVagaAtual(e) {
+}function duplicarVagaAtual(e) {
     e.preventDefault();
     const confirmacao = confirm("Deseja criar uma cópia desta vaga? \n\nO formulário será aberto como 'Nova Vaga' com os mesmos dados preenchidos.");
     if (!confirmacao) return;
@@ -3498,20 +3278,15 @@ function duplicarVagaAtual(e) {
         sapato: raw.vaga_sapato
     };
     openVagasModal(dadosParaCopia, true);
-}
-
-function closeVagasModal() {
+}function closeVagasModal() {
     if (vagasModal) vagasModal.classList.add('hidden');
-}
-
-window.toggleSubstituicao = function (val) {
+}window.toggleSubstituicao = function (val) {
     const div = document.getElementById('div-substituido');
     if (div) {
         if (val === 'SUBSTITUIÇÃO') div.classList.remove('hidden');
         else div.classList.add('hidden');
     }
 }
-
 async function fetchVagas() {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '<tr><td colspan="12" class="text-center p-4">Carregando vagas...</td></tr>';
@@ -3527,9 +3302,7 @@ async function fetchVagas() {
     vagasData = data || [];
     populateFilterOptions();
     filtrarVagas();
-}
-
-async function handleVagaSubmit(e) {
+}async function handleVagaSubmit(e) {
     e.preventDefault();
     const formData = new FormData(formVagas);
     const raw = Object.fromEntries(formData.entries());
@@ -3615,9 +3388,7 @@ async function handleVagaSubmit(e) {
     btn.disabled = false;
     closeVagasModal();
     fetchVagas();
-}
-
-function populateFilterOptions() {
+}function populateFilterOptions() {
     const matrizes = [...new Set(vagasData.map(v => v.MATRIZ).filter(Boolean))].sort();
     const gestores = [...new Set(vagasData.map(v => v.Gestor).filter(Boolean))].sort();
     const recrutadoras = [...new Set(vagasData.map(v => v.Recrutadora).filter(Boolean))].sort();
@@ -3633,9 +3404,7 @@ function populateFilterOptions() {
     populate(filterGestor, gestores, 'Todos Gestores');
     populate(filterRecrutadora, recrutadoras, 'Todas Recrutadoras');
     populate(filterCargo, cargos, 'Todos Cargos');
-}
-
-function filtrarVagas() {
+}function filtrarVagas() {
     const termo = searchInput.value.toLowerCase();
     const fFilial = filterFilial.value;
     const fStatus = filterStatus.value;
@@ -3671,9 +3440,7 @@ function filtrarVagas() {
         return true;
     });
     renderVagasTable(filtrados);
-}
-
-function renderVagasTable(lista) {
+}function renderVagasTable(lista) {
     if (!tbodyVagas) return;
     tbodyVagas.innerHTML = '';
     if (lista.length === 0) {

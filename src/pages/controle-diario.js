@@ -1,5 +1,7 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let state;
+import {getMatrizesPermitidas} from '../session.js';
+
+let state;
 let ui;
 let realtimeChannel = null;
 const collator = new Intl.Collator('pt-BR', {sensitivity: 'base'});
@@ -14,7 +16,9 @@ const pick = (o, ...keys) => {
 const getMatriz = (x) => String(pick(x, 'Matriz', 'MATRIZ')).trim();
 const CACHE_DURATION_MS = 5 * 60 * 1000;
 const cachedDailyData = new Map();
-const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getFromCache(turno, dateISO) {
+const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;
+
+function getFromCache(turno, dateISO) {
     const k = cacheKey(turno, dateISO);
     const hit = cachedDailyData.get(k);
     if (!hit) return null;
@@ -23,21 +27,32 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         return null;
     }
     return hit.data;
-}async function refresh() {    state.filtered = applyFilters(state.baseList, false);
+}
+
+async function refresh() {
+    state.filtered = applyFilters(state.baseList, false);
     repopulateFilterOptionsCascade();
     await renderRows(state.filtered);
     computeSummary(state.filtered, state.meta);
-}function setCache(turno, dateISO, data) {
+}
+
+function setCache(turno, dateISO, data) {
     cachedDailyData.set(cacheKey(turno, dateISO), {ts: Date.now(), data});
-}function invalidateCacheForDate(dateISO) {
+}
+
+function invalidateCacheForDate(dateISO) {
     ['T1', 'T2', 'T3', 'GERAL'].forEach(t => {
         cachedDailyData.delete(cacheKey(t, dateISO));
     });
-}function showLoading(on = true) {
+}
+
+function showLoading(on = true) {
     const el = document.getElementById('cd-loading');
     if (!el) return;
     el.style.display = on ? 'flex' : 'none';
-}function toast(msg, type = 'info', timeout = 2500) {
+}
+
+function toast(msg, type = 'info', timeout = 2500) {
     const root = document.getElementById('toast-root');
     if (!root) {
         console.log(msg);
@@ -52,13 +67,19 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         div.style.transform = 'translateY(-6px)';
         setTimeout(() => div.remove(), 180);
     }, timeout);
-}function weekdayPT(iso) {
+}
+
+function weekdayPT(iso) {
     const d = new Date(iso + 'T00:00:00');
     const dias = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
     return dias[d.getDay()];
-}function uniqSorted(arr) {
+}
+
+function uniqSorted(arr) {
     return Array.from(new Set(arr.filter(Boolean))).sort((a, b) => collator.compare(a, b));
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -74,31 +95,99 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         }
     }
     return allData;
-}async function getColaboradoresElegiveis(turno, dateISO) {
+}
+
+async function getColaboradoresElegiveis(turno, dateISO) {
     const dia = weekdayPT(dateISO);
     let matrizesPermitidas = getMatrizesPermitidas();
     if (Array.isArray(matrizesPermitidas) && matrizesPermitidas.length === 0) {
         matrizesPermitidas = null;
     }
+
+    // 1. Preparar Query de Colaboradores
     let q = supabase
         .from('Colaboradores')
-        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')        .in('Ativo', ['SIM', 'NÃO', 'PEN', 'AFAS']);    if (!turno || turno === 'GERAL') q = q.in('Escala', ['T1', 'T2', 'T3']);
-    else q = q.eq('Escala', turno);    if (matrizesPermitidas && matrizesPermitidas.length) q = q.in('MATRIZ', matrizesPermitidas);    q = q.order('Nome', {ascending: true});    try {
-        const cols = await fetchAllWithPagination(q);
-        const all = cols || [];
+        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')
+        .in('Ativo', ['SIM', 'NÃO', 'PEN', 'AFAS']);
+
+    // 2. Preparar Query de Desligados (Histórico)
+    // Se a data de desligamento >= dateISO, o colaborador é "historicamente ativo" neste dia.
+    let qDesl = supabase
+        .from('Desligados')
+        .select('Nome, Escala, Cargo, MATRIZ, SVC, Gestor, Contrato, "Data de Desligamento", LDAP')
+        .gte('"Data de Desligamento"', dateISO);
+
+    // Filtros de otimização
+    if (!turno || turno === 'GERAL') {
+        q = q.in('Escala', ['T1', 'T2', 'T3']);
+        qDesl = qDesl.in('Escala', ['T1', 'T2', 'T3']);
+    } else {
+        q = q.eq('Escala', turno);
+        qDesl = qDesl.eq('Escala', turno);
+    }
+
+    if (matrizesPermitidas && matrizesPermitidas.length) {
+        q = q.in('MATRIZ', matrizesPermitidas);
+        qDesl = qDesl.in('MATRIZ', matrizesPermitidas);
+    }
+
+    q = q.order('Nome', {ascending: true});
+
+    try {
+        const [colsAtivos, colsDesligados] = await Promise.all([
+            fetchAllWithPagination(q),
+            fetchAllWithPagination(qDesl)
+        ]);
+
+        const colabMap = new Map();
+
+        // 1º Passo: Carrega os dados da tabela Colaboradores (incluindo os Ativo="NÃO")
+        (colsAtivos || []).forEach(c => colabMap.set(c.Nome, c));
+
+        // 2º Passo: Carrega os dados da tabela Desligados (Histórico)
+        (colsDesligados || []).forEach(d => {
+            const existing = colabMap.get(d.Nome);
+
+            // LÓGICA CORRIGIDA AQUI:
+            // Se o colaborador NÃO existe no mapa OU existe mas está marcado como INATIVO ("NÃO"),
+            // nós usamos o registro de Desligados e forçamos "Ativo: SIM".
+            // Isso garante que JHENIFER (Ativo: NÃO) seja substituída pela versão histórica válida (Ativo: SIM).
+            if (!existing || existing.Ativo === 'NÃO') {
+                colabMap.set(d.Nome, {
+                    Nome: d.Nome,
+                    Escala: d.Escala,
+                    DSR: '',
+                    Cargo: d.Cargo,
+                    MATRIZ: d.MATRIZ,
+                    SVC: d.SVC,
+                    Gestor: d.Gestor,
+                    Contrato: d.Contrato,
+                    Ativo: 'SIM', // Forçamos SIM para passar no filtro visual do renderRows
+                    LDAP: d.LDAP,
+                    'Data de admissão': null
+                });
+            }
+        });
+
+        const all = Array.from(colabMap.values());
         const nomesColabs = all.map(c => c.Nome);
+
+        // --- Daqui para baixo segue a lógica padrão (Férias, Afastamentos, DSR) ---
+
         const {data: feriasHoje} = await supabase
             .from('Ferias')
             .select('Nome')
             .lte('"Data Inicio"', dateISO)
             .gte('"Data Final"', dateISO);
         const nomesEmFeriasHoje = new Set((feriasHoje || []).map(f => f.Nome));
+
         const {data: afastamentosHoje} = await supabase
             .from('Afastamentos')
             .select('NOME')
             .lte('"DATA INICIO"', dateISO)
             .gt('"DATA RETORNO"', dateISO);
         const nomesEmAfastamentoHoje = new Set((afastamentosHoje || []).map(f => NORM(f.NOME)));
+
         let dsrLogs = [];
         const chunkSize = 200;
         if (nomesColabs.length > 0) {
@@ -119,6 +208,7 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                 if (data) dsrLogs = dsrLogs.concat(data);
             }
         }
+
         const dsrHistoryMap = new Map();
         for (const log of dsrLogs) {
             const nameNorm = NORM(log.Name);
@@ -128,6 +218,7 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         for (const history of dsrHistoryMap.values()) {
             history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
         }
+
         const getDSRForDate = (colaborador) => {
             const nameNorm = NORM(colaborador.Nome);
             const history = dsrHistoryMap.get(nameNorm);
@@ -142,18 +233,23 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             if (applicableDSR === null) applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);
             return applicableDSR;
         };
+
         const checkDSR = (colaborador) => {
             const historicalDSR = getDSRForDate(colaborador);
             const colaboradorDSRs = (historicalDSR || '').toString().toUpperCase().split(',').map(d => d.trim());
             return colaboradorDSRs.includes(dia);
         };
+
         const dsrObjects = [];
         const elegiveis = [];
+
         for (const c of all) {
             const dataAdmissao = c['Data de admissão'];
             if (dataAdmissao && dataAdmissao > dateISO) continue;
+
             if (nomesEmFeriasHoje.has(c.Nome)) continue;
             if (nomesEmAfastamentoHoje.has(NORM(c.Nome))) continue;
+
             const isDSR = checkDSR(c);
             if (isDSR) {
                 dsrObjects.push(c);
@@ -161,20 +257,29 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
                 elegiveis.push(c);
             }
         }
+
         elegiveis.sort((a, b) => collator.compare(a.Nome, b.Nome));
         const dsrList = dsrObjects.map(c => c.Nome);
+
         return {elegiveis, dsrList, dsrObjects};
     } catch (error) {
-        console.error("Erro ao buscar colaboradores elegíveis com paginação:", error);
+        console.error("Erro ao buscar colaboradores elegíveis:", error);
         throw error;
     }
-}async function getMarksFor(dateISO, nomes) {
-    if (!nomes.length) return new Map();    const {data, error} = await supabase
-        .rpc('get_marcas_para_nomes', {nomes: nomes, data_consulta: dateISO});    if (error) throw error;    const map = new Map();    const checkVal = (v) => {
+}
+
+async function getMarksFor(dateISO, nomes) {
+    if (!nomes.length) return new Map();
+    const {data, error} = await supabase
+        .rpc('get_marcas_para_nomes', {nomes: nomes, data_consulta: dateISO});
+    if (error) throw error;
+    const map = new Map();
+    const checkVal = (v) => {
         if (v === true || v === 'true' || v === 'TRUE') return true;
         const n = Number(v);
         return !isNaN(n) && n > 0;
-    };    (data || []).forEach(m => {
+    };
+    (data || []).forEach(m => {
         let tipo = null;
         if (checkVal(m['Presença'])) {
             tipo = 'PRESENCA';
@@ -190,8 +295,11 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             tipo = 'SUSPENSAO';
         }
         map.set(m.Nome, tipo);
-    });    return map;
-}async function fetchList(turno, dateISO) {
+    });
+    return map;
+}
+
+async function fetchList(turno, dateISO) {
     const cacheHit = getFromCache(turno, dateISO);
     if (cacheHit) return cacheHit;
     if (turno === 'GERAL') {
@@ -243,7 +351,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     };
     setCache(turno, dateISO, packed);
     return packed;
-}async function upsertMarcacao({nome, turno, dateISO, tipo}) {
+}
+
+async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     const zeros = {'Presença': 0, 'Falta': 0, 'Atestado': 0, 'Folga Especial': 0, 'Suspensao': 0, 'Feriado': 0};
     const setOne = {...zeros};
     if (tipo === 'PRESENCA') setOne['Presença'] = 1;
@@ -334,7 +444,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     } catch (e) {
         console.warn('ABS sync (row) falhou:', e);
     }
-}async function deleteMarcacao({nome, dateISO}) {
+}
+
+async function deleteMarcacao({nome, dateISO}) {
     const {error} = await supabase
         .from('ControleDiario')
         .delete()
@@ -348,7 +460,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     } catch (e) {
         console.warn('ABS sync (delete) falhou:', e);
     }
-}function label(tipo) {
+}
+
+function label(tipo) {
     switch (tipo) {
         case 'PRESENCA':
             return 'Presente';
@@ -365,7 +479,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         default:
             return '';
     }
-}function btnsHTML(item) {
+}
+
+function btnsHTML(item) {
     const tipos = [
         {label: 'P', tipo: 'PRESENCA', className: 'status-p'},
         {label: 'F', tipo: 'FALTA', className: 'status-f'},
@@ -379,7 +495,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         const on = item.Marcacao === b.tipo ? ' active' : '';
         return `<button class="cd-btn ${b.className}${on}" data-tipo="${b.tipo}" data-nome="${item.Nome}">${b.label}</button>`;
     }).join('');
-}function applyMarkToRow(tr, tipo) {
+}
+
+function applyMarkToRow(tr, tipo) {
     tr.dataset.mark = tipo || 'NONE';
     tr.className = '';
     tr.classList.add(`row-${(tipo || 'NONE').toLowerCase()}`);
@@ -399,7 +517,11 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     tr.querySelectorAll('.cd-btn').forEach(btn => {
         btn.classList.toggle('active', !!tipo && btn.dataset.tipo === tipo);
     });
-}function passFilters(x, forceShowAll = false) {    if (!forceShowAll && x.Ativo !== 'SIM') return false;    const f = state.filters;
+}
+
+function passFilters(x, forceShowAll = false) {
+    if (!forceShowAll && x.Ativo !== 'SIM') return false;
+    const f = state.filters;
     if (f.search) {
         const searchTermNorm = NORM(f.search);
         const nomeNorm = NORM(x.Nome);
@@ -410,10 +532,18 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     if (f.cargo && (x.Cargo || '') !== f.cargo) return false;
     if (f.contrato && (x.Contrato || '') !== f.contrato) return false;
     if (f.svc && (x.SVC || '') !== f.svc) return false;
-    if (f.matriz && getMatriz(x) !== f.matriz) return false;    if (!forceShowAll && state.isPendingFilterActive && x.Marcacao) return false;    return true;
-}function applyFilters(list, forceShowAll = false) {
+    if (f.matriz && getMatriz(x) !== f.matriz) return false;
+    if (!forceShowAll && state.isPendingFilterActive && x.Marcacao) return false;
+    return true;
+}
+
+function applyFilters(list, forceShowAll = false) {
     return list.filter(x => passFilters(x, forceShowAll)).sort((a, b) => collator.compare(a.Nome, b.Nome));
-}function passFiltersExcept(x, exceptKey) {    if (x.Ativo !== 'SIM') return false;    const f = state.filters;
+}
+
+function passFiltersExcept(x, exceptKey) {
+    if (x.Ativo !== 'SIM') return false;
+    const f = state.filters;
     if (f.search && !NORM(x.Nome).includes(NORM(f.search))) return false;
     if (exceptKey !== 'gestor' && f.gestor && (x.Gestor || '') !== f.gestor) return false;
     if (exceptKey !== 'cargo' && f.cargo && (x.Cargo || '') !== f.cargo) return false;
@@ -421,7 +551,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     if (exceptKey !== 'svc' && f.svc && (x.SVC || '') !== f.svc) return false;
     if (exceptKey !== 'matriz' && f.matriz && getMatriz(x) !== f.matriz) return false;
     return true;
-}function recomputeOptionsFor(key) {
+}
+
+function recomputeOptionsFor(key) {
     const base = state.baseList.filter((x) => passFiltersExcept(x, key));
     let values = [];
     switch (key) {
@@ -444,7 +576,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             values = [];
     }
     return uniqSorted(values.filter(Boolean));
-}function fillPreserving(sel, values, placeholder, current, onInvalid) {
+}
+
+function fillPreserving(sel, values, placeholder, current, onInvalid) {
     if (!sel) return;
     sel.innerHTML = `<option value="">${placeholder}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join('');
     if (current && values.includes(current)) {
@@ -453,7 +587,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         sel.value = '';
         if (typeof onInvalid === 'function') onInvalid();
     }
-}function repopulateFilterOptionsCascade() {
+}
+
+function repopulateFilterOptionsCascade() {
     const cur = {
         gestor: state.filters.gestor,
         cargo: state.filters.cargo,
@@ -473,7 +609,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     fillPreserving(ui.selContrato, opts.contrato, 'Contrato', cur.contrato, () => (state.filters.contrato = ''));
     fillPreserving(ui.selSVC, opts.svc, 'SVC', cur.svc, () => (state.filters.svc = ''));
     fillPreserving(ui.selMatriz, opts.matriz, 'Matriz', cur.matriz, () => (state.filters.matriz = ''));
-}async function renderRows(list) {
+}
+
+async function renderRows(list) {
     ui.tbody.innerHTML = '';
     const dsrNamesRaw = (state.meta?.dsrList || []).slice();
     if (!dsrNamesRaw.length && list.length === 0) {
@@ -545,7 +683,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     }
     ui.tbody.replaceChildren(frag);
     updateFooterCounts();
-}function updateFooterCounts() {
+}
+
+function updateFooterCounts() {
     if (ui.footerCount) {
         const totalVisiveis = state.filtered.length;
         ui.footerCount.textContent = `${totalVisiveis} colaboradores visíveis`;
@@ -557,7 +697,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             return false;
         };
     }
-}function injectTableClampStyles() {
+}
+
+function injectTableClampStyles() {
     if (document.getElementById('cd-table-scroll-style')) return;
     const st = document.createElement('style');
     st.id = 'cd-table-scroll-style';
@@ -569,7 +711,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
       table.cd-scroll-12 thead::-webkit-scrollbar { display: none; }
     `;
     document.head.appendChild(st);
-}function enforce12RowViewport() {
+}
+
+function enforce12RowViewport() {
     const table = ui.tbody?.closest('table');
     if (!table) return;
     injectTableClampStyles();
@@ -582,7 +726,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         totalH = Math.ceil(totalH + 4);
     }
     table.style.setProperty('--cd-max-table-h', `${totalH}px`);
-}function computeSummary(list, meta) {
+}
+
+function computeSummary(list, meta) {
     const isConf = x => String(x.Cargo || '').trim().toUpperCase() === 'CONFERENTE';
     const hcPrevisto = list.filter(x => !isConf(x)).length;
     const hcReal = list.filter(x => !isConf(x) && x.Marcacao === 'PRESENCA').length;
@@ -593,8 +739,10 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     const fesp = list.filter(x => x.Marcacao === 'F_ESPECIAL').length;
     const fer = list.filter(x => x.Marcacao === 'FERIADO').length;
     const susp = list.filter(x => x.Marcacao === 'SUSPENSAO').length;
-    const quadroTotal = hcReal + confReal;    let dsrCount = 0, dsrPS = 0;
-    const dsrInfo = Array.isArray(state.dsrInfoList) ? state.dsrInfoList : [];    if (dsrInfo.length) {
+    const quadroTotal = hcReal + confReal;
+    let dsrCount = 0, dsrPS = 0;
+    const dsrInfo = Array.isArray(state.dsrInfoList) ? state.dsrInfoList : [];
+    if (dsrInfo.length) {
         const dsrFiltrados = dsrInfo.filter(x => passFilters(x, false));
         dsrPS = dsrFiltrados.filter(isConf).length;
         dsrCount = dsrFiltrados.length - dsrPS;
@@ -606,12 +754,15 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         const dsrFiltrados = dsrColabs.filter(x => passFilters(x, false));
         dsrPS = dsrFiltrados.filter(isConf).length;
         dsrCount = dsrFiltrados.length - dsrPS;
-    }    const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
+    }
+    const pendentesClass = pend > 0 ? 'status-orange' : 'status-green';
     const mainSummaryHTML =
         `HC Previsto: ${hcPrevisto} | HC Real: ${hcReal} | ` +
         `Faltas: ${faltas} | Atestados: ${atest} | Folga Especial: ${fesp} | ` +
         `Feriado: ${fer} | Suspensão: ${susp} | DSR: ${dsrCount} | DSR PS: ${dsrPS} | ` +
-        `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;    const activeClass = state.isPendingFilterActive ? 'active' : '';    if (ui.summary) {
+        `Conferente: ${confReal} | Quadro total: ${quadroTotal}`;
+    const activeClass = state.isPendingFilterActive ? 'active' : '';
+    if (ui.summary) {
         ui.summary.innerHTML = `
             <div id="cd-summary-pending-btn" class="summary-pending ${pendentesClass} ${activeClass}" title="Clique para filtrar pendentes">
                 Pendentes: ${pend}
@@ -621,7 +772,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             </div>
         `;
     }
-}async function carregar(full = false) {
+}
+
+async function carregar(full = false) {
     const dateISO = ui.date.value;
     if (!dateISO) return;
     if (full) ui.summary.textContent = 'Carregando…';
@@ -642,7 +795,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     } finally {
         showLoading(false);
     }
-}async function onRowClick(ev) {
+}
+
+async function onRowClick(ev) {
     if (document.body.classList.contains('user-level-visitante')) return;
     if (state.isProcessing) {
         toast('Aguarde, processando marcação anterior...', 'info');
@@ -684,7 +839,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         state.isProcessing = false;
         showLoading(false);
     }
-}async function marcarTodosPresentes() {
+}
+
+async function marcarTodosPresentes() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
     const pendTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => tr.dataset.nome && (tr.dataset.mark || 'NONE') === 'NONE');
@@ -751,7 +908,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         ui.markAllBtn.textContent = 'Marcar Todos como Presente';
         showLoading(false);
     }
-}async function limparTodas() {
+}
+
+async function limparTodas() {
     const dataISO = ui.date.value;
     if (!dataISO) return toast('Selecione a data.', 'info');
     const marcadosTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => (tr.dataset.mark || 'NONE') !== 'NONE');
@@ -788,7 +947,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         ui.clearAllBtn.textContent = 'Limpar Marcações Visíveis';
         showLoading(false);
     }
-}function listDates(aISO, bISO) {
+}
+
+function listDates(aISO, bISO) {
     let a = new Date(aISO), b = new Date(bISO);
     if (a > b) [a, b] = [b, a];
     const out = [];
@@ -796,10 +957,14 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         out.push(new Date(d).toISOString().slice(0, 10));
     }
     return out;
-}const csvEsc = (v) => {
+}
+
+const csvEsc = (v) => {
     const s = (v ?? '').toString();
     return /[;\n"]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};async function ensureXLSX() {
+};
+
+async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -808,18 +973,24 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}function autoColWidths(headers, rows) {
+}
+
+function autoColWidths(headers, rows) {
     return headers.map(h => {
         const maxLen = Math.max(String(h).length, ...rows.map(r => String(r[h] ?? '').length));
         return {wch: Math.min(Math.max(10, maxLen + 2), 40)};
     });
-}function clampEndToToday(startISO, endISO) {
+}
+
+function clampEndToToday(startISO, endISO) {
     if (!startISO || !endISO) return [startISO, endISO];
     const today = new Date();
     const pad2 = (n) => String(n).padStart(2, '0');
     const todayISO = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
     return [startISO, endISO > todayISO ? todayISO : endISO];
-}function openExportModal() {
+}
+
+function openExportModal() {
     const today = new Date();
     const pad2 = (n) => String(n).padStart(2, '0');
     const toISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -829,7 +1000,8 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     const prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
     const prevEnd = new Date(today.getFullYear(), today.getMonth(), 0);
     const overlay = document.createElement('div');
-    overlay.id = 'cd-period-overlay';    overlay.innerHTML = `
+    overlay.id = 'cd-period-overlay';
+    overlay.innerHTML = `
       <div class="cdp-card">
         <h3>Exportar Relatório</h3>
         <p style="text-align:center; font-size:0.85em; color:#666; margin-bottom:10px;">Selecione o intervalo de datas para gerar o XLSX.</p>
@@ -875,7 +1047,8 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     overlay.addEventListener('click', (ev) => {
         if (ev.target === overlay) close();
     });
-    btnCancel.onclick = close;    overlay.querySelector('#cdp-today').onclick = () => {
+    btnCancel.onclick = close;
+    overlay.querySelector('#cdp-today').onclick = () => {
         const iso = toISO(today);
         elStart.value = iso;
         elEnd.value = iso;
@@ -891,25 +1064,33 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         const [cs, ce] = clampEndToToday(s, e);
         elStart.value = cs;
         elEnd.value = ce;
-    };    btnApply.onclick = () => {
+    };
+    btnApply.onclick = () => {
         let sVal = (elStart?.value || '').slice(0, 10);
         let eVal = (elEnd?.value || '').slice(0, 10);
         if (!sVal || !eVal) {
             toast('Selecione as duas datas.', 'info');
             return;
         }
-        [sVal, eVal] = clampEndToToday(sVal, eVal);        state.period.start = sVal;
-        state.period.end = eVal;        close();        runExportXLSX(sVal, eVal);
+        [sVal, eVal] = clampEndToToday(sVal, eVal);
+        state.period.start = sVal;
+        state.period.end = eVal;
+        close();
+        runExportXLSX(sVal, eVal);
     };
-}async function runExportXLSX(startISO, endISO) {
+}
+
+async function runExportXLSX(startISO, endISO) {
     try {
         showLoading(true);
         ui.exportBtn.disabled = true;
         ui.exportBtn.textContent = 'Gerando...';
-        await ensureXLSX();        const HEADERS = ['Nome', 'Status', 'Cargo', 'Presença', 'Falta', 'Atestado', 'Folga Especial', 'Suspensao', 'Feriado', 'Data', 'Turno', 'SVC', 'Gestor', 'Contrato', 'Matriz'];
+        await ensureXLSX();
+        const HEADERS = ['Nome', 'Status', 'Cargo', 'Presença', 'Falta', 'Atestado', 'Folga Especial', 'Suspensao', 'Feriado', 'Data', 'Turno', 'SVC', 'Gestor', 'Contrato', 'Matriz'];
         const rows = [];
         for (const dateISO of listDates(startISO, endISO)) {
-            const {list} = await fetchList(state.turnoAtual, dateISO);            const filtered = applyFilters(list, true);
+            const {list} = await fetchList(state.turnoAtual, dateISO);
+            const filtered = applyFilters(list, true);
             filtered.sort((a, b) => collator.compare(a, b));
             for (const x of filtered) {
                 const pres = x.Marcacao === 'PRESENCA' ? 1 : 0;
@@ -957,7 +1138,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         ui.exportBtn.disabled = false;
         ui.exportBtn.textContent = 'Exportar dados';
     }
-}function injectSummaryStyles() {
+}
+
+function injectSummaryStyles() {
     const style = document.createElement('style');
     style.textContent = `
         /* O container pai agora só organiza os itens (botão e sumário) */
@@ -1002,7 +1185,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         }
     `;
     document.head.appendChild(style);
-}function getStatusFromRow(row) {
+}
+
+function getStatusFromRow(row) {
     if (!row) return null;
     if (row['Presença']) return 'PRESENCA';
     if (row['Falta']) return 'FALTA';
@@ -1011,7 +1196,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     if (row['Feriado']) return 'FERIADO';
     if (row['Suspensao']) return 'SUSPENSAO';
     return null;
-}function setupRealtimeListener() {
+}
+
+function setupRealtimeListener() {
     if (realtimeChannel) {
         supabase.removeChannel(realtimeChannel);
     }
@@ -1046,7 +1233,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
             }
         )
         .subscribe();
-}export async function init() {
+}
+
+export async function init() {
     const pad2 = (n) => String(n).padStart(2, '0');
     const localISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
     injectSummaryStyles();
@@ -1057,7 +1246,7 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
         date: document.getElementById('cd-data'),
         markAllBtn: document.getElementById('cd-mark-all-present'),
         clearAllBtn: document.getElementById('cd-clear-all'),
-        exportBtn: document.getElementById('cd-export'),        search: document.getElementById('cd-search'),
+        exportBtn: document.getElementById('cd-export'), search: document.getElementById('cd-search'),
         selGestor: document.getElementById('cd-filter-gestor'),
         selCargo: document.getElementById('cd-filter-cargo'),
         selContrato: document.getElementById('cd-filter-contrato'),
@@ -1105,7 +1294,9 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     }
     ui.tbody.addEventListener('click', onRowClick);
     ui.markAllBtn?.addEventListener('click', marcarTodosPresentes);
-    ui.clearAllBtn?.addEventListener('click', limparTodas);    ui.exportBtn?.addEventListener('click', openExportModal);    ui.date?.addEventListener('change', () => carregar(true));
+    ui.clearAllBtn?.addEventListener('click', limparTodas);
+    ui.exportBtn?.addEventListener('click', openExportModal);
+    ui.date?.addEventListener('change', () => carregar(true));
     ui.search.addEventListener('input', () => {
         state.filters.search = ui.search.value;
         refresh();
@@ -1129,8 +1320,11 @@ const cacheKey = (turno, dateISO) => `${dateISO}|${turno || 'T?'}`;function getF
     ui.selMatriz.addEventListener('change', () => {
         state.filters.matriz = ui.selMatriz.value;
         refresh();
-    });    await carregar(true);
-}export function destroy() {
+    });
+    await carregar(true);
+}
+
+export function destroy() {
     if (realtimeChannel) {
         supabase.removeChannel(realtimeChannel);
         realtimeChannel = null;
