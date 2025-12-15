@@ -1619,7 +1619,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
         tbody.appendChild(tr);
     });
 }function ensureChartsCreatedSpam() {
-    const pal = palette();    if (!state.charts.spamHcEvolucaoSvc) {
+    const pal = palette();
+    if (!state.charts.spamHcEvolucaoSvc) {
         const chart = createBar('spam-chart-evolucao-svc', null, 'x');
         if (chart) {
             chart.options.plugins.datalabels = {
@@ -1659,7 +1660,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             };
             state.charts.spamHcEvolucaoSvc = chart;
         }
-    }    if (!state.charts.spamHcEvolucaoRegiao) {
+    }
+    if (!state.charts.spamHcEvolucaoRegiao) {
         const chart = createBar('spam-chart-evolucao-regiao', null, 'x');
         if (chart) {
             chart.options.plugins.datalabels = {
@@ -1672,11 +1674,13 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             };
             state.charts.spamHcEvolucaoRegiao = chart;
         }
-    }    if (!state.charts.spamHcGerente) {
+    }
+    if (!state.charts.spamHcGerente) {
         const chart = createBar('spam-chart-gerente-mes', null, 'y');
         if (chart) {
             chart.options.scales.x.stacked = true;
-            chart.options.scales.y.stacked = true;            chart.options.plugins.datalabels = {
+            chart.options.scales.y.stacked = true;
+            chart.options.plugins.datalabels = {
                 clamp: false,
                 labels: {
                     hcReal: {
@@ -1701,12 +1705,14 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             };
             state.charts.spamHcGerente = chart;
         }
-    }    if (!state.charts.spamHcVsAux) {
+    }
+    if (!state.charts.spamHcVsAux) {
         const chart = createBar('spam-chart-hc-vs-aux', null, 'x');
         if (chart) {
             chart.options.scales.x.stacked = true;
             chart.options.scales.y.stacked = true;
-            chart.options.layout.padding = {top: 75, left: 10, right: 18, bottom: 10};            chart.options.plugins.datalabels = {
+            chart.options.layout.padding = {top: 75, left: 10, right: 18, bottom: 10};
+            chart.options.plugins.datalabels = {
                 clamp: false,
                 clip: false,
                 labels: {
@@ -1736,7 +1742,7 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                             return d > 0 ? `+${abs}\n▲` : `-${abs}\n▼`;
                         },
                         color: (ctx) => (ctx.dataset._deltas[ctx.dataIndex] > 0 ? '#28a745' : '#dc3545'),
-                        textAlign: 'center',                        font: {weight: '800', size: 14, lineHeight: 1.15},
+                        textAlign: 'center', font: {weight: '800', size: 14, lineHeight: 1.15},
                         anchor: 'end', align: 'end', offset: 24
                     },
                     vagasLabel: {
@@ -1761,7 +1767,8 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             };
             state.charts.spamHcVsAux = chart;
         }
-    }    if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
+    }
+    if (!state.charts.spamContractDonut || state.charts.spamContractDonut.config.type !== 'bar') {
         if (state.charts.spamContractDonut) {
             state.charts.spamContractDonut.destroy();
         }
@@ -1769,19 +1776,15 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
     }
 }async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
-    ensureChartsCreatedSpam();
-    const fixSsaLabel = (str) => {
+    ensureChartsCreatedSpam();    const fixSsaLabel = (str) => {
         if (!str) return '';
-        if (str.replace(/\s+/g, '').toUpperCase() === 'SSAAIR') return 'SSA AIR';
-        return str;
-    };
-    const [allSpamData, allVagasData] = await Promise.all([
+        const cleanStr = str.replace(/\s+/g, '').toUpperCase();        if (cleanStr === 'SSAAIR') return 'SSA AIR';
+        if (cleanStr === 'SLZAIR') return 'SLZ AIR';        return str;
+    };    const [allSpamData, allVagasData] = await Promise.all([
         loadSpamData(),
         loadVagasAbertasCached()
-    ]);
-    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
-    const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');
-    const spamData = allSpamData.filter(r => {
+    ]);    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
+    const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');    const spamData = allSpamData.filter(r => {
         if (state.regiao && r.REGIAO !== state.regiao) return false;
         const matrizInfo = matrizesMap.get(r.SVC);
         if (state.matriz) {
@@ -1794,11 +1797,9 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             if (!svcsDoGerente.has(r.SVC)) return false;
         }
         return true;
-    });
-    const pal = palette();
+    });    const pal = palette();
     const allMonths = [...spamData].sort(sortMesAno);
-    const latestMonth = allMonths.pop();
-    if (!latestMonth) {
+    const latestMonth = allMonths.pop();    if (!latestMonth) {
         console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
             if (chart && chart.canvas?.id?.startsWith('spam-')) {
@@ -1808,115 +1809,89 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         });
         return;
-    }
-    const {MÊS: mesUltimoRaw, ANO: anoUltimo} = latestMonth;
+    }    const { MÊS: mesUltimoRaw, ANO: anoUltimo } = latestMonth;
     const mesUltimo = String(mesUltimoRaw || '');
-    const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;
-    const previousMonth = allMonths
+    const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;    const previousMonth = allMonths
         .filter(m => m.ANO < anoUltimo || (m.ANO === anoUltimo && m.mesOrder < latestMonth.mesOrder))
-        .pop();
-    const mesAnteriorRaw = previousMonth ? previousMonth.MÊS : '';
+        .pop();    const mesAnteriorRaw = previousMonth ? previousMonth.MÊS : '';
     const mesAnteriorStr = String(mesAnteriorRaw || '');
-    const mesAnteriorLabel = previousMonth ? `${mesAnteriorStr.slice(0, 3)}/${previousMonth.ANO}` : null;
-    const hoje = new Date();
+    const mesAnteriorLabel = previousMonth ? `${mesAnteriorStr.slice(0, 3)}/${previousMonth.ANO}` : null;    const hoje = new Date();
     const anoSistema = hoje.getFullYear();
-    const mesSistemaOrder = hoje.getMonth() + 1;
-    const spamMesAtualSistema = spamData.filter(r =>
+    const mesSistemaOrder = hoje.getMonth() + 1;    const spamMesAtualSistema = spamData.filter(r =>
         r.ANO === anoSistema && r.mesOrder === mesSistemaOrder
-    );
-    let mesReferenciaSpamVsReal = mesUltimo;
-    let anoReferenciaSpamVsReal = anoUltimo;
-    if (spamMesAtualSistema.length > 0) {
+    );    let mesReferenciaSpamVsReal = mesUltimo;
+    let anoReferenciaSpamVsReal = anoUltimo;    if (spamMesAtualSistema.length > 0) {
         mesReferenciaSpamVsReal = spamMesAtualSistema[0].MÊS;
         anoReferenciaSpamVsReal = spamMesAtualSistema[0].ANO;
     }
-    mesReferenciaSpamVsReal = String(mesReferenciaSpamVsReal || '');
-    if (state.charts.spamHcEvolucaoSvc) {
+    mesReferenciaSpamVsReal = String(mesReferenciaSpamVsReal || '');    if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
-        const svcsSet = new Set();
-        spamData.forEach(r => {
+        const svcsSet = new Set();        spamData.forEach(r => {
             const mesStr = String(r.MÊS || '');
             const mesLabel = `${mesStr.slice(0, 3)}/${r.ANO}`;
             let svcAgrupado = mapSvcLabel(r.SVC);
-            svcAgrupado = fixSsaLabel(svcAgrupado);
-            const key = `${svcAgrupado}__${mesLabel}`;
+            svcAgrupado = fixSsaLabel(svcAgrupado);            const key = `${svcAgrupado}__${mesLabel}`;
             const totalAnterior = dadosPorSvcMes.get(key) || 0;
             dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
             mesesSet.add(mesLabel);
             svcsSet.add(svcAgrupado);
-        });
-        const labels = [...svcsSet].sort();
+        });        const labels = [...svcsSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });
-        const datasets = meses.map((mesLabel, i) => {
+        });        const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
-            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
-        });
-        let maxHc = 0;
+            return { label: mesLabel, data, backgroundColor: pal[i % pal.length] };
+        });        let maxHc = 0;
         datasets.forEach(ds => {
             const max = Math.max(...ds.data, 0);
             if (max > maxHc) maxHc = max;
-        });
-        const chart = state.charts.spamHcEvolucaoSvc;
-        if (chart.options.scales.y) chart.options.scales.y.max = maxHc + 100;
-        const datasetAtual = datasets.find(d => d.label === mesUltimoLabel);
+        });        const chart = state.charts.spamHcEvolucaoSvc;
+        if (chart.options.scales.y) chart.options.scales.y.max = maxHc + 100;        const datasetAtual = datasets.find(d => d.label === mesUltimoLabel);
         if (datasetAtual && mesAnteriorLabel) {
             const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
             if (datasetAnterior) {
                 datasetAtual._deltas = labels.map((svc, idx) => (datasetAtual.data[idx] || 0) - (datasetAnterior.data[idx] || 0));
             } else datasetAtual._deltas = labels.map(() => 0);
-        } else if (datasetAtual) datasetAtual._deltas = labels.map(() => 0);
-        chart.data._mesAtualLabel = mesUltimoLabel;
+        } else if (datasetAtual) datasetAtual._deltas = labels.map(() => 0);        chart.data._mesAtualLabel = mesUltimoLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
-    }
-    if (state.charts.spamHcEvolucaoRegiao) {
+    }    if (state.charts.spamHcEvolucaoRegiao) {
         const dadosPorRegiaoMes = new Map();
         const mesesSet = new Set();
-        const regioesSet = new Set();
-        spamData.forEach(r => {
+        const regioesSet = new Set();        spamData.forEach(r => {
             const regiao = r.REGIAO || 'N/D';
             const mesStr = String(r.MÊS || '');
             const mesLabel = `${mesStr.slice(0, 3)}/${r.ANO}`;
-            const key = `${regiao}__${mesLabel}`;
-            mesesSet.add(mesLabel);
-            regioesSet.add(regiao);
-            const total = dadosPorRegiaoMes.get(key) || 0;
+            const key = `${regiao}__${mesLabel}`;            mesesSet.add(mesLabel);
+            regioesSet.add(regiao);            const total = dadosPorRegiaoMes.get(key) || 0;
             dadosPorRegiaoMes.set(key, total + r.HC_Total);
-        });
-        const labels = [...regioesSet].sort();
+        });        const labels = [...regioesSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });
-        const datasets = meses.map((mesLabel, i) => {
+        });        const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);
             data.push(data.reduce((a, b) => a + b, 0));
-            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
-        });
-        labels.push('GERAL');
+            return { label: mesLabel, data, backgroundColor: pal[i % pal.length] };
+        });        labels.push('GERAL');
         state.charts.spamHcEvolucaoRegiao.data.labels = labels;
         state.charts.spamHcEvolucaoRegiao.data.datasets = datasets;
         state.charts.spamHcEvolucaoRegiao.update();
-    }
-    if (state.charts.spamHcGerente) {
+    }    if (state.charts.spamHcGerente) {
         const hcPorGerente = new Map();
-        const vagasPorGerente = new Map();
-        colabsAuxiliaresAtivos.forEach(c => {
+        const vagasPorGerente = new Map();        colabsAuxiliaresAtivos.forEach(c => {
             let gerente = 'SEM GERENTE';
             if (c.SVC) {
                 const svcNorm = norm(mapSvcLabel(c.SVC)).replace(/\s+/g, '');
                 let infoSvc = matrizesMap.get(svcNorm) || matrizesMap.get(norm(c.SVC).replace(/\s+/g, ''));
                 if (infoSvc?.GERENCIA) gerente = infoSvc.GERENCIA;
-            }
-            if (gerente === 'SEM GERENTE' && c.MATRIZ) {
+            }            if (gerente === 'SEM GERENTE' && c.MATRIZ) {
                 for (const info of matrizesMap.values()) {
                     if (info.MATRIZ === c.MATRIZ.trim() && info.GERENCIA) {
                         gerente = info.GERENCIA;
@@ -1925,35 +1900,26 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 }
             }
             hcPorGerente.set(gerente, (hcPorGerente.get(gerente) || 0) + 1);
-        });
-        allVagasData.forEach(vaga => {
+        });        allVagasData.forEach(vaga => {
             let gerente = 'SEM GERENTE';
-            const matrizVaga = (vaga.MATRIZ || '').trim();
-            for (const info of matrizesMap.values()) {
+            const matrizVaga = (vaga.MATRIZ || '').trim();            for (const info of matrizesMap.values()) {
                 if (info.MATRIZ === matrizVaga && info.GERENCIA) {
                     gerente = info.GERENCIA;
                     break;
                 }
-            }
-            if (state.gerencia && gerente !== state.gerencia) return;
-            if (state.matriz && matrizVaga !== state.matriz) return;
-            vagasPorGerente.set(gerente, (vagasPorGerente.get(gerente) || 0) + 1);
-        });
-        const allGerentes = new Set([...hcPorGerente.keys(), ...vagasPorGerente.keys()]);
-        const labels = [...allGerentes].sort((a, b) => (hcPorGerente.get(b) || 0) - (hcPorGerente.get(a) || 0));
-        const dataHcReal = labels.map(g => hcPorGerente.get(g) || 0);
-        const dataVagas = labels.map(g => vagasPorGerente.get(g) || 0);
-        labels.push('GERAL');
+            }            if (state.gerencia && gerente !== state.gerencia) return;
+            if (state.matriz && matrizVaga !== state.matriz) return;            vagasPorGerente.set(gerente, (vagasPorGerente.get(gerente) || 0) + 1);
+        });        const allGerentes = new Set([...hcPorGerente.keys(), ...vagasPorGerente.keys()]);
+        const labels = [...allGerentes].sort((a, b) => (hcPorGerente.get(b) || 0) - (hcPorGerente.get(a) || 0));        const dataHcReal = labels.map(g => hcPorGerente.get(g) || 0);
+        const dataVagas = labels.map(g => vagasPorGerente.get(g) || 0);        labels.push('GERAL');
         dataHcReal.push(dataHcReal.reduce((a, b) => a + b, 0));
-        dataVagas.push(dataVagas.reduce((a, b) => a + b, 0));
-        const chart = state.charts.spamHcGerente;
+        dataVagas.push(dataVagas.reduce((a, b) => a + b, 0));        const chart = state.charts.spamHcGerente;
         let maxVal = 0;
         for (let i = 0; i < dataHcReal.length; i++) {
             const soma = dataHcReal[i] + dataVagas[i];
             if (soma > maxVal) maxVal = soma;
         }
-        if (chart.options.scales.x) chart.options.scales.x.max = maxVal * 1.25;
-        setDynamicChartHeight(chart, labels);
+        if (chart.options.scales.x) chart.options.scales.x.max = maxVal * 1.25;        setDynamicChartHeight(chart, labels);
         chart.data.labels = labels;
         chart.data.datasets = [
             {
@@ -1970,23 +1936,20 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         ];
         chart.update();
-    }
-    if (state.charts.spamHcVsAux) {
+    }    if (state.charts.spamHcVsAux) {
         const auxPorSvc = new Map();
         colabsAuxiliaresAtivos.forEach(c => {
             let svcAgrupado = mapSvcLabel(c.SVC || '');
             svcAgrupado = fixSsaLabel(svcAgrupado);
             auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
-        });
-        const hcPorSvc = new Map();
+        });        const hcPorSvc = new Map();
         spamData
             .filter(r => String(r.MÊS) === mesReferenciaSpamVsReal && r.ANO == anoReferenciaSpamVsReal)
             .forEach(r => {
                 let svcAgrupado = mapSvcLabel(r.SVC);
                 svcAgrupado = fixSsaLabel(svcAgrupado);
                 hcPorSvc.set(svcAgrupado, (hcPorSvc.get(svcAgrupado) || 0) + r.HC_Total);
-            });
-        const vagasPorSvc = new Map();
+            });        const vagasPorSvc = new Map();
         allVagasData.forEach(vaga => {
             let svcEncontrado = 'N/D';
             for (const [svcKey, info] of matrizesMap.entries()) {
@@ -1995,35 +1958,26 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                     svcEncontrado = fixSsaLabel(svcEncontrado);
                     break;
                 }
-            }
-            let valida = true;
-            if (state.matriz && vaga.MATRIZ !== state.matriz) valida = false;
-            if (valida && (state.gerencia || state.regiao || svcsDoGerente)) {
+            }            let valida = true;
+            if (state.matriz && vaga.MATRIZ !== state.matriz) valida = false;            if (valida && (state.gerencia || state.regiao || svcsDoGerente)) {
                 if (svcEncontrado === 'N/D') valida = false;
                 else {
                     const svcPermitido = spamData.some(r => fixSsaLabel(mapSvcLabel(r.SVC)) === svcEncontrado);
                     if (!svcPermitido) valida = false;
                 }
-            }
-            if (valida && svcEncontrado !== 'N/D') {
+            }            if (valida && svcEncontrado !== 'N/D') {
                 vagasPorSvc.set(svcEncontrado, (vagasPorSvc.get(svcEncontrado) || 0) + 1);
             }
-        });
-        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys(), ...vagasPorSvc.keys()]);
-        const labels = [...allSvcs].sort();
-        const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
+        });        const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys(), ...vagasPorSvc.keys()]);
+        const labels = [...allSvcs].sort();        const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
         const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
-        const dataVagas = labels.map(svc => vagasPorSvc.get(svc) || 0);
-        let maxVal = 0;
+        const dataVagas = labels.map(svc => vagasPorSvc.get(svc) || 0);        let maxVal = 0;
         dataHcTotalSpam.forEach((v, i) => {
             const realStack = dataAuxAtivoReal[i] + dataVagas[i];
             const m = Math.max(v, realStack);
             if (m > maxVal) maxVal = m;
-        });
-        const chart = state.charts.spamHcVsAux;
-        if (chart.options.scales.y) chart.options.scales.y.max = maxVal + 80;
-        const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);
-        chart.data.labels = labels;
+        });        const chart = state.charts.spamHcVsAux;
+        if (chart.options.scales.y) chart.options.scales.y.max = maxVal + 80;        const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);        chart.data.labels = labels;
         chart.data.datasets = [
             {
                 label: `HC Total (SPAM - ${mesReferenciaSpamVsReal.slice(0, 3)}/${anoReferenciaSpamVsReal})`,
@@ -2048,28 +2002,21 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
             }
         ];
         chart.update();
-    }
-    if (state.charts.spamContractDonut) {
+    }    if (state.charts.spamContractDonut) {
         const targetColabs = colabsAuxiliaresAtivos.filter(c => !norm(c.Contrato || 'OUTROS').includes('KN'));
         const dataMap = new Map();
         const globalCounts = new Map();
-        const allContracts = new Set();
-        targetColabs.forEach(c => {
+        const allContracts = new Set();        targetColabs.forEach(c => {
             const reg = c.REGIAO || 'N/D';
-            const cont = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
-            if (!dataMap.has(reg)) dataMap.set(reg, new Map());
-            const regMap = dataMap.get(reg);
-            regMap.set(cont, (regMap.get(cont) || 0) + 1);
+            const cont = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';            if (!dataMap.has(reg)) dataMap.set(reg, new Map());
+            const regMap = dataMap.get(reg);            regMap.set(cont, (regMap.get(cont) || 0) + 1);
             globalCounts.set(cont, (globalCounts.get(cont) || 0) + 1);
             allContracts.add(cont);
-        });
-        const labels = Array.from(dataMap.keys()).sort();
+        });        const labels = Array.from(dataMap.keys()).sort();
         labels.push('GERAL');
-        const contractTypes = Array.from(allContracts).sort();
-        const datasets = contractTypes.map((ctype, i) => {
+        const contractTypes = Array.from(allContracts).sort();        const datasets = contractTypes.map((ctype, i) => {
             const dataPct = [];
-            const dataRaw = [];
-            labels.forEach(reg => {
+            const dataRaw = [];            labels.forEach(reg => {
                 let count = 0, totalReg = 0;
                 if (reg === 'GERAL') {
                     count = globalCounts.get(ctype) || 0;
@@ -2083,17 +2030,14 @@ let _filtersPopulated = false;function populateFilters(allColabs, matrizesMap) {
                 }
                 dataPct.push((count * 100) / totalReg);
                 dataRaw.push(count);
-            });
-            return {
+            });            return {
                 label: ctype,
                 data: dataPct,
                 backgroundColor: pal[i % pal.length],
                 _rawCounts: dataRaw,
                 borderWidth: 0
             };
-        });
-        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
-        state.charts.spamContractDonut.data.labels = labels;
+        });        applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);        state.charts.spamContractDonut.data.labels = labels;
         state.charts.spamContractDonut.data.datasets = datasets;
         state.charts.spamContractDonut.update();
     }
