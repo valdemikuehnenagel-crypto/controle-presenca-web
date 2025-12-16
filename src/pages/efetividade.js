@@ -15,11 +15,13 @@ const state = {
     _inited: false,
     _handlers: null,
     _runId: 0,
+    // CACHE ROBUSTO: Guarda os dados brutos baseados na chave de data
     cache: {
         key: '',
         data: null
     }
 };
+
 const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
@@ -31,6 +33,8 @@ function _ymdLocal(dateObj) {
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
 }
+
+// --- Funções Auxiliares de UI (Cópia, Exportação) ---
 
 async function copyTableToClipboard(tableElement) {
     if (!tableElement) {
@@ -361,6 +365,9 @@ function endOfLocalDayISO(dateYMD) {
     return new Date(`${dateYMD}T23:59:59-03:00`);
 }
 
+// -----------------------------------------------------------
+// FETCH DATA OTIMIZADO - Busca apenas se datas mudarem
+// -----------------------------------------------------------
 async function fetchData(startDate, endDate) {
     const matrizesPermitidas = getMatrizesPermitidas();
     const [y, m, d] = endDate.split('-').map(Number);
@@ -370,8 +377,8 @@ async function fetchData(startDate, endDate) {
 
     let colabQuery = supabase
         .from('Colaboradores')
-        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor, Ativo') // Adicionei 'Ativo' no select para debug se necessário
-        .eq('Ativo', 'SIM') // Reforçando: Somente 'SIM'. 'PEN' ou 'NÃO' serão excluídos.
+        .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor, Ativo')
+        .eq('Ativo', 'SIM')
         .in('Escala', ['T1', 'T2', 'T3'])
         .order('Nome', {ascending: true});
 
@@ -380,14 +387,12 @@ async function fetchData(startDate, endDate) {
     }
 
     const colaboradores = await fetchAllPages(colabQuery);
-
     const colaboradoresFiltrados = colaboradores.filter(c => c.Ativo === 'SIM');
-
     const nomesColabs = [...new Set(colaboradoresFiltrados.map(c => c.Nome).filter(Boolean))];
 
     const preenchimentosQuery = supabase
         .from('ControleDiario')
-        .select('Nome, Data')
+        .select('Nome, Data, Falta, Atestado, Entrevista') // Inclui dados para gráfico entrevista
         .gte('Data', startDate)
         .lt('Data', endISONextDay)
         .order('Data', {ascending: true})
@@ -416,7 +421,6 @@ async function fetchData(startDate, endDate) {
         fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
     ]);
 
-
     return {colaboradores: colaboradoresFiltrados, preenchimentos, ferias, dsrLogs, afastamentos};
 }
 
@@ -432,6 +436,8 @@ function processEfetividade(
     const detailedResults = new Map();
     const totalGeralDetailedResults = new Map();
     const totalGeralResults = {};
+    const results = {}; // Declaração movida para o topo para evitar ReferenceError
+
     const dsrHistoryMap = new Map();
     for (const log of dsrLogs) {
         const name = normalizeString(log.Name);
@@ -475,6 +481,7 @@ function processEfetividade(
             }
         }
     }
+
     const afastadosPorDia = new Map();
     for (const r of afastamentos) {
         if (r.NOME && r['DATA INICIO'] && r['DATA RETORNO']) {
@@ -490,34 +497,44 @@ function processEfetividade(
             }
         }
     }
+
     const preenchidosPorData = new Map();
     for (const p of preenchimentos) {
         if (!preenchidosPorData.has(p.Data)) preenchidosPorData.set(p.Data, new Set());
         preenchidosPorData.get(p.Data).add(normalizeString(p.Nome));
     }
+
     const groupKeys = [...new Set(colaboradores.map((c) => c[groupBy]).filter(Boolean))].sort();
-    const results = {};
     const todayISO = _ymdLocal(new Date());
+
+    // Loop para o Total Geral (Linha do topo)
     for (const date of dates) {
         const nomesEmFerias = feriasPorDia.get(date) || new Set();
         const nomesAfastados = afastadosPorDia.get(date) || new Set();
+
         const totalElegiveis = colaboradores.reduce((acc, c) => {
             const nomeN = normalizeString(c.Nome);
             const adm = c['Data de admissão'];
             if (!adm || adm > date) return acc;
             if (nomesEmFerias.has(nomeN)) return acc;
             if (nomesAfastados.has(nomeN)) return acc;
+
             const historicalDSR = getDSRForDate(c, date, dsrHistoryMap);
             const effectiveDSR = historicalDSR && String(historicalDSR).trim() ? historicalDSR : 'N/D';
             const isDSR = normalizeString(effectiveDSR).includes(normalizeString(weekdayPT(date)));
+
             if (!isDSR) acc.push({...c, DSR_do_dia: effectiveDSR});
             return acc;
         }, []);
+
         const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
         const totalPendentes = totalElegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));
+
         totalGeralDetailedResults.set(date, {elegiveis: totalElegiveis, pendentes: totalPendentes});
+
         let displayValue = null;
         let statusClassKey = 'EMPTY';
+
         if (date <= todayISO) {
             if (totalElegiveis.length === 0) {
                 statusClassKey = 'N/A';
@@ -531,32 +548,44 @@ function processEfetividade(
         }
         totalGeralResults[date] = {value: displayValue, status: statusClassKey};
     }
+
+    // Loop por Grupo (Matriz/Gerente/SVC)
     for (const key of groupKeys) {
-        results[key] = {};
+        results[key] = {}; // Inicializa o objeto para a chave atual
         detailedResults.set(key, new Map());
+
         const colaboradoresDoGrupo = colaboradores.filter((c) => c[groupBy] === key);
+
         for (const date of dates) {
             const nomesEmFerias = feriasPorDia.get(date) || new Set();
             const nomesAfastados = afastadosPorDia.get(date) || new Set();
+
             const elegiveis = colaboradoresDoGrupo.reduce((acc, c) => {
                 const nomeN = normalizeString(c.Nome);
                 const adm = c['Data de admissão'];
                 if (!adm || adm > date) return acc;
                 if (nomesEmFerias.has(nomeN)) return acc;
                 if (nomesAfastados.has(nomeN)) return acc;
+
                 const historicalDSR = getDSRForDate(c, date, dsrHistoryMap);
                 const effectiveDSR = historicalDSR && String(historicalDSR).trim() ? historicalDSR : 'N/D';
                 const isDSR = normalizeString(effectiveDSR).includes(normalizeString(weekdayPT(date)));
+
                 if (!isDSR) acc.push({...c, DSR_do_dia: effectiveDSR});
                 return acc;
             }, []);
+
             const nomesPreenchidos = preenchidosPorData.get(date) || new Set();
             const pendentes = elegiveis.filter((c) => !nomesPreenchidos.has(normalizeString(c.Nome)));
+
             detailedResults.get(key).set(date, {elegiveis, pendentes});
+
             const totalElegiveis = elegiveis.length;
             const totalPendentes = pendentes.length;
+
             let displayValue = null;
             let statusClassKey = 'EMPTY';
+
             if (date <= todayISO) {
                 if (totalElegiveis === 0) {
                     statusClassKey = 'N/A';
@@ -571,6 +600,7 @@ function processEfetividade(
             results[key][date] = {value: displayValue, status: statusClassKey};
         }
     }
+
     return {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults};
 }
 
@@ -672,18 +702,27 @@ async function generateReport() {
     try {
         const dates = listDates(startDate, endDate);
         if (dates.length > 31) throw new Error('O período selecionado não pode exceder 31 dias.');
+
+        // --- LÓGICA DE CACHE ---
         const periodKey = `${startDate}|${endDate}`;
         let rawData;
         if (state.cache && state.cache.key === periodKey && state.cache.data) {
+            // Usa o cache se as datas forem as mesmas
             rawData = state.cache.data;
+            console.log("⚡ Usando dados em cache (Efetividade)");
         } else {
+            // Busca nova se mudar a data
             rawData = await fetchData(startDate, endDate);
             state.cache = {
                 key: periodKey,
                 data: rawData
             };
+            console.log("🌐 Buscando dados do Supabase (Efetividade)");
         }
+
         if (myRun !== state._runId) return;
+
+        // FILTRAGEM LOCAL (Rápida, sem bater no banco)
         let filteredColaboradores = rawData.colaboradores;
         const turno = state.turnoAtual || 'GERAL';
         if (turno !== 'GERAL' && turno !== 'COORDENACAO') {
@@ -701,8 +740,11 @@ async function generateReport() {
                 return cGerente === normGerente;
             });
         }
+
         const groupBy = isCoordView ? 'Gestor' : 'SVC';
         const groupHeader = isCoordView ? 'Coordenador' : 'SVC';
+
+        // Processamento (Cálculo da tabela)
         const {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults} = processEfetividade(
             filteredColaboradores,
             rawData.preenchimentos,
@@ -712,9 +754,11 @@ async function generateReport() {
             rawData.afastamentos,
             groupBy
         );
+
         if (myRun !== state._runId) return;
         state.detailedResults = detailedResults;
         state.totalGeralDetailedResults = totalGeralDetailedResults;
+
         if (groupKeys.length > 0) {
             groupKeys.sort((keyA, keyB) => {
                 const statusesA = Object.values(results[keyA] || {});
@@ -747,6 +791,9 @@ async function generateReport() {
 }
 
 async function fetchFilterData() {
+    // Cache de filtros: só busca se as listas estiverem vazias
+    if (state.allMatrizes.length > 0 && state.allGerentes.length > 0) return;
+
     try {
         const {data: colabMatrizes, error: colabError} = await supabase
             .from('Colaboradores')
@@ -787,7 +834,7 @@ function populateMatrizFilter() {
 
 function populateGerenteFilter() {
     if (!ui?.gerenteFilterSelect) {
-        console.warn('Elemento #efet-gerente-filter não encontrado.');
+        // console.warn('Elemento #efet-gerente-filter não encontrado.');
         return;
     }
     while (ui.gerenteFilterSelect.options.length > 1) ui.gerenteFilterSelect.remove(1);
@@ -878,6 +925,106 @@ export async function getRankingData(filters = {}) {
     return {
         labels: ranking.map(r => r.label),
         values: ranking.map(r => r.value)
+    };
+}
+
+// ----------------------------------------------------------------------
+// NOVA FUNÇÃO EXPORTADA PARA O GRÁFICO DE ENTREVISTA (SÓ PENDENTES, AGRUPADO, SEM N/D)
+// ----------------------------------------------------------------------
+export async function getInterviewData(filters = {}) {
+    let start, end;
+    if (filters.start && filters.end) {
+        start = filters.start;
+        end = filters.end;
+    } else {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        start = _ymdLocal(firstDay);
+        end = _ymdLocal(today);
+    }
+
+    // Garante que o mapa de gerentes/matrizes esteja carregado
+    if (state.matrizGerenteMap.size === 0) {
+        await fetchFilterData();
+    }
+
+    // --- USO DO CACHE ---
+    const periodKey = `${start}|${end}`;
+    let rawData;
+    if (state.cache && state.cache.key === periodKey && state.cache.data) {
+        rawData = state.cache.data;
+    } else {
+        rawData = await fetchData(start, end);
+        state.cache = {key: periodKey, data: rawData};
+    }
+
+    // Mapa auxiliar para busca rápida de info do colaborador
+    const colabMap = new Map();
+    rawData.colaboradores.forEach(c => {
+        colabMap.set(normalizeString(c.Nome), {
+            matriz: c.MATRIZ,
+            gerente: state.matrizGerenteMap.get(normalizeString(c.MATRIZ))
+        });
+    });
+
+    // Filtra preenchimentos que são ABS (Falta ou Atestado)
+    // Isso é rápido (in-memory)
+    let absRecords = rawData.preenchimentos.filter(p => p.Falta > 0 || p.Atestado > 0);
+
+    // Aplica Filtros de UI
+    if (filters.matriz) {
+        absRecords = absRecords.filter(p => {
+            const info = colabMap.get(normalizeString(p.Nome));
+            return info && info.matriz === filters.matriz;
+        });
+    }
+
+    if (filters.gerencia) {
+        const targetGerente = normalizeString(filters.gerencia);
+        absRecords = absRecords.filter(p => {
+            const info = colabMap.get(normalizeString(p.Nome));
+            return info && info.gerente === targetGerente;
+        });
+    }
+
+    const matrixStats = new Map();
+
+    absRecords.forEach(rec => {
+        const info = colabMap.get(normalizeString(rec.Nome));
+
+        // Se não encontrar o colaborador (info for undefined/null) ou não tiver matriz, ignora (remove N/D)
+        if (!info || !info.matriz) return;
+
+        let matrizName = info.matriz;
+
+        // AGRUPAMENTO MANUAL: SLZ AIR -> SAO LUIS
+        if (matrizName === 'SLZ AIR') {
+            matrizName = 'SAO LUIS';
+        }
+
+        if (!matrixStats.has(matrizName)) {
+            matrixStats.set(matrizName, {pending: 0});
+        }
+
+        const stat = matrixStats.get(matrizName);
+
+        const interviewStatus = String(rec.Entrevista || '').toUpperCase();
+        if (interviewStatus !== 'SIM') {
+            stat.pending++;
+        }
+    });
+
+    // Ordenar DECRESCENTE por quantidade de pendentes
+    // Filtra apenas quem tem pendências > 0 para limpar o gráfico
+    const sortedStats = [...matrixStats.entries()]
+        .filter(entry => entry[1].pending > 0)
+        .sort((a, b) => b[1].pending - a[1].pending);
+
+    return {
+        labels: sortedStats.map(s => s[0]),
+        pendentes: sortedStats.map(s => s[1].pending)
     };
 }
 

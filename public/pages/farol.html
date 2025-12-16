@@ -94,7 +94,7 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
         }
 
-        .btn-action-main, #efet-period-btn, #dados-op-clear-filters, .btn-add, #farol-period-btn, #dados-op-period-btn {
+        .btn-action-main, #efet-period-btn, #dados-op-clear-filters, .btn-add, #farol-period-btn, #dados-op-period-btn, #entrevista-period-btn {
             padding: 8px 14px;
             min-width: 100px;
             border: none;
@@ -252,6 +252,7 @@
             <button id="nav-btn-preenchimento" class="hc-subtab-btn active">Preenchimento</button>
             <button id="nav-btn-dados-op" class="hc-subtab-btn">Dados Operacionais</button>
             <button id="nav-btn-farol" class="hc-subtab-btn">Farol</button>
+            <button id="nav-btn-entrevistas" class="hc-subtab-btn">Controle de Entrevista</button>
         </div>
     </div>
 
@@ -350,6 +351,31 @@
                     <canvas id="chart-dados-op"></canvas>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="view-entrevistas" class="hc-view">
+        <div class="hcidx-toolbar" style="margin-bottom: 12px;">
+            <div class="hc-actions">
+                <select id="entrevista-filter-matriz">
+                    <option value="">Matriz</option>
+                </select>
+                <select id="entrevista-filter-gerencia">
+                    <option value="">Gerência</option>
+                </select>
+                <button id="entrevista-period-btn" class="btn-action-main">Selecionar Período</button>
+            </div>
+        </div>
+
+        <div class="table-container-wrapper" style="padding: 10px;">
+            <div style="height: 100%; min-height: 500px; position: relative;">
+                <canvas id="chart-entrevista-detalhado"></canvas>
+            </div>
+        </div>
+
+        <div id="entrevista-loader"
+             style="display:none; position:absolute; inset:0; background:rgba(255,255,255,0.7); z-index:50; justify-content:center; align-items:center;">
+            <div style="width:30px; height:30px; border:3px solid #003369; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></div>
         </div>
     </div>
 

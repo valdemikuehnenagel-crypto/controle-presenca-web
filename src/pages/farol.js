@@ -6,6 +6,7 @@ let chartPreenchimento = null;
 let chartDadosOp = null;
 let chartEntrevistas = null; // Instância do gráfico de entrevistas
 
+// Estado Global Unificado
 const farolState = {
     filters: {
         matriz: '',
@@ -14,7 +15,8 @@ const farolState = {
         end: ''
     },
     allMatrizes: [],
-    allGerentes: []
+    allGerentes: [],
+    activeTab: 'preenchimento' // Controla qual aba está ativa para saber o que atualizar
 };
 
 function _ymdLocal(dateObj) {
@@ -33,7 +35,80 @@ function initDefaultPeriod() {
     farolState.filters.end = _ymdLocal(yesterday < firstDay ? today : yesterday);
 }
 
+// --- SINCRONIZAÇÃO DE FILTROS ---
+function updateAllFilterElements() {
+    // Atualiza os valores visuais de todos os selects em todas as abas
+    const selectsMatriz = [
+        document.getElementById('efet-matriz-filter'),
+        document.getElementById('dados-op-matriz-filter'),
+        document.getElementById('farol-filter-matriz'),
+        document.getElementById('entrevista-filter-matriz')
+    ];
+    const selectsGerente = [
+        document.getElementById('efet-gerente-filter'),
+        document.getElementById('dados-op-gerente-filter'),
+        document.getElementById('farol-filter-gerencia'),
+        document.getElementById('entrevista-filter-gerencia')
+    ];
+
+    selectsMatriz.forEach(el => {
+        if (el) el.value = farolState.filters.matriz;
+    });
+    selectsGerente.forEach(el => {
+        if (el) el.value = farolState.filters.gerencia;
+    });
+}
+
+function handleFilterChange(type, value) {
+    if (type === 'matriz') farolState.filters.matriz = value;
+    if (type === 'gerencia') farolState.filters.gerencia = value;
+
+    updateAllFilterElements();
+    refreshCurrentView();
+}
+
+function handlePeriodChange(start, end) {
+    farolState.filters.start = start;
+    farolState.filters.end = end;
+    refreshCurrentView(); // Período é compartilhado
+}
+
+function clearAllFilters() {
+    farolState.filters.matriz = '';
+    farolState.filters.gerencia = '';
+    updateAllFilterElements();
+    refreshCurrentView();
+}
+
+// Chama a função de renderização correta baseada na aba ativa
+function refreshCurrentView() {
+    if (farolState.activeTab === 'farol') {
+        renderFarolCharts();
+    } else if (farolState.activeTab === 'entrevistas') {
+        renderEntrevistaCharts();
+    } else if (farolState.activeTab === 'preenchimento') {
+        // A tabela de efetividade observa o estado interno dela, precisamos sincronizar
+        // Como o Efetividade.js tem seu próprio estado, idealmente passaríamos os filtros pra ele
+        // Mas como ele lê dos elementos DOM no 'generateReport', e nós atualizamos o DOM em updateAllFilterElements,
+        // basta chamar o método de refresh dele se exposto, ou simular evento.
+        // O Efetividade.init() já configura listeners. Vamos forçar um update.
+        const matrizSelect = document.getElementById('efet-matriz-filter');
+        if (matrizSelect) matrizSelect.dispatchEvent(new Event('change'));
+    } else if (farolState.activeTab === 'dados-op') {
+        const matrizSelect = document.getElementById('dados-op-matriz-filter');
+        if (matrizSelect) matrizSelect.dispatchEvent(new Event('change'));
+    }
+}
+
+// --------------------------------
+
 async function fetchFiltersFarol() {
+    // Se já carregou filtros, não carrega de novo (cache de filtros)
+    if (farolState.allMatrizes.length > 0) {
+        // Apenas repopula se necessário
+        return;
+    }
+
     try {
         const {data, error} = await supabase.from('Matrizes').select('MATRIZ, GERENCIA').order('MATRIZ');
         if (error) throw error;
@@ -46,42 +121,31 @@ async function fetchFiltersFarol() {
         farolState.allMatrizes = [...matrizes].sort();
         farolState.allGerentes = [...gerentes].sort();
 
-        // Popula filtros do Farol
-        const selMatriz = document.getElementById('farol-filter-matriz');
-        const selGerencia = document.getElementById('farol-filter-gerencia');
+        // Popula TODOS os selects de uma vez
+        const allMatrizSelects = document.querySelectorAll('#efet-matriz-filter, #dados-op-matriz-filter, #farol-filter-matriz, #entrevista-filter-matriz');
+        const allGerenteSelects = document.querySelectorAll('#efet-gerente-filter, #dados-op-gerente-filter, #farol-filter-gerencia, #entrevista-filter-gerencia');
 
-        if (selMatriz) {
-            selMatriz.innerHTML = '<option value="">Matriz</option>';
-            farolState.allMatrizes.forEach(m => selMatriz.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
-            selMatriz.value = farolState.filters.matriz;
-        }
-        if (selGerencia) {
-            selGerencia.innerHTML = '<option value="">Gerência</option>';
-            farolState.allGerentes.forEach(g => selGerencia.insertAdjacentHTML('beforeend', `<option value="${g}">${g}</option>`));
-            selGerencia.value = farolState.filters.gerencia;
-        }
+        allMatrizSelects.forEach(sel => {
+            sel.innerHTML = '<option value="">Matriz</option>';
+            farolState.allMatrizes.forEach(m => sel.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
+            sel.value = farolState.filters.matriz;
+            // Remove listeners antigos para evitar duplicação e adiciona o centralizado
+            sel.onchange = (e) => handleFilterChange('matriz', e.target.value);
+        });
 
-        // Popula filtros da Entrevista (usa os mesmos dados)
-        const selMatrizEnt = document.getElementById('entrevista-filter-matriz');
-        const selGerenciaEnt = document.getElementById('entrevista-filter-gerencia');
-
-        if (selMatrizEnt) {
-            selMatrizEnt.innerHTML = '<option value="">Matriz</option>';
-            farolState.allMatrizes.forEach(m => selMatrizEnt.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
-            selMatrizEnt.value = farolState.filters.matriz;
-        }
-        if (selGerenciaEnt) {
-            selGerenciaEnt.innerHTML = '<option value="">Gerência</option>';
-            farolState.allGerentes.forEach(g => selGerenciaEnt.insertAdjacentHTML('beforeend', `<option value="${g}">${g}</option>`));
-            selGerenciaEnt.value = farolState.filters.gerencia;
-        }
+        allGerenteSelects.forEach(sel => {
+            sel.innerHTML = '<option value="">Gerência</option>';
+            farolState.allGerentes.forEach(g => sel.insertAdjacentHTML('beforeend', `<option value="${g}">${g}</option>`));
+            sel.value = farolState.filters.gerencia;
+            sel.onchange = (e) => handleFilterChange('gerencia', e.target.value);
+        });
 
     } catch (e) {
         console.error("Erro loading filters farol:", e);
     }
 }
 
-function openFarolPeriodModal(renderCallback) {
+function openFarolPeriodModal() {
     const startVal = farolState.filters.start;
     const endVal = farolState.filters.end;
     const overlay = document.createElement('div');
@@ -113,9 +177,6 @@ function openFarolPeriodModal(renderCallback) {
     const startInput = overlay.querySelector('#farol-start');
     const endInput = overlay.querySelector('#farol-end');
 
-    // Callback padrão se não for passado
-    const onRender = typeof renderCallback === 'function' ? renderCallback : renderFarolCharts;
-
     overlay.onclick = (e) => {
         const action = e.target.getAttribute('data-action');
         const id = e.target.id;
@@ -123,9 +184,7 @@ function openFarolPeriodModal(renderCallback) {
             overlay.remove();
         } else if (id === 'btn-apply') {
             if (startInput.value && endInput.value) {
-                farolState.filters.start = startInput.value;
-                farolState.filters.end = endInput.value;
-                onRender();
+                handlePeriodChange(startInput.value, endInput.value);
                 overlay.remove();
             } else {
                 alert("Selecione ambas as datas.");
@@ -181,53 +240,45 @@ export async function init() {
     const btnPreenchimento = document.getElementById('nav-btn-preenchimento');
     const btnDadosOp = document.getElementById('nav-btn-dados-op');
     const btnFarol = document.getElementById('nav-btn-farol');
-    const btnEntrevistas = document.getElementById('nav-btn-entrevistas'); // Botão novo
+    const btnEntrevistas = document.getElementById('nav-btn-entrevistas');
 
     const viewPreenchimento = document.getElementById('view-preenchimento');
     const viewDadosOp = document.getElementById('view-dados-op');
     const viewFarol = document.getElementById('view-farol');
-    const viewEntrevistas = document.getElementById('view-entrevistas'); // View nova
+    const viewEntrevistas = document.getElementById('view-entrevistas');
 
-    // Filtros Farol
-    const selMatriz = document.getElementById('farol-filter-matriz');
-    const selGerencia = document.getElementById('farol-filter-gerencia');
-    const btnPeriodo = document.getElementById('farol-period-btn');
+    // Botões de Período Global
+    const periodBtns = document.querySelectorAll('#efet-period-btn, #dados-op-period-btn, #farol-period-btn, #entrevista-period-btn');
+    periodBtns.forEach(btn => btn.onclick = () => openFarolPeriodModal());
 
-    // Filtros Entrevista
-    const selMatrizEnt = document.getElementById('entrevista-filter-matriz');
-    const selGerenciaEnt = document.getElementById('entrevista-filter-gerencia');
-    const btnPeriodoEnt = document.getElementById('entrevista-period-btn');
+    // Botões Limpar (se houver em outras abas, conecte aqui. No HTML original só tinha em DadosOp e Preenchimento via JS)
+    const clearBtn = document.getElementById('dados-op-clear-filters');
+    if (clearBtn) clearBtn.onclick = clearAllFilters;
 
-    if (selMatriz) selMatriz.onchange = (e) => {
-        farolState.filters.matriz = e.target.value;
-        renderFarolCharts();
-    };
-    if (selGerencia) selGerencia.onchange = (e) => {
-        farolState.filters.gerencia = e.target.value;
-        renderFarolCharts();
-    };
-    if (btnPeriodo) btnPeriodo.onclick = () => openFarolPeriodModal(renderFarolCharts);
+    // Injetar botão limpar na aba de Preenchimento (Efetividade) se não existir
+    const efetActions = document.querySelector('#view-preenchimento .hc-actions');
+    if (efetActions && !document.getElementById('efet-global-clear')) {
+        const clr = document.createElement('button');
+        clr.id = 'efet-global-clear';
+        clr.textContent = 'Limpar';
+        clr.className = 'btn-action-main';
+        clr.style.background = '#6c757d';
+        clr.onclick = clearAllFilters;
+        efetActions.appendChild(clr);
+    }
 
-    // Configuração Filtros Entrevista
-    if (selMatrizEnt) selMatrizEnt.onchange = (e) => {
-        farolState.filters.matriz = e.target.value;
-        renderEntrevistaCharts();
-    };
-    if (selGerenciaEnt) selGerenciaEnt.onchange = (e) => {
-        farolState.filters.gerencia = e.target.value;
-        renderEntrevistaCharts();
-    };
-    if (btnPeriodoEnt) btnPeriodoEnt.onclick = () => openFarolPeriodModal(renderEntrevistaCharts);
-
-    fetchFiltersFarol();
+    await fetchFiltersFarol(); // Carrega e vincula eventos de mudança
 
     function switchTab(tab) {
+        farolState.activeTab = tab;
+
         [btnPreenchimento, btnDadosOp, btnFarol, btnEntrevistas].forEach(b => b?.classList.remove('active'));
         [viewPreenchimento, viewDadosOp, viewFarol, viewEntrevistas].forEach(v => v?.classList.remove('active'));
 
         if (tab === 'preenchimento') {
             btnPreenchimento.classList.add('active');
             viewPreenchimento.classList.add('active');
+            refreshCurrentView();
         } else if (tab === 'dados-op') {
             btnDadosOp.classList.add('active');
             viewDadosOp.classList.add('active');
@@ -238,7 +289,7 @@ export async function init() {
                         const res = DadosOp.init();
                         if (res instanceof Promise) await res;
                     } catch (err) {
-                        console.warn("Erro ao iniciar DadosOp:", err);
+                        console.warn(err);
                     }
                 }
             });
@@ -256,25 +307,17 @@ export async function init() {
     if (btnPreenchimento) btnPreenchimento.onclick = () => switchTab('preenchimento');
     if (btnDadosOp) btnDadosOp.onclick = () => switchTab('dados-op');
     if (btnFarol) btnFarol.onclick = () => switchTab('farol');
-    if (btnEntrevistas) btnEntrevistas.onclick = () => switchTab('entrevistas'); // Evento novo
+    if (btnEntrevistas) btnEntrevistas.onclick = () => switchTab('entrevistas');
 
+    // Inicializa Efetividade (Tabela) em background para garantir eventos
     try {
         if (Efetividade && typeof Efetividade.init === 'function') await Efetividade.init();
-        setTimeout(() => {
-            if (DadosOp && typeof DadosOp.init === 'function') {
-                try {
-                    const res = DadosOp.init();
-                    if (res instanceof Promise) res.catch((e) => console.warn(e));
-                } catch (e) {
-                    console.warn(e)
-                }
-            }
-        }, 500);
     } catch (e) {
         console.error("Erro init Farol:", e);
     }
 }
 
+// ... barOptions e renderBarChart IGUAIS ...
 const barOptions = () => ({
     indexAxis: 'y',
     layout: {padding: {top: 20, left: 10, right: 30, bottom: 10}},
@@ -293,11 +336,7 @@ const barOptions = () => ({
         tooltip: {
             backgroundColor: 'rgba(0, 51, 105, 0.9)', titleFont: {size: 13}, bodyFont: {size: 13}, padding: 10,
             callbacks: {
-                label: (ctx) => {
-                    let val = ctx.raw;
-                    if (typeof val === 'number') val = val.toFixed(2).replace('.', ',');
-                    return `${ctx.label}: ${val}%`;
-                }
+                label: (ctx) => `${ctx.label}: ${ctx.raw.toFixed(2).replace('.', ',')}%`
             }
         }
     },
@@ -371,7 +410,7 @@ async function renderFarolCharts() {
     }
 }
 
-// --- FUNÇÃO PARA RENDERIZAR GRÁFICO DE ENTREVISTAS ---
+// --- FUNÇÃO PARA RENDERIZAR GRÁFICO DE ENTREVISTAS (SÓ PENDENTES, HORIZONTAL) ---
 async function renderEntrevistaCharts() {
     const loader = document.getElementById('entrevista-loader');
     if (loader) loader.style.display = 'flex';
@@ -380,7 +419,7 @@ async function renderEntrevistaCharts() {
     const filters = farolState.filters;
 
     try {
-        // Busca dados do módulo de Efetividade (Função getInterviewData deve existir lá)
+        // Agora retorna apenas { labels: [], pendentes: [] }
         const data = await Efetividade.getInterviewData(filters);
 
         const ctx = document.getElementById('chart-entrevista-detalhado')?.getContext('2d');
@@ -396,50 +435,47 @@ async function renderEntrevistaCharts() {
                 labels: data.labels,
                 datasets: [
                     {
-                        label: 'Total ABS',
-                        data: data.totalAbs,
-                        backgroundColor: '#003369', // Azul Escuro
-                        barPercentage: 0.6,
-                        categoryPercentage: 0.8
-                    },
-                    {
                         label: 'Entrevistas Pendentes',
                         data: data.pendentes,
-                        backgroundColor: '#02B1EE', // Azul Claro (Cyan)
-                        barPercentage: 0.6,
-                        categoryPercentage: 0.8
+                        backgroundColor: '#003369', // Azul Escuro conforme solicitado
+                        barPercentage: 0.8, // Barras mais grossas
+                        categoryPercentage: 0.9,
+                        borderRadius: 4
                     }
                 ]
             },
             options: {
-                indexAxis: 'x', // Barras verticais
+                indexAxis: 'y', // Horizontal
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: {font: {family: "'Poppins', sans-serif"}}
-                    },
+                    legend: {display: false}, // Só uma série, não precisa legenda
                     datalabels: {
                         anchor: 'end',
-                        align: 'top',
-                        color: '#444',
-                        font: {weight: 'bold'},
-                        formatter: v => v > 0 ? v : ''
+                        align: 'end',
+                        color: '#003369',
+                        font: {weight: 'bold', size: 12},
+                        formatter: (v) => v > 0 ? v : ''
                     },
                     tooltip: {
-                        mode: 'index',
-                        intersect: false
+                        callbacks: {
+                            label: (ctx) => `Pendentes: ${ctx.raw}`
+                        }
                     }
                 },
                 scales: {
                     x: {
                         grid: {display: false},
-                        ticks: {autoSkip: false, maxRotation: 90, minRotation: 0}
+                        beginAtZero: true,
+                        ticks: {display: false} // Oculta números do eixo X para limpar visual
                     },
                     y: {
-                        beginAtZero: true,
-                        grid: {color: '#f0f0f0'}
+                        grid: {display: false},
+                        ticks: {
+                            font: {size: 11, weight: '600'},
+                            color: '#333',
+                            autoSkip: false
+                        }
                     }
                 }
             },
