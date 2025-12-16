@@ -6,19 +6,19 @@
     <title>Relatório de Efetividade</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-    <!-- Seu bundle global -->
+
     <link rel="stylesheet" href="/styles/main.css">
-    <!-- CSS desta aba -->
+
     <link rel="stylesheet" href="/styles/efetividade.css">
 </head>
 <body>
 
 <div class="page-container" id="efetividade-page">
-    <!-- Barra de filtros -->
+
     <div class="filter-bar efetividade-filters hcd-bar">
         <div class="efetividade-actions">
 
-            <!-- Botão de alternância de AGRUPAMENTO -->
+
             <button
                     id="efet-view-coordenacao"
                     type="button"
@@ -40,21 +40,21 @@
                 <option value="">Gerentes</option>
             </select>
 
-            <!-- Período -->
+
             <button id="efet-period-btn" type="button">Selecionar Período</button>
         </div>
     </div>
 
-    <!-- Loader -->
+
     <div id="efet-loader" class="loading-overlay" style="display:none;">
         <div class="spinner"></div>
     </div>
 
-    <!-- Resultado -->
+
     <div id="efet-result"></div>
 </div>
 
-<!-- Módulo JS da página -->
+
 <script type="module">
     import {init} from './efetividade.js';
 

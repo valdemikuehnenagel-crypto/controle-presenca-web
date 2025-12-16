@@ -4,6 +4,8 @@ import {supabase} from '../supabaseClient.js';
 
 let chartPreenchimento = null;
 let chartDadosOp = null;
+let chartEntrevistas = null; // Instância do gráfico de entrevistas
+
 const farolState = {
     filters: {
         matriz: '',
@@ -43,8 +45,11 @@ async function fetchFiltersFarol() {
         });
         farolState.allMatrizes = [...matrizes].sort();
         farolState.allGerentes = [...gerentes].sort();
+
+        // Popula filtros do Farol
         const selMatriz = document.getElementById('farol-filter-matriz');
         const selGerencia = document.getElementById('farol-filter-gerencia');
+
         if (selMatriz) {
             selMatriz.innerHTML = '<option value="">Matriz</option>';
             farolState.allMatrizes.forEach(m => selMatriz.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
@@ -55,23 +60,41 @@ async function fetchFiltersFarol() {
             farolState.allGerentes.forEach(g => selGerencia.insertAdjacentHTML('beforeend', `<option value="${g}">${g}</option>`));
             selGerencia.value = farolState.filters.gerencia;
         }
+
+        // Popula filtros da Entrevista (usa os mesmos dados)
+        const selMatrizEnt = document.getElementById('entrevista-filter-matriz');
+        const selGerenciaEnt = document.getElementById('entrevista-filter-gerencia');
+
+        if (selMatrizEnt) {
+            selMatrizEnt.innerHTML = '<option value="">Matriz</option>';
+            farolState.allMatrizes.forEach(m => selMatrizEnt.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
+            selMatrizEnt.value = farolState.filters.matriz;
+        }
+        if (selGerenciaEnt) {
+            selGerenciaEnt.innerHTML = '<option value="">Gerência</option>';
+            farolState.allGerentes.forEach(g => selGerenciaEnt.insertAdjacentHTML('beforeend', `<option value="${g}">${g}</option>`));
+            selGerenciaEnt.value = farolState.filters.gerencia;
+        }
+
     } catch (e) {
         console.error("Erro loading filters farol:", e);
     }
 }
 
-function openFarolPeriodModal() {
+function openFarolPeriodModal(renderCallback) {
     const startVal = farolState.filters.start;
     const endVal = farolState.filters.end;
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999]';
     overlay.innerHTML = `
     <div class="container !h-auto !w-auto max-w-md" style="background:#fff;border-radius:12px;padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.18);">
-      <h3 style="font-weight:800;color:#003369;margin:0 0 10px;">Selecionar Período (Farol)</h3>      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <h3 style="font-weight:800;color:#003369;margin:0 0 10px;">Selecionar Período</h3>
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button type="button" data-action="ontem" style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f9f9f9; font-size:13px; cursor:pointer;">Ontem</button>
         <button type="button" data-action="mes_atual" style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f9f9f9; font-size:13px; cursor:pointer;">Mês Atual</button>
         <button type="button" data-action="mes_anterior" style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f9f9f9; font-size:13px; cursor:pointer;">Mês Anterior</button>
-      </div>      <div class="grid grid-cols-2 gap-4 my-4">
+      </div>
+      <div class="grid grid-cols-2 gap-4 my-4">
         <div>
           <label class="block text-xs font-bold text-gray-600 mb-1">Início</label>
           <input type="date" id="farol-start" class="w-full border rounded p-2 text-sm" value="${startVal}">
@@ -89,6 +112,10 @@ function openFarolPeriodModal() {
     document.body.appendChild(overlay);
     const startInput = overlay.querySelector('#farol-start');
     const endInput = overlay.querySelector('#farol-end');
+
+    // Callback padrão se não for passado
+    const onRender = typeof renderCallback === 'function' ? renderCallback : renderFarolCharts;
+
     overlay.onclick = (e) => {
         const action = e.target.getAttribute('data-action');
         const id = e.target.id;
@@ -98,7 +125,7 @@ function openFarolPeriodModal() {
             if (startInput.value && endInput.value) {
                 farolState.filters.start = startInput.value;
                 farolState.filters.end = endInput.value;
-                renderFarolCharts();
+                onRender();
                 overlay.remove();
             } else {
                 alert("Selecione ambas as datas.");
@@ -138,6 +165,7 @@ async function ensureChartLib() {
 
 function loadJs(src) {
     return new Promise((res, rej) => {
+        if (document.querySelector(`script[src="${src}"]`)) return res();
         const s = document.createElement('script');
         s.src = src;
         s.onload = res;
@@ -149,15 +177,27 @@ function loadJs(src) {
 export async function init() {
     console.log("Inicializando Farol Unificado...");
     initDefaultPeriod();
+
     const btnPreenchimento = document.getElementById('nav-btn-preenchimento');
     const btnDadosOp = document.getElementById('nav-btn-dados-op');
     const btnFarol = document.getElementById('nav-btn-farol');
+    const btnEntrevistas = document.getElementById('nav-btn-entrevistas'); // Botão novo
+
     const viewPreenchimento = document.getElementById('view-preenchimento');
     const viewDadosOp = document.getElementById('view-dados-op');
     const viewFarol = document.getElementById('view-farol');
+    const viewEntrevistas = document.getElementById('view-entrevistas'); // View nova
+
+    // Filtros Farol
     const selMatriz = document.getElementById('farol-filter-matriz');
     const selGerencia = document.getElementById('farol-filter-gerencia');
     const btnPeriodo = document.getElementById('farol-period-btn');
+
+    // Filtros Entrevista
+    const selMatrizEnt = document.getElementById('entrevista-filter-matriz');
+    const selGerenciaEnt = document.getElementById('entrevista-filter-gerencia');
+    const btnPeriodoEnt = document.getElementById('entrevista-period-btn');
+
     if (selMatriz) selMatriz.onchange = (e) => {
         farolState.filters.matriz = e.target.value;
         renderFarolCharts();
@@ -166,12 +206,25 @@ export async function init() {
         farolState.filters.gerencia = e.target.value;
         renderFarolCharts();
     };
-    if (btnPeriodo) btnPeriodo.onclick = openFarolPeriodModal;
+    if (btnPeriodo) btnPeriodo.onclick = () => openFarolPeriodModal(renderFarolCharts);
+
+    // Configuração Filtros Entrevista
+    if (selMatrizEnt) selMatrizEnt.onchange = (e) => {
+        farolState.filters.matriz = e.target.value;
+        renderEntrevistaCharts();
+    };
+    if (selGerenciaEnt) selGerenciaEnt.onchange = (e) => {
+        farolState.filters.gerencia = e.target.value;
+        renderEntrevistaCharts();
+    };
+    if (btnPeriodoEnt) btnPeriodoEnt.onclick = () => openFarolPeriodModal(renderEntrevistaCharts);
+
     fetchFiltersFarol();
 
     function switchTab(tab) {
-        [btnPreenchimento, btnDadosOp, btnFarol].forEach(b => b?.classList.remove('active'));
-        [viewPreenchimento, viewDadosOp, viewFarol].forEach(v => v?.classList.remove('active'));
+        [btnPreenchimento, btnDadosOp, btnFarol, btnEntrevistas].forEach(b => b?.classList.remove('active'));
+        [viewPreenchimento, viewDadosOp, viewFarol, viewEntrevistas].forEach(v => v?.classList.remove('active'));
+
         if (tab === 'preenchimento') {
             btnPreenchimento.classList.add('active');
             viewPreenchimento.classList.add('active');
@@ -193,12 +246,18 @@ export async function init() {
             btnFarol.classList.add('active');
             viewFarol.classList.add('active');
             renderFarolCharts();
+        } else if (tab === 'entrevistas') {
+            btnEntrevistas.classList.add('active');
+            viewEntrevistas.classList.add('active');
+            renderEntrevistaCharts();
         }
     }
 
     if (btnPreenchimento) btnPreenchimento.onclick = () => switchTab('preenchimento');
     if (btnDadosOp) btnDadosOp.onclick = () => switchTab('dados-op');
     if (btnFarol) btnFarol.onclick = () => switchTab('farol');
+    if (btnEntrevistas) btnEntrevistas.onclick = () => switchTab('entrevistas'); // Evento novo
+
     try {
         if (Efetividade && typeof Efetividade.init === 'function') await Efetividade.init();
         setTimeout(() => {
@@ -286,6 +345,7 @@ function renderBarChart(canvasId, data, chartInstance, setChartInstance) {
     setChartInstance(newChart);
 }
 
+// Renderiza os gráficos do Farol (Preenchimento e Qualidade)
 async function renderFarolCharts() {
     await ensureChartLib();
     const filters = farolState.filters;
@@ -311,9 +371,92 @@ async function renderFarolCharts() {
     }
 }
 
+// --- FUNÇÃO PARA RENDERIZAR GRÁFICO DE ENTREVISTAS ---
+async function renderEntrevistaCharts() {
+    const loader = document.getElementById('entrevista-loader');
+    if (loader) loader.style.display = 'flex';
+
+    await ensureChartLib();
+    const filters = farolState.filters;
+
+    try {
+        // Busca dados do módulo de Efetividade (Função getInterviewData deve existir lá)
+        const data = await Efetividade.getInterviewData(filters);
+
+        const ctx = document.getElementById('chart-entrevista-detalhado')?.getContext('2d');
+        if (!ctx) return;
+
+        if (chartEntrevistas) {
+            chartEntrevistas.destroy();
+        }
+
+        chartEntrevistas = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    {
+                        label: 'Total ABS',
+                        data: data.totalAbs,
+                        backgroundColor: '#003369', // Azul Escuro
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.8
+                    },
+                    {
+                        label: 'Entrevistas Pendentes',
+                        data: data.pendentes,
+                        backgroundColor: '#02B1EE', // Azul Claro (Cyan)
+                        barPercentage: 0.6,
+                        categoryPercentage: 0.8
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'x', // Barras verticais
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {font: {family: "'Poppins', sans-serif"}}
+                    },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        color: '#444',
+                        font: {weight: 'bold'},
+                        formatter: v => v > 0 ? v : ''
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {display: false},
+                        ticks: {autoSkip: false, maxRotation: 90, minRotation: 0}
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {color: '#f0f0f0'}
+                    }
+                }
+            },
+            plugins: [ChartDataLabels]
+        });
+
+    } catch (e) {
+        console.error("Erro renderEntrevistaCharts:", e);
+    } finally {
+        if (loader) loader.style.display = 'none';
+    }
+}
+
 export function destroy() {
     if (chartPreenchimento) chartPreenchimento.destroy();
     if (chartDadosOp) chartDadosOp.destroy();
+    if (chartEntrevistas) chartEntrevistas.destroy();
     try {
         if (Efetividade && typeof Efetividade.destroy === 'function') Efetividade.destroy();
         if (DadosOp && typeof DadosOp.destroy === 'function') DadosOp.destroy();
