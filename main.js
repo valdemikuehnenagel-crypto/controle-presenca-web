@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';document.addEventListener('DOMContentLoaded', () => {
-    const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);    const container = document.getElementById('container');
+    const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
+    const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
     const showLoginBtn = document.getElementById('showLoginBtn');    const registerForm = document.getElementById('registerForm');
     const registerName = document.getElementById('registerName');
@@ -17,11 +18,15 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
     const migrationPassword = document.getElementById('migrationPassword');
     const confirmMigrationBtn = document.getElementById('confirm-migration-btn');
     const migrationMsg = document.getElementById('migrationMsg');
-    let userToMigrate = null;    const eyeOpenSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+    let userToMigrate = null;    const loginForm = document.getElementById('loginForm');
+    const loginEmailInput = document.getElementById('loginEmail');
+    const loginPasswordInput = document.getElementById('loginInput');
+    const forgotPinBtn = document.getElementById('forgotPinBtn');    const eyeOpenSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
     const eyeClosedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;    document.querySelectorAll('.toggle-password').forEach(btn => {
         btn.addEventListener('click', () => {
             const targetId = btn.getAttribute('data-target');
-            const input = document.getElementById(targetId);            if (input.type === 'password') {
+            const input = document.getElementById(targetId);
+            if (input.type === 'password') {
                 input.type = 'text';
                 btn.innerHTML = eyeOpenSVG;
             } else {
@@ -66,17 +71,22 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
         showLoginBtn.addEventListener('click', () => {
             container.classList.remove('active');
         });
-    }    function isPasswordStrictlyValid(password) {        const hasMinLength = password.length >= 8;
+    }    function isPasswordStrictlyValid(password) {
+        const hasMinLength = password.length >= 8;
         const hasLetter = /[a-zA-Z]/.test(password);
         const hasNumber = /[0-9]/.test(password);
-        const hasSpecial = /[^a-zA-Z0-9]/.test(password);        return hasMinLength && hasLetter && hasNumber && hasSpecial;
+        const hasSpecial = /[^a-zA-Z0-9]/.test(password);
+        return hasMinLength && hasLetter && hasNumber && hasSpecial;
     }    function setupPasswordMeter(inputElement, indicatorElement, textElement) {
-        if (!inputElement || !indicatorElement || !textElement) return;        inputElement.addEventListener('input', function () {
-            const password = this.value;            let score = 0;
+        if (!inputElement || !indicatorElement || !textElement) return;
+        inputElement.addEventListener('input', function () {
+            const password = this.value;
+            let score = 0;
             if (password.length >= 8) score++;
             if (/[a-zA-Z]/.test(password)) score++;
             if (/[0-9]/.test(password)) score++;
-            if (/[^a-zA-Z0-9]/.test(password)) score++;            if (password.length > 0 && password.length < 6) score = 1;            const width = (score / 4) * 100;
+            if (/[^a-zA-Z0-9]/.test(password)) score++;
+            if (password.length > 0 && password.length < 6) score = 1;            const width = (score / 4) * 100;
             indicatorElement.style.width = `${Math.min(width, 100)}%`;            switch (score) {
                 case 0:
                 case 1:
@@ -95,7 +105,8 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                     indicatorElement.style.backgroundColor = "#81C784";
                     textElement.innerHTML = "Muito Forte";
                     break;
-            }            if (password.length === 0) {
+            }
+            if (password.length === 0) {
                 textElement.innerHTML = "";
                 indicatorElement.style.width = "0";
             }
@@ -117,7 +128,8 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 matrizValue = 'TODOS';
             } else {
                 matrizValue = selectedMatrizesState.join(', ');
-            }            const userPassword = registerPassword.value;            if (!isPasswordStrictlyValid(userPassword)) {
+            }            const userPassword = registerPassword.value;
+            if (!isPasswordStrictlyValid(userPassword)) {
                 registerMsg.textContent = "Caro usuário, sua senha precisa ter no mínimo 8 dígitos, letras, números e caracteres especiais. Ex: @ # $ !";
                 registerMsg.classList.add('error');
                 return;
@@ -149,46 +161,66 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 registerMsg.textContent = 'Solicitação enviada! Aguarde a aprovação.';
                 registerForm.reset();
                 document.getElementById('password-strength-indicator').style.width = '0';
-                document.getElementById('password-strength-text').textContent = '';                selectedMatrizesState = [];
-                updateMainButtonText();                setTimeout(() => {
+                document.getElementById('password-strength-text').textContent = '';
+                selectedMatrizesState = [];
+                updateMainButtonText();
+                setTimeout(() => {
                     container.classList.remove('active');
                 }, 3000);
             }
         });
-    }    async function verifyLogin(credential) {
+    }    async function verifyLogin(email, credential) {
         const loginMsg = document.getElementById('loginMsg');
         loginMsg.classList.remove('info');
         loginMsg.textContent = 'Verificando...';        const {data: users, error} = await supabase
             .from('Logins')
             .select('*')
-            .or(`Senha.eq.${credential},PIN.eq.${credential}`);        if (error || !users || users.length === 0) {
-            loginMsg.textContent = 'Credenciais inválidas.';
+            .ilike('Usuario', email);        if (error || !users || users.length === 0) {
+            loginMsg.textContent = 'Usuário não encontrado ou credenciais inválidas.';
             return;
         }        const user = users[0];        if (user.Aprovacao !== 'SIM') {
             loginMsg.textContent = 'Acesso pendente de aprovação.';
             return;
-        }        if (user.PIN === credential) {
+        }        const isPinMatch = user.PIN === credential;
+        const isPasswordMatch = user.Senha === credential;        if (!isPinMatch && !isPasswordMatch) {
+            loginMsg.textContent = 'Senha ou PIN incorreto.';
+            return;
+        }        if (isPinMatch) {
             userToMigrate = user;
             openMigrationModal();
             loginMsg.textContent = '';
             return;
-        }        if (user.Senha === credential) {
+        }        if (isPasswordMatch) {
             performLoginSuccess(user);
-        } else {
-            loginMsg.textContent = 'Credenciais inválidas.';
         }
+    }    if (loginForm) {
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = loginEmailInput.value.trim();
+            const password = loginPasswordInput.value;            if (!email || !password) {
+                const loginMsg = document.getElementById('loginMsg');
+                loginMsg.textContent = 'Preencha e-mail e senha.';
+                return;
+            }            verifyLogin(email, password);
+        });
     }    function openMigrationModal() {
         if (migrationModal) migrationModal.classList.add('show');
         if (migrationOverlay) migrationOverlay.classList.add('show');
     }    function closeMigrationModal() {
         if (migrationModal) migrationModal.classList.remove('show');
-        if (migrationOverlay) migrationOverlay.classList.remove('show');        migrationPassword.value = '';
+        if (migrationOverlay) migrationOverlay.classList.remove('show');
+        migrationPassword.value = '';
         document.getElementById('migration-strength-indicator').style.width = '0';
         document.getElementById('migration-strength-text').innerHTML = '';
-        migrationMsg.textContent = '';        userToMigrate = null;
+        migrationMsg.textContent = '';
+        userToMigrate = null;
     }    if (confirmMigrationBtn) {
         confirmMigrationBtn.addEventListener('click', async () => {
-            const newPass = migrationPassword.value;            if (!isPasswordStrictlyValid(newPass)) {
+            const newPass = migrationPassword.value;            if (userToMigrate && newPass === userToMigrate.Senha) {
+                migrationMsg.textContent = "A nova senha não pode ser igual à senha anterior.";
+                migrationMsg.classList.add('error');
+                return;
+            }            if (!isPasswordStrictlyValid(newPass)) {
                 migrationMsg.textContent = "Caro usuário, sua senha precisa ter no mínimo 8 dígitos, letras, números e caracteres especiais. Ex: @ # $ !";
                 migrationMsg.classList.add('error');
                 return;
@@ -203,8 +235,11 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 console.error(error);
                 migrationMsg.textContent = 'Erro ao salvar. Tente novamente.';
                 migrationMsg.classList.add('error');
-            } else {                userToMigrate.Senha = newPass;
-                userToMigrate.PIN = null;                performLoginSuccess(userToMigrate);                closeMigrationModal();
+            } else {
+                userToMigrate.Senha = newPass;
+                userToMigrate.PIN = null;
+                performLoginSuccess(userToMigrate);
+                closeMigrationModal();
             }
         });
     }    async function performLoginSuccess(data) {
@@ -215,26 +250,16 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
             const welcomeMessage = document.getElementById('welcome-message');
             const welcomeAvatar = document.getElementById('welcome-avatar');
             const fullName = data.Nome || 'Usuário';
-            const firstName = fullName.split(' ')[0];
-            if (welcomeMessage) welcomeMessage.textContent = `Olá, ${firstName}!`;
+            const firstName = fullName.split(' ')[0];            if (welcomeMessage) welcomeMessage.textContent = `Olá, ${firstName}!`;
             if (welcomeAvatar && data.avatar_url) {
                 welcomeAvatar.src = data.avatar_url.toLowerCase();
             } else if (welcomeAvatar) {
                 welcomeAvatar.src = '/imagens/avatar.png';
-            }
-            welcomeBackContainer.classList.remove('hidden');
+            }            welcomeBackContainer.classList.remove('hidden');
             setTimeout(() => welcomeBackContainer.classList.add('visible'), 10);
-        }
-        setTimeout(() => {
+        }        setTimeout(() => {
             window.location.href = '/dashboard.html';
         }, 2800);
-    }    const loginForm = document.getElementById('loginForm');
-    const loginInput = document.getElementById('loginInput');
-    const forgotPinBtn = document.getElementById('forgotPinBtn');    if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            verifyLogin(loginInput.value);
-        });
     }    if (forgotPinBtn) {
         forgotPinBtn.addEventListener('click', () => {
             const loginMsg = document.getElementById('loginMsg');

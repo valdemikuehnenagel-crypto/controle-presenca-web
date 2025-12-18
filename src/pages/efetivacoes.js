@@ -41,11 +41,256 @@ function formatDateTimeLocal(iso) {
     }
 }
 
+
+
+
+
+
+let spamModal;
+let spamForm;
+let spamTbody;
+let spamMatrizSelect;
+
+function initSpamManager() {
+    const btnGerenciar = document.getElementById('btn-gerenciar-spam');
+    spamModal = document.getElementById('spamModal');
+    spamForm = document.getElementById('spamForm');
+    spamTbody = document.getElementById('spam-tbody');
+    spamMatrizSelect = document.getElementById('spam-svc');
+
+    if (btnGerenciar) {
+        btnGerenciar.addEventListener('click', openSpamManager);
+    }
+
+    if (spamForm) {
+        spamForm.addEventListener('submit', handleSpamSubmit);
+    }
+
+
+    if (spamMatrizSelect) {
+        spamMatrizSelect.addEventListener('change', async (e) => {
+            const svcSelecionado = e.target.value;
+            if (!svcSelecionado) return;
+
+
+            const mapa = await loadMatrizesData();
+
+
+            const key = norm(svcSelecionado).replace(/\s+/g, '');
+
+            const info = mapa.get(key);
+            const inputRegiao = document.getElementById('spam-regiao');
+
+            if (info && info.REGIAO && inputRegiao) {
+                inputRegiao.value = info.REGIAO;
+            } else if (inputRegiao) {
+                inputRegiao.value = '';
+                inputRegiao.placeholder = "Região não encontrada automaticamente";
+                inputRegiao.readOnly = false;
+            }
+        });
+    }
+
+
+    const btnClose = document.getElementById('btn-close-spam');
+    if (btnClose) btnClose.addEventListener('click', closeSpamManager);
+}
+
+async function openSpamManager() {
+    if (!spamModal) return;
+    spamModal.classList.remove('hidden');
+
+    spamForm.reset();
+    document.getElementById('spam-id').value = '';
+    document.getElementById('spam-modal-title').textContent = 'Adicionar Registro de SPAM';
+
+
+    if (spamMatrizSelect && spamMatrizSelect.options.length <= 1) {
+        try {
+            const {data} = await supabase.from('Matrizes').select('SERVICE').order('SERVICE');
+            const svcs = [...new Set((data || []).map(m => m.SERVICE?.trim()).filter(Boolean))].sort();
+
+            spamMatrizSelect.innerHTML = '<option value="">- Selecione SVC -</option>';
+            svcs.forEach(svc => {
+                const opt = document.createElement('option');
+                opt.value = svc;
+                opt.textContent = svc;
+                spamMatrizSelect.appendChild(opt);
+            });
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    fetchSpamList();
+}
+
+function closeSpamManager() {
+    if (spamModal) spamModal.classList.add('hidden');
+}
+
+async function fetchSpamList() {
+    if (!spamTbody) return;
+    spamTbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">Carregando...</td></tr>';
+
+    const {data, error} = await supabase
+        .from('Spam')
+        .select('*')
+        .order('ANO', {ascending: false})
+        .order('Numero', {ascending: false})
+        .limit(100);
+
+    if (error) {
+        spamTbody.innerHTML = `<tr><td colspan="7" class="text-center text-red-500">Erro: ${error.message}</td></tr>`;
+        return;
+    }
+
+    renderSpamTableRows(data || []);
+}
+
+function renderSpamTableRows(lista) {
+    spamTbody.innerHTML = '';
+    if (lista.length === 0) {
+        spamTbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">Nenhum registro encontrado.</td></tr>';
+        return;
+    }
+
+    lista.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${item.SVC || '-'}</td>
+            <td>${item.MÊS}/${item.ANO}</td>
+            <td>${item.REGIAO || '-'}</td>
+            <td class="text-center">${item['HC Fixo'] || 0}</td>
+            <td class="text-center">${item['HC PT'] || 0}</td>
+            <td class="text-center">
+                <button type="button" class="btn-edit-spam btn-neutral text-xs !px-2 !py-1" style="background:#f59e0b; color:#fff;">✏️</button>
+                <button type="button" class="btn-del-spam btn-cancelar text-xs !px-2 !py-1" style="margin-left:4px;">🗑️</button>
+            </td>
+        `;
+
+        tr.querySelector('.btn-edit-spam').addEventListener('click', () => editSpam(item));
+        tr.querySelector('.btn-del-spam').addEventListener('click', () => deleteSpam(item.Numero));
+
+        spamTbody.appendChild(tr);
+    });
+}
+
+function editSpam(item) {
+    document.getElementById('spam-id').value = item.Numero;
+    document.getElementById('spam-svc').value = item.SVC;
+    document.getElementById('spam-mes').value = item.MÊS;
+    document.getElementById('spam-ano').value = item.ANO;
+    document.getElementById('spam-regiao').value = item.REGIAO;
+    document.getElementById('spam-fixo').value = item['HC Fixo'];
+    document.getElementById('spam-pt').value = item['HC PT'];
+
+    document.getElementById('spam-modal-title').textContent = `Editar SPAM #${item.Numero}`;
+}
+
+async function deleteSpam(id) {
+    if (!confirm('Deseja excluir este registro de SPAM?')) return;
+
+    const {error} = await supabase.from('Spam').delete().eq('Numero', id);
+    if (error) {
+        alert('Erro ao excluir: ' + error.message);
+    } else {
+
+        invalidateCache(['spamData']);
+
+
+        fetchSpamList();
+        refresh();
+    }
+}
+
+async function handleSpamSubmit(e) {
+    e.preventDefault();
+    const f = document.getElementById('spamForm');
+    const id = document.getElementById('spam-id').value;
+
+
+    const payload = {
+        SVC: document.getElementById('spam-svc').value,
+        MÊS: document.getElementById('spam-mes').value,
+        ANO: parseInt(document.getElementById('spam-ano').value),
+        REGIAO: document.getElementById('spam-regiao').value,
+        'HC Fixo': parseInt(document.getElementById('spam-fixo').value || 0),
+        'HC PT': parseInt(document.getElementById('spam-pt').value || 0)
+    };
+
+    if(!payload.SVC || !payload.MÊS || !payload.ANO) {
+        alert("Preencha SVC, Mês e Ano.");
+        return;
+    }
+
+    const btn = f.querySelector('button[type="submit"]');
+    const txt = btn.textContent;
+    btn.textContent = 'Salvando...';
+    btn.disabled = true;
+
+    let error;
+
+    if (id) {
+
+        const res = await supabase.from('Spam').update(payload).eq('Numero', id);
+        error = res.error;
+    } else {
+
+
+
+        const { data: maxData, error: maxError } = await supabase
+            .from('Spam')
+            .select('Numero')
+            .order('Numero', { ascending: false })
+            .limit(1);
+
+        if (maxError) {
+            console.error("Erro ao buscar último ID:", maxError);
+            alert("Erro ao gerar ID para o novo registro.");
+            btn.textContent = txt;
+            btn.disabled = false;
+            return;
+        }
+
+
+        let nextId = 1;
+        if (maxData && maxData.length > 0) {
+            nextId = (maxData[0].Numero || 0) + 1;
+        }
+
+
+        payload.Numero = nextId;
+
+
+        const res = await supabase.from('Spam').insert([payload]);
+        error = res.error;
+    }
+
+    btn.textContent = txt;
+    btn.disabled = false;
+
+    if (error) {
+        alert('Erro ao salvar: ' + error.message);
+    } else {
+        alert('Registro salvo com sucesso!');
+        f.reset();
+        document.getElementById('spam-id').value = '';
+        document.getElementById('spam-modal-title').textContent = 'Adicionar Registro de SPAM';
+
+
+        invalidateCache(['spamData']);
+
+        fetchSpamList();
+        refresh();
+    }
+}
+
 async function loadVagasAbertasCached() {
     return fetchOnce('vagasAbertasData', async () => {
         const {data, error} = await supabase
             .from('Vagas')
-            .select('MATRIZ, Status, ID_Vaga')
+            .select('MATRIZ, Status, ID_Vaga, Cargo')
             .in('Status', ['ABERTA', 'EM ADMISSÃO']);
         if (error) throw error;
         return data || [];
@@ -1911,6 +2156,7 @@ function ensureChartsCreatedSpam() {
 async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     if (!state.mounted) return;
     ensureChartsCreatedSpam();
+
     const fixSsaLabel = (str) => {
         if (!str) return '';
         const cleanStr = str.replace(/\s+/g, '').toUpperCase();
@@ -1918,12 +2164,15 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         if (cleanStr === 'SLZAIR') return 'SLZ AIR';
         return str;
     };
+
     const [allSpamData, allVagasData] = await Promise.all([
         loadSpamData(),
         loadVagasAbertasCached()
     ]);
+
     const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
     const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');
+
     const spamData = allSpamData.filter(r => {
         if (state.regiao && r.REGIAO !== state.regiao) return false;
         const matrizInfo = matrizesMap.get(r.SVC);
@@ -1938,9 +2187,11 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         }
         return true;
     });
+
     const pal = palette();
     const allMonths = [...spamData].sort(sortMesAno);
     const latestMonth = allMonths.pop();
+
     if (!latestMonth) {
         console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
@@ -1952,21 +2203,26 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         return;
     }
+
     const {MÊS: mesUltimoRaw, ANO: anoUltimo} = latestMonth;
     const mesUltimo = String(mesUltimoRaw || '');
     const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;
+
     const previousMonth = allMonths
         .filter(m => m.ANO < anoUltimo || (m.ANO === anoUltimo && m.mesOrder < latestMonth.mesOrder))
         .pop();
+
     const mesAnteriorRaw = previousMonth ? previousMonth.MÊS : '';
     const mesAnteriorStr = String(mesAnteriorRaw || '');
     const mesAnteriorLabel = previousMonth ? `${mesAnteriorStr.slice(0, 3)}/${previousMonth.ANO}` : null;
+
     const hoje = new Date();
     const anoSistema = hoje.getFullYear();
     const mesSistemaOrder = hoje.getMonth() + 1;
     const spamMesAtualSistema = spamData.filter(r =>
         r.ANO === anoSistema && r.mesOrder === mesSistemaOrder
     );
+
     let mesReferenciaSpamVsReal = mesUltimo;
     let anoReferenciaSpamVsReal = anoUltimo;
     if (spamMesAtualSistema.length > 0) {
@@ -1974,38 +2230,46 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         anoReferenciaSpamVsReal = spamMesAtualSistema[0].ANO;
     }
     mesReferenciaSpamVsReal = String(mesReferenciaSpamVsReal || '');
+
     if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
         const mesesSet = new Set();
         const svcsSet = new Set();
+
         spamData.forEach(r => {
             const mesStr = String(r.MÊS || '');
             const mesLabel = `${mesStr.slice(0, 3)}/${r.ANO}`;
             let svcAgrupado = mapSvcLabel(r.SVC);
             svcAgrupado = fixSsaLabel(svcAgrupado);
+
             const key = `${svcAgrupado}__${mesLabel}`;
             const totalAnterior = dadosPorSvcMes.get(key) || 0;
             dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
             mesesSet.add(mesLabel);
             svcsSet.add(svcAgrupado);
         });
+
         const labels = [...svcsSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
         });
+
         const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
             return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
+
         let maxHc = 0;
         datasets.forEach(ds => {
             const max = Math.max(...ds.data, 0);
             if (max > maxHc) maxHc = max;
         });
+
         const chart = state.charts.spamHcEvolucaoSvc;
         if (chart.options.scales.y) chart.options.scales.y.max = maxHc + 100;
+
         const datasetAtual = datasets.find(d => d.label === mesUltimoLabel);
         if (datasetAtual && mesAnteriorLabel) {
             const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
@@ -2013,16 +2277,19 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                 datasetAtual._deltas = labels.map((svc, idx) => (datasetAtual.data[idx] || 0) - (datasetAnterior.data[idx] || 0));
             } else datasetAtual._deltas = labels.map(() => 0);
         } else if (datasetAtual) datasetAtual._deltas = labels.map(() => 0);
+
         chart.data._mesAtualLabel = mesUltimoLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
     }
+
     if (state.charts.spamHcEvolucaoRegiao) {
         const dadosPorRegiaoMes = new Map();
         const mesesSet = new Set();
         const regioesSet = new Set();
+
         spamData.forEach(r => {
             const regiao = r.REGIAO || 'N/D';
             const mesStr = String(r.MÊS || '');
@@ -2030,28 +2297,34 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             const key = `${regiao}__${mesLabel}`;
             mesesSet.add(mesLabel);
             regioesSet.add(regiao);
+
             const total = dadosPorRegiaoMes.get(key) || 0;
             dadosPorRegiaoMes.set(key, total + r.HC_Total);
         });
+
         const labels = [...regioesSet].sort();
         const meses = [...mesesSet].sort((a, b) => {
             const [m1, y1] = a.split('/');
             const [m2, y2] = b.split('/');
             return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
         });
+
         const datasets = meses.map((mesLabel, i) => {
             const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);
             data.push(data.reduce((a, b) => a + b, 0));
             return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
         });
+
         labels.push('GERAL');
         state.charts.spamHcEvolucaoRegiao.data.labels = labels;
         state.charts.spamHcEvolucaoRegiao.data.datasets = datasets;
         state.charts.spamHcEvolucaoRegiao.update();
     }
+
     if (state.charts.spamHcGerente) {
         const hcPorGerente = new Map();
         const vagasPorGerente = new Map();
+
         colabsAuxiliaresAtivos.forEach(c => {
             let gerente = 'SEM GERENTE';
             if (c.SVC) {
@@ -2069,7 +2342,11 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             }
             hcPorGerente.set(gerente, (hcPorGerente.get(gerente) || 0) + 1);
         });
+
         allVagasData.forEach(vaga => {
+
+
+
             let gerente = 'SEM GERENTE';
             const matrizVaga = (vaga.MATRIZ || '').trim();
             for (const info of matrizesMap.values()) {
@@ -2078,17 +2355,23 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                     break;
                 }
             }
+
             if (state.gerencia && gerente !== state.gerencia) return;
             if (state.matriz && matrizVaga !== state.matriz) return;
+
             vagasPorGerente.set(gerente, (vagasPorGerente.get(gerente) || 0) + 1);
         });
+
         const allGerentes = new Set([...hcPorGerente.keys(), ...vagasPorGerente.keys()]);
         const labels = [...allGerentes].sort((a, b) => (hcPorGerente.get(b) || 0) - (hcPorGerente.get(a) || 0));
+
         const dataHcReal = labels.map(g => hcPorGerente.get(g) || 0);
         const dataVagas = labels.map(g => vagasPorGerente.get(g) || 0);
+
         labels.push('GERAL');
         dataHcReal.push(dataHcReal.reduce((a, b) => a + b, 0));
         dataVagas.push(dataVagas.reduce((a, b) => a + b, 0));
+
         const chart = state.charts.spamHcGerente;
         let maxVal = 0;
         for (let i = 0; i < dataHcReal.length; i++) {
@@ -2096,6 +2379,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             if (soma > maxVal) maxVal = soma;
         }
         if (chart.options.scales.x) chart.options.scales.x.max = maxVal * 1.25;
+
         setDynamicChartHeight(chart, labels);
         chart.data.labels = labels;
         chart.data.datasets = [
@@ -2114,6 +2398,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         ];
         chart.update();
     }
+
     if (state.charts.spamHcVsAux) {
         const auxPorSvc = new Map();
         colabsAuxiliaresAtivos.forEach(c => {
@@ -2121,6 +2406,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             svcAgrupado = fixSsaLabel(svcAgrupado);
             auxPorSvc.set(svcAgrupado, (auxPorSvc.get(svcAgrupado) || 0) + 1);
         });
+
         const hcPorSvc = new Map();
         spamData
             .filter(r => String(r.MÊS) === mesReferenciaSpamVsReal && r.ANO == anoReferenciaSpamVsReal)
@@ -2129,8 +2415,17 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                 svcAgrupado = fixSsaLabel(svcAgrupado);
                 hcPorSvc.set(svcAgrupado, (hcPorSvc.get(svcAgrupado) || 0) + r.HC_Total);
             });
+
         const vagasPorSvc = new Map();
+
         allVagasData.forEach(vaga => {
+
+
+            if (!norm(vaga.Cargo || '').includes('AUXILIAR')) {
+                return;
+            }
+
+
             let svcEncontrado = 'N/D';
             for (const [svcKey, info] of matrizesMap.entries()) {
                 if (info.MATRIZ === vaga.MATRIZ) {
@@ -2139,8 +2434,10 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                     break;
                 }
             }
+
             let valida = true;
             if (state.matriz && vaga.MATRIZ !== state.matriz) valida = false;
+
             if (valida && (state.gerencia || state.regiao || svcsDoGerente)) {
                 if (svcEncontrado === 'N/D') valida = false;
                 else {
@@ -2148,24 +2445,31 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                     if (!svcPermitido) valida = false;
                 }
             }
+
             if (valida && svcEncontrado !== 'N/D') {
                 vagasPorSvc.set(svcEncontrado, (vagasPorSvc.get(svcEncontrado) || 0) + 1);
             }
         });
+
         const allSvcs = new Set([...auxPorSvc.keys(), ...hcPorSvc.keys(), ...vagasPorSvc.keys()]);
         const labels = [...allSvcs].sort();
+
         const dataHcTotalSpam = labels.map(svc => hcPorSvc.get(svc) || 0);
         const dataAuxAtivoReal = labels.map(svc => auxPorSvc.get(svc) || 0);
         const dataVagas = labels.map(svc => vagasPorSvc.get(svc) || 0);
+
         let maxVal = 0;
         dataHcTotalSpam.forEach((v, i) => {
             const realStack = dataAuxAtivoReal[i] + dataVagas[i];
             const m = Math.max(v, realStack);
             if (m > maxVal) maxVal = m;
         });
+
         const chart = state.charts.spamHcVsAux;
         if (chart.options.scales.y) chart.options.scales.y.max = maxVal + 80;
+
         const deltas = dataAuxAtivoReal.map((real, i) => real - dataHcTotalSpam[i]);
+
         chart.data.labels = labels;
         chart.data.datasets = [
             {
@@ -2192,11 +2496,13 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         ];
         chart.update();
     }
+
     if (state.charts.spamContractDonut) {
         const targetColabs = colabsAuxiliaresAtivos.filter(c => !norm(c.Contrato || 'OUTROS').includes('KN'));
         const dataMap = new Map();
         const globalCounts = new Map();
         const allContracts = new Set();
+
         targetColabs.forEach(c => {
             const reg = c.REGIAO || 'N/D';
             const cont = c.Contrato ? c.Contrato.trim().toUpperCase() : 'OUTROS';
@@ -2206,12 +2512,15 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             globalCounts.set(cont, (globalCounts.get(cont) || 0) + 1);
             allContracts.add(cont);
         });
+
         const labels = Array.from(dataMap.keys()).sort();
         labels.push('GERAL');
+
         const contractTypes = Array.from(allContracts).sort();
         const datasets = contractTypes.map((ctype, i) => {
             const dataPct = [];
             const dataRaw = [];
+
             labels.forEach(reg => {
                 let count = 0, totalReg = 0;
                 if (reg === 'GERAL') {
@@ -2235,6 +2544,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                 borderWidth: 0
             };
         });
+
         applyMinWidthToStack(datasets, MIN_SEGMENT_PERCENT);
         state.charts.spamContractDonut.data.labels = labels;
         state.charts.spamContractDonut.data.datasets = datasets;
@@ -2918,24 +3228,35 @@ export async function init() {
         console.warn('Host #hc-indice não encontrado.');
         return;
     }
+
     checkUserRHStatus();
+
     if (!state.mounted) {
         ensureMounted();
         wireSubtabs();
         wireDesligamentoLogic();
         initControleVagas();
+
+
+        initSpamManager();
+
     }
+
     const desligamentoSubtab = document.querySelector('.efet-subtab-btn[data-view="efet-desligamento"]');
     if (desligamentoSubtab) {
         desligamentoSubtab.style.display = '';
     }
+
     const activeSubtabBtn = host.querySelector('.efet-subtab-btn.active') || host.querySelector('.efet-subtab-btn[data-view="efet-visao-service"]');
+
     if (activeSubtabBtn) {
         const viewName = activeSubtabBtn.dataset.view;
         const view = host.querySelector(`#${viewName}`);
+
         host.querySelectorAll('.efet-view').forEach(v => v.classList.remove('active'));
         if (view) view.classList.add('active');
         activeSubtabBtn.classList.add('active');
+
         const scrollContainer = document.querySelector('.container');
         if (scrollContainer) {
             if (viewName === 'efet-em-efetivacao' || viewName === 'efet-desligamento') {

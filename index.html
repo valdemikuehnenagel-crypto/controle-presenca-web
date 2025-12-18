@@ -37,9 +37,14 @@
 
             <div class="password-container">
                 <div class="input-wrapper">
-                    <input id="registerPassword" type="password" placeholder="Crie sua Senha" required class="form-field password-field"/>
+                    <input id="registerPassword" type="password" placeholder="Crie sua Senha" required
+                           class="form-field password-field"/>
                     <span class="toggle-password" data-target="registerPassword">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon-svg"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                             class="eye-icon-svg"><path
+                                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line
+                                x1="1" y1="1" x2="23" y2="23"></line></svg>
                     </span>
                 </div>
 
@@ -63,12 +68,20 @@
         <form id="loginForm">
             <div id="login-form-content" class="login-content">
                 <h1>Faça o seu login</h1>
-                <span>Digite sua senha ou PIN antigo para entrar</span>
+                <span>Use seu e-mail e senha para entrar</span>
+
+                <input id="loginEmail" type="email" placeholder="Digite seu e-mail" required
+                       class="form-field text-login" style="margin-bottom: 10px;"/>
 
                 <div class="input-wrapper" style="width: 100%;">
-                    <input id="loginInput" type="password" placeholder="Senha ou PIN" required class="form-field password-field text-login"/>
+                    <input id="loginInput" type="password" placeholder="Senha ou PIN" required
+                           class="form-field password-field text-login"/>
                     <span class="toggle-password" data-target="loginInput">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon-svg"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                             class="eye-icon-svg"><path
+                                d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line
+                                x1="1" y1="1" x2="23" y2="23"></line></svg>
                     </span>
                 </div>
 
@@ -76,6 +89,7 @@
                 <button type="button" id="forgotPinBtn" class="forgot-pin-btn">Esqueci minha senha</button>
                 <p id="loginMsg" class="message"></p>
             </div>
+
             <div id="welcome-back-container" class="welcome-back hidden">
                 <img id="welcome-avatar" src="/imagens/avatar.png" alt="Avatar">
                 <p id="welcome-message"></p>
@@ -126,9 +140,14 @@
 
         <div class="password-container" style="text-align: left;">
             <div class="input-wrapper">
-                <input id="migrationPassword" type="password" placeholder="Nova Senha" class="form-field password-field" style="background-color: #f0f2f5;"/>
+                <input id="migrationPassword" type="password" placeholder="Nova Senha" class="form-field password-field"
+                       style="background-color: #f0f2f5;"/>
                 <span class="toggle-password" data-target="migrationPassword">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="eye-icon-svg"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         class="eye-icon-svg"><path
+                            d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line
+                            x1="1" y1="1" x2="23" y2="23"></line></svg>
                 </span>
             </div>
 
