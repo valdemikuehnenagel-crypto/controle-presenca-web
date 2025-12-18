@@ -12,6 +12,7 @@ import {supabase} from '../supabaseClient.js';
         gerencia: '',
         cargo: '',
         acao: '',
+        entrevista: '',
         rows: [],
         paging: {limit: 2000, offset: 0, total: 0},
         mounted: false,
@@ -335,6 +336,7 @@ import {supabase} from '../supabaseClient.js';
         if (!host) return;
         if (typeof state.cargo !== 'string') state.cargo = '';
         if (typeof state.acao !== 'string') state.acao = '';
+        if (typeof state.entrevista !== 'string') state.entrevista = '';
         var hasTable = !!(host.querySelector && host.querySelector('#abs-tbody'));
         if (state.mounted && hasTable && !forceEnsure) return;
         host.innerHTML =
@@ -359,6 +361,11 @@ import {supabase} from '../supabaseClient.js';
             '      <option value="Suspensão">Suspensão</option>' +
             '      <option value="Afastamento">Afastamento</option>' +
             '      <option value="Desligamento">Desligamento</option>' +
+            '    </select>' +
+            '    <select id="abs-filter-entrevista">' +
+            '      <option value="">Entrevista</option>' +
+            '      <option value="SIM">Sim</option>' +
+            '      <option value="NAO">Não</option>' +
             '    </select>' +
             '    <span id="abs-counts" class="abs-counts" aria-live="polite">' +
             '      Injustificado: 0 <span class="sep">|</span> Justificado: 0 <span class="sep">|</span> ABS Total: 0 <span class="sep">|</span> Entrevistas feitas: 0' +
@@ -398,6 +405,8 @@ import {supabase} from '../supabaseClient.js';
         const elEscala = document.getElementById('abs-filter-escala');
         const elCargo = document.getElementById('abs-filter-cargo');
         const elAcao = document.getElementById('abs-filter-acao');
+        const elEntrevista = document.getElementById('abs-filter-entrevista');
+
         elSearch?.addEventListener('input', function () {
             state.search = elSearch.value;
             renderRows();
@@ -414,6 +423,11 @@ import {supabase} from '../supabaseClient.js';
             state.acao = elAcao.value;
             fetchAndRender();
         });
+        elEntrevista?.addEventListener('change', function () {
+            state.entrevista = elEntrevista.value;
+            fetchAndRender();
+        });
+
         const tbody = document.getElementById('abs-tbody');
         if (tbody) {
             tbody.addEventListener('dblclick', function (ev) {
@@ -532,6 +546,15 @@ import {supabase} from '../supabaseClient.js';
                 if (state.matriz && norm(r.MATRIZ) !== norm(state.matriz)) return false;
                 if (state.regiao && norm(r.REGIAO) !== norm(state.regiao)) return false;
                 if (state.gerencia && norm(r.GERENCIA) !== norm(state.gerencia)) return false;
+
+
+                if (state.entrevista) {
+                    const temEntrevista = norm(r.Entrevista);
+                    if (state.entrevista === 'SIM' && temEntrevista !== 'SIM') return false;
+                    if (state.entrevista === 'NAO' && temEntrevista === 'SIM') return false;
+                }
+
+
                 return true;
             });
             filteredRows.sort((a, b) => (b.Data || '').localeCompare(a.Data || ''));
@@ -768,7 +791,6 @@ import {supabase} from '../supabaseClient.js';
         var btnCloseSearch = searchOverlay.querySelector('#cid-search-close');
 
 
-
         function openCidSearch() {
             searchOverlay.style.display = 'flex';
             searchInput.value = '';
@@ -859,9 +881,6 @@ import {supabase} from '../supabaseClient.js';
         });
 
 
-
-
-
         selStatus.value = isJustificadoInicial ? 'JUSTIFICADO' : 'INJUSTIFICADO';
 
         function toggleConditionalFields() {
@@ -877,7 +896,6 @@ import {supabase} from '../supabaseClient.js';
                 } else {
                     modal.querySelector('#abs-injustificado-fields').style.display = 'none';
                     modal.querySelector('#abs-justificado-fields').style.display = 'flex';
-
 
 
                     modal.querySelector('#abs-cid-container').style.display = (selTipoAtestado.value === 'Atestado') ? 'flex' : 'none';
