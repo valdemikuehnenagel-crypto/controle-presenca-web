@@ -42,10 +42,6 @@ function formatDateTimeLocal(iso) {
 }
 
 
-
-
-
-
 let spamModal;
 let spamForm;
 let spamTbody;
@@ -219,7 +215,7 @@ async function handleSpamSubmit(e) {
         'HC PT': parseInt(document.getElementById('spam-pt').value || 0)
     };
 
-    if(!payload.SVC || !payload.MÊS || !payload.ANO) {
+    if (!payload.SVC || !payload.MÊS || !payload.ANO) {
         alert("Preencha SVC, Mês e Ano.");
         return;
     }
@@ -238,11 +234,10 @@ async function handleSpamSubmit(e) {
     } else {
 
 
-
-        const { data: maxData, error: maxError } = await supabase
+        const {data: maxData, error: maxError} = await supabase
             .from('Spam')
             .select('Numero')
-            .order('Numero', { ascending: false })
+            .order('Numero', {ascending: false})
             .limit(1);
 
         if (maxError) {
@@ -991,21 +986,45 @@ async function refresh() {
                 }
             }
         }
+
+
+        const hojeISO = new Date().toISOString().slice(0, 10);
+
         state.colabs = allRows.filter(c => {
             const isDesligamentoView = document.querySelector('#efet-desligamento.active');
-            if (!isDesligamentoView && norm(c?.Ativo || 'SIM') !== 'SIM') {
-                return false;
+            const ativoNorm = norm(c?.Ativo || 'SIM');
+
+
+            if (!isDesligamentoView) {
+                if (ativoNorm === 'SIM') {
+
+                } else if (ativoNorm === 'PEN') {
+
+
+
+                    const dataDeslig = c.DataDesligamentoSolicitada ? c.DataDesligamentoSolicitada.slice(0, 10) : '';
+                    if (!dataDeslig || dataDeslig <= hojeISO) {
+                        return false;
+                    }
+                } else {
+
+                    return false;
+                }
             }
-            const ativoNormalizado = norm(c?.Ativo);
-            const isAtivoOuPen = (ativoNormalizado === 'SIM' || ativoNormalizado === 'PEN');
+
+
+            const isAtivoOuPen = (ativoNorm === 'SIM' || ativoNorm === 'PEN');
             if (isDesligamentoView) {
                 if (c.StatusDesligamento === 'CONCLUIDO') {
+
                 } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
                     return false;
                 } else if (c.StatusDesligamento === 'PENDENTE' && !isAtivoOuPen) {
                     return false;
                 }
             }
+
+
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
@@ -1016,6 +1035,7 @@ async function refresh() {
             if (state.regiao && (String(c?.REGIAO || 'N/D') !== state.regiao)) return false;
             return true;
         });
+
         const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
         const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
         const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
@@ -1454,7 +1474,12 @@ function updateChartsNow() {
         console.warn("Tentando atualizar gráficos Service, mas eles não estão inicializados.");
         return;
     }
-    const baseColabs = applyInteractiveFilter(state.colabs.filter(c => norm(c?.Ativo) === 'SIM'));
+
+    const baseColabs = applyInteractiveFilter(state.colabs.filter(c => {
+        const a = norm(c?.Ativo);
+        return a === 'SIM' || a === 'PEN';
+    }));
+
     const pal = palette();
     const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
     const colabsAuxiliares = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR');
@@ -1825,7 +1850,11 @@ function updateRegionalChartsNow() {
         console.warn("Tentando atualizar gráficos Regionais, mas eles não estão inicializados.");
         return;
     }
-    const baseColabs = applyInteractiveFilter(state.colabs.filter(c => norm(c?.Ativo) === 'SIM'));
+
+    const baseColabs = applyInteractiveFilter(state.colabs.filter(c => {
+        const a = norm(c?.Ativo);
+        return a === 'SIM' || a === 'PEN';
+    }));
     const pal = palette();
     const colabsAuxiliares = baseColabs.filter(c => norm(c?.Cargo) === 'AUXILIAR');
     {
@@ -2170,7 +2199,12 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         loadVagasAbertasCached()
     ]);
 
-    const colabsAtivos = state.colabs.filter(c => norm(c?.Ativo) === 'SIM');
+
+    const colabsAtivos = state.colabs.filter(c => {
+        const a = norm(c?.Ativo);
+        return a === 'SIM' || a === 'PEN';
+    });
+
     const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');
 
     const spamData = allSpamData.filter(r => {
@@ -2344,9 +2378,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
 
         allVagasData.forEach(vaga => {
-
-
-
             let gerente = 'SEM GERENTE';
             const matrizVaga = (vaga.MATRIZ || '').trim();
             for (const info of matrizesMap.values()) {
@@ -2355,10 +2386,8 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                     break;
                 }
             }
-
             if (state.gerencia && gerente !== state.gerencia) return;
             if (state.matriz && matrizVaga !== state.matriz) return;
-
             vagasPorGerente.set(gerente, (vagasPorGerente.get(gerente) || 0) + 1);
         });
 
@@ -2419,13 +2448,9 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         const vagasPorSvc = new Map();
 
         allVagasData.forEach(vaga => {
-
-
             if (!norm(vaga.Cargo || '').includes('AUXILIAR')) {
                 return;
             }
-
-
             let svcEncontrado = 'N/D';
             for (const [svcKey, info] of matrizesMap.entries()) {
                 if (info.MATRIZ === vaga.MATRIZ) {
@@ -2434,10 +2459,8 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                     break;
                 }
             }
-
             let valida = true;
             if (state.matriz && vaga.MATRIZ !== state.matriz) valida = false;
-
             if (valida && (state.gerencia || state.regiao || svcsDoGerente)) {
                 if (svcEncontrado === 'N/D') valida = false;
                 else {
@@ -2445,7 +2468,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
                     if (!svcPermitido) valida = false;
                 }
             }
-
             if (valida && svcEncontrado !== 'N/D') {
                 vagasPorSvc.set(svcEncontrado, (vagasPorSvc.get(svcEncontrado) || 0) + 1);
             }

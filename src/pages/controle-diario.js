@@ -104,20 +104,20 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         matrizesPermitidas = null;
     }
 
-    // 1. Preparar Query de Colaboradores
+
+
     let q = supabase
         .from('Colaboradores')
-        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP')
+        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP, DataDesligamentoSolicitada')
         .in('Ativo', ['SIM', 'NÃO', 'PEN', 'AFAS']);
 
-    // 2. Preparar Query de Desligados (Histórico)
-    // Se a data de desligamento >= dateISO, o colaborador é "historicamente ativo" neste dia.
+
     let qDesl = supabase
         .from('Desligados')
         .select('Nome, Escala, Cargo, MATRIZ, SVC, Gestor, Contrato, "Data de Desligamento", LDAP')
-        .gte('"Data de Desligamento"', dateISO);
+        .gt('"Data de Desligamento"', dateISO);
 
-    // Filtros de otimização
+
     if (!turno || turno === 'GERAL') {
         q = q.in('Escala', ['T1', 'T2', 'T3']);
         qDesl = qDesl.in('Escala', ['T1', 'T2', 'T3']);
@@ -141,17 +141,29 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
         const colabMap = new Map();
 
-        // 1º Passo: Carrega os dados da tabela Colaboradores (incluindo os Ativo="NÃO")
-        (colsAtivos || []).forEach(c => colabMap.set(c.Nome, c));
 
-        // 2º Passo: Carrega os dados da tabela Desligados (Histórico)
+        (colsAtivos || []).forEach(c => {
+
+
+
+            if (c.Ativo === 'PEN' && c.DataDesligamentoSolicitada) {
+
+                const dataDesligPEN = c.DataDesligamentoSolicitada.slice(0, 10);
+                if (dataDesligPEN <= dateISO) {
+                    return;
+                }
+            }
+            colabMap.set(c.Nome, c);
+        });
+
+
         (colsDesligados || []).forEach(d => {
+            if (d['Data de Desligamento'] && d['Data de Desligamento'].slice(0, 10) <= dateISO) {
+                return;
+            }
+
             const existing = colabMap.get(d.Nome);
 
-            // LÓGICA CORRIGIDA AQUI:
-            // Se o colaborador NÃO existe no mapa OU existe mas está marcado como INATIVO ("NÃO"),
-            // nós usamos o registro de Desligados e forçamos "Ativo: SIM".
-            // Isso garante que JHENIFER (Ativo: NÃO) seja substituída pela versão histórica válida (Ativo: SIM).
             if (!existing || existing.Ativo === 'NÃO') {
                 colabMap.set(d.Nome, {
                     Nome: d.Nome,
@@ -162,7 +174,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                     SVC: d.SVC,
                     Gestor: d.Gestor,
                     Contrato: d.Contrato,
-                    Ativo: 'SIM', // Forçamos SIM para passar no filtro visual do renderRows
+                    Ativo: 'SIM',
                     LDAP: d.LDAP,
                     'Data de admissão': null
                 });
@@ -172,7 +184,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         const all = Array.from(colabMap.values());
         const nomesColabs = all.map(c => c.Nome);
 
-        // --- Daqui para baixo segue a lógica padrão (Férias, Afastamentos, DSR) ---
+
 
         const {data: feriasHoje} = await supabase
             .from('Ferias')

@@ -3534,9 +3534,7 @@ function wireTabelaColaboradoresEventos() {
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}
-
-export async function init() {
+} export async function init() {
     state.isModuleActive = true;
     colaboradoresTbody = document.getElementById('colaboradores-tbody');
     wireTabelaColaboradoresEventos();
@@ -3711,9 +3709,7 @@ export async function init() {
     wireFluxoEfetivacao();
     wireDsrModal();
     wireCepEvents();
-}
-
-export function destroy() {
+}export function destroy() {
     state.isModuleActive = false;
     const alertDiv = document.getElementById('pending-import-alert');
     if (alertDiv) {
