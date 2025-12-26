@@ -104,19 +104,15 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         matrizesPermitidas = null;
     }
 
-
-
     let q = supabase
         .from('Colaboradores')
         .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP, DataDesligamentoSolicitada')
         .in('Ativo', ['SIM', 'NÃO', 'PEN', 'AFAS']);
 
-
     let qDesl = supabase
         .from('Desligados')
         .select('Nome, Escala, Cargo, MATRIZ, SVC, Gestor, Contrato, "Data de Desligamento", LDAP')
         .gt('"Data de Desligamento"', dateISO);
-
 
     if (!turno || turno === 'GERAL') {
         q = q.in('Escala', ['T1', 'T2', 'T3']);
@@ -141,13 +137,8 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
         const colabMap = new Map();
 
-
         (colsAtivos || []).forEach(c => {
-
-
-
             if (c.Ativo === 'PEN' && c.DataDesligamentoSolicitada) {
-
                 const dataDesligPEN = c.DataDesligamentoSolicitada.slice(0, 10);
                 if (dataDesligPEN <= dateISO) {
                     return;
@@ -155,7 +146,6 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             }
             colabMap.set(c.Nome, c);
         });
-
 
         (colsDesligados || []).forEach(d => {
             if (d['Data de Desligamento'] && d['Data de Desligamento'].slice(0, 10) <= dateISO) {
@@ -168,7 +158,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                 colabMap.set(d.Nome, {
                     Nome: d.Nome,
                     Escala: d.Escala,
-                    DSR: '',
+                    DSR: existing?.DSR || '',
                     Cargo: d.Cargo,
                     MATRIZ: d.MATRIZ,
                     SVC: d.SVC,
@@ -176,15 +166,13 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                     Contrato: d.Contrato,
                     Ativo: 'SIM',
                     LDAP: d.LDAP,
-                    'Data de admissão': null
+                    'Data de admissão': existing?.['Data de admissão'] || null
                 });
             }
         });
 
         const all = Array.from(colabMap.values());
         const nomesColabs = all.map(c => c.Nome);
-
-
 
         const {data: feriasHoje} = await supabase
             .from('Ferias')
@@ -206,12 +194,14 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             const promises = [];
             for (let i = 0; i < nomesColabs.length; i += chunkSize) {
                 const chunk = nomesColabs.slice(i, i + chunkSize);
+
+
                 promises.push(
                     supabase
                         .from('LogDSR')
                         .select('Name, DsrAnterior, DsrAtual, DataAlteracao')
                         .in('Name', chunk)
-                        .lte('DataAlteracao', dateISO + ' 23:59:59')
+
                 );
             }
             const results = await Promise.all(promises);
@@ -235,14 +225,21 @@ async function getColaboradoresElegiveis(turno, dateISO) {
             const nameNorm = NORM(colaborador.Nome);
             const history = dsrHistoryMap.get(nameNorm);
             if (!history || history.length === 0) return colaborador.DSR;
+
             let applicableDSR = null;
+
             for (let i = history.length - 1; i >= 0; i--) {
                 if (history[i].DataAlteracao.slice(0, 10) <= dateISO) {
                     applicableDSR = history[i].DsrAtual;
                     break;
                 }
             }
-            if (applicableDSR === null) applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);
+
+
+
+            if (applicableDSR === null) {
+                applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);
+            }
             return applicableDSR;
         };
 

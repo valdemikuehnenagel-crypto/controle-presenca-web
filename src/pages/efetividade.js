@@ -1,5 +1,7 @@
 import {supabase} from '../supabaseClient.js';
-import {getMatrizesPermitidas} from '../session.js';let ui;
+import {getMatrizesPermitidas} from '../session.js';
+
+let ui;
 const state = {
     turnoAtual: 'GERAL',
     detailedResults: new Map(),
@@ -17,15 +19,20 @@ const state = {
         key: '',
         data: null
     }
-};const normalizeString = (str) => {
+};
+const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
-};function _ymdLocal(dateObj) {
+};
+
+function _ymdLocal(dateObj) {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
     const d = String(dateObj.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}async function copyTableToClipboard(tableElement) {
+}
+
+async function copyTableToClipboard(tableElement) {
     if (!tableElement) {
         console.warn('Função copyTableToClipboard chamada sem um elemento de tabela.');
         return;
@@ -50,7 +57,9 @@ const state = {
         console.error('Falha ao copiar tabela: ', err);
         alert('FALHA AO COPIAR TEXTO:\n\nErro: ' + err.message);
     }
-}async function exportModalAsPNG(fileName) {
+}
+
+async function exportModalAsPNG(fileName) {
     const modalContent = document.getElementById('efetividade-details-modal');
     if (!modalContent) return;
     const exportButton = document.getElementById('export-png-btn');
@@ -86,7 +95,9 @@ const state = {
             scrollableContent.style.border = originalStyles.border || '';
         }
     }
-}async function copyTableAsImage() {
+}
+
+async function copyTableAsImage() {
     const resultContainer = document.getElementById('efet-result');
     if (!resultContainer) return;
     const tableElement = resultContainer.querySelector('.main-table');
@@ -116,7 +127,9 @@ const state = {
     } finally {
         showLoading(false);
     }
-}function ensureEfetividadeModalStyles() {
+}
+
+function ensureEfetividadeModalStyles() {
     if (document.getElementById('efetividade-details-modal-style')) return;
     const css = `
  #efetividade-details-modal {
@@ -140,7 +153,9 @@ const state = {
     style.id = 'efetividade-details-modal-style';
     style.textContent = css;
     document.head.appendChild(style);
-}function showDetailsModal(groupKey, date) {
+}
+
+function showDetailsModal(groupKey, date) {
     ensureEfetividadeModalStyles();
     const details = (groupKey === 'TODAS')
         ? state.totalGeralDetailedResults.get(date)
@@ -199,13 +214,19 @@ const state = {
         const fileName = `pendentes_${groupKey.replace(/\s+/g, '_')}_${date.replace(/-/g, '')}`;
         exportModalAsPNG(fileName);
     });
-}function showLoading(on = true) {
+}
+
+function showLoading(on = true) {
     if (ui?.loader) ui.loader.style.display = on ? 'flex' : 'none';
-}function weekdayPT(iso) {
+}
+
+function weekdayPT(iso) {
     const d = new Date(iso + 'T00:00:00');
     const dias = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
     return dias[d.getDay()];
-}function listDates(startISO, endISO) {
+}
+
+function listDates(startISO, endISO) {
     const [y1, m1, d1] = startISO.split('-').map(Number);
     const [y2, m2, d2] = endISO.split('-').map(Number);
     let start = new Date(y1, m1 - 1, d1);
@@ -214,9 +235,13 @@ const state = {
     const out = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) out.push(_ymdLocal(d));
     return out;
-}function updatePeriodLabel() {
+}
+
+function updatePeriodLabel() {
     if (ui?.periodBtn) ui.periodBtn.textContent = 'Selecionar Período';
-}function openPeriodModal() {
+}
+
+function openPeriodModal() {
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
     overlay.innerHTML = `
@@ -273,11 +298,15 @@ const state = {
             endInput.value = _ymdLocal(ultimoDiaMesAnterior);
         }
     });
-}function chunkArray(arr, size) {
+}
+
+function chunkArray(arr, size) {
     const chunks = [];
     for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
     return chunks;
-}async function fetchAllPages(query) {
+}
+
+async function fetchAllPages(query) {
     const pageSize = 1000;
     let allData = [];
     let page = 0;
@@ -294,7 +323,9 @@ const state = {
         if (data && data.length < pageSize) keep = false;
     }
     return allData;
-}async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
+}
+
+async function fetchDSRLogsByNames(names, {chunkSize = 80} = {}) {
     if (!names || names.length === 0) return [];
     const chunks = chunkArray(names, chunkSize);
     const results = await Promise.all(chunks.map(async (subset, idx) => {
@@ -324,45 +355,61 @@ const state = {
         }
     }
     return merged;
-}function endOfLocalDayISO(dateYMD) {
+}
+
+function endOfLocalDayISO(dateYMD) {
     return new Date(`${dateYMD}T23:59:59-03:00`);
-}async function fetchData(startDate, endDate) {
+}
+
+async function fetchData(startDate, endDate) {
     const matrizesPermitidas = getMatrizesPermitidas();
     const [y, m, d] = endDate.split('-').map(Number);
     const endDateObj = new Date(y, m - 1, d);
     endDateObj.setDate(endDateObj.getDate() + 1);
-    const endISONextDay = _ymdLocal(endDateObj);    let colabQuery = supabase
+    const endISONextDay = _ymdLocal(endDateObj);
+    let colabQuery = supabase
         .from('Colaboradores')
         .select('Nome, SVC, DSR, MATRIZ, Escala, "Data de admissão", Gestor, Ativo')
         .eq('Ativo', 'SIM')
         .in('Escala', ['T1', 'T2', 'T3'])
-        .order('Nome', {ascending: true});    if (matrizesPermitidas && matrizesPermitidas.length) {
+        .order('Nome', {ascending: true});
+    if (matrizesPermitidas && matrizesPermitidas.length) {
         colabQuery = colabQuery.in('MATRIZ', matrizesPermitidas);
-    }    const colaboradores = await fetchAllPages(colabQuery);    const colaboradoresFiltrados = colaboradores.filter(c => c.Ativo === 'SIM');    const nomesColabs = [...new Set(colaboradoresFiltrados.map(c => c.Nome).filter(Boolean))];    const preenchimentosQuery = supabase
+    }
+    const colaboradores = await fetchAllPages(colabQuery);
+    const colaboradoresFiltrados = colaboradores.filter(c => c.Ativo === 'SIM');
+    const nomesColabs = [...new Set(colaboradoresFiltrados.map(c => c.Nome).filter(Boolean))];
+    const preenchimentosQuery = supabase
         .from('ControleDiario')
         .select('Nome, Data, Falta, Atestado, Entrevista')
         .gte('Data', startDate)
         .lt('Data', endISONextDay)
         .order('Data', {ascending: true})
-        .order('Nome', {ascending: true});    const feriasQuery = supabase
+        .order('Nome', {ascending: true});
+    const feriasQuery = supabase
         .from('Ferias')
         .select('Nome, "Data Inicio", "Data Final"')
         .lte('"Data Inicio"', endDate)
         .gte('"Data Final"', startDate)
         .order('"Data Inicio"', {ascending: true})
-        .order('Nome', {ascending: true});    const afastamentosQuery = supabase
+        .order('Nome', {ascending: true});
+    const afastamentosQuery = supabase
         .from('Afastamentos')
         .select('NOME, "DATA INICIO", "DATA RETORNO"')
         .lte('"DATA INICIO"', endDate)
         .gt('"DATA RETORNO"', startDate)
         .order('"DATA INICIO"', {ascending: true})
-        .order('NOME', {ascending: true});    const [preenchimentos, ferias, afastamentos, dsrLogs] = await Promise.all([
+        .order('NOME', {ascending: true});
+    const [preenchimentos, ferias, afastamentos, dsrLogs] = await Promise.all([
         fetchAllPages(preenchimentosQuery),
         fetchAllPages(feriasQuery),
         fetchAllPages(afastamentosQuery),
         fetchDSRLogsByNames(nomesColabs, {chunkSize: 80}),
-    ]);    return {colaboradores: colaboradoresFiltrados, preenchimentos, ferias, dsrLogs, afastamentos};
-}function processEfetividade(
+    ]);
+    return {colaboradores: colaboradoresFiltrados, preenchimentos, ferias, dsrLogs, afastamentos};
+}
+
+function processEfetividade(
     colaboradores,
     preenchimentos,
     dates,
@@ -374,7 +421,8 @@ const state = {
     const detailedResults = new Map();
     const totalGeralDetailedResults = new Map();
     const totalGeralResults = {};
-    const results = {};    const dsrHistoryMap = new Map();
+    const results = {};
+    const dsrHistoryMap = new Map();
     for (const log of dsrLogs) {
         const name = normalizeString(log.Name);
         if (!dsrHistoryMap.has(name)) dsrHistoryMap.set(name, []);
@@ -382,7 +430,9 @@ const state = {
     }
     for (const history of dsrHistoryMap.values()) {
         history.sort((a, b) => new Date(a.DataAlteracao) - new Date(b.DataAlteracao));
-    }    function getDSRForDate(colaborador, dateYMD, historyMap) {
+    }
+
+    function getDSRForDate(colaborador, dateYMD, historyMap) {
         const name = normalizeString(colaborador.Nome);
         const history = historyMap.get(name);
         const fallbackCadastro = (colaborador.DSR && String(colaborador.DSR).trim()) || null;
@@ -404,7 +454,9 @@ const state = {
         const first = history[0];
         if (first?.DsrAnterior && String(first.DsrAnterior).trim()) return first.DsrAnterior;
         return fallbackCadastro;
-    }    const feriasPorDia = new Map();
+    }
+
+    const feriasPorDia = new Map();
     for (const r of ferias) {
         if (r.Nome && r['Data Inicio'] && r['Data Final']) {
             for (const dia of listDates(r['Data Inicio'], r['Data Final'])) {
@@ -509,7 +561,9 @@ const state = {
         }
     }
     return {groupKeys, results, detailedResults, totalGeralResults, totalGeralDetailedResults};
-}function getStatusClass(status) {
+}
+
+function getStatusClass(status) {
     switch (status) {
         case 'OK':
             return 'status-ok';
@@ -524,7 +578,9 @@ const state = {
         default:
             return '';
     }
-}function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
+}
+
+function renderTable(groupKeys, dates, results, groupHeader, totalGeralResults) {
     if (!ui?.resultContainer) return;
     const formattedDates = dates.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
     const headerHtml = `<tr><th>${groupHeader}</th>${formattedDates.map((d) => `<th>${d}</th>`).join('')}</tr>`;
@@ -577,7 +633,9 @@ const state = {
             showDetailsModal(cell.dataset.groupKey, cell.dataset.date);
         });
     }
-}async function generateReport() {
+}
+
+async function generateReport() {
     const myRun = (state._runId = (state._runId || 0) + 1);
     const startDate = state.period.start;
     const endDate = state.period.end;
@@ -602,17 +660,21 @@ const state = {
     }
     try {
         const dates = listDates(startDate, endDate);
-        if (dates.length > 31) throw new Error('O período selecionado não pode exceder 31 dias.');        const periodKey = `${startDate}|${endDate}`;
+        if (dates.length > 31) throw new Error('O período selecionado não pode exceder 31 dias.');
+        const periodKey = `${startDate}|${endDate}`;
         let rawData;
-        if (state.cache && state.cache.key === periodKey && state.cache.data) {            rawData = state.cache.data;
+        if (state.cache && state.cache.key === periodKey && state.cache.data) {
+            rawData = state.cache.data;
             console.log("⚡ Usando dados em cache (Efetividade)");
-        } else {            rawData = await fetchData(startDate, endDate);
+        } else {
+            rawData = await fetchData(startDate, endDate);
             state.cache = {
                 key: periodKey,
                 data: rawData
             };
             console.log("🌐 Buscando dados do Supabase (Efetividade)");
-        }        if (myRun !== state._runId) return;
+        }
+        if (myRun !== state._runId) return;
         let filteredColaboradores = rawData.colaboradores;
         const turno = state.turnoAtual || 'GERAL';
         if (turno !== 'GERAL' && turno !== 'COORDENACAO') {
@@ -673,7 +735,11 @@ const state = {
         if (myRun !== state._runId) return;
         showLoading(false);
     }
-}async function fetchFilterData() {    if (state.allMatrizes.length > 0 && state.allGerentes.length > 0) return;    try {
+}
+
+async function fetchFilterData() {
+    if (state.allMatrizes.length > 0 && state.allGerentes.length > 0) return;
+    try {
         const {data: colabMatrizes, error: colabError} = await supabase
             .from('Colaboradores')
             .select('MATRIZ')
@@ -698,7 +764,9 @@ const state = {
         state.allMatrizes = [];
         state.allGerentes = [];
     }
-}function populateMatrizFilter() {
+}
+
+function populateMatrizFilter() {
     if (!ui?.matrizFilterSelect) return;
     while (ui.matrizFilterSelect.options.length > 1) ui.matrizFilterSelect.remove(1);
     state.allMatrizes.forEach((matriz) => {
@@ -707,8 +775,11 @@ const state = {
         option.textContent = matriz;
         ui.matrizFilterSelect.appendChild(option);
     });
-}function populateGerenteFilter() {
-    if (!ui?.gerenteFilterSelect) {        return;
+}
+
+function populateGerenteFilter() {
+    if (!ui?.gerenteFilterSelect) {
+        return;
     }
     while (ui.gerenteFilterSelect.options.length > 1) ui.gerenteFilterSelect.remove(1);
     state.allGerentes.forEach((gerente) => {
@@ -717,7 +788,9 @@ const state = {
         option.textContent = gerente;
         ui.gerenteFilterSelect.appendChild(option);
     });
-}export async function getRankingData(filters = {}) {
+}
+
+export async function getRankingData(filters = {}) {
     let start, end;
     if (filters.start && filters.end) {
         start = filters.start;
@@ -797,7 +870,9 @@ const state = {
         labels: ranking.map(r => r.label),
         values: ranking.map(r => r.value)
     };
-}export async function getInterviewData(filters = {}) {
+}
+
+export async function getInterviewData(filters = {}) {
     let start, end;
     if (filters.start && filters.end) {
         start = filters.start;
@@ -809,49 +884,67 @@ const state = {
         yesterday.setDate(yesterday.getDate() - 1);
         start = _ymdLocal(firstDay);
         end = _ymdLocal(today);
-    }    if (state.matrizGerenteMap.size === 0) {
+    }
+    if (state.matrizGerenteMap.size === 0) {
         await fetchFilterData();
-    }    const periodKey = `${start}|${end}`;
+    }
+    const periodKey = `${start}|${end}`;
     let rawData;
     if (state.cache && state.cache.key === periodKey && state.cache.data) {
         rawData = state.cache.data;
     } else {
         rawData = await fetchData(start, end);
         state.cache = {key: periodKey, data: rawData};
-    }    const colabMap = new Map();
+    }
+    const colabMap = new Map();
     rawData.colaboradores.forEach(c => {
         colabMap.set(normalizeString(c.Nome), {
             matriz: c.MATRIZ,
             gerente: state.matrizGerenteMap.get(normalizeString(c.MATRIZ))
         });
-    });    let absRecords = rawData.preenchimentos.filter(p => p.Falta > 0 || p.Atestado > 0);    if (filters.matriz) {
+    });
+    let absRecords = rawData.preenchimentos.filter(p => p.Falta > 0 || p.Atestado > 0);
+    if (filters.matriz) {
         absRecords = absRecords.filter(p => {
             const info = colabMap.get(normalizeString(p.Nome));
             return info && info.matriz === filters.matriz;
         });
-    }    if (filters.gerencia) {
+    }
+    if (filters.gerencia) {
         const targetGerente = normalizeString(filters.gerencia);
         absRecords = absRecords.filter(p => {
             const info = colabMap.get(normalizeString(p.Nome));
             return info && info.gerente === targetGerente;
         });
-    }    const matrixStats = new Map();    absRecords.forEach(rec => {
-        const info = colabMap.get(normalizeString(rec.Nome));        if (!info || !info.matriz) return;        let matrizName = info.matriz;        if (matrizName === 'SLZ AIR') {
+    }
+    const matrixStats = new Map();
+    absRecords.forEach(rec => {
+        const info = colabMap.get(normalizeString(rec.Nome));
+        if (!info || !info.matriz) return;
+        let matrizName = info.matriz;
+        if (matrizName === 'SLZ AIR') {
             matrizName = 'SAO LUIS';
-        }        if (!matrixStats.has(matrizName)) {
+        }
+        if (!matrixStats.has(matrizName)) {
             matrixStats.set(matrizName, {pending: 0, total: 0});
-        }        const stat = matrixStats.get(matrizName);
-        stat.total++;        const interviewStatus = String(rec.Entrevista || '').toUpperCase();
+        }
+        const stat = matrixStats.get(matrizName);
+        stat.total++;
+        const interviewStatus = String(rec.Entrevista || '').toUpperCase();
         if (interviewStatus !== 'SIM') {
             stat.pending++;
         }
-    });    const statsList = [...matrixStats.entries()].map(([label, val]) => ({
+    });
+    const statsList = [...matrixStats.entries()].map(([label, val]) => ({
         label: label,
         total: val.total,
-        pending: val.pending,        done: val.total - val.pending,
+        pending: val.pending, done: val.total - val.pending,
         percent: val.total > 0 ? ((val.total - val.pending) / val.total) * 100 : 0
-    }));    return statsList;
-}export async function init() {
+    }));
+    return statsList;
+}
+
+export async function init() {
     if (state._inited) return;
     state._inited = true;
     ui = {
@@ -960,7 +1053,9 @@ const state = {
     populateGerenteFilter();
     updatePeriodLabel();
     generateReport();
-}export function destroy() {
+}
+
+export function destroy() {
     state._runId = (state._runId || 0) + 1;
     try {
         ui?.periodBtn?.removeEventListener('click', state._handlers?.onPeriodClick);
