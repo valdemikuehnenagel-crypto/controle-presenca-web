@@ -44,9 +44,10 @@ function invalidateCacheForDate(dateISO) {
     ['T1', 'T2', 'T3', 'GERAL'].forEach(t => {
         cachedDailyData.delete(cacheKey(t, dateISO));
     });
-}
+}function invalidateColaboradoresCache() {
 
-function showLoading(on = true) {
+    localStorage.removeItem('knc:colaboradoresCache');
+}function showLoading(on = true) {
     const el = document.getElementById('cd-loading');
     if (!el) return;
     el.style.display = on ? 'flex' : 'none';
@@ -193,15 +194,11 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         if (nomesColabs.length > 0) {
             const promises = [];
             for (let i = 0; i < nomesColabs.length; i += chunkSize) {
-                const chunk = nomesColabs.slice(i, i + chunkSize);
-
-
-                promises.push(
+                const chunk = nomesColabs.slice(i, i + chunkSize);                promises.push(
                     supabase
                         .from('LogDSR')
                         .select('Name, DsrAnterior, DsrAtual, DataAlteracao')
                         .in('Name', chunk)
-
                 );
             }
             const results = await Promise.all(promises);
@@ -233,11 +230,7 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                     applicableDSR = history[i].DsrAtual;
                     break;
                 }
-            }
-
-
-
-            if (applicableDSR === null) {
+            }            if (applicableDSR === null) {
                 applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);
             }
             return applicableDSR;
@@ -372,6 +365,7 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
     else if (tipo === 'FERIADO') setOne['Feriado'] = 1;
     else if (tipo === 'SUSPENSAO') setOne['Suspensao'] = 1;
     else throw new Error('Tipo inválido.');
+
     let colabInfo = null;
     const inMemory = state.baseList.find(c => c.Nome === nome);
     if (inMemory) {
@@ -396,14 +390,15 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         if (colabErr) throw colabErr;
         colabInfo = data;
     }
-    const turnoToUse = turno || colabInfo.Escala || null;
-    const {data: existing, error: findErr} = await supabase
+    const turnoToUse = turno || colabInfo.Escala || null;    const {data: existing, error: findErr} = await supabase
         .from('ControleDiario')
         .select('Numero')
         .eq('Nome', nome)
         .eq('Data', dateISO)
         .limit(1);
+
     if (findErr) throw findErr;
+
     if (existing && existing.length > 0) {
         const {error: updErr} = await supabase
             .from('ControleDiario')
@@ -436,7 +431,8 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         };
         const {error: insErr} = await supabase.from('ControleDiario').insert(row);
         if (insErr) throw insErr;
-    }
+    }    invalidateColaboradoresCache();
+
     try {
         if (window.absSyncForRow) {
             await window.absSyncForRow({
@@ -456,12 +452,14 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
 }
 
 async function deleteMarcacao({nome, dateISO}) {
+
     const {error} = await supabase
         .from('ControleDiario')
         .delete()
         .eq('Nome', nome)
         .eq('Data', dateISO);
-    if (error) throw error;
+    if (error) throw error;    invalidateColaboradoresCache();
+
     try {
         if (window.absSyncForRow) {
             await window.absSyncForRow({Nome: nome, Data: dateISO, Falta: 0, Atestado: 0});
@@ -856,11 +854,13 @@ async function marcarTodosPresentes() {
     const pendTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => tr.dataset.nome && (tr.dataset.mark || 'NONE') === 'NONE');
     if (!pendTrs.length) return toast('Não há colaboradores pendentes visíveis para marcar.', 'info');
     if (!confirm(`Marcar ${pendTrs.length} colaboradores visíveis como "Presente"?`)) return;
+
     const nomes = pendTrs.map(tr => tr.dataset.nome);
     ui.markAllBtn.disabled = true;
     ui.clearAllBtn.disabled = true;
     ui.markAllBtn.textContent = 'Marcando...';
     showLoading(true);
+
     try {
         const {data: maxRow, error: maxErr} = await supabase
             .from('ControleDiario')
@@ -893,11 +893,11 @@ async function marcarTodosPresentes() {
             };
             nextNumero++;
             return newRow;
-        });
-        const {error} = await supabase
+        });        const {error} = await supabase
             .from('ControleDiario')
             .upsert(rowsToUpsert, {onConflict: 'Nome, Data'});
-        if (error) throw error;
+        if (error) throw error;        invalidateColaboradoresCache();
+
         pendTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, 'PRESENCA');
@@ -925,11 +925,13 @@ async function limparTodas() {
     const marcadosTrs = Array.from(ui.tbody.querySelectorAll('tr')).filter(tr => (tr.dataset.mark || 'NONE') !== 'NONE');
     if (!marcadosTrs.length) return toast('Não há marcações visíveis.', 'info');
     if (!confirm(`Limpar marcações de ${marcadosTrs.length} colaboradores visíveis?`)) return;
+
     const nomes = marcadosTrs.map(tr => tr.dataset.nome);
     ui.markAllBtn.disabled = true;
     ui.clearAllBtn.disabled = true;
     ui.clearAllBtn.textContent = 'Limpando...';
     showLoading(true);
+
     try {
         const {error: eDel} = await supabase
             .from('ControleDiario')
@@ -937,6 +939,10 @@ async function limparTodas() {
             .eq('Data', dataISO)
             .in('Nome', nomes);
         if (eDel) throw eDel;
+
+
+        invalidateColaboradoresCache();
+
         marcadosTrs.forEach(tr => {
             const nome = tr.dataset.nome;
             applyMarkToRow(tr, null);
