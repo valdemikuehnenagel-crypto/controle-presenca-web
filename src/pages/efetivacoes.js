@@ -1003,7 +1003,6 @@ async function refresh() {
                     const dataDeslig = c.DataDesligamentoSolicitada ? c.DataDesligamentoSolicitada.slice(0, 10) : '';
 
 
-
                     if (!dataDeslig || dataDeslig <= hojeISO) {
                         return false;
                     }
@@ -2194,11 +2193,9 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         loadVagasAbertasCached()
     ]);
 
-
-
     const colabsAtivos = state.colabs;
-
     const colabsAuxiliaresAtivos = colabsAtivos.filter(c => norm(c?.Cargo) === 'AUXILIAR');
+
 
     const spamData = allSpamData.filter(r => {
         if (state.regiao && r.REGIAO !== state.regiao) return false;
@@ -2216,10 +2213,19 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
     });
 
     const pal = palette();
-    const allMonths = [...spamData].sort(sortMesAno);
-    const latestMonth = allMonths.pop();
 
-    if (!latestMonth) {
+
+    const mesesUnicosSet = new Set();
+    spamData.forEach(r => {
+        mesesUnicosSet.add(`${r.MÊS}#${r.ANO}#${r.mesOrder}`);
+    });
+
+    const mesesOrdenadosObj = [...mesesUnicosSet].map(str => {
+        const [mes, ano, order] = str.split('#');
+        return { MÊS: mes, ANO: parseInt(ano), mesOrder: parseInt(order) };
+    }).sort(sortMesAno);
+
+    if (mesesOrdenadosObj.length === 0) {
         console.warn("SPAM: Nenhum dado encontrado (com os filtros aplicados).");
         Object.values(state.charts).forEach(chart => {
             if (chart && chart.canvas?.id?.startsWith('spam-')) {
@@ -2231,61 +2237,55 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         return;
     }
 
-    const {MÊS: mesUltimoRaw, ANO: anoUltimo} = latestMonth;
-    const mesUltimo = String(mesUltimoRaw || '');
-    const mesUltimoLabel = `${mesUltimo.slice(0, 3)}/${anoUltimo}`;
 
-    const previousMonth = allMonths
-        .filter(m => m.ANO < anoUltimo || (m.ANO === anoUltimo && m.mesOrder < latestMonth.mesOrder))
-        .pop();
 
-    const mesAnteriorRaw = previousMonth ? previousMonth.MÊS : '';
-    const mesAnteriorStr = String(mesAnteriorRaw || '');
-    const mesAnteriorLabel = previousMonth ? `${mesAnteriorStr.slice(0, 3)}/${previousMonth.ANO}` : null;
 
-    const hoje = new Date();
-    const anoSistema = hoje.getFullYear();
-    const mesSistemaOrder = hoje.getMonth() + 1;
-    const spamMesAtualSistema = spamData.filter(r =>
-        r.ANO === anoSistema && r.mesOrder === mesSistemaOrder
-    );
+    const mesesJanela = mesesOrdenadosObj.slice(-2);
 
-    let mesReferenciaSpamVsReal = mesUltimo;
-    let anoReferenciaSpamVsReal = anoUltimo;
-    if (spamMesAtualSistema.length > 0) {
-        mesReferenciaSpamVsReal = spamMesAtualSistema[0].MÊS;
-        anoReferenciaSpamVsReal = spamMesAtualSistema[0].ANO;
-    }
-    mesReferenciaSpamVsReal = String(mesReferenciaSpamVsReal || '');
+    const latestMonth = mesesJanela[mesesJanela.length - 1];
+    const previousMonth = mesesJanela.length > 1 ? mesesJanela[mesesJanela.length - 2] : null;
+
+    const mesUltimoLabel = `${latestMonth.MÊS.slice(0, 3)}/${latestMonth.ANO}`;
+    const mesAnteriorLabel = previousMonth ? `${previousMonth.MÊS.slice(0, 3)}/${previousMonth.ANO}` : null;
+
+
+    const mesReferenciaSpamVsReal = String(latestMonth.MÊS || '');
+    const anoReferenciaSpamVsReal = latestMonth.ANO;
+
 
     if (state.charts.spamHcEvolucaoSvc) {
         const dadosPorSvcMes = new Map();
-        const mesesSet = new Set();
         const svcsSet = new Set();
 
+
         spamData.forEach(r => {
-            const mesStr = String(r.MÊS || '');
-            const mesLabel = `${mesStr.slice(0, 3)}/${r.ANO}`;
+            const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
+
+            if (mesLabel !== mesUltimoLabel && mesLabel !== mesAnteriorLabel) return;
+
             let svcAgrupado = mapSvcLabel(r.SVC);
             svcAgrupado = fixSsaLabel(svcAgrupado);
 
             const key = `${svcAgrupado}__${mesLabel}`;
             const totalAnterior = dadosPorSvcMes.get(key) || 0;
             dadosPorSvcMes.set(key, totalAnterior + r.HC_Total);
-            mesesSet.add(mesLabel);
             svcsSet.add(svcAgrupado);
         });
 
         const labels = [...svcsSet].sort();
-        const meses = [...mesesSet].sort((a, b) => {
-            const [m1, y1] = a.split('/');
-            const [m2, y2] = b.split('/');
-            return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });
 
-        const datasets = meses.map((mesLabel, i) => {
+
+        const mesesExibicao = [];
+        if (mesAnteriorLabel) mesesExibicao.push(mesAnteriorLabel);
+        mesesExibicao.push(mesUltimoLabel);
+
+        const datasets = mesesExibicao.map((mesLabel, i) => {
             const data = labels.map(svc => dadosPorSvcMes.get(`${svc}__${mesLabel}`) || 0);
-            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
+            return {
+                label: mesLabel,
+                data,
+                backgroundColor: pal[i % pal.length]
+            };
         });
 
         let maxHc = 0;
@@ -2295,34 +2295,41 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
 
         const chart = state.charts.spamHcEvolucaoSvc;
-        if (chart.options.scales.y) chart.options.scales.y.max = maxHc + 100;
+        if (chart.options.scales.y) chart.options.scales.y.max = maxHc + 50;
+
 
         const datasetAtual = datasets.find(d => d.label === mesUltimoLabel);
-        if (datasetAtual && mesAnteriorLabel) {
-            const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
+        const datasetAnterior = datasets.find(d => d.label === mesAnteriorLabel);
+
+        if (datasetAtual) {
             if (datasetAnterior) {
                 datasetAtual._deltas = labels.map((svc, idx) => (datasetAtual.data[idx] || 0) - (datasetAnterior.data[idx] || 0));
-            } else datasetAtual._deltas = labels.map(() => 0);
-        } else if (datasetAtual) datasetAtual._deltas = labels.map(() => 0);
+            } else {
+                datasetAtual._deltas = labels.map(() => 0);
+            }
+        }
+
 
         chart.data._mesAtualLabel = mesUltimoLabel;
         chart.data._mesAnteriorLabel = mesAnteriorLabel;
+
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.update();
     }
 
+
     if (state.charts.spamHcEvolucaoRegiao) {
         const dadosPorRegiaoMes = new Map();
-        const mesesSet = new Set();
         const regioesSet = new Set();
 
         spamData.forEach(r => {
+            const mesLabel = `${r.MÊS.slice(0, 3)}/${r.ANO}`;
+
+            if (mesLabel !== mesUltimoLabel && mesLabel !== mesAnteriorLabel) return;
+
             const regiao = r.REGIAO || 'N/D';
-            const mesStr = String(r.MÊS || '');
-            const mesLabel = `${mesStr.slice(0, 3)}/${r.ANO}`;
             const key = `${regiao}__${mesLabel}`;
-            mesesSet.add(mesLabel);
             regioesSet.add(regiao);
 
             const total = dadosPorRegiaoMes.get(key) || 0;
@@ -2330,16 +2337,20 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
 
         const labels = [...regioesSet].sort();
-        const meses = [...mesesSet].sort((a, b) => {
-            const [m1, y1] = a.split('/');
-            const [m2, y2] = b.split('/');
-            return (y1 - y2) || (getMesOrder(m1.toUpperCase()) - getMesOrder(m2.toUpperCase()));
-        });
 
-        const datasets = meses.map((mesLabel, i) => {
+        const mesesExibicao = [];
+        if (mesAnteriorLabel) mesesExibicao.push(mesAnteriorLabel);
+        mesesExibicao.push(mesUltimoLabel);
+
+        const datasets = mesesExibicao.map((mesLabel, i) => {
             const data = labels.map(regiao => dadosPorRegiaoMes.get(`${regiao}__${mesLabel}`) || 0);
+
             data.push(data.reduce((a, b) => a + b, 0));
-            return {label: mesLabel, data, backgroundColor: pal[i % pal.length]};
+            return {
+                label: mesLabel,
+                data,
+                backgroundColor: pal[i % pal.length]
+            };
         });
 
         labels.push('GERAL');
@@ -2347,6 +2358,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         state.charts.spamHcEvolucaoRegiao.data.datasets = datasets;
         state.charts.spamHcEvolucaoRegiao.update();
     }
+
 
     if (state.charts.spamHcGerente) {
         const hcPorGerente = new Map();
@@ -2421,6 +2433,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         chart.update();
     }
 
+
     if (state.charts.spamHcVsAux) {
         const auxPorSvc = new Map();
         colabsAuxiliaresAtivos.forEach(c => {
@@ -2430,8 +2443,9 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
 
         const hcPorSvc = new Map();
+
         spamData
-            .filter(r => String(r.MÊS) === mesReferenciaSpamVsReal && r.ANO == anoReferenciaSpamVsReal)
+            .filter(r => String(r.MÊS) === mesReferenciaSpamVsReal && r.ANO === anoReferenciaSpamVsReal)
             .forEach(r => {
                 let svcAgrupado = mapSvcLabel(r.SVC);
                 svcAgrupado = fixSsaLabel(svcAgrupado);
@@ -2441,9 +2455,8 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         const vagasPorSvc = new Map();
 
         allVagasData.forEach(vaga => {
-            if (!norm(vaga.Cargo || '').includes('AUXILIAR')) {
-                return;
-            }
+            if (!norm(vaga.Cargo || '').includes('AUXILIAR')) return;
+
             let svcEncontrado = 'N/D';
             for (const [svcKey, info] of matrizesMap.entries()) {
                 if (info.MATRIZ === vaga.MATRIZ) {
@@ -2454,9 +2467,11 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
             }
             let valida = true;
             if (state.matriz && vaga.MATRIZ !== state.matriz) valida = false;
+
             if (valida && (state.gerencia || state.regiao || svcsDoGerente)) {
                 if (svcEncontrado === 'N/D') valida = false;
                 else {
+
                     const svcPermitido = spamData.some(r => fixSsaLabel(mapSvcLabel(r.SVC)) === svcEncontrado);
                     if (!svcPermitido) valida = false;
                 }
@@ -2511,6 +2526,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         ];
         chart.update();
     }
+
 
     if (state.charts.spamContractDonut) {
         const targetColabs = colabsAuxiliaresAtivos.filter(c => !norm(c.Contrato || 'OUTROS').includes('KN'));
@@ -2855,7 +2871,7 @@ async function desligamento_handleDirectKN() {
     }
 
     try {
-        const { data: colabCompleto, error: fetchError } = await supabase
+        const {data: colabCompleto, error: fetchError} = await supabase
             .from('Colaboradores')
             .select('*')
             .eq('Nome', colab.Nome)
@@ -2885,7 +2901,7 @@ async function desligamento_handleDirectKN() {
             DataRetorno: dataHoraDecisao
         };
 
-        const { error: rpcError } = await supabase.rpc('aprovar_desligamento_atomic', {
+        const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
             p_nome: colab.Nome,
             p_payload_desligado: desligadoData
         });
@@ -2981,7 +2997,6 @@ async function desligamento_openApproveModal() {
 
         dateInput.value = dataAlvo;
     }
-
 
 
     if (!isResend && rhInput) rhInput.value = mod.currentUser || '';
@@ -3161,9 +3176,8 @@ async function desligamento_handleApproveSubmit(event) {
         let dataDesligamentoFinal = dataEfetivaInput;
 
 
-
         if (isResend) {
-            const { data: colabCompleto } = await supabase.from('Desligados').select('*').eq('Nome', colab.Nome).single();
+            const {data: colabCompleto} = await supabase.from('Desligados').select('*').eq('Nome', colab.Nome).single();
             if (colabCompleto) dataDesligamentoFinal = colabCompleto['Data de Desligamento'];
         }
 
@@ -3171,7 +3185,7 @@ async function desligamento_handleApproveSubmit(event) {
         if (!isResend) {
             submitBtn.textContent = 'Desligando no sistema...';
 
-            const { data: colabCompleto, error: fetchError } = await supabase
+            const {data: colabCompleto, error: fetchError} = await supabase
                 .from('Colaboradores')
                 .select('*')
                 .eq('Nome', colab.Nome)
@@ -3199,7 +3213,7 @@ async function desligamento_handleApproveSubmit(event) {
                 DataRetorno: dataHoraDecisao
             };
 
-            const { error: rpcError } = await supabase.rpc('aprovar_desligamento_atomic', {
+            const {error: rpcError} = await supabase.rpc('aprovar_desligamento_atomic', {
                 p_nome: colab.Nome,
                 p_payload_desligado: desligadoData
             });
@@ -3224,7 +3238,7 @@ async function desligamento_handleApproveSubmit(event) {
                 emailPayload.attachments = [mod.currentAttachment];
             }
 
-            const { data: fnData, error: emailError } = await supabase.functions.invoke('send-email', {
+            const {data: fnData, error: emailError} = await supabase.functions.invoke('send-email', {
                 body: JSON.stringify(emailPayload)
             });
 
@@ -3233,7 +3247,10 @@ async function desligamento_handleApproveSubmit(event) {
 
             if (emailError) {
                 let msg = emailError.message;
-                try { if (fnData && JSON.parse(fnData).error) msg = JSON.parse(fnData).error; } catch (e) {}
+                try {
+                    if (fnData && JSON.parse(fnData).error) msg = JSON.parse(fnData).error;
+                } catch (e) {
+                }
                 await window.customAlert(`Salvo, mas erro ao enviar e-mail: ${msg}`, 'Alerta');
             } else {
                 await window.customAlert('Processo concluído com sucesso!', 'Sucesso');
