@@ -17,9 +17,13 @@ const state = {
     _runId: 0,
     cache: {
         key: '',
-        data: null
+        data: null,
+        timestamp: 0
     }
 };
+
+const CACHE_TTL = 5 * 60 * 1000;
+
 const normalizeString = (str) => {
     if (!str) return '';
     return str.toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().trim();
@@ -243,61 +247,84 @@ function updatePeriodLabel() {
 
 function openPeriodModal() {
     const overlay = document.createElement('div');
-    overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[99]';
+    overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]';
+
+
     overlay.innerHTML = `
-    <div class="container !h-auto !w-auto max-w-md" style="background:#fff;border-radius:12px;padding:16px 18px 18px;box-shadow:0 12px 28px rgba(0,0,0,.18);">
-      <h3 style="font-weight:800;color:#003369;margin:0 0 10px;">Selecionar Período</h3>
-      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button type="button" data-action="ontem" style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f9f9f9; font-size:13px; cursor:pointer;">Ontem</button>
-        <button type="button" data-action="mes_anterior" style="padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#f9f9f9; font-size:13px; cursor:pointer;">Mês Anterior</button>
+    <div style="background:#fff; border-radius:12px; padding:20px; box-shadow:0 12px 28px rgba(0,0,0,0.25); width:100%; max-width:380px; display:flex; flex-direction:column;">
+      <h3 style="font-weight:800;color:#003369;margin:0 0 15px; font-size: 1.1rem;">Selecionar Período</h3>
+      
+      <div style="display:flex; gap:6px; margin-bottom:15px; flex-wrap:wrap;">
+        <button type="button" data-action="hoje" style="padding:6px 10px; border-radius:6px; border:1px solid #ddd; background:#f0f9ff; color:#003369; font-size:12px; font-weight:700; cursor:pointer;">Hoje</button>
+        <button type="button" data-action="ontem" style="padding:6px 10px; border-radius:6px; border:1px solid #ddd; background:#f9f9f9; font-size:12px; font-weight:600; cursor:pointer; color:#555;">Ontem</button>
+        <button type="button" data-action="mes_atual" style="padding:6px 10px; border-radius:6px; border:1px solid #ddd; background:#f9f9f9; font-size:12px; font-weight:600; cursor:pointer; color:#555;">Mês Atual</button>
+        <button type="button" data-action="mes_anterior" style="padding:6px 10px; border-radius:6px; border:1px solid #ddd; background:#f9f9f9; font-size:12px; font-weight:600; cursor:pointer; color:#555;">Mês Anterior</button>
       </div>
-      <div class="grid grid-cols-2 gap-4 my-4">
+
+      <div class="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <label for="modal-start-date" class="block mb-1 font-semibold text-sm">Início</label>
-          <input type="date" id="modal-start-date" class="w-full p-2 border rounded-md" value="${state.period.start || ''}">
+          <label class="block text-xs font-bold text-gray-600 mb-1">Início</label>
+          <input type="date" id="modal-start-date" class="w-full border rounded p-2 text-sm" value="${state.period.start || ''}">
         </div>
         <div>
-          <label for="modal-end-date" class="block mb-1 font-semibold text-sm">Fim</label>
-          <input type="date" id="modal-end-date" class="w-full p-2 border rounded-md" value="${state.period.end || ''}">
+          <label class="block text-xs font-bold text-gray-600 mb-1">Fim</label>
+          <input type="date" id="modal-end-date" class="w-full border rounded p-2 text-sm" value="${state.period.end || ''}">
         </div>
       </div>
-      <div class="form-actions" style="display:flex;gap:8px;justify-content:flex-end;">
-        <button type="button" class="btn-cancelar" data-action="cancel" style="padding:8px 12px;border-radius:8px;border:1px solid #e7ebf4;background:#fff;">Cancelar</button>
-        <button type="button" class="btn-salvar" data-action="apply" style="padding:8px 12px;border-radius:8px;border:1px solid #003369;background:#003369;color:#fff;">Aplicar</button>
+
+      <div class="flex justify-end gap-2" style="margin-top:auto; padding-top:10px; border-top:1px solid #eee;">
+        <button id="btn-cancel" class="px-4 py-2 rounded bg-gray-100 text-gray-700 font-bold text-xs hover:bg-gray-200 transition-colors">Cancelar</button>
+        <button id="btn-apply" class="px-4 py-2 rounded bg-[#003369] text-white font-bold text-xs hover:bg-[#02B1EE] transition-colors">Aplicar</button>
       </div>
     </div>`;
+
     document.body.appendChild(overlay);
     const startInput = overlay.querySelector('#modal-start-date');
     const endInput = overlay.querySelector('#modal-end-date');
-    overlay.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
-        if (e.target === overlay || action === 'cancel') {
+
+    overlay.onclick = (e) => {
+        const action = e.target.getAttribute('data-action');
+        const id = e.target.id;
+
+        if (e.target === overlay || id === 'btn-cancel') {
             document.body.removeChild(overlay);
-        } else if (action === 'apply') {
-            if (!startInput.value || !endInput.value) {
-                alert('Por favor, selecione as duas datas.');
-                return;
+        } else if (id === 'btn-apply') {
+            if (startInput.value && endInput.value) {
+                state.period.start = startInput.value;
+                state.period.end = endInput.value;
+                updatePeriodLabel();
+                document.body.removeChild(overlay);
+                generateReport();
+            } else {
+                alert("Selecione ambas as datas.");
             }
-            state.period.start = startInput.value;
-            state.period.end = endInput.value;
-            updatePeriodLabel();
-            document.body.removeChild(overlay);
-            generateReport();
-        } else if (action === 'ontem') {
+        } else if (action) {
             const today = new Date();
-            const ontem = new Date(today);
-            ontem.setDate(today.getDate() - 1);
-            const ontemStr = _ymdLocal(ontem);
-            startInput.value = ontemStr;
-            endInput.value = ontemStr;
-        } else if (action === 'mes_anterior') {
-            const today = new Date();
-            const primeiroDiaMesAnterior = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const ultimoDiaMesAnterior = new Date(today.getFullYear(), today.getMonth(), 0);
-            startInput.value = _ymdLocal(primeiroDiaMesAnterior);
-            endInput.value = _ymdLocal(ultimoDiaMesAnterior);
+            let s = '', f = '';
+
+            if (action === 'hoje') {
+                s = f = _ymdLocal(today);
+            } else if (action === 'ontem') {
+                const ontem = new Date(today);
+                ontem.setDate(today.getDate() - 1);
+                s = f = _ymdLocal(ontem);
+            } else if (action === 'mes_atual') {
+                const first = new Date(today.getFullYear(), today.getMonth(), 1);
+                s = _ymdLocal(first);
+                f = _ymdLocal(today);
+            } else if (action === 'mes_anterior') {
+                const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                const last = new Date(today.getFullYear(), today.getMonth(), 0);
+                s = _ymdLocal(first);
+                f = _ymdLocal(last);
+            }
+
+            if (s && f) {
+                startInput.value = s;
+                endInput.value = f;
+            }
         }
-    });
+    };
 }
 
 function chunkArray(arr, size) {
@@ -645,15 +672,12 @@ async function generateReport() {
         }
         return;
     }
-    const coordBtn = document.getElementById('efet-view-coordenacao');
-    const isCoordView =
-        !!coordBtn &&
-        (
-            coordBtn.getAttribute('aria-pressed') === 'true' ||
-            coordBtn.classList.contains('active') ||
-            coordBtn.dataset.on === '1'
-        );
+
+
+
+    const isCoordView = state.turnoAtual === 'COORDENACAO';
     state._isCoordView = isCoordView;
+
     showLoading(true);
     if (ui?.resultContainer) {
         ui.resultContainer.innerHTML = `<p class="p-4 text-center">Gerando relatório...</p>`;
@@ -663,17 +687,27 @@ async function generateReport() {
         if (dates.length > 31) throw new Error('O período selecionado não pode exceder 31 dias.');
         const periodKey = `${startDate}|${endDate}`;
         let rawData;
-        if (state.cache && state.cache.key === periodKey && state.cache.data) {
+
+
+        const now = Date.now();
+        if (state.cache &&
+            state.cache.key === periodKey &&
+            state.cache.data &&
+            (now - state.cache.timestamp < CACHE_TTL)
+        ) {
             rawData = state.cache.data;
-            console.log("⚡ Usando dados em cache (Efetividade)");
+            console.log("⚡ Usando dados em cache (Efetividade) - Válido por " + ((CACHE_TTL - (now - state.cache.timestamp)) / 1000).toFixed(0) + "s");
         } else {
             rawData = await fetchData(startDate, endDate);
             state.cache = {
                 key: periodKey,
-                data: rawData
+                data: rawData,
+                timestamp: now
             };
             console.log("🌐 Buscando dados do Supabase (Efetividade)");
         }
+
+
         if (myRun !== state._runId) return;
         let filteredColaboradores = rawData.colaboradores;
         const turno = state.turnoAtual || 'GERAL';
@@ -768,26 +802,36 @@ async function fetchFilterData() {
 
 function populateMatrizFilter() {
     if (!ui?.matrizFilterSelect) return;
-    while (ui.matrizFilterSelect.options.length > 1) ui.matrizFilterSelect.remove(1);
+
+    const current = ui.matrizFilterSelect.value;
+
+    ui.matrizFilterSelect.innerHTML = '<option value="">Matriz</option>';
+
     state.allMatrizes.forEach((matriz) => {
         const option = document.createElement('option');
         option.value = matriz;
         option.textContent = matriz;
         ui.matrizFilterSelect.appendChild(option);
     });
+
+
+    if (state.allMatrizes.includes(current)) ui.matrizFilterSelect.value = current;
 }
 
 function populateGerenteFilter() {
-    if (!ui?.gerenteFilterSelect) {
-        return;
-    }
-    while (ui.gerenteFilterSelect.options.length > 1) ui.gerenteFilterSelect.remove(1);
+    if (!ui?.gerenteFilterSelect) return;
+    const current = ui.gerenteFilterSelect.value;
+
+    ui.gerenteFilterSelect.innerHTML = '<option value="">Gerência</option>';
+
     state.allGerentes.forEach((gerente) => {
         const option = document.createElement('option');
         option.value = gerente;
         option.textContent = gerente;
         ui.gerenteFilterSelect.appendChild(option);
     });
+
+    if (state.allGerentes.includes(current)) ui.gerenteFilterSelect.value = current;
 }
 
 export async function getRankingData(filters = {}) {
@@ -947,6 +991,7 @@ export async function getInterviewData(filters = {}) {
 export async function init() {
     if (state._inited) return;
     state._inited = true;
+
     ui = {
         periodBtn: document.getElementById('efet-period-btn'),
         matrizFilterSelect: document.getElementById('efet-matriz-filter'),
@@ -954,104 +999,79 @@ export async function init() {
         resultContainer: document.getElementById('efet-result'),
         loader: document.getElementById('efet-loader'),
         subtabButtons: document.querySelectorAll('#efetividade-page .subtab-btn'),
-        coordBtn: document.getElementById('efet-view-coordenacao'),
-        clearBtn: null,
+
     };
-    const actions = document.querySelector('#efetividade-page .hc-actions');
-    if (actions && !document.getElementById('efet-clear-filters')) {
-        const clear = document.createElement('button');
-        clear.id = 'efet-clear-filters';
-        clear.textContent = 'Limpar';
-        clear.className = 'btn-action-main';
-        clear.style.backgroundColor = '#6c757d';
-        clear.addEventListener('mouseenter', () => {
-            clear.style.backgroundColor = '#5a6268';
-            clear.style.transform = 'translateY(-2px)';
-        });
-        clear.addEventListener('mouseleave', () => {
-            clear.style.backgroundColor = '#6c757d';
-            clear.style.transform = 'translateY(0)';
-        });
-        if (ui.periodBtn) actions.insertBefore(clear, ui.periodBtn);
-        else actions.appendChild(clear);
-        ui.clearBtn = clear;
+
+
+
+    const actionsDiv = document.querySelector('#efetividade-page .hc-actions');
+    let clearBtn = document.getElementById('efet-clear-filters');
+
+    if (!clearBtn && actionsDiv) {
+        clearBtn = document.createElement('button');
+        clearBtn.id = 'efet-clear-filters';
+        clearBtn.textContent = 'Limpar';
+        clearBtn.className = 'btn-action-main';
+        clearBtn.style.backgroundColor = '#6c757d';
+
+
+        if (ui.periodBtn) actionsDiv.insertBefore(clearBtn, ui.periodBtn);
+        else actionsDiv.appendChild(clearBtn);
     }
-    if (!state.period.start || !state.period.end) {
+    ui.clearBtn = clearBtn;
+
+
+    if (!state.period.start) {
         const today = new Date();
-        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        state.period.start = _ymdLocal(firstDay);
-        state.period.end = _ymdLocal(lastDay);
+        const first = new Date(today.getFullYear(), today.getMonth(), 1);
+        const last = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        state.period.start = _ymdLocal(first);
+        state.period.end = _ymdLocal(last);
     }
-    state._handlers = state._handlers || {};
-    state._handlers.onPeriodClick = openPeriodModal;
-    state._handlers.onMatrizChange = () => {
-        state.selectedMatriz = ui.matrizFilterSelect.value;
-        generateReport();
-    };
-    state._handlers.onGerenteChange = () => {
-        state.selectedGerente = ui.gerenteFilterSelect.value;
-        generateReport();
-    };
-    state._handlers.onClearFilters = () => {
-        state.selectedMatriz = '';
-        state.selectedGerente = '';
-        if (ui.matrizFilterSelect) ui.matrizFilterSelect.value = '';
-        if (ui.gerenteFilterSelect) ui.gerenteFilterSelect.value = '';
-        generateReport();
-    };
-    state._handlers.onSubtabClick = (e) => {
-        const btn = e.currentTarget;
-        ui.subtabButtons.forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        state.turnoAtual = btn.dataset.turno;
-        generateReport();
-    };
-    state._handlers.onCopyKey = (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-            const activeEl = document.activeElement;
-            if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) return;
-            if (document.getElementById('efetividade-details-modal')) return;
-            const table = ui?.resultContainer?.querySelector('.main-table');
-            if (table) {
-                e.preventDefault();
-                copyTableAsImage();
-            }
+
+
+    state._handlers = {
+        onPeriodClick: () => openPeriodModal(),
+        onMatrizChange: () => {
+            state.selectedMatriz = ui.matrizFilterSelect.value;
+            generateReport();
+        },
+        onGerenteChange: () => {
+            state.selectedGerente = ui.gerenteFilterSelect.value;
+            generateReport();
+        },
+        onClearFilters: () => {
+            state.selectedMatriz = '';
+            state.selectedGerente = '';
+            if (ui.matrizFilterSelect) ui.matrizFilterSelect.value = '';
+            if (ui.gerenteFilterSelect) ui.gerenteFilterSelect.value = '';
+            generateReport();
+        },
+        onSubtabClick: (e) => {
+            ui.subtabButtons.forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            state.turnoAtual = e.currentTarget.dataset.turno;
+            generateReport();
         }
+
     };
-    const applyCoordVisual = (on) => {
-        if (!ui.coordBtn) return;
-        ui.coordBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        ui.coordBtn.dataset.on = on ? '1' : '0';
-        if (on) {
-            ui.coordBtn.classList.add('active');
-            ui.coordBtn.style.background = '';
-            ui.coordBtn.style.color = '';
-            ui.coordBtn.style.boxShadow = '';
-        } else {
-            ui.coordBtn.classList.remove('active');
-            ui.coordBtn.style.background = '';
-            ui.coordBtn.style.color = '';
-            ui.coordBtn.style.boxShadow = '';
-        }
-    };
-    applyCoordVisual(false);
-    state._handlers.onCoordToggle = () => {
-        const isOn = ui.coordBtn.getAttribute('aria-pressed') === 'true';
-        applyCoordVisual(!isOn);
-        generateReport();
-    };
+
+
     ui.periodBtn?.addEventListener('click', state._handlers.onPeriodClick);
     ui.matrizFilterSelect?.addEventListener('change', state._handlers.onMatrizChange);
     ui.gerenteFilterSelect?.addEventListener('change', state._handlers.onGerenteChange);
     ui.clearBtn?.addEventListener('click', state._handlers.onClearFilters);
-    ui.subtabButtons.forEach((btn) => btn.addEventListener('click', state._handlers.onSubtabClick));
-    document.addEventListener('keydown', state._handlers.onCopyKey);
-    ui.coordBtn?.addEventListener('click', state._handlers.onCoordToggle);
+    ui.subtabButtons.forEach(b => b.addEventListener('click', state._handlers.onSubtabClick));
+
+
+
     await fetchFilterData();
     populateMatrizFilter();
     populateGerenteFilter();
-    updatePeriodLabel();
+
+
+    if (ui.periodBtn) ui.periodBtn.textContent = 'Selecionar Período';
+
     generateReport();
 }
 

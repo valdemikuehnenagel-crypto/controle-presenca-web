@@ -1,7 +1,9 @@
 import {supabase} from '../supabaseClient.js';
 import {getMatrizesPermitidas} from '../session.js';
 import {logAction} from '../../logAction.js';
-import {openFeriasModal, processarStatusFerias, setOnFeriasChangeCallback, wireFerias} from './ferias.js';let state = {
+import {openFeriasModal, processarStatusFerias, setOnFeriasChangeCallback, wireFerias} from './ferias.js';
+
+let state = {
     colaboradoresData: [],
     dadosFiltrados: [],
     filtrosAtivos: {},
@@ -27,7 +29,7 @@ let rhState = {
     activeTab: 'ATUAIS',
     somenteParaFechar: false
 };
-let currentSort = { column: null, direction: 'desc' };
+let currentSort = {column: null, direction: 'desc'};
 let cachedColaboradores = null;
 let cachedFeriasStatus = null;
 let lastFetchTimestamp = 0;
@@ -65,7 +67,9 @@ let modalListaRH, tbodyCandidatosRH, fecharModalRH;
 let currentDsrInputTarget = null;
 let histContextMenu = null;
 let selectedMonthIndex = null;
-const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];function invalidateColaboradoresCache() {
+const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
+
+function invalidateColaboradoresCache() {
     cachedColaboradores = null;
     cachedFeriasStatus = null;
     lastFetchTimestamp = 0;
@@ -75,7 +79,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.warn('Falha ao invalidar cache compartilhado', e);
     }
     console.log("Cache de colaboradores e férias invalidado.");
-}async function ensureMatrizesDataLoaded() {
+}
+
+async function ensureMatrizesDataLoaded() {
     if (state.matrizesData.length > 0) return;
     try {
         const {data, error} = await supabase
@@ -104,7 +110,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } catch (e) {
         console.error('Erro ao carregar dados de Matrizes/Gerência:', e);
     }
-}function mapearDadosRhParaFormulario(candidato) {
+}
+
+function mapearDadosRhParaFormulario(candidato) {
     let contratoFormatado = (candidato.EmpresaContratante || '').toUpperCase();
     if (contratoFormatado.includes('AST')) contratoFormatado = 'AST';
     else if (contratoFormatado.includes('ADECCO')) contratoFormatado = 'ADECCO';
@@ -135,7 +143,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         sapato: candidato.sapato,
         DataNascimento: candidato.DataNascimento
     };
-}function injectFluxoStyles() {
+}
+
+function injectFluxoStyles() {
     const styleId = 'fluxo-modal-style-fix';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
@@ -160,7 +170,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     `;
     document.head.appendChild(style);
-}function promptSelectContratoReversao() {
+}
+
+function promptSelectContratoReversao() {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 bg-black/60 z-[30000] flex items-center justify-center p-4 backdrop-blur-sm';
@@ -191,7 +203,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             close(selected);
         };
     });
-}function injectRhTabsStyles() {
+}
+
+function injectRhTabsStyles() {
     const styleId = 'rh-tabs-style';
     if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
@@ -219,7 +233,13 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .rh-tab-btn.active { color: #003369; border-bottom: 2px solid #003369; font-weight: 800; }
     `;
     document.head.appendChild(style);
-}function setupObserver() {    if (scrollObserver) scrollObserver.disconnect();    scrollObserver = new IntersectionObserver((entries) => {        if (entries.some(entry => entry.isIntersecting)) {            if (itensVisiveis < state.dadosFiltrados.length) {
+}
+
+function setupObserver() {
+    if (scrollObserver) scrollObserver.disconnect();
+    scrollObserver = new IntersectionObserver((entries) => {
+        if (entries.some(entry => entry.isIntersecting)) {
+            if (itensVisiveis < state.dadosFiltrados.length) {
                 console.log("Rolagem detectada: carregando mais itens...");
                 itensVisiveis += ITENS_POR_PAGINA;
                 updateDisplay();
@@ -230,7 +250,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         rootMargin: '300px',
         threshold: 0.1
     });
-}function ensureHistContextMenu() {
+}
+
+function ensureHistContextMenu() {
     if (document.getElementById('hist-context-menu')) return;
     const menu = document.createElement('div');
     menu.id = 'hist-context-menu';
@@ -255,7 +277,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     });
     window.addEventListener('scroll', hideHistContextMenu, true);
-}function showHistContextMenu(x, y, monthIndex) {
+}
+
+function showHistContextMenu(x, y, monthIndex) {
     ensureHistContextMenu();
     selectedMonthIndex = monthIndex;
     if (histContextMenu) {
@@ -263,11 +287,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         histContextMenu.style.top = `${y}px`;
         histContextMenu.classList.remove('hidden');
     }
-}function hideHistContextMenu() {
+}
+
+function hideHistContextMenu() {
     if (histContextMenu) {
         histContextMenu.classList.add('hidden');
     }
-}function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
+}
+
+function populateOptionsTamanhos(idSelectSapato, idSelectColete) {
     const selSapato = document.getElementById(idSelectSapato);
     const selColete = document.getElementById(idSelectColete);
     if (selSapato) {
@@ -293,7 +321,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         });
         if (valorAtual) selColete.value = valorAtual;
     }
-}async function fetchCandidatosAprovados() {
+}
+
+async function fetchCandidatosAprovados() {
     if (!tbodyCandidatosRH) return;
     tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center">Carregando dados do RH...</td></tr>';
     try {
@@ -330,7 +360,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro RH:', err);
         tbodyCandidatosRH.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-600">Erro ao carregar ou filtrar dados.</td></tr>';
     }
-}function setupRhFilters() {
+}
+
+function setupRhFilters() {
     injectRhTabsStyles();
     const inputSearch = document.getElementById('filterRhSearch');
     const selectMatriz = document.getElementById('filterRhMatriz');
@@ -372,7 +404,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         rhState.filtros.cargo = e.target.value;
         aplicarFiltrosRh();
     };
-}function populateRhFilterOptions() {
+}
+
+function populateRhFilterOptions() {
     const selMatriz = document.getElementById('filterRhMatriz');
     const selCargo = document.getElementById('filterRhCargo');
     if (!selMatriz || !selCargo) return;
@@ -396,7 +430,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     });
     if (matrizes.includes(valMatriz)) selMatriz.value = valMatriz;
     if (cargos.includes(valCargo)) selCargo.value = valCargo;
-}async function buscarEnderecoPorCep(cep, prefixoId) {
+}
+
+async function buscarEnderecoPorCep(cep, prefixoId) {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) {
         return;
@@ -435,7 +471,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } finally {
         if (campoEndereco) campoEndereco.placeholder = "";
     }
-}function wireCepEvents() {
+}
+
+function wireCepEvents() {
     const addCepInput = document.getElementById('addCEP');
     if (addCepInput) {
         addCepInput.addEventListener('input', (e) => {
@@ -450,7 +488,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             }
         });
     }
-}function aplicarFiltrosRh() {
+}
+
+function aplicarFiltrosRh() {
     const hoje = ymdToday();
     const badge = document.getElementById('countRhBadges');
     const filtrados = rhState.dadosBrutos.filter(item => {
@@ -476,7 +516,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     });
     if (badge) badge.textContent = filtrados.length;
     renderTabelaRH(filtrados);
-}function formatCargoShort(cargo) {
+}
+
+function formatCargoShort(cargo) {
     if (!cargo) return '';
     let s = cargo.toUpperCase();
     s = s.replace('AUXILIAR DE OPERAÇÕES LOGÍSTICAS', 'Aux. Op. Log.');
@@ -489,7 +531,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     s = s.replace('OPERADOR DE EMPILHADEIRA', 'Op. Empilhadeira');
     s = s.replace('CONFERENTE', 'Conferente');
     return s;
-}async function showAvisoDesligamento() {
+}
+
+async function showAvisoDesligamento() {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[20000]';
@@ -524,7 +568,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             if (e.target === overlay) close(false);
         });
     });
-}function getLocalISOString(date) {
+}
+
+function getLocalISOString(date) {
     if (!(date instanceof Date)) {
         date = new Date(date);
     }
@@ -542,7 +588,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const offHour = pad(Math.floor(absMin / 60));
     const offMin = pad(absMin % 60);
     return `${year}-${month}-${day}T${hour}:${minute}:${second}${sign}${offHour}:${offMin}`;
-}function formatDateTimeLocal(iso) {
+}
+
+function formatDateTimeLocal(iso) {
     if (!iso) return '';
     try {
         const d = new Date(iso);
@@ -556,7 +604,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } catch (e) {
         return iso;
     }
-}async function verificarPendencias(colab, dataDesligamentoStr) {
+}
+
+async function verificarPendencias(colab, dataDesligamentoStr) {
     const pendencias = [];
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -659,7 +709,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         cursor.setDate(cursor.getDate() + 1);
     }
     return pendencias;
-}function renderTabelaRH(lista) {
+}
+
+function renderTabelaRH(lista) {
     tbodyCandidatosRH.innerHTML = '';
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -774,7 +826,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         });
         tbodyCandidatosRH.appendChild(tr);
     });
-}async function fecharVagaImportacao(vaga) {
+}
+
+async function fecharVagaImportacao(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = await window.customConfirm(
         `Deseja marcar a vaga de <b>${nome}</b> como <span style="color:green">FECHADA</span>?<br><br>Isso removerá o candidato desta lista de importação.`,
@@ -800,7 +854,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         await window.customAlert('Erro ao fechar vaga: ' + err.message, 'Erro');
         fetchCandidatosAprovados();
     }
-}async function confirmarDesistenciaVaga(vaga) {
+}
+
+async function confirmarDesistenciaVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar DESISTÊNCIA de:\n\n${nome}?\n\nA vaga será cancelada.`);
     if (!confirmacao) return;
@@ -823,7 +879,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         alert('Erro ao registrar desistência: ' + err.message);
         fetchCandidatosAprovados();
     }
-}async function confirmarNoShowVaga(vaga) {
+}
+
+async function confirmarNoShowVaga(vaga) {
     const nome = vaga.CandidatoAprovado || 'Candidato';
     const confirmacao = confirm(`Confirmar NO SHOW (Não Comparecimento) de:\n\n${nome}?\n\nA vaga será cancelada com motivo 'NO SHOW'.`);
     if (!confirmacao) return;
@@ -846,7 +904,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         alert('Erro ao registrar No Show: ' + err.message);
         fetchCandidatosAprovados();
     }
-}async function selecionarCandidatoImportacao(candidatoRaw) {
+}
+
+async function selecionarCandidatoImportacao(candidatoRaw) {
     const dadosMapeados = mapearDadosRhParaFormulario(candidatoRaw);
     modalListaRH.classList.add('hidden');
     await prepararFormularioAdicao();
@@ -854,14 +914,18 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     setTimeout(() => {
         preencherFormularioAdicao(dadosMapeados);
     }, 100);
-}async function prepararFormularioAdicao() {
+}
+
+async function prepararFormularioAdicao() {
     await loadGestoresParaFormulario();
     loadSVCsParaFormulario();
     await populateContratoSelect(document.getElementById('addContrato'));
     populateOptionsTamanhos('addSapato', 'addColete');
     populateGestorSelect(null);
     attachUppercaseHandlers();
-}function preencherFormularioAdicao(dados) {
+}
+
+function preencherFormularioAdicao(dados) {
     const setVal = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.value = val || '';
@@ -898,7 +962,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             populateGestorSelect(matrizItem.SERVICE);
         }
     }
-}function checkUserAdminStatus() {
+}
+
+function checkUserAdminStatus() {
     const sessionString = localStorage.getItem('userSession');
     if (!sessionString) {
         console.warn('Sessão do usuário não encontrada. Permissões de admin não concedidas.');
@@ -918,7 +984,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro ao processar sessão do usuário:', error);
         state.isUserAdmin = false;
     }
-}function promptForDate(title, defaultDate) {
+}
+
+function promptForDate(title, defaultDate) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:20000;';
@@ -961,7 +1029,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             if (e.target === overlay) close(null);
         };
     });
-}async function fetchAllWithPagination(queryBuilder) {
+}
+
+async function fetchAllWithPagination(queryBuilder) {
     let allData = [];
     let page = 0;
     const pageSize = 1000;
@@ -980,32 +1050,48 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return allData;
-}function ymdToday() {
+}
+
+function ymdToday() {
     const t = new Date();
     const y = t.getFullYear();
     const m = String(t.getMonth() + 1).padStart(2, '0');
     const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
-}function isFutureYMD(yyyyMmDd) {
+}
+
+function isFutureYMD(yyyyMmDd) {
     if (!yyyyMmDd) return false;
     return yyyyMmDd > ymdToday();
-}function normalizeCPF(raw) {
+}
+
+function normalizeCPF(raw) {
     const digits = String(raw || '').replace(/\D/g, '');
     return digits || null;
-}function toUpperNoTrim(str) {
+}
+
+function toUpperNoTrim(str) {
     return typeof str === 'string' ? str.toUpperCase() : str;
-}function toUpperTrim(str) {
+}
+
+function toUpperTrim(str) {
     return typeof str === 'string' ? str.toUpperCase().trim() : str;
-}function nullIfEmpty(v) {
+}
+
+function nullIfEmpty(v) {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s === '' ? null : s;
-}function numberOrNull(v) {
+}
+
+function numberOrNull(v) {
     const s = nullIfEmpty(v);
     if (s === null) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
-}function toStartOfDay(dateish) {
+}
+
+function toStartOfDay(dateish) {
     if (!dateish) return NaN;
     if (typeof dateish === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateish)) {
         const [y, m, d] = dateish.split('-').map(Number);
@@ -1017,11 +1103,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     const d = (dateish instanceof Date) ? dateish : new Date(dateish);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}function formatDateLocal(iso) {
+}
+
+function formatDateLocal(iso) {
     if (!iso) return '';
     const [y, m, d] = String(iso).split('T')[0].split('-');
     return `${d}/${m}/${y}`;
-}function attachUppercaseHandlers() {
+}
+
+function attachUppercaseHandlers() {
     if (!addForm || addForm.dataset.upperBound === '1') return;
     addForm.dataset.upperBound = '1';
     const uppercaseOnInput = (el) => {
@@ -1046,7 +1136,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     addForm.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}async function populateContratoSelect(selectElement) {
+}
+
+async function populateContratoSelect(selectElement) {
     if (!selectElement) return;
     const CONTRATOS_PERMITIDOS = ['ADECCO', 'AST', 'GNX', 'KN', 'LUANDRE', 'POLLY', 'TSI'].sort();
     const valorAtual = selectElement.value;
@@ -1060,7 +1152,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (CONTRATOS_PERMITIDOS.includes(valorAtual)) {
         selectElement.value = valorAtual;
     }
-}function attachUpperHandlersTo(form) {
+}
+
+function attachUpperHandlersTo(form) {
     if (!form || form.dataset.upperBound === '1') return;
     form.dataset.upperBound = '1';
     const textInputs = form.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input[type="tel"], input:not([type]), textarea');
@@ -1083,7 +1177,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     form.querySelectorAll('select').forEach((sel) => {
         sel.style.textTransform = 'uppercase';
     });
-}function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
+}
+
+function populateGestorSelectForEdit(selectedSvc, gestorAtual = null) {
     const gestorSelect = document.getElementById('editGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -1115,7 +1211,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (gestorAtual) {
         gestorSelect.value = gestorAtual;
     }
-}function toUpperObject(obj) {
+}
+
+function toUpperObject(obj) {
     const dateKeys = new Set(['Data de admissão', 'Data de nascimento']);
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
@@ -1147,12 +1245,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     return out;
-}function renderTable(dataToRender) {
+}
+
+function renderTable(dataToRender) {
     if (!colaboradoresTbody) return;
-    colaboradoresTbody.innerHTML = '';    if (!dataToRender || dataToRender.length === 0) {
+    colaboradoresTbody.innerHTML = '';
+    if (!dataToRender || dataToRender.length === 0) {
         colaboradoresTbody.innerHTML = '<tr><td colspan="15" class="text-center p-4">Nenhum colaborador encontrado.</td></tr>';
         return;
-    }    const badgeStyle = (color, bg) => `
+    }
+    const badgeStyle = (color, bg) => `
         display: inline-block; 
         padding: 2px 8px; 
         border-radius: 12px; 
@@ -1160,18 +1262,23 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         color: ${color}; 
         background-color: ${bg};
         min-width: 30px;
-    `;    const formatarNomeColaborador = (colaborador) => {
+    `;
+    const formatarNomeColaborador = (colaborador) => {
         const nomeBase = colaborador.Nome || '';
         if (colaborador.StatusDesligamento === 'PENDENTE') return `${nomeBase} ⚠️ (Desligamento Pendente)`;
         if (colaborador.StatusDesligamento === 'RECUSADO') return `${nomeBase} ❌ (Desligamento Recusado)`;
         if (colaborador.Ativo === 'AFAS') return `${nomeBase} (Afastado)`;
         return nomeBase;
-    };    dataToRender.forEach((colaborador) => {
+    };
+    dataToRender.forEach((colaborador) => {
         const tr = document.createElement('tr');
         tr.setAttribute('data-nome', colaborador.Nome || '');
         if (colaborador.StatusDesligamento === 'PENDENTE') tr.classList.add('row-pending');
-        else if (colaborador.StatusDesligamento === 'RECUSADO') tr.classList.add('row-rejected');        const nomeCelula = formatarNomeColaborador(colaborador);
-        const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);        const absTotal = (colaborador['Total Faltas'] || 0) + (colaborador['Total Atestados'] || 0);        tr.innerHTML = `
+        else if (colaborador.StatusDesligamento === 'RECUSADO') tr.classList.add('row-rejected');
+        const nomeCelula = formatarNomeColaborador(colaborador);
+        const admissaoOriginal = formatDateLocal(colaborador['Data de admissão']);
+        const absTotal = (colaborador['Total Faltas'] || 0) + (colaborador['Total Atestados'] || 0);
+        tr.innerHTML = `
                 <td class="nome-col">${nomeCelula}</td>
                 <td>${colaborador.DSR || ''}</td>
                 <td>${colaborador.Escala || ''}</td>
@@ -1198,19 +1305,24 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
                 </td>
             `;
         colaboradoresTbody.appendChild(tr);
-    });    if (itensVisiveis < state.dadosFiltrados.length) {
+    });
+    if (itensVisiveis < state.dadosFiltrados.length) {
         const sentinelRow = document.createElement('tr');
         sentinelRow.innerHTML = `<td colspan="15" style="text-align: center; padding: 20px; color: #6b7280;">Carregando mais...</td>`;
         colaboradoresTbody.appendChild(sentinelRow);
         if (scrollObserver) scrollObserver.observe(sentinelRow);
     }
-}function updateDisplay() {
+}
+
+function updateDisplay() {
     const dataSlice = state.dadosFiltrados.slice(0, itensVisiveis);
     renderTable(dataSlice);
     if (mostrarMenosBtn) mostrarMenosBtn.classList.toggle('hidden', itensVisiveis <= ITENS_POR_PAGINA);
     if (mostrarMaisBtn) mostrarMaisBtn.classList.toggle('hidden', itensVisiveis >= state.dadosFiltrados.length);
     if (contadorVisiveisEl) contadorVisiveisEl.textContent = `${dataSlice.length} de ${state.dadosFiltrados.length} colaboradores visíveis`;
-}function populateFilters() {
+}
+
+function populateFilters() {
     if (!filtrosSelect) return;
     const filtros = {
         Contrato: new Set(),
@@ -1261,13 +1373,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
         selectEl.value = valorSalvo;
     });
-}function normalizeText(text) {
+}
+
+function normalizeText(text) {
     return String(text || '')
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .trim();
-}function applyFiltersAndSearch() {
+}
+
+function applyFiltersAndSearch() {
     const searchInputString = (searchInput?.value || '').trim();
     const searchTerms = searchInputString
         .split(',')
@@ -1317,7 +1433,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (typeof updatePendingImportCounter === 'function') {
         updatePendingImportCounter();
     }
-}function repopulateFilterOptionsCascade() {
+}
+
+function repopulateFilterOptionsCascade() {
     if (!filtrosSelect || !filtrosSelect.length) return;
     filtrosSelect.forEach((selectEl) => {
         const key = selectEl.dataset.filterKey;
@@ -1392,7 +1510,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             selectEl.selectedIndex = 0;
         }
     });
-}function updatePendingImportCounter() {
+}
+
+function updatePendingImportCounter() {
     if (state.isModuleActive === false) return;
     if (!state.pendingImportsRaw || state.pendingImportsRaw.length === 0) {
         hidePendingImportAlert();
@@ -1450,7 +1570,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     } else {
         hidePendingImportAlert();
     }
-}function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
+}
+
+function computeRegiaoFromSvcMatriz(svcVal, matrizVal) {
     const svc = (svcVal || '').toString().toUpperCase().trim();
     const matriz = (matrizVal || '').toString().toUpperCase().trim();
     state.serviceRegiaoMap = state.serviceRegiaoMap || new Map();
@@ -1459,7 +1581,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (bySvc) return toUpperTrim(bySvc);
     const byMatriz = matriz ? (state.matrizRegiaoMap.get(matriz) || null) : null;
     return byMatriz ? toUpperTrim(byMatriz) : null;
-}async function checkPendingImports() {
+}
+
+async function checkPendingImports() {
     const matrizesPermitidas = getMatrizesPermitidas();
     let query = supabase
         .from('Vagas')
@@ -1477,7 +1601,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     state.pendingImportsRaw = vagasCandidatos;
     updatePendingImportCounter();
-}function showPendingImportAlert(qtdFechar, qtdAtuais, qtdFuturas) {
+}
+
+function showPendingImportAlert(qtdFechar, qtdAtuais, qtdFuturas) {
     let alertDiv = document.getElementById('pending-import-alert');
     if (!alertDiv) {
         alertDiv = document.createElement('div');
@@ -1544,36 +1670,48 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         </div>
     `;
     alertDiv.classList.remove('hidden');
-}function hidePendingImportAlert() {
+}
+
+function hidePendingImportAlert() {
     const alertDiv = document.getElementById('pending-import-alert');
     if (alertDiv) {
         alertDiv.classList.add('hidden');
     }
-}function handleSort(column) {    if (currentSort.column === column) {
+}
+
+function handleSort(column) {
+    if (currentSort.column === column) {
         currentSort.direction = currentSort.direction === 'desc' ? 'asc' : 'desc';
     } else {
         currentSort.column = column;
         currentSort.direction = 'desc';
-    }    ['presenca', 'falta', 'atestado', 'abstotal'].forEach(key => {
+    }
+    ['presenca', 'falta', 'atestado', 'abstotal'].forEach(key => {
         const icon = document.getElementById(`sort-icon-${key}`);
-        if(icon) icon.textContent = '⇅';
-    });    const mapId = {
+        if (icon) icon.textContent = '⇅';
+    });
+    const mapId = {
         'Total Presença': 'presenca',
         'Total Faltas': 'falta',
         'Total Atestados': 'atestado',
         'AbsTotal': 'abstotal'
     };
     const currentIcon = document.getElementById(`sort-icon-${mapId[column]}`);
-    if(currentIcon) currentIcon.textContent = currentSort.direction === 'desc' ? '⬇️' : '⬆️';    state.dadosFiltrados.sort((a, b) => {
+    if (currentIcon) currentIcon.textContent = currentSort.direction === 'desc' ? '⬇️' : '⬆️';
+    state.dadosFiltrados.sort((a, b) => {
         const valA = a[column] || 0;
-        const valB = b[column] || 0;        if (currentSort.direction === 'asc') {
+        const valB = b[column] || 0;
+        if (currentSort.direction === 'asc') {
             return valA - valB;
         } else {
             return valB - valA;
         }
-    });    itensVisiveis = 200;
+    });
+    itensVisiveis = 200;
     updateDisplay();
-}async function fetchColaboradores() {
+}
+
+async function fetchColaboradores() {
     const now = Date.now();
     let currentUser = 'unknown';
     try {
@@ -1592,10 +1730,15 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             const isSameUser = owner === currentUser;
             const isValidTime = (now - timestamp) < CACHE_DURATION_MS;
             if (isSameUser && isValidTime) {
-                console.log("Usando cache de colaboradores (localStorage) - Usuário validado.");                cachedColaboradores = data.map(c => {
+                console.log("Usando cache de colaboradores (localStorage) - Usuário validado.");
+
+
+                cachedColaboradores = data.map(c => {
                     c.AbsTotal = (c['Total Faltas'] || 0) + (c['Total Atestados'] || 0);
                     return c;
-                });                cachedFeriasStatus = new Map(ferias);
+                });
+
+                cachedFeriasStatus = new Map(ferias);
                 lastFetchTimestamp = timestamp;
                 state.colaboradoresData = cachedColaboradores;
                 state.feriasAtivasMap = cachedFeriasStatus;
@@ -1650,15 +1793,24 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase
             .from('Colaboradores')
-            .select('Nome, CPF, DSR, Escala, Contrato, Cargo, Gestor, "ID GROOT","Data de nascimento", MatriculaKN, LDAP, "Data de admissão", Ativo, StatusDesligamento, Ferias, Efetivacao, Fluxo, "Data Fluxo", "Observacao Fluxo", rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato, Genero, DataRetorno, CEP, "Total Presença", "Total Faltas", "Total Atestados"')
+
+            .select('Nome, CPF, DSR, Escala, Contrato, Cargo, Gestor, "ID GROOT","Data de nascimento", MatriculaKN, LDAP, SVC, MATRIZ, REGIAO, "FOLGA ESPECIAL", "Data de admissão", Ativo, StatusDesligamento, Ferias, Efetivacao, Fluxo, "Data Fluxo", "Observacao Fluxo", rg, telefone, email, pis, endereco_completo, numero, bairro, cidade, colete, sapato, Genero, DataRetorno, CEP, "Total Presença", "Total Faltas", "Total Atestados"')
             .neq('Ativo', 'NÃO')
             .order('Nome');
+
         if (matrizesPermitidas !== null) {
             query = query.in('MATRIZ', matrizesPermitidas);
-        }        let data = await fetchAllWithPagination(query);        data = data.map(c => {
+        }
+
+        let data = await fetchAllWithPagination(query);
+
+
+        data = data.map(c => {
             c.AbsTotal = (c['Total Faltas'] || 0) + (c['Total Atestados'] || 0);
             return c;
-        });        state.colaboradoresData = data || [];
+        });
+
+        state.colaboradoresData = data || [];
         const nomes = (state.colaboradoresData || []).map(c => c.Nome).filter(Boolean);
         state.feriasAtivasMap = new Map();
         if (nomes.length > 0) {
@@ -1694,7 +1846,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         cachedColaboradores = null;
         lastFetchTimestamp = 0;
     }
-}async function gerarJanelaDeQRCodes() {
+}
+
+async function gerarJanelaDeQRCodes() {
     if (state.selectedNames.size === 0) {
         await window.customAlert('Nenhum colaborador selecionado. Use Ctrl+Click para selecionar um ou Shift+Click para selecionar todos.', 'Aviso');
         return;
@@ -1781,7 +1935,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         `);
     printWindow.document.write('</body></html>');
     printWindow.document.close();
-}async function loadSVCsParaFormulario() {
+}
+
+async function loadSVCsParaFormulario() {
     const svcSelect = document.getElementById('addSVC');
     if (!svcSelect) return;
     if (state.matrizesData.length > 0 && svcSelect.options.length > 1) {
@@ -1813,7 +1969,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         svcSelect.appendChild(opt);
     });
-}async function loadGestoresParaFormulario() {
+}
+
+async function loadGestoresParaFormulario() {
     if (state.gestoresData.length > 0) return;
     const {data, error} = await supabase.from('Gestores').select('NOME, SVC');
     if (error) {
@@ -1822,7 +1980,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         return;
     }
     state.gestoresData = data || [];
-}function populateGestorSelect(selectedSvc) {
+}
+
+function populateGestorSelect(selectedSvc) {
     const gestorSelect = document.getElementById('addGestor');
     if (!gestorSelect) return;
     gestorSelect.innerHTML = '';
@@ -1851,7 +2011,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         option.textContent = gestor.NOME;
         gestorSelect.appendChild(option);
     });
-}function isDSRValida(dsrStr) {
+}
+
+function isDSRValida(dsrStr) {
     const raw = (dsrStr || '').toUpperCase().trim();
     if (!raw) return false;
     const dias = raw.split(',').map(d => d.trim()).filter(Boolean);
@@ -1859,7 +2021,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     const permitidos = new Set(DIAS_DA_SEMANA.map(d => d.toUpperCase()));
     permitidos.add('SABADO');
     return dias.every(d => permitidos.has(d));
-}async function handleAddSubmit(event) {
+}
+
+async function handleAddSubmit(event) {
     event.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -1982,7 +2146,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     document.dispatchEvent(new CustomEvent('colaborador-added'));
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}async function loadServiceMatrizForEdit() {
+}
+
+async function loadServiceMatrizForEdit() {
     if (!editSVC) return;
     if (state.matrizesData.length > 0 && editSVC.options.length > 1) {
         const matrizesPermitidasCheck = getMatrizesPermitidas();
@@ -2012,7 +2178,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         opt.textContent = svc;
         editSVC.appendChild(opt);
     });
-}async function fetchColabByNome(nome) {
+}
+
+async function fetchColabByNome(nome) {
     const {data, error} = await supabase
         .from('Colaboradores')
         .select('*')
@@ -2020,13 +2188,19 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .maybeSingle();
     if (error) throw error;
     return data;
-}function showEditModal() {
+}
+
+function showEditModal() {
     editModal?.classList.remove('hidden');
-}function hideEditModal() {
+}
+
+function hideEditModal() {
     editModal?.classList.add('hidden');
     editOriginal = null;
     editForm?.reset();
-}async function fillEditForm(colab) {
+}
+
+async function fillEditForm(colab) {
     editOriginal = colab;
     await populateContratoSelect(editInputs.Contrato);
     await loadGestoresParaFormulario();
@@ -2138,7 +2312,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     if (editExcluirBtn) {
         editExcluirBtn.style.display = state.isUserAdmin ? 'inline-block' : 'none';
     }
-}function openFluxoEfetivacaoModal() {
+}
+
+function openFluxoEfetivacaoModal() {
     if (!editOriginal || !fluxoEfetivacaoModal) {
         console.error("Colaborador original ou modal de fluxo não encontrado.");
         return;
@@ -2195,12 +2371,16 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     }
     fluxoAdmissaoKnEl.oninput = null;
     fluxoEfetivacaoModal.classList.remove('hidden');
-}function closeFluxoEfetivacaoModal() {
+}
+
+function closeFluxoEfetivacaoModal() {
     if (fluxoEfetivacaoModal) {
         fluxoEfetivacaoModal.classList.add('hidden');
         fluxoEfetivacaoForm.reset();
     }
-}async function handleFluxoSubmit(action) {
+}
+
+async function handleFluxoSubmit(action) {
     if (!editOriginal) return;
     const nome = editOriginal.Nome;
     const numeroFluxo = nullIfEmpty(fluxoNumeroEl.value);
@@ -2298,7 +2478,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if (fluxoFinalizarBtn) fluxoFinalizarBtn.disabled = false;
         if (fluxoCancelarBtn) fluxoCancelarBtn.disabled = false;
     }
-}async function validateEditDuplicates(payload) {
+}
+
+async function validateEditDuplicates(payload) {
     if (payload.Nome && payload.Nome !== editOriginal.Nome) {
         const {count, error} = await supabase.from('Colaboradores').select('Nome', {
             count: 'exact',
@@ -2316,7 +2498,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         if ((count || 0) > 0) return 'Já existe um colaborador com esse CPF.';
     }
     return null;
-}async function updateColaboradorSmart(nomeAnterior, payload) {
+}
+
+async function updateColaboradorSmart(nomeAnterior, payload) {
     if (payload.Nome && payload.Nome !== nomeAnterior) {
         const {error: rpcError} = await supabase.rpc('atualizar_nome_colaborador_cascata', {
             nome_antigo: nomeAnterior,
@@ -2348,7 +2532,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         .update(payload)
         .eq('Nome', nomeAnterior);
     if (upErr) throw upErr;
-}async function onEditSubmit(e) {
+}
+
+async function onEditSubmit(e) {
     e.preventDefault();
     if (document.body.classList.contains('user-level-visitante')) {
         await window.customAlert('Ação não permitida. Você está em modo de visualização.', 'Acesso Negado');
@@ -2502,7 +2688,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
             editSalvarBtn.textContent = 'Salvar Alterações';
         }
     }
-}async function onAfastarClick() {
+}
+
+async function onAfastarClick() {
     if (!editOriginal || !editOriginal.Nome) {
         await window.customAlert('Erro: Colaborador não identificado.', 'Erro');
         return;
@@ -2596,7 +2784,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
     hideEditModal();
     invalidateColaboradoresCache();
     await fetchColaboradores();
-}function openDesligarModalFromColab(colab) {
+}
+
+function openDesligarModalFromColab(colab) {
     desligarColaborador = colab;
     desligarNomeEl.value = colab?.Nome || '';
     const hoje = new Date();
@@ -2623,11 +2813,17 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         }
     }
     desligarModal.classList.remove('hidden');
-}function closeDesligarModal() {
+}
+
+function closeDesligarModal() {
     desligarModal.classList.add('hidden');
     desligarColaborador = null;
     desligarForm.reset();
-}const sleep = (ms) => new Promise(r => setTimeout(r, ms));async function onDesligarSubmit(e) {
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function onDesligarSubmit(e) {
     e.preventDefault();
     if (!desligarColaborador) {
         await window.customAlert('Erro: colaborador não carregado.', 'Erro');
@@ -2748,7 +2944,9 @@ const DIAS_DA_SEMANA = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEX
         console.error('Erro desligamento:', err);
         await window.customAlert(`Erro ao enviar: ${err.message || err}`, 'Erro');
     }
-}const HIST = {
+}
+
+const HIST = {
     nome: null, ano: new Date().getFullYear(), marks: new Map(), dsrDates: new Set(),
     initialized: false, els: {modal: null, title: null, yearSel: null, months: null, fecharBtn: null,}
 };
@@ -2778,7 +2976,9 @@ const firstWeekdayIndex = (year, month0) => {
     return (d === 0) ? 6 : d - 1;
 };
 const isoOf = (year, month0, day) => `${year}-${pad2(month0 + 1)}-${pad2(day)}`;
-const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';function ensureHistoricoDomRefs() {
+const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCase() === 'SIM';
+
+function ensureHistoricoDomRefs() {
     if (HIST.initialized) return;
     HIST.els.modal = document.getElementById('historicoModal');
     HIST.els.title = document.getElementById('hist-title');
@@ -2813,10 +3013,14 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         }
     });
     HIST.initialized = true;
-}function putHistoricoTitle() {
+}
+
+function putHistoricoTitle() {
     if (!HIST.els.title) return;
     HIST.els.title.textContent = HIST.nome ? `Histórico – ${HIST.nome}` : 'Histórico';
-}function renderHistoricoCalendar() {
+}
+
+function renderHistoricoCalendar() {
     const monthsEl = HIST.els.months;
     if (!monthsEl) return;
     monthsEl.innerHTML = '';
@@ -2869,7 +3073,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         monthCard.appendChild(days);
         monthsEl.appendChild(monthCard);
     }
-}async function computeDsrDatesForYear(nome, ano) {
+}
+
+async function computeDsrDatesForYear(nome, ano) {
     try {
         const {data: colab, error} = await supabase.from('Colaboradores').select('DSR').eq('Nome', nome).maybeSingle();
         if (error) throw error;
@@ -2903,7 +3109,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         console.error('computeDsrDatesForYear error:', e);
         return new Set();
     }
-}async function exportHistoricoMesXLSX(monthIndex) {
+}
+
+async function exportHistoricoMesXLSX(monthIndex) {
     if (monthIndex === null || monthIndex === undefined) return;
     await ensureXLSX();
     const nomeColaborador = HIST.nome || 'Colaborador';
@@ -2948,7 +3156,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     const fileName = `Historico_${nomeColaborador.replace(/\s+/g, '_')}_${mesNome}_${ano}.xlsx`;
     window.XLSX.writeFile(wb, fileName);
     await window.customAlert(`Exportação de <b>${mesNome}/${ano}</b> concluída com sucesso!`, 'Sucesso');
-}async function loadHistoricoIntoModal() {
+}
+
+async function loadHistoricoIntoModal() {
     if (!HIST.nome) return;
     if (HIST.els.months) {
         HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#6b7280;">Carregando…</div>';
@@ -2984,7 +3194,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             HIST.els.months.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:10px;color:#e55353;">Erro ao carregar histórico.</div>';
         }
     }
-}async function openHistorico(nome) {
+}
+
+async function openHistorico(nome) {
     ensureHistoricoDomRefs();
     if (!HIST.els.modal) {
         alert('Não foi possível abrir o histórico (elementos do modal não encontrados).');
@@ -2999,7 +3211,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     putHistoricoTitle();
     await loadHistoricoIntoModal();
     HIST.els.modal.classList.remove('hidden');
-}function wireDsrModal() {
+}
+
+function wireDsrModal() {
     dsrModal = document.getElementById('dsrModal');
     if (!dsrModal || dsrModal.dataset.wired === '1') return;
     dsrModal.dataset.wired = '1';
@@ -3038,7 +3252,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         dsrModal.classList.add('hidden');
         currentDsrInputTarget = null;
     });
-}function openDsrModal(targetInput) {
+}
+
+function openDsrModal(targetInput) {
     if (!dsrModal) return;
     currentDsrInputTarget = targetInput;
     const currentValues = (targetInput.value || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -3047,7 +3263,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         checkbox.checked = currentValueSet.has(checkbox.value);
     });
     dsrModal.classList.remove('hidden');
-}function wireEdit() {
+}
+
+function wireEdit() {
     editModal = document.getElementById('editModal');
     if (!editModal) return;
     editForm = document.getElementById('editForm');
@@ -3200,7 +3418,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             await window.customAlert('Erro ao carregar colaborador para edição.', 'Erro');
         }
     });
-}function wireDesligar() {
+}
+
+function wireDesligar() {
     desligarModal = document.getElementById('desligarModal');
     if (!desligarModal || desligarModal.dataset.wired === '1') return;
     desligarModal.dataset.wired = '1';
@@ -3232,7 +3452,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             }
         });
     }
-}async function ensureXLSX() {
+}
+
+async function ensureXLSX() {
     if (window.XLSX) return;
     await new Promise((resolve, reject) => {
         const s = document.createElement('script');
@@ -3241,13 +3463,19 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
         s.onerror = () => reject(new Error('Falha ao carregar biblioteca XLSX'));
         document.head.appendChild(s);
     });
-}async function exportColaboradoresXLSX(useFiltered) {
-    const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;    if (!data || data.length === 0) {
+}
+
+async function exportColaboradoresXLSX(useFiltered) {
+    const data = useFiltered ? state.dadosFiltrados : state.colaboradoresData;
+    if (!data || data.length === 0) {
         await window.customAlert('Não há dados para exportar.', 'Aviso');
         return;
-    }    await ensureXLSX();    const mapColabToExportRow = (c) => {
+    }
+    await ensureXLSX();
+    const mapColabToExportRow = (c) => {
         const fmt = (v) => v == null ? '' : v;
-        const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';        return {
+        const fmtDate = (v) => v ? formatDateLocal(String(v)) : '';
+        return {
             'Nome': fmt(c.Nome),
             'Contrato': fmt(c.Contrato),
             'Cargo': fmt(c.Cargo),
@@ -3255,9 +3483,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             'Gestor': fmt(c.Gestor),
             'Escala': fmt(c.Escala),
             'DSR': fmt(c.DSR),
-            'Ativo': fmt(c.Ativo),            'Total Presença': c['Total Presença'] || 0,
+            'Ativo': fmt(c.Ativo), 'Total Presença': c['Total Presença'] || 0,
             'Total Faltas': c['Total Faltas'] || 0,
-            'Total Atestados': c['Total Atestados'] || 0,            'Ferias': fmt(c.Ferias),
+            'Total Atestados': c['Total Atestados'] || 0, 'Ferias': fmt(c.Ferias),
             'Genero': fmt(c.Genero),
             'Data de nascimento': fmtDate(c['Data de nascimento']),
             'SVC': fmt(c.SVC),
@@ -3282,15 +3510,23 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             'CEP': fmt(c.CEP),
             'MatriculaKN': fmt(c.MatriculaKN)
         };
-    };    const rows = data.map(mapColabToExportRow);
-    const headers = Object.keys(rows[0]);    const wb = window.XLSX.utils.book_new();
-    const ws = window.XLSX.utils.json_to_sheet(rows, {header: headers});    const colWidths = headers.map(h => {
+    };
+    const rows = data.map(mapColabToExportRow);
+    const headers = Object.keys(rows[0]);
+    const wb = window.XLSX.utils.book_new();
+    const ws = window.XLSX.utils.json_to_sheet(rows, {header: headers});
+    const colWidths = headers.map(h => {
         const maxLen = Math.max(h.length, ...rows.map(r => String(r[h] ?? '').length));
         return {wch: Math.min(Math.max(10, maxLen + 2), 50)};
     });
-    ws['!cols'] = colWidths;    window.XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores');    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    const suffix = useFiltered ? 'filtrado' : 'completo';    window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
-}function wireFluxoEfetivacao() {
+    ws['!cols'] = colWidths;
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Colaboradores');
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const suffix = useFiltered ? 'filtrado' : 'completo';
+    window.XLSX.writeFile(wb, `colaboradores-${suffix}-${stamp}.xlsx`);
+}
+
+function wireFluxoEfetivacao() {
     fluxoEfetivacaoModal = document.getElementById('fluxoEfetivacaoModal');
     if (!fluxoEfetivacaoModal) {
         console.warn("Modal de fluxo de efetivação (id='fluxoEfetivacaoModal') não encontrado. A funcionalidade não será ativada.");
@@ -3322,7 +3558,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             closeFluxoEfetivacaoModal();
         }
     });
-}function wireTabelaColaboradoresEventos() {
+}
+
+function wireTabelaColaboradoresEventos() {
     if (!colaboradoresTbody) return;
     if (colaboradoresTbody.dataset.wired === '1') return;
     colaboradoresTbody.dataset.wired = '1';
@@ -3378,15 +3616,21 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             new CustomEvent('open-edit-modal', {detail: {nome}})
         );
     });
-}export async function init() {
+}
+
+export async function init() {
     state.isModuleActive = true;
-    colaboradoresTbody = document.getElementById('colaboradores-tbody');    setupObserver();    const thPresenca = document.getElementById('th-presenca');
+    colaboradoresTbody = document.getElementById('colaboradores-tbody');
+    setupObserver();
+    const thPresenca = document.getElementById('th-presenca');
     const thFalta = document.getElementById('th-falta');
     const thAtestado = document.getElementById('th-atestado');
-    const thAbsTotal = document.getElementById('th-abstotal');    if(thPresenca) thPresenca.onclick = () => handleSort('Total Presença');
-    if(thFalta) thFalta.onclick = () => handleSort('Total Faltas');
-    if(thAtestado) thAtestado.onclick = () => handleSort('Total Atestados');
-    if(thAbsTotal) thAbsTotal.onclick = () => handleSort('AbsTotal');    wireTabelaColaboradoresEventos();
+    const thAbsTotal = document.getElementById('th-abstotal');
+    if (thPresenca) thPresenca.onclick = () => handleSort('Total Presença');
+    if (thFalta) thFalta.onclick = () => handleSort('Total Faltas');
+    if (thAtestado) thAtestado.onclick = () => handleSort('Total Atestados');
+    if (thAbsTotal) thAbsTotal.onclick = () => handleSort('AbsTotal');
+    wireTabelaColaboradoresEventos();
     searchInput = document.getElementById('search-input');
     filtrosSelect = document.querySelectorAll('.filters select');
     limparFiltrosBtn = document.getElementById('limpar-filtros-btn');
@@ -3400,16 +3644,22 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     btnImportarRH = document.getElementById('btnImportarRH');
     modalListaRH = document.getElementById('modalListaRH');
     tbodyCandidatosRH = document.getElementById('tbodyCandidatosRH');
-    fecharModalRH = document.getElementById('fecharModalRH');    checkUserAdminStatus();    setOnFeriasChangeCallback(async () => {
+    fecharModalRH = document.getElementById('fecharModalRH');
+    checkUserAdminStatus();
+    setOnFeriasChangeCallback(async () => {
         if (!state.isModuleActive) return;
         console.log("Status de férias atualizado em background. Atualizando tela...");
         invalidateColaboradoresCache();
         await fetchColaboradores();
-    });    wireFerias();
+    });
+    wireFerias();
     await ensureMatrizesDataLoaded();
-    fetchColaboradores();    processarStatusFerias().then(() => {
+    fetchColaboradores();
+    processarStatusFerias().then(() => {
         console.log("Verificação inicial de férias concluída (background).");
-    }).catch(err => console.error("Erro na verificação de férias background:", err));    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);    if (filtrosSelect && filtrosSelect.length) {
+    }).catch(err => console.error("Erro na verificação de férias background:", err));
+    if (searchInput) searchInput.addEventListener('input', applyFiltersAndSearch);
+    if (filtrosSelect && filtrosSelect.length) {
         filtrosSelect.forEach((selectEl) => {
             selectEl.addEventListener('change', (event) => {
                 const filterKey = selectEl.dataset.filterKey;
@@ -3419,7 +3669,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 applyFiltersAndSearch();
             });
         });
-    }    if (limparFiltrosBtn) {
+    }
+    if (limparFiltrosBtn) {
         limparFiltrosBtn.addEventListener('click', () => {
             if (searchInput) searchInput.value = '';
             if (filtrosSelect && filtrosSelect.length) filtrosSelect.forEach((select) => (select.selectedIndex = 0));
@@ -3431,46 +3682,55 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             });
             applyFiltersAndSearch();
         });
-    }    if (mostrarMaisBtn) {
+    }
+    if (mostrarMaisBtn) {
         mostrarMaisBtn.addEventListener('click', () => {
             itensVisiveis += ITENS_POR_PAGINA;
             updateDisplay();
         });
-    }    if (mostrarMenosBtn) {
+    }
+    if (mostrarMenosBtn) {
         mostrarMenosBtn.addEventListener('click', () => {
             itensVisiveis = Math.max(ITENS_POR_PAGINA, itensVisiveis - ITENS_POR_PAGINA);
             updateDisplay();
         });
-    }    if (addColaboradorBtn) {
+    }
+    if (addColaboradorBtn) {
         addColaboradorBtn.addEventListener('click', (event) => {
             event.stopPropagation();
             if (document.body.classList.contains('user-level-visitante')) return;
             if (dropdownAdd) dropdownAdd.classList.toggle('hidden');
         });
-    }    document.addEventListener('click', (event) => {
+    }
+    document.addEventListener('click', (event) => {
         if (dropdownAdd && !dropdownAdd.contains(event.target) && event.target !== addColaboradorBtn) {
             dropdownAdd.classList.add('hidden');
         }
-    });    if (btnAdicionarManual) {
+    });
+    if (btnAdicionarManual) {
         btnAdicionarManual.addEventListener('click', async () => {
             dropdownAdd.classList.add('hidden');
             await prepararFormularioAdicao();
             document.dispatchEvent(new CustomEvent('open-add-modal'));
             preencherFormularioAdicao({});
         });
-    }    if (btnImportarRH) {
+    }
+    if (btnImportarRH) {
         btnImportarRH.addEventListener('click', () => {
             dropdownAdd.classList.add('hidden');
             modalListaRH.classList.remove('hidden');
             fetchCandidatosAprovados();
         });
-    }    if (fecharModalRH) {
+    }
+    if (fecharModalRH) {
         fecharModalRH.addEventListener('click', () => {
             modalListaRH.classList.add('hidden');
         });
-    }    window.addEventListener('click', (e) => {
+    }
+    window.addEventListener('click', (e) => {
         if (e.target === modalListaRH) modalListaRH.classList.add('hidden');
-    });    if (addForm) {
+    });
+    if (addForm) {
         attachUppercaseHandlers();
         addForm.addEventListener('submit', handleAddSubmit);
         const svcSelect = document.getElementById('addSVC');
@@ -3487,7 +3747,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 openDsrModal(document.getElementById('addDSR'));
             });
         }
-    }    if (colaboradoresTbody) {
+    }
+    if (colaboradoresTbody) {
         document.addEventListener('colaborador-edited', async (e) => {
             if (document.querySelector('[data-page="colaboradores"].active')) {
                 await fetchColaboradores();
@@ -3509,7 +3770,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 invalidateColaboradoresCache();
             }
         });
-    }    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
+    }
+    const exportColaboradoresBtn = document.getElementById('export-colaboradores-btn');
     if (exportColaboradoresBtn) {
         exportColaboradoresBtn.addEventListener('click', async () => {
             if (!state.colaboradoresData.length) {
@@ -3519,7 +3781,8 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
             const hasSearch = !!(searchInput && searchInput.value && searchInput.value.trim() !== '');
             const hasFilters = Object.keys(state.filtrosAtivos).length > 0;
             const filteredDifferent = state.dadosFiltrados.length !== state.colaboradoresData.length;
-            const useFiltered = hasSearch || hasFilters || filteredDifferent;            exportColaboradoresBtn.disabled = true;
+            const useFiltered = hasSearch || hasFilters || filteredDifferent;
+            exportColaboradoresBtn.disabled = true;
             try {
                 await exportColaboradoresXLSX(useFiltered);
             } catch (e) {
@@ -3529,15 +3792,19 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
                 exportColaboradoresBtn.disabled = false;
             }
         });
-    }    const gerarQRBtn = document.getElementById('gerar-qr-btn');
+    }
+    const gerarQRBtn = document.getElementById('gerar-qr-btn');
     if (gerarQRBtn) {
         gerarQRBtn.addEventListener('click', gerarJanelaDeQRCodes);
-    }    wireEdit();
+    }
+    wireEdit();
     wireDesligar();
     wireFluxoEfetivacao();
     wireDsrModal();
     wireCepEvents();
-}export function destroy() {
+}
+
+export function destroy() {
     state.isModuleActive = false;
     const alertDiv = document.getElementById('pending-import-alert');
     if (alertDiv) {
@@ -3578,7 +3845,9 @@ const isTrue = (v) => v === 1 || v === '1' || v === true || String(v).toUpperCas
     } catch {
     }
     console.log("Cache de colaboradores e estado local destruídos ao sair do módulo.");
-}export function garantirModalEdicaoAtivo() {
+}
+
+export function garantirModalEdicaoAtivo() {
     if (!editModal || editModal.dataset.wired !== '1') {
         console.log("Iniciando Modal de Edição via Dados Operacionais...");
         wireEdit();

@@ -18,24 +18,10 @@
     <div class="filter-bar efetividade-filters hcd-bar">
         <div class="efetividade-actions">
 
-
-            <button
-                    id="efet-view-coordenacao"
-                    type="button"
-                    class="pill-btn"
-                    aria-pressed="false"
-                    data-on="0"
-                    title="Alternar agrupamento: SVC ↔ Coordenação"
-                    style="padding:8px 16px;border:none;border-radius:26px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.08);background:#e4e6eb;color:#4b4f56;">
-                Coordenação
-            </button>
-
-            <!-- Matriz -->
             <select id="efet-matriz-filter" title="Filtrar por Matriz">
                 <option value="">Matriz</option>
             </select>
 
-            <!-- Gerente -->
             <select id="efet-gerente-filter" title="Filtrar por Gerente">
                 <option value="">Gerentes</option>
             </select>
@@ -61,40 +47,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         init();
 
-
-        const coordBtn = document.getElementById('efet-view-coordenacao');
-        const gerenteSelect = document.getElementById('efet-gerente-filter');
-
-        const setVisual = (on) => {
-            coordBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-            coordBtn.dataset.on = on ? '1' : '0';
-            if (on) {
-                coordBtn.classList.add('active');
-                coordBtn.style.background = 'var(--d-accent, #02B1EE)';
-                coordBtn.style.color = '#fff';
-                coordBtn.style.boxShadow = '0 6px 14px rgba(2,177,238,.25)';
-            } else {
-                coordBtn.classList.remove('active');
-                coordBtn.style.background = '#e4e6eb';
-                coordBtn.style.color = '#4b4f56';
-                coordBtn.style.boxShadow = '0 4px 12px rgba(0,0,0,.08)';
-            }
-        };
-
-        setVisual(false);
-
-        coordBtn.addEventListener('click', () => {
-            const isOn = coordBtn.getAttribute('aria-pressed') === 'true';
-            setVisual(!isOn);
-
-
-            if (gerenteSelect) {
-                gerenteSelect.dispatchEvent(new Event('change', {bubbles: true}));
-            } else {
-                const periodBtn = document.getElementById('efet-period-btn');
-                periodBtn?.dispatchEvent(new Event('click', {bubbles: true}));
-            }
-        });
+        // ALTERAÇÃO: Lógica de controle do botão coordBtn removida pois o botão não existe mais.
     });
 </script>
 
