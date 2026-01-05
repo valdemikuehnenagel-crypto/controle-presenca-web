@@ -1,4 +1,4 @@
-import { supabase } from '../supabaseClient.js';
+import {supabase} from '../supabaseClient.js';
 
 var HOST_SEL = '#inclusao-pcd-container';
 var state = {
@@ -8,7 +8,7 @@ var state = {
     historico: [],
     cidSelecionados: [null, null, null],
     cidIndexAtual: 0,
-    scoreCache: { msg: '', val: 0 },
+    scoreCache: {msg: '', val: 0},
     loading: false,
     filtros: {
         nome: '',
@@ -19,7 +19,6 @@ var state = {
 
 function getScoreColor(score) {
     if (score <= 100) return '#10b981';
-    if (score < 1000) return '#f59e0b';
     return '#ef4444';
 }
 
@@ -33,10 +32,10 @@ export function renderInclusaoPCD(container) {
 
     if (state.mounted) {
         if (typeof HOST_SEL === 'object' && HOST_SEL.innerHTML === '') {
-             state.mounted = false;
+            state.mounted = false;
         } else {
-             carregarHistorico();
-             return;
+            carregarHistorico();
+            return;
         }
     }
 
@@ -358,7 +357,7 @@ function ensureStyles() {
             display: flex; justify-content: flex-end; align-items: center; gap: 10px;
         }
 
-        .badge-status { padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 10px; text-transform: uppercase; }
+        .badge-status { padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 10px; text-transform: uppercase; display: inline-block; }
         .bg-green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .bg-yellow { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
         .bg-red { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
@@ -374,7 +373,9 @@ function ensureStyles() {
             padding: 6px 8px; 
             border-radius: 8px; 
             border: 2px solid #e8ecf3; 
-            font-size: 12px; 
+            font-size: 14px; 
+            font-weight: 700; 
+            color: #003369; 
             cursor: pointer; 
             white-space: nowrap; 
             overflow: hidden; 
@@ -382,8 +383,11 @@ function ensureStyles() {
             height: 32px; 
             display: block; 
             line-height: 16px; 
+            text-align: center; 
         }
         .cid-input:hover { border-color: #cbd5e1; }
+        .cid-input.empty { font-weight: 400; color: #94a3b8; } 
+        
         .btn-lupa { margin-left:5px; background: var(--p-primary); color:white; border:none; width:30px; height:30px; border-radius:8px; cursor:pointer; flex-shrink: 0; }
 
         .res-list { list-style: none; padding: 0; margin: 5px 0 0 0; border: 1px solid #e2e8f0; border-radius: 8px; max-height: 250px; overflow-y: auto; }
@@ -416,7 +420,7 @@ function bindEvents() {
     const displayInputs = document.querySelectorAll('.cid-input, .btn-lupa');
     displayInputs.forEach(el => {
         el.onclick = (e) => {
-            if(document.getElementById('pcdNome').disabled) return;
+            if (document.getElementById('pcdNome').disabled) return;
             let idx = e.currentTarget.getAttribute('data-idx');
             if (idx !== null) openSearch(parseInt(idx));
         };
@@ -428,28 +432,28 @@ function bindEvents() {
     });
 
     const filtroNome = document.getElementById('filtroNome');
-    if(filtroNome) filtroNome.addEventListener('keyup', (e) => {
-        if(e.key === 'Enter') {
+    if (filtroNome) filtroNome.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
             state.filtros.nome = e.target.value;
             carregarHistorico();
         }
     });
 
     const filtroCargo = document.getElementById('filtroCargo');
-    if(filtroCargo) filtroCargo.addEventListener('change', (e) => {
+    if (filtroCargo) filtroCargo.addEventListener('change', (e) => {
         state.filtros.cargo = e.target.value;
         carregarHistorico();
     });
 
     const filtroFilial = document.getElementById('filtroFilial');
-    if(filtroFilial) filtroFilial.addEventListener('change', (e) => {
+    if (filtroFilial) filtroFilial.addEventListener('change', (e) => {
         state.filtros.filial = e.target.value;
         carregarHistorico();
     });
 
     const btnLimpar = document.getElementById('btnLimparFiltros');
-    if(btnLimpar) btnLimpar.onclick = () => {
-        state.filtros = { nome: '', cargo: '', filial: '' };
+    if (btnLimpar) btnLimpar.onclick = () => {
+        state.filtros = {nome: '', cargo: '', filial: ''};
         document.getElementById('filtroNome').value = '';
         document.getElementById('filtroCargo').value = '';
         document.getElementById('filtroFilial').value = '';
@@ -457,7 +461,7 @@ function bindEvents() {
     };
 
     const btnExport = document.getElementById('btnExportar');
-    if(btnExport) btnExport.onclick = exportarRelatorio;
+    if (btnExport) btnExport.onclick = exportarRelatorio;
 }
 
 function loadInitialData() {
@@ -482,21 +486,24 @@ function openModal(modeReadOnly, data = null) {
             const elCargo = document.getElementById('pcdCargo');
             const elFilial = document.getElementById('pcdFilial');
 
-            Array.from(elCargo.options).forEach(opt => { if(opt.value === data.cargo) opt.selected = true; });
+            Array.from(elCargo.options).forEach(opt => {
+                if (opt.value === data.cargo) opt.selected = true;
+            });
 
             const filObj = state.filiais.find(f => f.nome === data.filial);
-            if(filObj) elFilial.value = filObj.id;
+            if (filObj) elFilial.value = filObj.id;
 
             document.getElementById('pcdExperiencia').value = data.experiencia || 'NAO';
             document.getElementById('pcdLaudo').value = data.possui_laudo || 'NAO';
             document.getElementById('pcdRestricoes').value = data.observacoes || '';
 
             state.cidSelecionados = [null, null, null];
-            if(data.cids_json && Array.isArray(data.cids_json)) {
+            if (data.cids_json && Array.isArray(data.cids_json)) {
                 data.cids_json.forEach((c, idx) => {
-                    if(idx < 3) selectCid(c, idx);
+                    if (idx < 3) selectCid(c, idx);
                 });
             }
+
 
             calcularTudo();
             inputs.forEach(el => el.disabled = true);
@@ -521,8 +528,9 @@ function openModal(modeReadOnly, data = null) {
         state.cidSelecionados = [null, null, null];
         [0, 1, 2].forEach(i => {
             const el = document.getElementById(`cidDisplay${i + 1}`);
-            if(el) {
+            if (el) {
                 el.textContent = 'Selecionar...';
+                el.classList.add('empty');
                 el.style.color = '#94a3b8';
                 el.style.borderColor = '#e8ecf3';
                 el.style.background = '#f8fafc';
@@ -532,7 +540,7 @@ function openModal(modeReadOnly, data = null) {
 
 
         updateStatus("AGUARDANDO DADOS", [], "#f1f5f9", "#94a3b8", "2px dashed #cbd5e1");
-        state.scoreCache = { msg: '', val: 0 };
+        state.scoreCache = {msg: '', val: 0};
     }
 
     document.getElementById('pcd-modal-overlay').classList.remove('hidden');
@@ -550,7 +558,7 @@ function openSearch(index) {
 
     setTimeout(() => {
         const btnLoad = document.getElementById('btnLoadAllCids');
-        if(btnLoad) btnLoad.onclick = loadAllCids;
+        if (btnLoad) btnLoad.onclick = loadAllCids;
     }, 0);
 
     document.getElementById('pcd-search-overlay').classList.remove('hidden');
@@ -562,23 +570,27 @@ function closeSearch() {
 }
 
 async function carregarFiliais() {
-    const { data, error } = await supabase.from('pcd_filiais').select('*').order('nome');
+    const {data, error} = await supabase.from('pcd_filiais').select('*').order('nome');
     if (!error && data) {
         state.filiais = data;
         const sel = document.getElementById('pcdFilial');
         const filt = document.getElementById('filtroFilial');
-        if(sel) {
+        if (sel) {
             sel.innerHTML = '<option value="">-- Selecione --</option>';
             data.forEach(f => {
                 const opt = document.createElement('option');
-                opt.value = f.id; opt.textContent = f.nome; sel.appendChild(opt);
+                opt.value = f.id;
+                opt.textContent = f.nome;
+                sel.appendChild(opt);
             });
         }
-        if(filt) {
+        if (filt) {
             filt.innerHTML = '<option value="">Todas as Filiais</option>';
             data.forEach(f => {
                 const opt = document.createElement('option');
-                opt.value = f.nome; opt.textContent = f.nome; filt.appendChild(opt);
+                opt.value = f.nome;
+                opt.textContent = f.nome;
+                filt.appendChild(opt);
             });
         }
     }
@@ -593,7 +605,7 @@ async function carregarCargos() {
             <option value="ADM">ADMINISTRATIVO</option>
         </optgroup>
     `;
-    const { data, error } = await supabase.from('pcd_lista_cargos').select('*').order('nome');
+    const {data, error} = await supabase.from('pcd_lista_cargos').select('*').order('nome');
     if (!error && data) {
         state.cargos = data;
         html += `<optgroup label="Específicos">`;
@@ -601,12 +613,12 @@ async function carregarCargos() {
         html += `</optgroup>`;
     }
     const sel = document.getElementById('pcdCargo');
-    if(sel) sel.innerHTML = html;
+    if (sel) sel.innerHTML = html;
 
     const filt = document.getElementById('filtroCargo');
-    if(filt) {
+    if (filt) {
         let htmlFilt = '<option value="">Todos os Cargos</option>';
-        if(data) data.forEach(c => htmlFilt += `<option value="${c.nome}">${c.nome}</option>`);
+        if (data) data.forEach(c => htmlFilt += `<option value="${c.nome}">${c.nome}</option>`);
         filt.innerHTML = htmlFilt;
     }
 }
@@ -614,13 +626,13 @@ async function carregarCargos() {
 async function loadAllCids() {
     const ul = document.getElementById('pcdResultList');
     ul.innerHTML = '<li style="text-align:center;padding:15px;color:#64748b;">Carregando...</li>';
-    const { data } = await supabase.from('pcd_cids').select('*').limit(500).order('codigo');
+    const {data} = await supabase.from('pcd_cids').select('*').limit(500).order('codigo');
     renderList(data);
 };
 
 async function filtrarCids(termo) {
     if (termo.length < 2) return;
-    const { data } = await supabase.from('pcd_cids').select('*')
+    const {data} = await supabase.from('pcd_cids').select('*')
         .or(`codigo.ilike.%${termo}%,patologia.ilike.%${termo}%`)
         .limit(50);
     renderList(data);
@@ -629,11 +641,16 @@ async function filtrarCids(termo) {
 function renderList(data) {
     const ul = document.getElementById('pcdResultList');
     ul.innerHTML = '';
-    if (!data || !data.length) { ul.innerHTML = '<li style="text-align:center;color:red;padding:10px;">Nada encontrado</li>'; return; }
+    if (!data || !data.length) {
+        ul.innerHTML = '<li style="text-align:center;color:red;padding:10px;">Nada encontrado</li>';
+        return;
+    }
 
     data.forEach(cid => {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${cid.patologia}</span><strong>${cid.codigo}</strong>`;
+
+        li.title = cid.patologia;
+        li.innerHTML = `<span style="font-weight:700; color:#003369; width:100%; text-align:center;">${cid.codigo}</span>`;
         li.onclick = () => selectCid(cid);
         ul.appendChild(li);
     });
@@ -643,15 +660,18 @@ function selectCid(cid, specificIndex = null) {
     const idx = specificIndex !== null ? specificIndex : state.cidIndexAtual;
     state.cidSelecionados[idx] = cid;
     const el = document.getElementById(`cidDisplay${idx + 1}`);
-    if(el) {
-        const fullText = `${cid.codigo} - ${cid.patologia}`;
-        el.textContent = fullText;
-        el.title = fullText;
-        el.style.color = '#334155';
+    if (el) {
+
+        el.textContent = cid.codigo;
+
+        el.title = cid.codigo;
+
+        el.classList.remove('empty');
+        el.style.color = '#003369';
         el.style.background = '#f0f9ff';
         el.style.borderColor = '#02B1EE';
     }
-    if(specificIndex === null) {
+    if (specificIndex === null) {
         closeSearch();
         calcularTudo();
     }
@@ -669,7 +689,7 @@ function calcularTudo() {
     }
 
     let filialObj = state.filiais.find(f => f.id == filialId);
-    if(!filialObj && document.getElementById('pcdFilial').disabled) return;
+    if (!filialObj && document.getElementById('pcdFilial').disabled) return;
 
     let scoreBranch = 1;
     if (filialObj) {
@@ -695,8 +715,7 @@ function calcularTudo() {
         else if (nomeCargo === 'ADM') scoreDeste = cid.grau_adm || 1;
         else if (cid.scores_por_cargo && cid.scores_por_cargo[nomeCargo] !== undefined) {
             scoreDeste = cid.scores_por_cargo[nomeCargo];
-        }
-        else {
+        } else {
             let col = 'grau_operacional';
             const cUp = nomeCargo.toUpperCase();
             if (cUp.includes('MHE') || cUp.includes('OPERADOR')) col = 'grau_mhe';
@@ -711,7 +730,7 @@ function calcularTudo() {
 
     if (count === 0) {
         let r = [];
-        if(filialObj && filialObj.recomendacao) r.push(`🏢 <strong>Filial:</strong> ${filialObj.recomendacao}`);
+        if (filialObj && filialObj.recomendacao) r.push(`🏢 <strong>Filial:</strong> ${filialObj.recomendacao}`);
         updateStatus("AGUARDANDO SELEÇÃO DE CIDS", r, "#f1f5f9", "#94a3b8", "2px dashed #cbd5e1");
         return;
     }
@@ -721,7 +740,7 @@ function calcularTudo() {
     const scoreExp = (exp === 'NAO') ? 4 : 1.1;
     const scoreLaudo = (laudo === 'NAO') ? 40 : 1;
     let score3Cids = (count >= 3) ? 100 : 1;
-    if(score3Cids > 1) recs.push('❗ Atenção: 3 ou mais CIDs.');
+    if (score3Cids > 1) recs.push('❗ Atenção: 3 ou mais CIDs.');
 
     const base = totalScore === 0 ? 1 : totalScore;
     const finalScore = (base * scoreBranch * scoreExp * scoreLaudo) + score3Cids;
@@ -729,25 +748,39 @@ function calcularTudo() {
     let msg = "", bg = "", color = "", border = "";
 
     if (finalScore >= 1000) {
-        msg = "⛔ REPROVADO / RISCO CRÍTICO"; bg = "#fef2f2"; color = "#b91c1c"; border = "2px solid #fecaca";
+        msg = "⛔ REPROVADO / RISCO CRÍTICO";
+        bg = "#fef2f2";
+        color = "#b91c1c";
+        border = "2px solid #fecaca";
     } else if (finalScore > 100) {
-        msg = "⚠️ ATENÇÃO / AVALIAÇÃO NECESSÁRIA"; bg = "#fffbeb"; color = "#b45309"; border = "2px solid #fcd34d";
+        msg = "⛔ REPROVADO / RISCO EXISTENTE";
+        bg = "#fef2f2";
+        color = "#b91c1c";
+        border = "2px solid #fecaca";
     } else {
-        msg = "✅ APROVADO / BAIXO RISCO"; bg = "#f0fdf4"; color = "#15803d"; border = "2px solid #bbf7d0";
+        msg = "✅ APROVADO / BAIXO RISCO";
+        bg = "#f0fdf4";
+        color = "#15803d";
+        border = "2px solid #bbf7d0";
     }
 
-    state.scoreCache = { msg, val: finalScore };
+    state.scoreCache = {msg, val: finalScore};
     updateStatus(msg, recs, bg, color, border);
 }
 
 function updateStatus(msg, recs, bg, color, border) {
     const el = document.getElementById('statusBox');
-    if(el) { el.textContent = msg; Object.assign(el.style, { backgroundColor: bg, color, border }); }
+    if (el) {
+        el.textContent = msg;
+        Object.assign(el.style, {backgroundColor: bg, color, border});
+    }
 
     const recBox = document.getElementById('boxRecomendacoes');
-    if(recBox) {
-        if(!recs.length) { recBox.textContent = "Nenhuma recomendação específica."; recBox.style.color="#94a3b8"; }
-        else {
+    if (recBox) {
+        if (!recs.length) {
+            recBox.textContent = "Nenhuma recomendação específica.";
+            recBox.style.color = "#94a3b8";
+        } else {
             recBox.innerHTML = [...new Set(recs)].map(r => `<div style="margin-bottom:6px;">${r}</div>`).join('');
             recBox.style.color = "#334155";
         }
@@ -760,15 +793,15 @@ async function carregarHistorico() {
 
     tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">Carregando...</td></tr>';
 
-    let query = supabase.from('pcd_reports').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('pcd_reports').select('*').order('created_at', {ascending: false});
 
-    if(state.filtros.nome) query = query.ilike('nome_candidato', `%${state.filtros.nome}%`);
-    if(state.filtros.cargo) query = query.eq('cargo', state.filtros.cargo);
-    if(state.filtros.filial) query = query.eq('filial', state.filtros.filial);
+    if (state.filtros.nome) query = query.ilike('nome_candidato', `%${state.filtros.nome}%`);
+    if (state.filtros.cargo) query = query.eq('cargo', state.filtros.cargo);
+    if (state.filtros.filial) query = query.eq('filial', state.filtros.filial);
 
     query = query.limit(50);
 
-    const { data, error } = await query;
+    const {data, error} = await query;
 
     if (error || !data || !data.length) {
         tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;">Nenhum histórico encontrado com estes filtros.</td></tr>';
@@ -779,12 +812,11 @@ async function carregarHistorico() {
 
     tb.innerHTML = data.map(r => {
         const dt = new Date(r.created_at).toLocaleDateString('pt-BR');
-        let statusClass = 'bg-yellow';
+        let statusClass = 'bg-red';
         if ((r.status_parecer || '').includes('APROVADO')) statusClass = 'bg-green';
-        if ((r.status_parecer || '').includes('REPROVADO')) statusClass = 'bg-red';
 
         const cids = (r.cids_json || []).map(c =>
-            `<span style="background:#e0f2fe;color:#003369;padding:2px 5px;border-radius:4px;font-size:10px;margin-right:3px;">${c.codigo}</span>`
+            `<span style="background:#e0f2fe;color:#003369;padding:2px 5px;border-radius:4px;font-size:10px;margin-right:4px;display:inline-block;">${c.codigo}</span>`
         ).join('');
 
         return `
@@ -807,7 +839,7 @@ async function carregarHistorico() {
         row.ondblclick = () => {
             const id = row.getAttribute('data-id');
             const report = state.historico.find(item => item.id == id);
-            if(report) openModal(true, report);
+            if (report) openModal(true, report);
         };
     });
 }
@@ -817,10 +849,16 @@ async function salvarRelatorio() {
     const cargo = document.getElementById('pcdCargo').value;
     const filialId = document.getElementById('pcdFilial').value;
 
-    if (!nome || !cargo || !filialId) { await window.customAlert("Preencha Nome, Cargo e Filial.", "Campos Obrigatórios"); return; }
+    if (!nome || !cargo || !filialId) {
+        await window.customAlert("Preencha Nome, Cargo e Filial.", "Campos Obrigatórios");
+        return;
+    }
 
-    const cidsValidos = state.cidSelecionados.filter(c => c).map(c => ({ codigo: c.codigo, patologia: c.patologia }));
-    if (cidsValidos.length === 0) { await window.customAlert("Selecione pelo menos um CID.", "Atenção"); return; }
+    const cidsValidos = state.cidSelecionados.filter(c => c).map(c => ({codigo: c.codigo, patologia: c.patologia}));
+    if (cidsValidos.length === 0) {
+        await window.customAlert("Selecione pelo menos um CID.", "Atenção");
+        return;
+    }
 
     const filialObj = state.filiais.find(f => f.id == filialId);
 
@@ -836,9 +874,10 @@ async function salvarRelatorio() {
         score_final: state.scoreCache.val
     };
 
-    const { error } = await supabase.from('pcd_reports').insert(payload);
-    if (error) { await window.customAlert("Erro ao salvar: " + error.message, "Erro"); }
-    else {
+    const {error} = await supabase.from('pcd_reports').insert(payload);
+    if (error) {
+        await window.customAlert("Erro ao salvar: " + error.message, "Erro");
+    } else {
         await window.customAlert("✅ Salvo com sucesso!", "Sucesso");
         closeModal();
         carregarHistorico();
@@ -846,13 +885,16 @@ async function salvarRelatorio() {
 }
 
 async function exportarRelatorio() {
-    let query = supabase.from('pcd_reports').select('*').order('created_at', { ascending: false }).limit(1000);
-    if(state.filtros.nome) query = query.ilike('nome_candidato', `%${state.filtros.nome}%`);
-    if(state.filtros.cargo) query = query.eq('cargo', state.filtros.cargo);
-    if(state.filtros.filial) query = query.eq('filial', state.filtros.filial);
+    let query = supabase.from('pcd_reports').select('*').order('created_at', {ascending: false}).limit(1000);
+    if (state.filtros.nome) query = query.ilike('nome_candidato', `%${state.filtros.nome}%`);
+    if (state.filtros.cargo) query = query.eq('cargo', state.filtros.cargo);
+    if (state.filtros.filial) query = query.eq('filial', state.filtros.filial);
 
-    const { data, error } = await query;
-    if(error || !data || !data.length) { await window.customAlert("Nada para exportar com os filtros atuais.", "Aviso"); return; }
+    const {data, error} = await query;
+    if (error || !data || !data.length) {
+        await window.customAlert("Nada para exportar com os filtros atuais.", "Aviso");
+        return;
+    }
 
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
     csvContent += "Protocolo;Data;Nome;Cargo;Filial;Experiencia;Laudo;Parecer;CIDs\r\n";
@@ -869,7 +911,7 @@ async function exportarRelatorio() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `relatorio_pcd_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute("download", `relatorio_pcd_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
