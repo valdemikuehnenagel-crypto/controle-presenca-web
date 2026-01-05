@@ -1,8 +1,21 @@
-import {supabase} from '../supabaseClient.js';
+import { supabase } from '../supabaseClient.js';
 
-let filiaisCache = [];
-let cidSelecionados = [null, null, null];
-
+var HOST_SEL = '#inclusao-pcd-container';
+var state = {
+    mounted: false,
+    filiais: [],
+    cargos: [],
+    historico: [],
+    cidSelecionados: [null, null, null],
+    cidIndexAtual: 0,
+    scoreCache: { msg: '', val: 0 },
+    loading: false,
+    filtros: {
+        nome: '',
+        cargo: '',
+        filial: ''
+    }
+};
 
 function getScoreColor(score) {
     if (score <= 100) return '#10b981';
@@ -11,665 +24,853 @@ function getScoreColor(score) {
 }
 
 export function renderInclusaoPCD(container) {
-    const style = document.createElement('style');
-    style.textContent = `
-        /* --- ESTILO COMPACTO --- */
-        .pcd-wrapper {
-            font-family: 'Inter', 'Segoe UI', sans-serif;
-            background-color: transparent;
-            padding: 15px; /* Reduzido de 30px */
-            min-height: 100vh;
-            color: #334155;
-            box-sizing: border-box;
-        }
-
-        /* HEADER MAIS BAIXO */
-        .pcd-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px; /* Reduzido */
-            border-bottom: 2px solid #003369;
-            padding: 10px 15px; /* Reduzido */
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 8px;
-            backdrop-filter: blur(5px);
-        }
-        .pcd-header h2 { margin: 0; color: #003369; font-size: 20px; font-weight: 800; }
-        .version-badge { background: #e2e8f0; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #64748b; }
-
-        /* GRID */
-        .pcd-grid {
-            display: grid;
-            grid-template-columns: 1fr 1.4fr;
-            gap: 15px; /* Reduzido gap */
-            align-items: start;
-        }
-        @media (max-width: 900px) { .pcd-grid { grid-template-columns: 1fr; } }
-
-        /* CARDS */
-        .pcd-card {
-            background: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border: 1px solid #cbd5e1;
-            overflow: hidden;
-        }
-        .card-header {
-            background: #003369;
-            color: white;
-            padding: 8px 15px; /* Mais fino */
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            text-transform: uppercase;
-        }
-        .card-body { padding: 15px; } /* Reduzido padding interno */
-
-        /* FORMULÁRIOS COMPACTOS */
-        .form-group { margin-bottom: 10px; } /* Menos espaço entre campos */
-        
-        .form-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 700;
-            margin-bottom: 3px;
-            color: #475569;
-        }
-        .form-control {
-            width: 100%;
-            padding: 6px 10px; /* Input mais baixo */
-            border: 1px solid #cbd5e1;
-            border-radius: 4px;
-            font-size: 13px;
-            box-sizing: border-box;
-            transition: all 0.2s;
-            height: 34px; /* Altura fixa para alinhar */
-        }
-        textarea.form-control { height: auto; } /* Textarea livre */
-
-        .form-control:focus {
-            border-color: #02B1EE;
-            outline: none;
-            box-shadow: 0 0 0 2px rgba(2, 177, 238, 0.1);
-        }
-
-        /* GRID INTERNO PARA INPUTS (LADO A LADO) */
-        .form-row-compact {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .form-row-compact.uneven { grid-template-columns: 1fr 2fr; } /* Para Data(pequeno) e Nome(grande) */
-
-        /* CIDS */
-        .cid-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px; /* Mais junto */
-            background: #f8fafc;
-            padding: 6px 10px;
-            border-radius: 6px;
-            border: 1px solid #e2e8f0;
-            transition: border-color 0.2s;
-        }
-        .cid-row:hover { border-color: #02B1EE; }
-        
-        .cid-label { font-weight: 800; color: #003369; font-size: 12px; min-width: 40px; }
-        
-        .cid-display-input {
-            flex: 1;
-            background: white;
-            border: 1px solid #cbd5e1;
-            padding: 6px 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: #334155;
-            cursor: pointer;
-            height: 30px; /* Fixo */
-            display: flex;
-            align-items: center;
-        }
-        .cid-display-input:hover { border-color: #02B1EE; }
-        .cid-display-input.empty { color: #94a3b8; font-style: italic; }
-
-        .cid-score-badge {
-            width: 30px; height: 30px;
-            display: flex; align-items: center; justify-content: center;
-            background: #cbd5e1; color: white;
-            font-weight: 800; border-radius: 6px; font-size: 12px;
-        }
-
-        .btn-lupa {
-            background: #003369; color: white; border: none;
-            width: 30px; height: 30px; border-radius: 6px;
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-        }
-        .btn-lupa:hover { background: #02B1EE; }
-
-        /* DASHBOARD COMPACTO */
-        .dashboard-container { display: flex; gap: 10px; margin-top: 10px; }
-        
-        .stats-list {
-            flex: 1;
-            background: #f8fafc;
-            border-radius: 6px;
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            font-size: 11px;
-        }
-        .stat-item {
-            display: flex; justify-content: space-between;
-            padding: 3px 0;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .stat-item:last-child { border: none; }
-
-        .score-box {
-            width: 140px; /* Largura fixa menor */
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            background: white; border: 1px solid #e2e8f0;
-            border-radius: 6px; position: relative; overflow: hidden;
-        }
-        .score-box::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
-            background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
-        }
-        
-        .score-number { font-size: 36px; font-weight: 900; line-height: 1; margin-top: 5px; }
-        .score-title { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; }
-
-        /* STATUS BANNER */
-        .status-banner {
-            margin-top: 10px;
-            padding: 8px;
-            text-align: center;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 13px;
-            background: #f1f5f9; color: #64748b;
-        }
-
-        /* RECOMENDAÇÕES */
-        .rec-box {
-            background: #fffbeb; border-left: 3px solid #f59e0b;
-            padding: 8px 12px; font-size: 12px; color: #78350f;
-            border-radius: 4px; min-height: 30px;
-            margin-bottom: 0;
-        }
-
-        /* MODAL */
-        #modalBuscaCid { backdrop-filter: blur(2px); }
-        .modal-card {
-            background: white; width: 90%; max-width: 500px;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            animation: slideUp 0.15s ease-out;
-            display: flex; flex-direction: column;
-            max-height: 85vh;
-        }
-        @keyframes slideUp { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        
-        .modal-header {
-            padding: 10px 15px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-            font-weight: 700; color: #003369; display: flex; justify-content: space-between; align-items: center;
-        }
-        .modal-body { padding: 15px; overflow: hidden; display: flex; flex-direction: column; }
-        
-        .modal-search-bar {
-            width: 100%; padding: 8px; font-size: 14px;
-            border: 2px solid #02B1EE; border-radius: 6px;
-            margin-bottom: 10px; box-sizing: border-box;
-        }
-        
-        .cid-list {
-            list-style: none; padding: 0; margin: 0; overflow-y: auto;
-            border: 1px solid #e2e8f0; border-radius: 6px; flex: 1;
-        }
-        .cid-list li {
-            padding: 8px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer;
-            display: flex; justify-content: space-between; align-items: center; font-size: 13px;
-        }
-        .cid-list li:hover { background: #f0f9ff; }
-        .cid-list li.action-row { background: #f0f9ff; color: #003369; font-weight: 700; justify-content: center; }
-        .cid-list li.action-row:hover { background: #e0f2fe; }
-    `;
-    document.head.appendChild(style);
-
-    container.innerHTML = `
-        <div class="pcd-wrapper">
-            <div class="pcd-header">
-                <h2>Inclusão <span style="color:#02B1EE">PCD</span></h2>
-                <span class="version-badge">SHE System v1.2</span>
-            </div>
-
-            <div class="pcd-grid">
-                <div class="pcd-card">
-                    <div class="card-header">👤 Dados do Candidato</div>
-                    <div class="card-body">
-                        
-                        <div class="form-row-compact uneven">
-                            <div>
-                                <label class="form-label">Data</label>
-                                <input type="date" id="pcdData" class="form-control">
-                            </div>
-                            <div>
-                                <label class="form-label">Nome Completo</label>
-                                <input type="text" id="pcdNome" class="form-control" placeholder="Nome do candidato">
-                            </div>
-                        </div>
-
-                        <div class="form-row-compact">
-                            <div>
-                                <label class="form-label">Cargo</label>
-                                <select id="pcdCargo" class="form-control">
-                                    <option value="">-- Selecione --</option>
-                                    <option value="OPERADOR DE MHE">OPERADOR MHE</option>
-                                    <option value="OPERACIONAL">OPERACIONAL</option>
-                                    <option value="ADM">ADMINISTRATIVO</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="form-label">Filial</label>
-                                <select id="pcdFilial" class="form-control">
-                                    <option value="">Carregando...</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-row-compact">
-                            <div>
-                                <label class="form-label">Experiência?</label>
-                                <select id="pcdExperiencia" class="form-control">
-                                    <option value="NAO">NÃO</option>
-                                    <option value="SIM">SIM</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="form-label">Possui Laudo?</label>
-                                <select id="pcdLaudo" class="form-control">
-                                    <option value="NAO">NÃO</option>
-                                    <option value="SIM">SIM</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label class="form-label">Observações / Restrições</label>
-                            <textarea id="pcdRestricoes" class="form-control" style="height:60px; resize:vertical;" placeholder="EPI especial, mobilidade, etc..."></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="display:flex; flex-direction:column; gap:15px;">
-                    
-                    <div class="pcd-card">
-                        <div class="card-header">🩺 Análise Médica (CID)</div>
-                        <div class="card-body">
-                            
-                            <div class="cid-row">
-                                <div class="cid-label">CID 1</div>
-                                <div id="cidDisplay1" class="cid-display-input empty" onclick="abrirModalCid(0)">
-                                    Selecionar via lupa...
-                                </div>
-                                <div id="cidScoreBadge1" class="cid-score-badge">0</div>
-                                <button class="btn-lupa" onclick="abrirModalCid(0)">🔍</button>
-                            </div>
-
-                            <div class="cid-row">
-                                <div class="cid-label">CID 2</div>
-                                <div id="cidDisplay2" class="cid-display-input empty" onclick="abrirModalCid(1)">
-                                    Selecionar via lupa...
-                                </div>
-                                <div id="cidScoreBadge2" class="cid-score-badge">0</div>
-                                <button class="btn-lupa" onclick="abrirModalCid(1)">🔍</button>
-                            </div>
-
-                            <div class="cid-row">
-                                <div class="cid-label">CID 3</div>
-                                <div id="cidDisplay3" class="cid-display-input empty" onclick="abrirModalCid(2)">
-                                    Selecionar via lupa...
-                                </div>
-                                <div id="cidScoreBadge3" class="cid-score-badge">0</div>
-                                <button class="btn-lupa" onclick="abrirModalCid(2)">🔍</button>
-                            </div>
-
-                            <div style="text-align:center; font-size:10px; color:#94a3b8; margin-top:5px;">
-                                * Se o CID não constar, contate o SHE.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="pcd-card">
-                        <div class="card-header" style="background:#f1f5f9; color:#003369; border-bottom:1px solid #e2e8f0;">
-                            📊 Resultado
-                        </div>
-                        <div class="card-body">
-                            
-                            <label class="form-label">Recomendações</label>
-                            <div id="boxRecomendacoes" class="rec-box">
-                                Aguardando preenchimento...
-                            </div>
-
-                            <div class="dashboard-container">
-                                <div class="stats-list">
-                                    <div class="stat-item"><span>CIDs</span><strong id="detScoreCid">0</strong></div>
-                                    <div class="stat-item"><span>Branch</span><strong id="detScoreBranch">1</strong></div>
-                                    <div class="stat-item"><span>Exp</span><strong id="detScoreExp">4</strong></div>
-                                    <div class="stat-item"><span>Laudo</span><strong id="detScoreLaudo">40</strong></div>
-                                    <div class="stat-item"><span>H54</span><strong id="detScoreH54">0</strong></div>
-                                    <div class="stat-item"><span>3 CIDs</span><strong id="detScore3Cid">1</strong></div>
-                                </div>
-                                <div class="score-box">
-                                    <div class="score-title">SCORE FINAL</div>
-                                    <div id="displayScoreFinal" class="score-number" style="color:#94a3b8">0</div>
-                                </div>
-                            </div>
-
-                            <div id="statusBox" class="status-banner">
-                                AGUARDANDO DADOS
-                            </div>
-
-                            <div style="margin-top:10px; text-align:center; font-size:10px; color:#94a3b8;">
-                                <a href="#" style="color:#02B1EE">ernanes.piran@kuehne-nagel.com</a>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        <div id="modalBuscaCid" style="display:none; position:fixed; inset:0; z-index:9999; align-items:center; justify-content:center;">
-            <div class="modal-card">
-                <div class="modal-header">
-                    <span>🔎 Buscar Patologia</span>
-                    <button id="btnFecharModalCid" style="border:none; background:transparent; font-size:20px; cursor:pointer;">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <input type="text" id="inputBuscaModal" class="modal-search-bar" placeholder="Ex: A80 ou Paralisia...">
-                    <ul id="listaResultadosCid" class="cid-list">
-                        <li style="text-align:center; color:#94a3b8; cursor:default;">...</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    `;
-
-
-    carregarFiliais();
-    const elDate = document.getElementById('pcdData');
-    if (elDate) elDate.valueAsDate = new Date();
-
-    ['pcdCargo', 'pcdFilial', 'pcdExperiencia', 'pcdLaudo'].forEach(id => {
-        document.getElementById(id).addEventListener('change', calcularTudo);
-    });
-
-    document.getElementById('btnFecharModalCid').addEventListener('click', () => {
-        document.getElementById('modalBuscaCid').style.display = 'none';
-    });
-
-    document.getElementById('inputBuscaModal').addEventListener('input', (e) => {
-        filtrarCids(e.target.value);
-    });
-
-    window.abrirModalCid = abrirModalCid;
-    window.carregarTodosCids = carregarTodosCids;
-}
-
-
-async function carregarFiliais() {
-    const {data, error} = await supabase.from('pcd_filiais').select('*').order('nome');
-    if (!error) {
-        filiaisCache = data;
-        const sel = document.getElementById('pcdFilial');
-        if (!sel) return;
-        sel.innerHTML = '<option value="">-- Selecione a Filial --</option>';
-        data.forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f.id;
-            opt.textContent = f.nome;
-            sel.appendChild(opt);
-        });
+    if (container) {
+        if (typeof container === 'string') HOST_SEL = container;
+        else HOST_SEL = container;
     }
-}
 
+    ensureStyles();
 
-let cidIndexAtual = 0;
+    if (state.mounted) {
+        if (typeof HOST_SEL === 'object' && HOST_SEL.innerHTML === '') {
+             state.mounted = false;
+        } else {
+             carregarHistorico();
+             return;
+        }
+    }
 
-function abrirModalCid(index) {
-    cidIndexAtual = parseInt(index);
-    const modal = document.getElementById('modalBuscaCid');
-    const input = document.getElementById('inputBuscaModal');
-    const lista = document.getElementById('listaResultadosCid');
-
-    input.value = '';
-
-
-    lista.innerHTML = `
-        <li class="action-row" onclick="carregarTodosCids()">
-            📂 Checar na base completa
-        </li>
-    `;
-
-    modal.style.display = 'flex';
-    setTimeout(() => input.focus(), 100);
-}
-
-async function carregarTodosCids() {
-    const lista = document.getElementById('listaResultadosCid');
-    lista.innerHTML = '<li style="text-align:center; padding:20px; color:#64748b;">Carregando base de dados...</li>';
-
-    const {data, error} = await supabase
-        .from('pcd_cids')
-        .select('*')
-        .limit(1000)
-        .order('codigo', {ascending: true});
-
-    if (error) {
-        console.error(error);
-        lista.innerHTML = '<li style="text-align:center; color:#ef4444;">Erro ao carregar dados.</li>';
+    let el = (typeof HOST_SEL === 'string') ? document.querySelector(HOST_SEL) : HOST_SEL;
+    if (!el) {
+        console.error("Container PCD não encontrado:", HOST_SEL);
         return;
     }
 
-    renderizarListaCids(data);
+    el.innerHTML = `
+        <div class="pcd-root">
+            <div class="pcd-toolbar">
+                <div class="filters">
+                    <input type="text" id="filtroNome" placeholder="🔍 Buscar Nome..." class="filter-input">
+                    <select id="filtroCargo"><option value="">Todos Cargos</option></select>
+                    <select id="filtroFilial"><option value="">Todas Filiais</option></select>
+                    <button id="btnLimparFiltros" class="btn-cancelar" style="border-radius:24px; padding: 8px 14px;">Limpar</button>
+                </div>
+
+                <div class="spacer"></div>
+
+                <button class="btn-acao" id="btnExportar" style="background:#003369;">
+                    📥 Exportar Excel
+                </button>
+                <button class="btn-acao" id="pcd-btn-novo" style="background:#28a745;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Novo Parecer
+                </button>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="pcd-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 90px; text-align:center;">Protocolo</th>
+                            <th style="width: 110px; text-align:center;">Data</th>
+                            <th style="text-align:left;">Colaborador</th>
+                            <th style="text-align:left;">Cargo / Filial</th>
+                            <th style="text-align:center;">CIDs</th>
+                            <th style="width: 180px; text-align:center;">Parecer</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pcd-tbody">
+                        <tr><td colspan="6" style="text-align:center; padding:20px; color:#6b7280;">Carregando histórico...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="pcd-modal-overlay" class="pcd-modal hidden">
+            <div class="modal-card">
+                <div class="modal-header-actions">
+                    <h3 id="modalTitle">Novo Parecer Técnico</h3>
+                    <button class="pcd-close-icon" id="pcd-modal-close-icon">&times;</button>
+                </div>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Data</label>
+                        <input type="date" id="pcdData">
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Nome Completo</label>
+                        <input type="text" id="pcdNome" placeholder="Nome do candidato">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Cargo</label>
+                        <select id="pcdCargo"><option>Carregando...</option></select>
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label>Filial</label>
+                        <select id="pcdFilial"><option>Carregando...</option></select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Experiência?</label>
+                        <select id="pcdExperiencia">
+                            <option value="NAO">NÃO</option>
+                            <option value="SIM">SIM</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Possui Laudo?</label>
+                        <select id="pcdLaudo">
+                            <option value="NAO">NÃO</option>
+                            <option value="SIM">SIM</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" style="grid-column: span 3;">
+                        <label style="color:#003369; border-bottom:1px solid #eee; padding-bottom:4px; margin-top:10px;">🩺 Patologias (CID)</label>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:5px;">
+                            <div class="cid-row">
+                                <span style="font-size:11px; font-weight:700; margin-right:5px;">1.</span>
+                                <div id="cidDisplay1" class="cid-input empty" data-idx="0">Selecionar...</div>
+                                <button class="btn-lupa" data-idx="0">🔍</button>
+                            </div>
+                            <div class="cid-row">
+                                <span style="font-size:11px; font-weight:700; margin-right:5px;">2.</span>
+                                <div id="cidDisplay2" class="cid-input empty" data-idx="1">Selecionar...</div>
+                                <button class="btn-lupa" data-idx="1">🔍</button>
+                            </div>
+                            <div class="cid-row">
+                                <span style="font-size:11px; font-weight:700; margin-right:5px;">3.</span>
+                                <div id="cidDisplay3" class="cid-input empty" data-idx="2">Selecionar...</div>
+                                <button class="btn-lupa" data-idx="2">🔍</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="grid-column: span 3;">
+                        <label>Observações / Restrições</label>
+                        <textarea id="pcdRestricoes" class="form-control" style="height:60px;" placeholder="Descreva restrições, necessidade de EPI, mobilidade..."></textarea>
+                    </div>
+
+                    <div class="form-group" style="grid-column: span 3;">
+                         <div id="statusBox" class="status-banner">AGUARDANDO DADOS</div>
+                         <div id="boxRecomendacoes" class="rec-box" style="margin-top:5px;">Aguardando análise...</div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn-cancelar" id="pcd-btn-cancel">Fechar</button>
+                    <button class="btn-salvar" id="pcd-btn-save" style="background-color: #003369 !important; color: white !important;">Salvar Relatório</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="pcd-search-overlay" class="pcd-modal hidden" style="z-index: 10050;">
+            <div class="modal-card" style="width: 450px;">
+                <h3>🔍 Buscar Patologia</h3>
+                <div style="padding: 10px 0;">
+                    <input type="text" id="pcdSearchInput" class="filter-input" placeholder="Digite código ou nome (Ex: A80)..." style="width:100%;">
+                    <ul id="pcdResultList" class="res-list">
+                        <li style="text-align:center;padding:15px;color:#94a3b8;">Digite para buscar...</li>
+                    </ul>
+                </div>
+                <div class="form-actions">
+                    <button class="btn-cancelar" id="pcd-search-close">Fechar</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    state.mounted = true;
+    bindEvents();
+    loadInitialData();
 }
+
+function ensureStyles() {
+    if (document.getElementById('pcd-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'pcd-styles';
+    style.textContent = `
+        .pcd-root {
+            --p-primary: #003369;
+            --p-accent: #02B1EE;
+            --p-surface: #fff;
+            --p-border: #eceff5;
+            --p-muted: #6b7280;
+            --p-shadow: 0 6px 16px rgba(0, 0, 0, .08);
+
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            height: 100%;
+            width: 100%;
+        }
+
+        .pcd-toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .spacer { flex: 1; }
+
+        .filters {
+            display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+        }
+        .filters select, .filters input, .filter-input {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            background: #fff;
+            font-weight: 600;
+            color: #333;
+            font-size: 12px;
+            outline: none;
+            transition: all .2s ease;
+        }
+        .filters select:focus, .filters input:focus {
+            border-color: var(--p-primary);
+        }
+
+        .btn-acao, .btn-salvar, .btn-cancelar {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 24px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all .2s ease;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, .10);
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .btn-acao { color: #fff; }
+        .btn-acao:hover { transform: translateY(-2px); opacity: 0.9; }
+
+        .btn-salvar { background-color: #003369; color: #fff; }
+        .btn-salvar:hover { background-color: #002244; transform: translateY(-2px); }
+
+        .btn-cancelar { background-color: #e4e6eb; color: #4b4f56; }
+        .btn-cancelar:hover { background-color: #d8dadf; transform: translateY(-2px); }
+        
+        .table-wrapper {
+            background: #fff;
+            border: 1px solid var(--p-border);
+            border-radius: 14px;
+            box-shadow: var(--p-shadow);
+            flex-grow: 1;
+            min-height: 0;
+            overflow: auto;
+            width: 100%;
+        }
+        .pcd-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .pcd-table thead th {
+            position: sticky; top: 0; z-index: 2;
+            background: var(--p-primary);
+            color: #fff;
+            text-transform: uppercase;
+            padding: 10px;
+            font-size: 12px;
+            font-weight: 800;
+            border-bottom: 1px solid var(--p-border);
+            white-space: nowrap;
+        }
+        .pcd-table tbody td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--p-border);
+            font-size: 13px;
+            color: #334155;
+            vertical-align: middle;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: #fff;
+        }
+        .pcd-table tr:hover td { background: #f0f9ff; cursor: pointer; }
+
+        .pcd-modal {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, .35);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+        }
+        .pcd-modal.hidden { display: none; }
+
+        .modal-card {
+            width: min(860px, 94vw);
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, .18);
+            padding: 16px 18px;
+            border: 1px solid #e7ebf4;
+            display: flex; flex-direction: column;
+        }
+
+        .modal-header-actions {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #e7ebf4; padding-bottom: 8px; margin-bottom: 12px;
+        }
+
+        .modal-card h3 {
+            color: var(--p-primary);
+            font-weight: 700;
+            margin: 0;
+            font-size: 16px;
+        }
+        
+        .pcd-close-icon {
+            background: transparent; border: none; font-size: 24px; 
+            color: #94a3b8; cursor: pointer; line-height: 1;
+        }
+        .pcd-close-icon:hover { color: #ef4444; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label {
+            font-size: 12px; color: #56607f; margin-bottom: 4px; font-weight: 600;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 8px 9px;
+            border: 2px solid #e8ecf3;
+            border-radius: 10px;
+            font-size: 13px; font-weight: 600; color: #242c4c;
+            background: #fff; outline: none; transition: all .2s ease;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: var(--p-accent);
+            box-shadow: 0 0 0 3px rgba(2, 177, 238, .15);
+        }
+        .form-group input:disabled, .form-group select:disabled, .form-group textarea:disabled {
+            background: #f1f5f9; color: #94a3b8; cursor: not-allowed;
+        }
+
+        .form-actions {
+            margin-top: 15px;
+            display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+        }
+
+        .badge-status { padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 10px; text-transform: uppercase; }
+        .bg-green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .bg-yellow { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .bg-red { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+        .status-banner { padding: 10px; text-align: center; border-radius: 8px; font-weight: 800; font-size: 14px; background: #f1f5f9; color: #94a3b8; border: 2px dashed #cbd5e1; text-transform: uppercase; transition: all 0.3s; }
+        .rec-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px; font-size: 12px; color: #78350f; line-height: 1.4; border-radius: 4px; }
+
+        .cid-row { display: flex; align-items: center; min-width: 0; }
+        .cid-input { 
+            flex: 1; 
+            min-width: 0; 
+            background: #f8fafc; 
+            padding: 6px 8px; 
+            border-radius: 8px; 
+            border: 2px solid #e8ecf3; 
+            font-size: 12px; 
+            cursor: pointer; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            height: 32px; 
+            display: block; 
+            line-height: 16px; 
+        }
+        .cid-input:hover { border-color: #cbd5e1; }
+        .btn-lupa { margin-left:5px; background: var(--p-primary); color:white; border:none; width:30px; height:30px; border-radius:8px; cursor:pointer; flex-shrink: 0; }
+
+        .res-list { list-style: none; padding: 0; margin: 5px 0 0 0; border: 1px solid #e2e8f0; border-radius: 8px; max-height: 250px; overflow-y: auto; }
+        .res-list li { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; font-size: 12px; display: flex; justify-content: space-between; }
+        .res-list li:hover { background: #f0f9ff; }
+        .res-list li strong { background: #e0f2fe; color: #003369; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    `;
+    document.head.appendChild(style);
+}
+
+function bindEvents() {
+    const btnNovo = document.getElementById('pcd-btn-novo');
+    if (btnNovo) btnNovo.onclick = () => openModal(false);
+
+    const btnClose = document.getElementById('pcd-btn-cancel');
+    if (btnClose) btnClose.onclick = closeModal;
+
+    const btnIconClose = document.getElementById('pcd-modal-close-icon');
+    if (btnIconClose) btnIconClose.onclick = closeModal;
+
+    const btnSave = document.getElementById('pcd-btn-save');
+    if (btnSave) btnSave.onclick = salvarRelatorio;
+
+    const btnSearchClose = document.getElementById('pcd-search-close');
+    if (btnSearchClose) btnSearchClose.onclick = closeSearch;
+
+    const inputSearch = document.getElementById('pcdSearchInput');
+    if (inputSearch) inputSearch.oninput = (e) => filtrarCids(e.target.value);
+
+    const displayInputs = document.querySelectorAll('.cid-input, .btn-lupa');
+    displayInputs.forEach(el => {
+        el.onclick = (e) => {
+            if(document.getElementById('pcdNome').disabled) return;
+            let idx = e.currentTarget.getAttribute('data-idx');
+            if (idx !== null) openSearch(parseInt(idx));
+        };
+    });
+
+    ['pcdCargo', 'pcdFilial', 'pcdExperiencia', 'pcdLaudo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', calcularTudo);
+    });
+
+    const filtroNome = document.getElementById('filtroNome');
+    if(filtroNome) filtroNome.addEventListener('keyup', (e) => {
+        if(e.key === 'Enter') {
+            state.filtros.nome = e.target.value;
+            carregarHistorico();
+        }
+    });
+
+    const filtroCargo = document.getElementById('filtroCargo');
+    if(filtroCargo) filtroCargo.addEventListener('change', (e) => {
+        state.filtros.cargo = e.target.value;
+        carregarHistorico();
+    });
+
+    const filtroFilial = document.getElementById('filtroFilial');
+    if(filtroFilial) filtroFilial.addEventListener('change', (e) => {
+        state.filtros.filial = e.target.value;
+        carregarHistorico();
+    });
+
+    const btnLimpar = document.getElementById('btnLimparFiltros');
+    if(btnLimpar) btnLimpar.onclick = () => {
+        state.filtros = { nome: '', cargo: '', filial: '' };
+        document.getElementById('filtroNome').value = '';
+        document.getElementById('filtroCargo').value = '';
+        document.getElementById('filtroFilial').value = '';
+        carregarHistorico();
+    };
+
+    const btnExport = document.getElementById('btnExportar');
+    if(btnExport) btnExport.onclick = exportarRelatorio;
+}
+
+function loadInitialData() {
+    carregarFiliais();
+    carregarCargos();
+    carregarHistorico();
+}
+
+function openModal(modeReadOnly, data = null) {
+    const titleEl = document.getElementById('modalTitle');
+    const btnSave = document.getElementById('pcd-btn-save');
+    const inputs = document.querySelectorAll('.modal-card input, .modal-card select, .modal-card textarea, .btn-lupa');
+
+    if (modeReadOnly && data) {
+        titleEl.textContent = `Visualizar Protocolo #${data.id}`;
+        btnSave.style.display = 'none';
+
+        document.getElementById('pcdNome').value = data.nome_candidato;
+        document.getElementById('pcdData').value = data.created_at.split('T')[0];
+
+        setTimeout(() => {
+            const elCargo = document.getElementById('pcdCargo');
+            const elFilial = document.getElementById('pcdFilial');
+
+            Array.from(elCargo.options).forEach(opt => { if(opt.value === data.cargo) opt.selected = true; });
+
+            const filObj = state.filiais.find(f => f.nome === data.filial);
+            if(filObj) elFilial.value = filObj.id;
+
+            document.getElementById('pcdExperiencia').value = data.experiencia || 'NAO';
+            document.getElementById('pcdLaudo').value = data.possui_laudo || 'NAO';
+            document.getElementById('pcdRestricoes').value = data.observacoes || '';
+
+            state.cidSelecionados = [null, null, null];
+            if(data.cids_json && Array.isArray(data.cids_json)) {
+                data.cids_json.forEach((c, idx) => {
+                    if(idx < 3) selectCid(c, idx);
+                });
+            }
+
+            calcularTudo();
+            inputs.forEach(el => el.disabled = true);
+        }, 200);
+
+    } else {
+
+        titleEl.textContent = 'Novo Parecer Técnico';
+        btnSave.style.display = 'inline-flex';
+        inputs.forEach(el => el.disabled = false);
+
+        document.getElementById('pcdNome').value = '';
+        document.getElementById('pcdRestricoes').value = '';
+        document.getElementById('pcdCargo').value = '';
+        document.getElementById('pcdFilial').value = '';
+        document.getElementById('pcdExperiencia').value = 'NAO';
+        document.getElementById('pcdLaudo').value = 'NAO';
+
+        const dt = new Date();
+        document.getElementById('pcdData').value = dt.toISOString().split('T')[0];
+
+        state.cidSelecionados = [null, null, null];
+        [0, 1, 2].forEach(i => {
+            const el = document.getElementById(`cidDisplay${i + 1}`);
+            if(el) {
+                el.textContent = 'Selecionar...';
+                el.style.color = '#94a3b8';
+                el.style.borderColor = '#e8ecf3';
+                el.style.background = '#f8fafc';
+                el.title = '';
+            }
+        });
+
+
+        updateStatus("AGUARDANDO DADOS", [], "#f1f5f9", "#94a3b8", "2px dashed #cbd5e1");
+        state.scoreCache = { msg: '', val: 0 };
+    }
+
+    document.getElementById('pcd-modal-overlay').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('pcd-modal-overlay').classList.add('hidden');
+}
+
+function openSearch(index) {
+    state.cidIndexAtual = index;
+    document.getElementById('pcdSearchInput').value = '';
+    document.getElementById('pcdResultList').innerHTML =
+        `<li style="background:#f0f9ff;color:#003369;font-weight:700;justify-content:center;" id="btnLoadAllCids">📂 Ver lista completa</li>`;
+
+    setTimeout(() => {
+        const btnLoad = document.getElementById('btnLoadAllCids');
+        if(btnLoad) btnLoad.onclick = loadAllCids;
+    }, 0);
+
+    document.getElementById('pcd-search-overlay').classList.remove('hidden');
+    setTimeout(() => document.getElementById('pcdSearchInput').focus(), 100);
+}
+
+function closeSearch() {
+    document.getElementById('pcd-search-overlay').classList.add('hidden');
+}
+
+async function carregarFiliais() {
+    const { data, error } = await supabase.from('pcd_filiais').select('*').order('nome');
+    if (!error && data) {
+        state.filiais = data;
+        const sel = document.getElementById('pcdFilial');
+        const filt = document.getElementById('filtroFilial');
+        if(sel) {
+            sel.innerHTML = '<option value="">-- Selecione --</option>';
+            data.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.id; opt.textContent = f.nome; sel.appendChild(opt);
+            });
+        }
+        if(filt) {
+            filt.innerHTML = '<option value="">Todas as Filiais</option>';
+            data.forEach(f => {
+                const opt = document.createElement('option');
+                opt.value = f.nome; opt.textContent = f.nome; filt.appendChild(opt);
+            });
+        }
+    }
+}
+
+async function carregarCargos() {
+    let html = `
+        <option value="">-- Selecione --</option>
+        <optgroup label="Cargos Padrão (Legado)">
+            <option value="OPERADOR DE MHE">OPERADOR DE MHE</option>
+            <option value="OPERACIONAL">OPERACIONAL</option>
+            <option value="ADM">ADMINISTRATIVO</option>
+        </optgroup>
+    `;
+    const { data, error } = await supabase.from('pcd_lista_cargos').select('*').order('nome');
+    if (!error && data) {
+        state.cargos = data;
+        html += `<optgroup label="Específicos">`;
+        data.forEach(c => html += `<option value="${c.nome}">${c.nome}</option>`);
+        html += `</optgroup>`;
+    }
+    const sel = document.getElementById('pcdCargo');
+    if(sel) sel.innerHTML = html;
+
+    const filt = document.getElementById('filtroCargo');
+    if(filt) {
+        let htmlFilt = '<option value="">Todos os Cargos</option>';
+        if(data) data.forEach(c => htmlFilt += `<option value="${c.nome}">${c.nome}</option>`);
+        filt.innerHTML = htmlFilt;
+    }
+}
+
+async function loadAllCids() {
+    const ul = document.getElementById('pcdResultList');
+    ul.innerHTML = '<li style="text-align:center;padding:15px;color:#64748b;">Carregando...</li>';
+    const { data } = await supabase.from('pcd_cids').select('*').limit(500).order('codigo');
+    renderList(data);
+};
 
 async function filtrarCids(termo) {
     if (termo.length < 2) return;
-
-    const {data, error} = await supabase
-        .from('pcd_cids')
-        .select('*')
+    const { data } = await supabase.from('pcd_cids').select('*')
         .or(`codigo.ilike.%${termo}%,patologia.ilike.%${termo}%`)
         .limit(50);
-
-    if (error) {
-        console.error(error);
-        return;
-    }
-
-    renderizarListaCids(data);
+    renderList(data);
 }
 
-function renderizarListaCids(data) {
-    const lista = document.getElementById('listaResultadosCid');
-    lista.innerHTML = '';
-
-    if (!data || data.length === 0) {
-        lista.innerHTML = '<li style="text-align:center; color:#ef4444; cursor:default;">Nenhum CID encontrado.</li>';
-        return;
-    }
+function renderList(data) {
+    const ul = document.getElementById('pcdResultList');
+    ul.innerHTML = '';
+    if (!data || !data.length) { ul.innerHTML = '<li style="text-align:center;color:red;padding:10px;">Nada encontrado</li>'; return; }
 
     data.forEach(cid => {
         const li = document.createElement('li');
-        li.innerHTML = `
-            <span>${cid.patologia}</span>
-            <strong style="background:#e0f2fe; color:#003369; padding:2px 6px; border-radius:4px;">${cid.codigo}</strong>
-        `;
-        li.onclick = () => selecionarCid(cid);
-        lista.appendChild(li);
+        li.innerHTML = `<span>${cid.patologia}</span><strong>${cid.codigo}</strong>`;
+        li.onclick = () => selectCid(cid);
+        ul.appendChild(li);
     });
 }
 
-function selecionarCid(cid) {
-    cidSelecionados[cidIndexAtual] = cid;
-
-
-    const displayEl = document.getElementById(`cidDisplay${cidIndexAtual + 1}`);
-    displayEl.textContent = `${cid.codigo} - ${cid.patologia}`;
-    displayEl.classList.remove('empty');
-    displayEl.style.fontWeight = "600";
-    displayEl.style.color = "#334155";
-
-    document.getElementById('modalBuscaCid').style.display = 'none';
-    calcularTudo();
+function selectCid(cid, specificIndex = null) {
+    const idx = specificIndex !== null ? specificIndex : state.cidIndexAtual;
+    state.cidSelecionados[idx] = cid;
+    const el = document.getElementById(`cidDisplay${idx + 1}`);
+    if(el) {
+        const fullText = `${cid.codigo} - ${cid.patologia}`;
+        el.textContent = fullText;
+        el.title = fullText;
+        el.style.color = '#334155';
+        el.style.background = '#f0f9ff';
+        el.style.borderColor = '#02B1EE';
+    }
+    if(specificIndex === null) {
+        closeSearch();
+        calcularTudo();
+    }
 }
 
 function calcularTudo() {
-    const cargo = document.getElementById('pcdCargo').value;
+    const nomeCargo = document.getElementById('pcdCargo').value;
     const filialId = document.getElementById('pcdFilial').value;
     const exp = document.getElementById('pcdExperiencia').value;
     const laudo = document.getElementById('pcdLaudo').value;
 
-    if (!cargo || !filialId) {
-        atualizarDisplay(0, "PREENCHA CARGO E FILIAL", [], {});
+    if (!nomeCargo || (!filialId && !document.getElementById('pcdFilial').disabled) || nomeCargo.includes('Carregando')) {
+        updateStatus("AGUARDANDO DADOS", [], "#f1f5f9", "#94a3b8", "2px dashed #cbd5e1");
         return;
     }
 
-    const filialObj = filiaisCache.find(f => f.id == filialId);
+    let filialObj = state.filiais.find(f => f.id == filialId);
+    if(!filialObj && document.getElementById('pcdFilial').disabled) return;
+
     let scoreBranch = 1;
-    let mapCargoCol = '';
-
-    if (cargo === 'OPERADOR DE MHE') mapCargoCol = 'grau_mhe';
-    else if (cargo === 'OPERACIONAL') mapCargoCol = 'grau_operacional';
-    else if (cargo === 'ADM') mapCargoCol = 'grau_adm';
-
     if (filialObj) {
-        const val = filialObj[mapCargoCol];
-        scoreBranch = (val !== undefined && val !== null) ? val : 1;
+        const cUp = nomeCargo.toUpperCase();
+        if (cUp.includes('ADMINISTRATIVO') || cUp.includes('ESCRITÓRIO') || cUp === 'ADM' || cUp === 'ADMINISTRATIVO') {
+            scoreBranch = filialObj.grau_adm || 1;
+        } else {
+            scoreBranch = filialObj.grau_operacional || 1;
+        }
     }
 
-    let totalScoreCid = 0;
-    let countCids = 0;
-    let temH54 = false;
+    let totalScore = 0;
+    let count = 0;
     let recs = [];
 
-    cidSelecionados.forEach((cid, idx) => {
-        const elBadge = document.getElementById(`cidScoreBadge${idx + 1}`);
-        if (!cid) {
-            elBadge.textContent = '0';
-            elBadge.style.background = '#cbd5e1';
-            return;
+    state.cidSelecionados.forEach(cid => {
+        if (!cid) return;
+        count++;
+
+        let scoreDeste = 1;
+        if (nomeCargo === 'OPERADOR DE MHE') scoreDeste = cid.grau_mhe || 1;
+        else if (nomeCargo === 'OPERACIONAL') scoreDeste = cid.grau_operacional || 1;
+        else if (nomeCargo === 'ADM') scoreDeste = cid.grau_adm || 1;
+        else if (cid.scores_por_cargo && cid.scores_por_cargo[nomeCargo] !== undefined) {
+            scoreDeste = cid.scores_por_cargo[nomeCargo];
         }
-        countCids++;
-        const scoreDeste = cid[mapCargoCol] || 1;
-        totalScoreCid += scoreDeste;
+        else {
+            let col = 'grau_operacional';
+            const cUp = nomeCargo.toUpperCase();
+            if (cUp.includes('MHE') || cUp.includes('OPERADOR')) col = 'grau_mhe';
+            else if (cUp.includes('ADM') || cUp.includes('ANALISTA')) col = 'grau_adm';
+            scoreDeste = cid[col] || 1;
+        }
+        totalScore += scoreDeste;
 
-        elBadge.textContent = scoreDeste;
-
-        elBadge.style.background = getScoreColor(scoreDeste * 20);
-
-        if (cid.codigo.toUpperCase().startsWith('H54')) temH54 = true;
-
-        const pat = cid.patologia.toUpperCase();
-        if (pat.includes('HIV')) recs.push(`⚠️ HIV: Recomenda-se evitar atividades em câmaras frias.`);
-        if (pat.includes('VISÃO') || pat.includes('CEGUEIRA')) recs.push(`👁️ Visão: SHE poderá solicitar laudo.`);
-        if (pat.includes('AUDIÇÃO') || pat.includes('SURDEZ')) recs.push(`👂 Audição: Alocar em local de baixo ruído.`);
+        if (cid.patologia.toUpperCase().includes('HIV')) recs.push('⚠️ HIV: Evitar câmaras frias.');
+        if (cid.codigo.startsWith('H54')) recs.push('👁️ Visão: Solicitar laudo detalhado.');
     });
 
-    if (filialObj && filialObj.recomendacao) {
-        recs.unshift(`🏢 Filial: ${filialObj.recomendacao}`);
+    if (count === 0) {
+        let r = [];
+        if(filialObj && filialObj.recomendacao) r.push(`🏢 <strong>Filial:</strong> ${filialObj.recomendacao}`);
+        updateStatus("AGUARDANDO SELEÇÃO DE CIDS", r, "#f1f5f9", "#94a3b8", "2px dashed #cbd5e1");
+        return;
     }
+
+    if (filialObj && filialObj.recomendacao) recs.unshift(`🏢 <strong>Filial:</strong> ${filialObj.recomendacao}`);
 
     const scoreExp = (exp === 'NAO') ? 4 : 1.1;
     const scoreLaudo = (laudo === 'NAO') ? 40 : 1;
-    let scoreH54 = 0;
-    let score3Cids = 1;
+    let score3Cids = (count >= 3) ? 100 : 1;
+    if(score3Cids > 1) recs.push('❗ Atenção: 3 ou mais CIDs.');
 
-    if (countCids === 3) {
-        score3Cids = 100;
-        recs.push(`❗ 3 CIDs identificados: Atenção redobrada.`);
-    }
+    const base = totalScore === 0 ? 1 : totalScore;
+    const finalScore = (base * scoreBranch * scoreExp * scoreLaudo) + score3Cids;
 
-    const baseCidParaConta = totalScoreCid === 0 ? 1 : totalScoreCid;
-    const finalScore = (baseCidParaConta * scoreBranch * scoreExp * scoreLaudo) + scoreH54 + score3Cids;
-
-    const details = {
-        cid: totalScoreCid,
-        branch: scoreBranch,
-        exp: scoreExp,
-        laudo: scoreLaudo,
-        h54: scoreH54,
-        three: score3Cids
-    };
-
-
-    let msg = "";
-    let bg = "#f1f5f9";
-    let color = "#334155";
-    let border = "transparent";
+    let msg = "", bg = "", color = "", border = "";
 
     if (finalScore >= 1000) {
-        msg = "⛔ REPROVADO / RISCO CRÍTICO";
-        bg = "#fef2f2";
-        color = "#b91c1c";
-        border = "#fecaca";
+        msg = "⛔ REPROVADO / RISCO CRÍTICO"; bg = "#fef2f2"; color = "#b91c1c"; border = "2px solid #fecaca";
     } else if (finalScore > 100) {
-        msg = "⚠️ ATENÇÃO / AVALIAÇÃO NECESSÁRIA";
-        bg = "#fffbeb";
-        color = "#b45309";
-        border = "#fcd34d";
+        msg = "⚠️ ATENÇÃO / AVALIAÇÃO NECESSÁRIA"; bg = "#fffbeb"; color = "#b45309"; border = "2px solid #fcd34d";
     } else {
-        msg = "✅ APROVADO / BAIXO RISCO";
-        bg = "#f0fdf4";
-        color = "#15803d";
-        border = "#bbf7d0";
+        msg = "✅ APROVADO / BAIXO RISCO"; bg = "#f0fdf4"; color = "#15803d"; border = "2px solid #bbf7d0";
     }
 
-    atualizarDisplay(finalScore, msg, recs, details, bg, color, border);
+    state.scoreCache = { msg, val: finalScore };
+    updateStatus(msg, recs, bg, color, border);
 }
 
-function atualizarDisplay(score, msg, recs, details, bg, color, border) {
-    const elFinal = document.getElementById('displayScoreFinal');
-    if (elFinal) {
-        elFinal.textContent = Math.round(score);
-        elFinal.style.color = getScoreColor(score);
-    }
+function updateStatus(msg, recs, bg, color, border) {
+    const el = document.getElementById('statusBox');
+    if(el) { el.textContent = msg; Object.assign(el.style, { backgroundColor: bg, color, border }); }
 
-    if (details) {
-        document.getElementById('detScoreCid').textContent = details.cid;
-        document.getElementById('detScoreBranch').textContent = details.branch;
-        document.getElementById('detScoreExp').textContent = details.exp;
-        document.getElementById('detScoreLaudo').textContent = details.laudo;
-        document.getElementById('detScoreH54').textContent = details.h54;
-        document.getElementById('detScore3Cid').textContent = details.three;
-    }
-
-    const statusBox = document.getElementById('statusBox');
-    if (statusBox) {
-        statusBox.textContent = msg;
-        statusBox.style.backgroundColor = bg;
-        statusBox.style.color = color;
-        statusBox.style.borderColor = border;
-        statusBox.style.borderStyle = 'solid';
-        statusBox.style.borderWidth = '1px';
-    }
-
-    const boxRec = document.getElementById('boxRecomendacoes');
-    if (boxRec) {
-        if (recs.length === 0) {
-            boxRec.textContent = "Nenhuma recomendação específica.";
-            boxRec.style.color = "#94a3b8";
-        } else {
-            const unique = [...new Set(recs)];
-            boxRec.innerHTML = unique.map(r => `<div style="margin-bottom:5px;">• ${r}</div>`).join('');
-            boxRec.style.color = "#334155";
+    const recBox = document.getElementById('boxRecomendacoes');
+    if(recBox) {
+        if(!recs.length) { recBox.textContent = "Nenhuma recomendação específica."; recBox.style.color="#94a3b8"; }
+        else {
+            recBox.innerHTML = [...new Set(recs)].map(r => `<div style="margin-bottom:6px;">${r}</div>`).join('');
+            recBox.style.color = "#334155";
         }
     }
+}
+
+async function carregarHistorico() {
+    const tb = document.getElementById('pcd-tbody');
+    if (!tb) return;
+
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">Carregando...</td></tr>';
+
+    let query = supabase.from('pcd_reports').select('*').order('created_at', { ascending: false });
+
+    if(state.filtros.nome) query = query.ilike('nome_candidato', `%${state.filtros.nome}%`);
+    if(state.filtros.cargo) query = query.eq('cargo', state.filtros.cargo);
+    if(state.filtros.filial) query = query.eq('filial', state.filtros.filial);
+
+    query = query.limit(50);
+
+    const { data, error } = await query;
+
+    if (error || !data || !data.length) {
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;">Nenhum histórico encontrado com estes filtros.</td></tr>';
+        return;
+    }
+
+    state.historico = data;
+
+    tb.innerHTML = data.map(r => {
+        const dt = new Date(r.created_at).toLocaleDateString('pt-BR');
+        let statusClass = 'bg-yellow';
+        if ((r.status_parecer || '').includes('APROVADO')) statusClass = 'bg-green';
+        if ((r.status_parecer || '').includes('REPROVADO')) statusClass = 'bg-red';
+
+        const cids = (r.cids_json || []).map(c =>
+            `<span style="background:#e0f2fe;color:#003369;padding:2px 5px;border-radius:4px;font-size:10px;margin-right:3px;">${c.codigo}</span>`
+        ).join('');
+
+        return `
+            <tr data-id="${r.id}" title="Clique duplo para detalhes">
+                <td style="text-align: center;"><strong>#${r.id}</strong></td>
+                <td style="text-align: center;">${dt}</td>
+                <td style="text-align: left;">${r.nome_candidato || '-'}</td>
+                <td style="text-align: left;">
+                    <div style="font-weight:700;">${r.cargo}</div>
+                    <div style="font-size:10px;color:#64748b;">${r.filial}</div>
+                </td>
+                <td style="text-align: center;">${cids}</td>
+                <td style="text-align: center;"><span class="badge-status ${statusClass}">${r.status_parecer}</span></td>
+            </tr>
+        `;
+    }).join('');
+
+    const rows = tb.querySelectorAll('tr');
+    rows.forEach(row => {
+        row.ondblclick = () => {
+            const id = row.getAttribute('data-id');
+            const report = state.historico.find(item => item.id == id);
+            if(report) openModal(true, report);
+        };
+    });
+}
+
+async function salvarRelatorio() {
+    const nome = document.getElementById('pcdNome').value;
+    const cargo = document.getElementById('pcdCargo').value;
+    const filialId = document.getElementById('pcdFilial').value;
+
+    if (!nome || !cargo || !filialId) { await window.customAlert("Preencha Nome, Cargo e Filial.", "Campos Obrigatórios"); return; }
+
+    const cidsValidos = state.cidSelecionados.filter(c => c).map(c => ({ codigo: c.codigo, patologia: c.patologia }));
+    if (cidsValidos.length === 0) { await window.customAlert("Selecione pelo menos um CID.", "Atenção"); return; }
+
+    const filialObj = state.filiais.find(f => f.id == filialId);
+
+    const payload = {
+        nome_candidato: nome,
+        cargo: cargo,
+        filial: filialObj ? filialObj.nome : '-',
+        experiencia: document.getElementById('pcdExperiencia').value,
+        possui_laudo: document.getElementById('pcdLaudo').value,
+        observacoes: document.getElementById('pcdRestricoes').value,
+        cids_json: cidsValidos,
+        status_parecer: state.scoreCache.msg,
+        score_final: state.scoreCache.val
+    };
+
+    const { error } = await supabase.from('pcd_reports').insert(payload);
+    if (error) { await window.customAlert("Erro ao salvar: " + error.message, "Erro"); }
+    else {
+        await window.customAlert("✅ Salvo com sucesso!", "Sucesso");
+        closeModal();
+        carregarHistorico();
+    }
+}
+
+async function exportarRelatorio() {
+    let query = supabase.from('pcd_reports').select('*').order('created_at', { ascending: false }).limit(1000);
+    if(state.filtros.nome) query = query.ilike('nome_candidato', `%${state.filtros.nome}%`);
+    if(state.filtros.cargo) query = query.eq('cargo', state.filtros.cargo);
+    if(state.filtros.filial) query = query.eq('filial', state.filtros.filial);
+
+    const { data, error } = await query;
+    if(error || !data || !data.length) { await window.customAlert("Nada para exportar com os filtros atuais.", "Aviso"); return; }
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "Protocolo;Data;Nome;Cargo;Filial;Experiencia;Laudo;Parecer;CIDs\r\n";
+
+    data.forEach(r => {
+        const dt = new Date(r.created_at).toLocaleDateString('pt-BR');
+        const cids = (r.cids_json || []).map(c => c.codigo).join(', ');
+        const nome = (r.nome_candidato || '').replace(/;/g, ' ');
+        const obs = (r.observacoes || '').replace(/;/g, ' ').replace(/\n/g, ' ');
+
+        csvContent += `${r.id};${dt};${nome};${r.cargo};${r.filial};${r.experiencia};${r.possui_laudo};${r.status_parecer};${cids}\r\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `relatorio_pcd_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
