@@ -321,11 +321,14 @@ function checkSession() {
                 btn.style.display = '';
             });
 
-            // Oculta painel gerencial e PCD se não for MASTER
+            // 1. Oculta PAINEL GERENCIAL se não for MASTER
             if (userTipo !== 'MASTER') {
                 const btnPainel = document.querySelector('.tab-btn[data-page="painel-gerencial"]');
                 if (btnPainel) btnPainel.style.display = 'none';
+            }
 
+            // 2. Oculta PCD se não for MASTER nem ADMINISTRADOR
+            if (userTipo !== 'MASTER' && userTipo !== 'ADMINISTRADOR') {
                 const btnPcd = document.querySelector('.tab-btn[data-page="inclusao-pcd"]');
                 if (btnPcd) btnPcd.style.display = 'none';
             }
@@ -594,13 +597,15 @@ window.addEventListener('popstate', () => {
         const userTipo = (user.Tipo || '').trim().toUpperCase();
         const userMatriz = (user.Matriz || '').trim().toUpperCase();
 
-        if (pg === 'inclusao-pcd' && userTipo !== 'MASTER') {
+        // Alterado: Permite MASTER ou ADMINISTRADOR na aba Inclusao PCD
+        if (pg === 'inclusao-pcd' && userTipo !== 'MASTER' && userTipo !== 'ADMINISTRADOR') {
             history.replaceState(null, '', '/colaboradores');
             setActiveTab('colaboradores');
             loadPage('colaboradores');
             return;
         }
 
+        // Mantido: Apenas MASTER no painel gerencial
         if (pg === 'painel-gerencial' && userTipo !== 'MASTER') {
             history.replaceState(null, '', '/colaboradores');
             setActiveTab('colaboradores');
@@ -640,13 +645,13 @@ try {
     const userTipo = (user.Tipo || '').trim().toUpperCase();
     const userMatriz = (user.Matriz || '').trim().toUpperCase();
 
-    // 1. Bloqueio PCD
-    if (firstPage === 'inclusao-pcd' && userTipo !== 'MASTER') {
+    // 1. Bloqueio PCD (Permitido MASTER ou ADMINISTRADOR)
+    if (firstPage === 'inclusao-pcd' && userTipo !== 'MASTER' && userTipo !== 'ADMINISTRADOR') {
         console.warn('Acesso direto bloqueado: PCD');
         firstPage = 'colaboradores';
     }
 
-    // 2. Bloqueio Painel Gerencial
+    // 2. Bloqueio Painel Gerencial (Apenas MASTER)
     if (firstPage === 'painel-gerencial' && userTipo !== 'MASTER') {
         console.warn('Acesso direto bloqueado: Painel');
         firstPage = 'colaboradores';
