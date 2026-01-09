@@ -172,6 +172,33 @@ function renderSpamTableRows(lista) {
     });
 }
 
+async function loadDesligadosFuturos() {
+    // Busca apenas desligamentos que são HOJE ou no FUTURO
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    // Cache curto para não pesar, já que isso muda pouco durante o uso
+    return fetchOnce('desligadosFuturos', async () => {
+        const { data, error } = await supabase
+            .from('Desligados')
+            .select('Nome, "Data de Desligamento"')
+            .gte('Data de Desligamento', hoje); // Pega só quem sai hoje ou depois
+
+        if (error) {
+            console.error("Erro ao buscar desligados futuros:", error);
+            return new Map();
+        }
+
+        // Cria um Mapa: Nome -> Data de Desligamento
+        const map = new Map();
+        (data || []).forEach(d => {
+            if (d.Nome && d['Data de Desligamento']) {
+                map.set(d.Nome, d['Data de Desligamento']);
+            }
+        });
+        return map;
+    });
+}
+
 function editSpam(item) {
     document.getElementById('spam-id').value = item.Numero;
     document.getElementById('spam-svc').value = item.SVC;
@@ -972,10 +999,15 @@ async function refresh() {
     showBusy(true);
     try {
         await ensureChartLib();
-        const [allRows, matrizesMap] = await Promise.all([
+
+        // --- ALTERAÇÃO: Agora carregamos também os Desligados Futuros ---
+        const [allRows, matrizesMap, desligadosMap] = await Promise.all([
             loadColabsCached(),
-            loadMatrizesData()
+            loadMatrizesData(),
+            loadDesligadosFuturos()
         ]);
+        // ----------------------------------------------------------------
+
         populateFilters(allRows, matrizesMap);
         let svcsDoGerente = null;
         if (state.gerencia && matrizesMap) {
@@ -993,28 +1025,41 @@ async function refresh() {
             const isDesligamentoView = document.querySelector('#efet-desligamento.active');
             const ativoNorm = norm(c?.Ativo || 'SIM');
 
-
             if (!isDesligamentoView) {
+                // VISÃO DE HC (GRÁFICOS)
 
                 if (ativoNorm === 'SIM') {
-
+                    // É ativo no cadastro, mantém.
                 } else {
+                    // Se NÃO é ativo (ex: "NÃO" ou "PEN"), verificamos se ele tem um desligamento futuro na tabela Desligados
+                    let manterNoHc = false;
 
-                    const dataDeslig = c.DataDesligamentoSolicitada ? c.DataDesligamentoSolicitada.slice(0, 10) : '';
-
-
-                    if (!dataDeslig || dataDeslig <= hojeISO) {
-                        return false;
+                    // 1. Verifica se tem registro na tabela Desligados com data futura
+                    if (desligadosMap.has(c.Nome)) {
+                        const dataRealSaida = desligadosMap.get(c.Nome);
+                        // Se a data real de saída for maior que hoje, ele ainda conta no HC
+                        if (dataRealSaida > hojeISO) {
+                            manterNoHc = true;
+                        }
+                    }
+                    // 2. Fallback: Se não achou na tabela Desligados (talvez ainda não tenha migrado),
+                    // tenta olhar a DataDesligamentoSolicitada se for PENDENTE
+                    else if (c.StatusDesligamento === 'PENDENTE') {
+                         const dataSolicitada = c.DataDesligamentoSolicitada ? c.DataDesligamentoSolicitada.slice(0, 10) : '';
+                         if (dataSolicitada && dataSolicitada > hojeISO) {
+                             manterNoHc = true;
+                         }
                     }
 
+                    if (!manterNoHc) return false;
                 }
             }
 
-
+            // Filtros da tela de Desligamento (Painel RH)
             const isAtivoOuPen = (ativoNorm === 'SIM' || ativoNorm === 'PEN');
             if (isDesligamentoView) {
                 if (c.StatusDesligamento === 'CONCLUIDO') {
-
+                    // Mostra concluídos
                 } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
                     return false;
                 } else if (c.StatusDesligamento === 'PENDENTE' && !isAtivoOuPen) {
@@ -1022,6 +1067,7 @@ async function refresh() {
                 }
             }
 
+            // Filtros de Matriz, Gerência e Região
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
@@ -1030,15 +1076,18 @@ async function refresh() {
                 }
             }
             if (state.regiao && (String(c?.REGIAO || 'N/D') !== state.regiao)) return false;
+
             return true;
         });
 
+        // Atualização das abas
         const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
         const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
         const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
         const visaoSpamHcAtiva = document.querySelector('#spam-hc-view.active');
         const visaoDesligamentoAtiva = document.querySelector('#efet-desligamento.active');
         const visaoControleVagas = document.querySelector('#efet-controle-vagas.active');
+
         if (visaoServiceAtiva) {
             ensureChartsCreatedService();
             updateChartsNow();
@@ -1053,8 +1102,6 @@ async function refresh() {
             await desligamento_fetchPendentes();
         } else if (visaoControleVagas) {
             await fetchVagas();
-        } else {
-            console.log("Nenhuma sub-aba ativa ou permissão negada.");
         }
     } catch (e) {
         console.error('Efetivações (Índice) erro', e);
