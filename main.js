@@ -1,28 +1,58 @@
-import {createClient} from '@supabase/supabase-js';document.addEventListener('DOMContentLoaded', () => {
+import {createClient} from '@supabase/supabase-js';
+
+document.addEventListener('DOMContentLoaded', () => {
+
     const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY);
+
     const container = document.getElementById('container');
     const showRegisterBtn = document.getElementById('showRegisterBtn');
-    const showLoginBtn = document.getElementById('showLoginBtn');    const registerForm = document.getElementById('registerForm');
+    const showLoginBtn = document.getElementById('showLoginBtn');
+
+
+    const registerForm = document.getElementById('registerForm');
     const registerName = document.getElementById('registerName');
     const registerEmail = document.getElementById('registerEmail');
     const registerFuncao = document.getElementById('registerFuncao');
     const registerMsg = document.getElementById('registerMsg');
-    const registerPassword = document.getElementById('registerPassword');    let selectedMatrizesState = [];
+    const registerPassword = document.getElementById('registerPassword');
+
+
+    let selectedMatrizesState = [];
     const matrizModal = document.getElementById('matriz-modal');
     const modalOverlay = document.getElementById('matriz-modal-overlay');
     const openModalBtn = document.getElementById('open-matriz-modal-btn');
     const closeModalBtn = document.getElementById('close-matriz-modal-btn');
     const confirmSelectionBtn = document.getElementById('confirm-matriz-selection-btn');
-    const modalMatrizList = document.getElementById('modal-matriz-list');    const migrationModal = document.getElementById('migration-modal');
+    const modalMatrizList = document.getElementById('modal-matriz-list');
+
+
+    const migrationModal = document.getElementById('migration-modal');
     const migrationOverlay = document.getElementById('migration-modal-overlay');
     const migrationPassword = document.getElementById('migrationPassword');
     const confirmMigrationBtn = document.getElementById('confirm-migration-btn');
     const migrationMsg = document.getElementById('migrationMsg');
-    let userToMigrate = null;    const loginForm = document.getElementById('loginForm');
+
+
+    const emailModal = document.getElementById('email-update-modal');
+    const emailOverlay = document.getElementById('email-update-modal-overlay');
+    const updateEmailInput = document.getElementById('updateEmailInput');
+    const confirmEmailUpdateBtn = document.getElementById('confirm-email-update-btn');
+    const noCorporateEmailBtn = document.getElementById('no-corporate-email-btn');
+    const emailUpdateMsg = document.getElementById('emailUpdateMsg');
+
+    let userToMigrate = null;
+
+
+    const loginForm = document.getElementById('loginForm');
     const loginEmailInput = document.getElementById('loginEmail');
     const loginPasswordInput = document.getElementById('loginInput');
-    const forgotPinBtn = document.getElementById('forgotPinBtn');    const eyeOpenSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-    const eyeClosedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;    document.querySelectorAll('.toggle-password').forEach(btn => {
+    const forgotPinBtn = document.getElementById('forgotPinBtn');
+
+
+    const eyeOpenSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+    const eyeClosedSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+    document.querySelectorAll('.toggle-password').forEach(btn => {
         btn.addEventListener('click', () => {
             const targetId = btn.getAttribute('data-target');
             const input = document.getElementById(targetId);
@@ -34,13 +64,20 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 btn.innerHTML = eyeClosedSVG;
             }
         });
-    });    function openModal() {
+    });
+
+
+    function openModal() {
         if (matrizModal) matrizModal.classList.add('show');
         if (modalOverlay) modalOverlay.classList.add('show');
-    }    function closeModal() {
+    }
+
+    function closeModal() {
         if (matrizModal) matrizModal.classList.remove('show');
         if (modalOverlay) modalOverlay.classList.remove('show');
-    }    function updateMainButtonText() {
+    }
+
+    function updateMainButtonText() {
         const triggerSpan = openModalBtn.querySelector('span');
         if (selectedMatrizesState.includes('TODOS')) {
             triggerSpan.textContent = 'TODOS';
@@ -51,9 +88,12 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
         } else {
             triggerSpan.textContent = `${selectedMatrizesState.length} matrizes selecionadas`;
         }
-    }    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
+    }
+
+    if (openModalBtn) openModalBtn.addEventListener('click', openModal);
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
     if (modalOverlay) modalOverlay.addEventListener('click', closeModal);
+
     if (confirmSelectionBtn) {
         confirmSelectionBtn.addEventListener('click', () => {
             const checkedBoxes = modalMatrizList.querySelectorAll('input[type="checkbox"]:checked');
@@ -61,23 +101,31 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
             updateMainButtonText();
             closeModal();
         });
-    }    if (showRegisterBtn) {
+    }
+
+    if (showRegisterBtn) {
         showRegisterBtn.addEventListener('click', () => {
             container.classList.add('active');
             loadMatrizes();
             loadFuncoes();
         });
-    }    if (showLoginBtn) {
+    }
+
+    if (showLoginBtn) {
         showLoginBtn.addEventListener('click', () => {
             container.classList.remove('active');
         });
-    }    function isPasswordStrictlyValid(password) {
+    }
+
+    function isPasswordStrictlyValid(password) {
         const hasMinLength = password.length >= 8;
         const hasLetter = /[a-zA-Z]/.test(password);
         const hasNumber = /[0-9]/.test(password);
         const hasSpecial = /[^a-zA-Z0-9]/.test(password);
         return hasMinLength && hasLetter && hasNumber && hasSpecial;
-    }    function setupPasswordMeter(inputElement, indicatorElement, textElement) {
+    }
+
+    function setupPasswordMeter(inputElement, indicatorElement, textElement) {
         if (!inputElement || !indicatorElement || !textElement) return;
         inputElement.addEventListener('input', function () {
             const password = this.value;
@@ -86,8 +134,12 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
             if (/[a-zA-Z]/.test(password)) score++;
             if (/[0-9]/.test(password)) score++;
             if (/[^a-zA-Z0-9]/.test(password)) score++;
-            if (password.length > 0 && password.length < 6) score = 1;            const width = (score / 4) * 100;
-            indicatorElement.style.width = `${Math.min(width, 100)}%`;            switch (score) {
+            if (password.length > 0 && password.length < 6) score = 1;
+
+            const width = (score / 4) * 100;
+            indicatorElement.style.width = `${Math.min(width, 100)}%`;
+
+            switch (score) {
                 case 0:
                 case 1:
                     indicatorElement.style.backgroundColor = "#e70b0b";
@@ -111,40 +163,58 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 indicatorElement.style.width = "0";
             }
         });
-    }    setupPasswordMeter(
+    }
+
+    setupPasswordMeter(
         document.getElementById('registerPassword'),
         document.getElementById('password-strength-indicator'),
         document.getElementById('password-strength-text')
-    );    setupPasswordMeter(
+    );
+
+    setupPasswordMeter(
         document.getElementById('migrationPassword'),
         document.getElementById('migration-strength-indicator'),
         document.getElementById('migration-strength-text')
-    );    if (registerForm) {
+    );
+
+    if (registerForm) {
         registerForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             registerMsg.textContent = 'Validando...';
-            registerMsg.classList.remove('error');            let matrizValue = '';
+            registerMsg.classList.remove('error');
+
+            let matrizValue = '';
             if (selectedMatrizesState.includes('TODOS')) {
                 matrizValue = 'TODOS';
             } else {
                 matrizValue = selectedMatrizesState.join(', ');
-            }            const userPassword = registerPassword.value;
+            }
+
+            const userPassword = registerPassword.value;
             if (!isPasswordStrictlyValid(userPassword)) {
                 registerMsg.textContent = "Caro usuário, sua senha precisa ter no mínimo 8 dígitos, letras, números e caracteres especiais. Ex: @ # $ !";
                 registerMsg.classList.add('error');
                 return;
-            }            const userData = {
+            }
+
+            const userData = {
                 nome: registerName.value,
                 email: registerEmail.value,
                 matriz: matrizValue,
                 funcao: registerFuncao.value,
                 senha: userPassword,
-            };            if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao) {
+            };
+
+            if (!userData.nome || !userData.email || !userData.matriz || !userData.funcao) {
                 registerMsg.textContent = 'Todos os campos são obrigatórios.';
                 registerMsg.classList.add('error');
                 return;
-            }            registerMsg.textContent = 'Enviando...';
-            const nivelParaSalvar = (userData.funcao === 'MELI') ? 'VISITANTE' : 'Usuario';            const {error: insertError} = await supabase.from('Logins').insert({
+            }
+
+            registerMsg.textContent = 'Enviando...';
+            const nivelParaSalvar = (userData.funcao === 'MELI') ? 'VISITANTE' : 'Usuario';
+
+            const {error: insertError} = await supabase.from('Logins').insert({
                 Senha: userData.senha,
                 PIN: null,
                 Nome: userData.nome,
@@ -153,7 +223,9 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 Tipo: userData.funcao,
                 Nivel: nivelParaSalvar,
                 Aprovacao: 'PENDENTE'
-            });            if (insertError) {
+            });
+
+            if (insertError) {
                 console.error(insertError);
                 registerMsg.textContent = 'Erro ao registrar. Verifique os dados ou tente novamente.';
                 registerMsg.classList.add('error');
@@ -169,44 +241,185 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 }, 3000);
             }
         });
-    }    async function verifyLogin(email, credential) {
+    }
+
+
+    async function verifyLogin(email, credential) {
         const loginMsg = document.getElementById('loginMsg');
         loginMsg.classList.remove('info');
-        loginMsg.textContent = 'Verificando...';        const {data: users, error} = await supabase
+        loginMsg.textContent = 'Verificando...';
+
+
+        const {data: users, error} = await supabase
             .from('Logins')
             .select('*')
-            .ilike('Usuario', email);        if (error || !users || users.length === 0) {
+            .ilike('Usuario', email);
+
+        if (error || !users || users.length === 0) {
             loginMsg.textContent = 'Usuário não encontrado ou credenciais inválidas.';
             return;
-        }        const user = users[0];        if (user.Aprovacao !== 'SIM') {
+        }
+
+        const user = users[0];
+
+        if (user.Aprovacao !== 'SIM') {
             loginMsg.textContent = 'Acesso pendente de aprovação.';
             return;
-        }        const isPinMatch = user.PIN === credential;
-        const isPasswordMatch = user.Senha === credential;        if (!isPinMatch && !isPasswordMatch) {
+        }
+
+        const isPinMatch = String(user.PIN) === String(credential);
+        const isPasswordMatch = user.Senha === credential;
+
+        if (!isPinMatch && !isPasswordMatch) {
             loginMsg.textContent = 'Senha ou PIN incorreto.';
             return;
-        }        if (isPinMatch) {
+        }
+
+
+        if (isPinMatch) {
             userToMigrate = user;
             openMigrationModal();
             loginMsg.textContent = '';
             return;
-        }        if (isPasswordMatch) {
-            performLoginSuccess(user);
         }
-    }    if (loginForm) {
+
+
+        if (isPasswordMatch) {
+            checkEmailDomain(user);
+        }
+    }
+
+    if (loginForm) {
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const email = loginEmailInput.value.trim();
-            const password = loginPasswordInput.value;            if (!email || !password) {
+            const password = loginPasswordInput.value.trim();
+
+            if (!email || !password) {
                 const loginMsg = document.getElementById('loginMsg');
                 loginMsg.textContent = 'Preencha e-mail e senha.';
                 return;
-            }            verifyLogin(email, password);
+            }
+
+            verifyLogin(email, password);
         });
-    }    function openMigrationModal() {
+    }
+
+
+    function checkEmailDomain(user) {
+        const email = user.Usuario.toLowerCase();
+        const dominioValido = "@kuehne-nagel.com";
+
+        const jaRecusouDominio = user.Dominio === 'NAO';
+
+
+        if (!email.endsWith(dominioValido) && !jaRecusouDominio) {
+            userToMigrate = user;
+            openEmailUpdateModal();
+        } else {
+
+            performLoginSuccess(user);
+        }
+    }
+
+    function openEmailUpdateModal() {
+        if (emailModal) emailModal.classList.add('show');
+        if (emailOverlay) emailOverlay.classList.add('show');
+    }
+
+    function closeEmailUpdateModal() {
+        if (emailModal) emailModal.classList.remove('show');
+        if (emailOverlay) emailOverlay.classList.remove('show');
+        if (updateEmailInput) updateEmailInput.value = '';
+        if (emailUpdateMsg) emailUpdateMsg.textContent = '';
+    }
+
+
+    if (confirmEmailUpdateBtn) {
+        confirmEmailUpdateBtn.addEventListener('click', async () => {
+            const newEmail = updateEmailInput.value.trim().toLowerCase();
+            if (!newEmail.endsWith('@kuehne-nagel.com')) {
+                emailUpdateMsg.textContent = 'O e-mail deve terminar com @kuehne-nagel.com';
+                emailUpdateMsg.classList.add('error');
+                return;
+            }
+
+            emailUpdateMsg.textContent = 'Verificando e salvando...';
+            emailUpdateMsg.classList.remove('error');
+
+            try {
+
+                const {data: existing, error: searchError} = await supabase
+                    .from('Logins')
+                    .select('Usuario')
+                    .eq('Usuario', newEmail);
+
+                if (searchError) throw searchError;
+                if (existing && existing.length > 0) {
+                    emailUpdateMsg.textContent = 'Este e-mail já está em uso.';
+                    emailUpdateMsg.classList.add('error');
+                    return;
+                }
+
+
+                const {error: updateError} = await supabase
+                    .from('Logins')
+                    .update({
+                        Usuario: newEmail,
+                        Dominio: 'SIM'
+                    })
+                    .eq('Usuario', userToMigrate.Usuario);
+
+                if (updateError) throw updateError;
+
+
+                userToMigrate.Usuario = newEmail;
+                userToMigrate.Dominio = 'SIM';
+
+                closeEmailUpdateModal();
+                performLoginSuccess(userToMigrate);
+
+            } catch (err) {
+                console.error(err);
+                emailUpdateMsg.textContent = 'Erro ao salvar: ' + err.message;
+                emailUpdateMsg.classList.add('error');
+            }
+        });
+    }
+
+
+    if (noCorporateEmailBtn) {
+        noCorporateEmailBtn.addEventListener('click', async () => {
+            emailUpdateMsg.textContent = 'Salvando preferência...';
+            emailUpdateMsg.classList.remove('error');
+
+            try {
+                const {error} = await supabase
+                    .from('Logins')
+                    .update({Dominio: 'NAO'})
+                    .eq('Usuario', userToMigrate.Usuario);
+
+                if (error) throw error;
+
+                userToMigrate.Dominio = 'NAO';
+                closeEmailUpdateModal();
+                performLoginSuccess(userToMigrate);
+
+            } catch (err) {
+                console.error(err);
+                emailUpdateMsg.textContent = 'Erro ao processar: ' + err.message;
+                emailUpdateMsg.classList.add('error');
+            }
+        });
+    }
+
+
+    function openMigrationModal() {
         if (migrationModal) migrationModal.classList.add('show');
         if (migrationOverlay) migrationOverlay.classList.add('show');
-    }    function closeMigrationModal() {
+    }
+
+    function closeMigrationModal() {
         if (migrationModal) migrationModal.classList.remove('show');
         if (migrationOverlay) migrationOverlay.classList.remove('show');
         migrationPassword.value = '';
@@ -214,59 +427,91 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
         document.getElementById('migration-strength-text').innerHTML = '';
         migrationMsg.textContent = '';
         userToMigrate = null;
-    }    if (confirmMigrationBtn) {
+    }
+
+    if (confirmMigrationBtn) {
         confirmMigrationBtn.addEventListener('click', async () => {
-            const newPass = migrationPassword.value;            if (userToMigrate && newPass === userToMigrate.Senha) {
+            const newPass = migrationPassword.value;
+
+            if (userToMigrate && newPass === userToMigrate.Senha) {
                 migrationMsg.textContent = "A nova senha não pode ser igual à senha anterior.";
                 migrationMsg.classList.add('error');
                 return;
-            }            if (!isPasswordStrictlyValid(newPass)) {
+            }
+
+            if (!isPasswordStrictlyValid(newPass)) {
                 migrationMsg.textContent = "Caro usuário, sua senha precisa ter no mínimo 8 dígitos, letras, números e caracteres especiais. Ex: @ # $ !";
                 migrationMsg.classList.add('error');
                 return;
-            }            migrationMsg.textContent = 'Salvando e entrando...';
-            migrationMsg.classList.remove('error');            const {error} = await supabase
+            }
+
+            migrationMsg.textContent = 'Salvando...';
+            migrationMsg.classList.remove('error');
+
+            const {error} = await supabase
                 .from('Logins')
                 .update({
                     Senha: newPass,
                     PIN: null
                 })
-                .eq('Usuario', userToMigrate.Usuario);            if (error) {
+                .eq('Usuario', userToMigrate.Usuario);
+
+            if (error) {
                 console.error(error);
                 migrationMsg.textContent = 'Erro ao salvar. Tente novamente.';
                 migrationMsg.classList.add('error');
             } else {
                 userToMigrate.Senha = newPass;
                 userToMigrate.PIN = null;
-                performLoginSuccess(userToMigrate);
+
                 closeMigrationModal();
+
+                checkEmailDomain(userToMigrate);
             }
         });
-    }    async function performLoginSuccess(data) {
+    }
+
+    async function performLoginSuccess(data) {
         localStorage.setItem('userSession', JSON.stringify(data));
-        await logLoginHistory(data);        const loginFormContent = document.getElementById('login-form-content');
-        if (loginFormContent) loginFormContent.classList.add('fade-out-start');        const welcomeBackContainer = document.getElementById('welcome-back-container');
+        await logLoginHistory(data);
+
+        const loginFormContent = document.getElementById('login-form-content');
+        if (loginFormContent) loginFormContent.classList.add('fade-out-start');
+
+        const welcomeBackContainer = document.getElementById('welcome-back-container');
         if (welcomeBackContainer) {
             const welcomeMessage = document.getElementById('welcome-message');
             const welcomeAvatar = document.getElementById('welcome-avatar');
             const fullName = data.Nome || 'Usuário';
-            const firstName = fullName.split(' ')[0];            if (welcomeMessage) welcomeMessage.textContent = `Olá, ${firstName}!`;
+            const firstName = fullName.split(' ')[0];
+
+            if (welcomeMessage) welcomeMessage.textContent = `Olá, ${firstName}!`;
             if (welcomeAvatar && data.avatar_url) {
                 welcomeAvatar.src = data.avatar_url.toLowerCase();
             } else if (welcomeAvatar) {
                 welcomeAvatar.src = '/imagens/avatar.png';
-            }            welcomeBackContainer.classList.remove('hidden');
+            }
+
+            welcomeBackContainer.classList.remove('hidden');
             setTimeout(() => welcomeBackContainer.classList.add('visible'), 10);
-        }        setTimeout(() => {
+        }
+
+        setTimeout(() => {
             window.location.href = '/dashboard.html';
         }, 2800);
-    }    if (forgotPinBtn) {
+    }
+
+    if (forgotPinBtn) {
         forgotPinBtn.addEventListener('click', () => {
             const loginMsg = document.getElementById('loginMsg');
             loginMsg.textContent = 'Entre em contato conosco! Valdemi.silva@Kuehne-nagel.com';
             loginMsg.classList.add('info');
         });
-    }    const funcoes = ['ANALISTA', 'RH', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];    function loadFuncoes() {
+    }
+
+    const funcoes = ['ANALISTA', 'RH', 'COORDENADOR', 'DIRETOR', 'ESTAGIÁRIO', 'GERENTE', 'JOVEM APRENDIZ', 'LÍDER', 'MELI', 'SHE', 'SUPERVISOR'];
+
+    function loadFuncoes() {
         if (!registerFuncao) return;
         registerFuncao.innerHTML = '<option value="" disabled selected>Selecione a Função</option>';
         funcoes.forEach(funcao => {
@@ -275,7 +520,9 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
             option.textContent = funcao;
             registerFuncao.appendChild(option);
         });
-    }    async function loadMatrizes() {
+    }
+
+    async function loadMatrizes() {
         if (!modalMatrizList) return;
         modalMatrizList.innerHTML = '<div class="custom-option">Carregando...</div>';
         const {data, error} = await supabase.from('Matrizes').select('MATRIZ');
@@ -285,6 +532,7 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
         }
         modalMatrizList.innerHTML = '';
         const matrizesUnicas = Array.from(new Set(data.map(item => item.MATRIZ))).sort();
+
         const createOption = (value, id) => {
             const optionDiv = document.createElement('div');
             optionDiv.classList.add('custom-option');
@@ -300,8 +548,10 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
             modalMatrizList.appendChild(optionDiv);
             return checkbox;
         };
+
         const todosCheckbox = createOption('TODOS', 'modal-matriz-checkbox-todos');
         const individualCheckboxes = matrizesUnicas.map(m => createOption(m, `modal-matriz-${m.replace(/\s+/g, '-')}`));
+
         modalMatrizList.addEventListener('change', (e) => {
             if (e.target.type === 'checkbox') {
                 if (e.target === todosCheckbox) {
@@ -313,7 +563,9 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
                 }
             }
         });
-    }    function getBrasiliaTimestamp() {
+    }
+
+    function getBrasiliaTimestamp() {
         const date = new Date();
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -322,7 +574,9 @@ import {createClient} from '@supabase/supabase-js';document.addEventListener('DO
         const minutes = String(date.getMinutes()).padStart(2, '0');
         const seconds = String(date.getSeconds()).padStart(2, '0');
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    }    async function logLoginHistory(userData) {
+    }
+
+    async function logLoginHistory(userData) {
         try {
             const {error} = await supabase.from('LoginHistorico').insert({
                 Nome: userData.Nome,

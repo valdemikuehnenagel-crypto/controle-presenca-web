@@ -85,11 +85,11 @@ function refreshCurrentView() {
     } else if (farolState.activeTab === 'entrevistas') {
         renderEntrevistaCharts();
     } else if (farolState.activeTab === 'preenchimento') {
-        // Dispara o evento para o módulo efetividade.js atualizar a tabela
+
         const matrizSelect = document.getElementById('efet-matriz-filter');
         if (matrizSelect) matrizSelect.dispatchEvent(new Event('change'));
     } else if (farolState.activeTab === 'dados-op') {
-        // Dispara o evento para o módulo dados-operacionais.js atualizar
+
         const matrizSelect = document.getElementById('dados-op-matriz-filter');
         if (matrizSelect) matrizSelect.dispatchEvent(new Event('change'));
     }
@@ -98,8 +98,6 @@ function refreshCurrentView() {
 async function fetchFiltersFarol() {
     if (farolState.allMatrizes.length > 0) return;
     try {
-        // CORREÇÃO: Busca matrizes tanto da configuração quanto dos colaboradores reais
-        // para garantir que nada fique de fora
         const [colabReq, matrizReq] = await Promise.all([
             supabase.from('Colaboradores').select('MATRIZ'),
             supabase.from('Matrizes').select('MATRIZ, GERENCIA')
@@ -111,13 +109,13 @@ async function fetchFiltersFarol() {
         const matrizes = new Set();
         const gerentes = new Set();
 
-        // 1. Adiciona da tabela de hierarquia
+
         matrizReq.data.forEach(item => {
             if (item.MATRIZ) matrizes.add(item.MATRIZ);
             if (item.GERENCIA) gerentes.add(item.GERENCIA);
         });
 
-        // 2. Adiciona da tabela de colaboradores (caso haja matrizes sem gerente cadastrado)
+
         colabReq.data.forEach(c => {
             if (c.MATRIZ) matrizes.add(c.MATRIZ);
         });
@@ -133,9 +131,6 @@ async function fetchFiltersFarol() {
             farolState.allMatrizes.forEach(m => sel.insertAdjacentHTML('beforeend', `<option value="${m}">${m}</option>`));
             sel.value = farolState.filters.matriz;
 
-            // CORREÇÃO DO LOOP INFINITO:
-            // Verificamos e.isTrusted. Se for false, o evento foi disparado por script
-            // (pelo dispatchEvent do refreshCurrentView) e devemos ignorar para não recursar.
             sel.onchange = (e) => {
                 if (!e.isTrusted) return;
                 handleFilterChange('matriz', e.target.value);
@@ -147,7 +142,6 @@ async function fetchFiltersFarol() {
             farolState.allGerentes.forEach(g => sel.insertAdjacentHTML('beforeend', `<option value="${g}">${g}</option>`));
             sel.value = farolState.filters.gerencia;
 
-            // CORREÇÃO DO LOOP INFINITO:
             sel.onchange = (e) => {
                 if (!e.isTrusted) return;
                 handleFilterChange('gerencia', e.target.value);
@@ -267,38 +261,39 @@ export async function init() {
     const viewFarol = document.getElementById('view-farol');
     const viewEntrevistas = document.getElementById('view-entrevistas');
 
-    // Botões de período
+
     const periodBtns = document.querySelectorAll('#dados-op-period-btn, #farol-period-btn, #entrevista-period-btn');
     periodBtns.forEach(btn => btn.onclick = () => openFarolPeriodModal());
 
-    // Botão Limpar (Dados Op)
+
     const clearBtn = document.getElementById('dados-op-clear-filters');
     if (clearBtn) clearBtn.onclick = clearAllFilters;
 
-    // CORREÇÃO BOTÕES DUPLICADOS:
-    // Não criamos mais o 'efet-global-clear'. Apenas conectamos ao botão existente do módulo Efetividade.
     const efetClearBtn = document.getElementById('efet-clear-filters');
     if (efetClearBtn) {
-        // Removemos listeners antigos para evitar acúmulo (opcional, mas boa prática se o init rodar 2x)
         const newBtn = efetClearBtn.cloneNode(true);
         efetClearBtn.parentNode.replaceChild(newBtn, efetClearBtn);
 
         newBtn.addEventListener('click', () => {
-            // O efetividade.js já tem seu próprio listener.
-            // Aqui resetamos apenas o estado global do Farol para manter sincronia
             farolState.filters.matriz = '';
             farolState.filters.gerencia = '';
             updateAllFilterElements();
-            // Efetividade.js vai fazer o reload dele mesmo.
         });
-        // Precisamos reatribuir para o objeto ui do efetividade? Não, o cloneNode removeu os eventos do DOM,
-        // mas o efetividade.js pode ter perdido a referência.
-        // ABORDAGEM MAIS SEGURA: Apenas adicionar o listener sem clonar
-        // (Risco menor do que quebrar o efetividade.js)
-        efetClearBtn.addEventListener('click', () => {
-            farolState.filters.matriz = '';
-            farolState.filters.gerencia = '';
-            updateAllFilterElements();
+
+
+
+
+        newBtn.addEventListener('click', () => {
+            const matrizSelect = document.getElementById('efet-matriz-filter');
+            if (matrizSelect) {
+                matrizSelect.value = '';
+                matrizSelect.dispatchEvent(new Event('change'));
+            }
+            const gerenteSelect = document.getElementById('efet-gerente-filter');
+            if (gerenteSelect) {
+                gerenteSelect.value = '';
+                gerenteSelect.dispatchEvent(new Event('change'));
+            }
         });
     }
 
@@ -350,9 +345,12 @@ export async function init() {
     }
 }
 
+
 const barOptions = () => ({
     indexAxis: 'y',
-    layout: {padding: {top: 20, left: 10, right: 30, bottom: 10}},
+    layout: {
+        padding: {top: 20, left: 10, right: 50, bottom: 10}
+    },
     animation: {duration: 800, easing: 'easeOutQuart'},
     plugins: {
         legend: {display: false},
@@ -468,7 +466,7 @@ async function renderEntrevistaCharts() {
     try {
         const dataList = await Efetividade.getInterviewData(filters);
 
-        // Gráfico de Pendentes (Quantidade absoluta)
+
         const ctxPendentes = document.getElementById('chart-entrevista-detalhado')?.getContext('2d');
         if (ctxPendentes) {
             const sortedByPending = dataList
@@ -488,19 +486,25 @@ async function renderEntrevistaCharts() {
                         data: dataP,
                         backgroundColor: '#003369',
                         barPercentage: 0.8,
-                        borderRadius: 4
+                        borderRadius: 4,
+                        clip: false
                     }]
                 },
                 options: {
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
+
+                    layout: {
+                        padding: {right: 50, left: 10, top: 10, bottom: 10}
+                    },
                     plugins: {
                         legend: {display: false},
                         datalabels: {
                             anchor: 'end', align: 'end',
                             color: '#003369', font: {weight: 'bold', size: 12},
-                            formatter: (v) => v > 0 ? v : ''
+                            formatter: (v) => v > 0 ? v : '',
+                            clip: false
                         }
                     },
                     scales: {
@@ -512,7 +516,7 @@ async function renderEntrevistaCharts() {
             });
         }
 
-        // Gráfico Percentual
+
         const ctxPercent = document.getElementById('chart-entrevista-percentual')?.getContext('2d');
         if (ctxPercent) {
             const sortedByPercent = [...dataList]
@@ -531,19 +535,25 @@ async function renderEntrevistaCharts() {
                         data: dataPer,
                         backgroundColor: dataPer.map(v => v >= 99.99 ? '#22B14C' : (v >= 80 ? '#003369' : '#e55353')),
                         barPercentage: 0.8,
-                        borderRadius: 4
+                        borderRadius: 4,
+                        clip: false
                     }]
                 },
                 options: {
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
+
+                    layout: {
+                        padding: {right: 50, left: 10, top: 10, bottom: 10}
+                    },
                     plugins: {
                         legend: {display: false},
                         datalabels: {
                             anchor: 'end', align: 'end',
                             color: '#003369', font: {weight: 'bold', size: 12},
-                            formatter: (v) => v > 0 ? v.toFixed(0) + '%' : ''
+                            formatter: (v) => v > 0 ? v.toFixed(0) + '%' : '',
+                            clip: false
                         },
                         tooltip: {
                             callbacks: {

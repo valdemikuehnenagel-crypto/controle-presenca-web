@@ -179,6 +179,7 @@ import {supabase} from '../supabaseClient.js';
     async function fetchAllPagesGeneric(query, pageSize = 1000) {
         let from = 0;
         const all = [];
+
         while (true) {
             const {data, error} = await query.range(from, from + pageSize - 1);
             if (error) throw error;
@@ -225,20 +226,24 @@ import {supabase} from '../supabaseClient.js';
             if (state.matriz) query = query.eq('MATRIZ', state.matriz);
             return query;
         };
+
         let qAtivos = supabase
             .from('Colaboradores')
             .select('Nome, Contrato, MATRIZ, Escala, Cargo, Gestor, "ID GROOT", LDAP')
             .order('Nome', {ascending: true});
         qAtivos = applyFilters(qAtivos);
+
         let qDeslig = supabase
             .from('Desligados')
             .select('Nome, Contrato, MATRIZ, Escala, Cargo, Gestor, "Data de Desligamento", "ID GROOT", LDAP, Motivo')
             .order('Nome', {ascending: true});
         qDeslig = applyFilters(qDeslig);
+
         const [ativosRaw, desligadosRaw] = await Promise.all([
             fetchAllPagesGeneric(qAtivos, 1000),
             fetchAllPagesGeneric(qDeslig, 1000)
         ]);
+
         const enrichAndFilter = (colab) => {
             const mapping = matrizesMap.get(norm(colab.MATRIZ));
             const regiao = mapping?.regiao || '';
@@ -247,14 +252,27 @@ import {supabase} from '../supabaseClient.js';
             if (state.gerencia && norm(gerencia) !== norm(state.gerencia)) return null;
             return {...colab, REGIAO: regiao, GERENCIA: gerencia};
         };
+
         const ativos = (Array.isArray(ativosRaw) ? ativosRaw : []).map(enrichAndFilter).filter(Boolean);
         const desligados = (Array.isArray(desligadosRaw) ? desligadosRaw : []).map(enrichAndFilter).filter(Boolean);
+
         const map = new Map();
-        const addToMap = (arr, origem, dataDesligamento = null) => {
+
+
+        const addToMap = (arr, origem, dateGetter = null) => {
             arr.forEach(item => {
-                const nome = String(item.Nome || '');
+                const rawName = String(item.Nome || '');
+                const nome = norm(rawName);
                 if (!nome) return;
+
                 const existing = map.get(nome) || {};
+
+
+                let dt = null;
+                if (dateGetter && typeof dateGetter === 'function') {
+                    dt = dateGetter(item);
+                }
+
                 map.set(nome, {
                     ...existing,
                     Contrato: item.Contrato ?? existing.Contrato,
@@ -268,12 +286,14 @@ import {supabase} from '../supabaseClient.js';
                     LDAP: item.LDAP ?? existing.LDAP,
                     Motivo: item.Motivo ?? existing.Motivo,
                     _origem: origem,
-                    _data_desligamento: dataDesligamento || existing._data_desligamento
+                    _data_desligamento: dt || existing._data_desligamento
                 });
             });
         };
+
         addToMap(desligados, 'Desligados', (d) => d['Data de Desligamento']);
         addToMap(ativos, 'Colaboradores');
+
         _colabIdx = map;
         return _colabIdx;
     }
@@ -366,6 +386,7 @@ import {supabase} from '../supabaseClient.js';
             '      <option value="">Entrevista</option>' +
             '      <option value="SIM">Sim</option>' +
             '      <option value="NAO">Não</option>' +
+            '      <option value="DES">DES (Desligado)</option>' +
             '    </select>' +
             '    <span id="abs-counts" class="abs-counts" aria-live="polite">' +
             '      Injustificado: 0 <span class="sep">|</span> Justificado: 0 <span class="sep">|</span> ABS Total: 0 <span class="sep">|</span> Entrevistas feitas: 0' +
@@ -463,6 +484,7 @@ import {supabase} from '../supabaseClient.js';
     async function fetchControleDiarioPaginado(baseFilters, pageSize = 500) {
         let from = 0;
         const all = [];
+
         while (true) {
             let q = supabase
                 .from('ControleDiario')
@@ -480,6 +502,7 @@ import {supabase} from '../supabaseClient.js';
             from += pageSize;
             if (from > 100000) break;
         }
+        console.log(`Relatório ABS: Carregados ${all.length} registros (paginado).`);
         return all;
     }
 
@@ -508,7 +531,9 @@ import {supabase} from '../supabaseClient.js';
             const colabIndex = await getColabIndex();
             const controleRows = await fetchControleDiarioPaginado({startISO, endISONextDay}, 500);
             const transformedRows = (controleRows || []).map(row => {
-                const colabInfo = colabIndex.get(String(row.Nome || '')) || {};
+
+                const colabInfo = colabIndex.get(norm(row.Nome || '')) || {};
+
                 const isJustificado = row.Atestado > 0;
                 let motivoReal = '';
                 if (isJustificado) {
@@ -516,13 +541,30 @@ import {supabase} from '../supabaseClient.js';
                 } else {
                     motivoReal = row.Observacao || '';
                 }
+
+
+                let statusEntrevista = String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não';
+                const dataDesligamento = colabInfo._data_desligamento;
+
+                if (dataDesligamento) {
+
+                    const dtDeslig = new Date(dataDesligamento + 'T00:00:00');
+                    const hoje = new Date();
+                    hoje.setHours(0, 0, 0, 0);
+
+
+                    if (!isNaN(dtDeslig) && dtDeslig <= hoje) {
+                        statusEntrevista = 'DES';
+                    }
+                }
+
                 return {
                     Numero: row.Numero,
                     Nome: row.Nome,
                     Data: row.Data,
                     Absenteismo: isJustificado ? 'Justificado' : 'Injustificado',
                     Escala: row.Turno,
-                    Entrevista: row.Entrevista,
+                    Entrevista: statusEntrevista,
                     Acao: row.Acao,
                     Observacao: row.Observacao,
                     CID: row.CID,
@@ -547,13 +589,16 @@ import {supabase} from '../supabaseClient.js';
                 if (state.regiao && norm(r.REGIAO) !== norm(state.regiao)) return false;
                 if (state.gerencia && norm(r.GERENCIA) !== norm(state.gerencia)) return false;
 
-
                 if (state.entrevista) {
                     const temEntrevista = norm(r.Entrevista);
-                    if (state.entrevista === 'SIM' && temEntrevista !== 'SIM') return false;
-                    if (state.entrevista === 'NAO' && temEntrevista === 'SIM') return false;
-                }
 
+                    if (state.entrevista === 'DES' && temEntrevista !== 'DES') return false;
+
+                    if (state.entrevista === 'SIM' && temEntrevista !== 'SIM') return false;
+
+
+                    if (state.entrevista === 'NAO' && (temEntrevista === 'SIM' || temEntrevista === 'DES')) return false;
+                }
 
                 return true;
             });
@@ -613,6 +658,14 @@ import {supabase} from '../supabaseClient.js';
             tr.dataset.id = row.Numero;
             var originalIndex = state.rows.findIndex(r => r.Numero === row.Numero);
             tr.setAttribute('data-idx', String(originalIndex));
+
+
+            let entDisplay = row.Entrevista;
+            let entStyle = '';
+            if (entDisplay === 'DES') {
+                entStyle = 'color: #ef4444; font-weight: bold; font-size: 0.9em;';
+            }
+
             tr.innerHTML =
                 '<td>' + esc(row["ID GROOT"] || '') + '</td>' +
                 '<td class="cell-name">' + esc(row.Nome || '') + '</td>' +
@@ -620,7 +673,7 @@ import {supabase} from '../supabaseClient.js';
                 '<td>' + esc(row.Cargo || '') + '</td>' +
                 '<td>' + fmtBR(parseAnyDateToISO(row.Data)) + '</td>' +
                 '<td>' + esc(row.Absenteismo || '') + '</td>' +
-                '<td>' + (String(row.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não') + '</td>' +
+                '<td style="' + entStyle + '">' + entDisplay + '</td>' +
                 '<td>' + esc(row.Acao || '') + '</td>' +
                 '<td>' + esc(row.CID || '') + '</td>' +
                 '<td>' + esc(row.LDAP || '') + '</td>' +
@@ -632,6 +685,7 @@ import {supabase} from '../supabaseClient.js';
     }
 
     function openEditModal(row) {
+
 
         ensureCidStyles();
 
@@ -1117,7 +1171,7 @@ import {supabase} from '../supabaseClient.js';
                     'Cargo': r.Cargo || '',
                     'Data': fmtBR(parseAnyDateToISO(r.Data || '')),
                     'Absenteismo': r.Absenteismo || '',
-                    'Entrevista': String(r.Entrevista || '').toUpperCase() === 'SIM' ? 'Sim' : 'Não',
+                    'Entrevista': r.Entrevista || '',
                     'Ação': r.Acao || '',
                     'CID': r.CID || '',
                     'LDAP': r.LDAP || '',

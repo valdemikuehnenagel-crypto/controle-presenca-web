@@ -165,6 +165,30 @@
     </div>
 </div>
 
+<div id="email-update-modal-overlay" class="modal-overlay"></div>
+<div id="email-update-modal" class="modal">
+    <div class="modal-header">
+        <h2>Atualização de Cadastro</h2>
+    </div>
+    <div class="modal-body" style="text-align: center;">
+        <p style="margin-bottom: 15px; color: #555; font-size: 14px;">
+            Detectamos que seu e-mail não utiliza o domínio corporativo (<strong>@kuehne-nagel.com</strong>).<br><br>
+            Para garantir a segurança e o padrão da empresa, por favor, atualize seu e-mail abaixo.
+        </p>
+
+        <div class="input-wrapper" style="width: 100%; margin-bottom: 15px;">
+            <input id="updateEmailInput" type="email" placeholder="seu.nome@kuehne-nagel.com" class="form-field text-login" style="background-color: #f0f2f5;"/>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button id="confirm-email-update-btn" class="btn-primary" style="width: 100%;">Salvar Novo E-mail</button>
+            <button id="no-corporate-email-btn" class="btn-secondary" style="width: 100%; background-color: #eee; color: #555; border: 1px solid #ccc; cursor:pointer; padding: 10px; border-radius: 8px; font-weight: 600; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Não tenho e-mail KN</button>
+        </div>
+
+        <p id="emailUpdateMsg" class="message"></p>
+    </div>
+</div>
+
 <script type="module" src="/main.js"></script>
 </body>
 </html>
