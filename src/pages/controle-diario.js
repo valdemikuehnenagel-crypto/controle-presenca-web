@@ -44,10 +44,14 @@ function invalidateCacheForDate(dateISO) {
     ['T1', 'T2', 'T3', 'GERAL'].forEach(t => {
         cachedDailyData.delete(cacheKey(t, dateISO));
     });
-}function invalidateColaboradoresCache() {
+}
+
+function invalidateColaboradoresCache() {
 
     localStorage.removeItem('knc:colaboradoresCache');
-}function showLoading(on = true) {
+}
+
+function showLoading(on = true) {
     const el = document.getElementById('cd-loading');
     if (!el) return;
     el.style.display = on ? 'flex' : 'none';
@@ -105,9 +109,10 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         matrizesPermitidas = null;
     }
 
+
     let q = supabase
         .from('Colaboradores')
-        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP, DataDesligamentoSolicitada')
+        .select('Nome, Escala, DSR, Cargo, MATRIZ, SVC, Gestor, Contrato, Ativo, "Data de admissão", LDAP, DataDesligamentoSolicitada, MotivoDesligamento')
         .in('Ativo', ['SIM', 'NÃO', 'PEN', 'AFAS']);
 
     let qDesl = supabase
@@ -138,12 +143,34 @@ async function getColaboradoresElegiveis(turno, dateISO) {
 
         const colabMap = new Map();
 
+
         (colsAtivos || []).forEach(c => {
-            if (c.Ativo === 'PEN' && c.DataDesligamentoSolicitada) {
-                const dataDesligPEN = c.DataDesligamentoSolicitada.slice(0, 10);
-                if (dataDesligPEN <= dateISO) {
-                    return;
+            if (c.Ativo === 'PEN') {
+                let deveEsconder = false;
+
+
+                let dataEfetivaISO = null;
+                if (c.MotivoDesligamento) {
+                    const match = c.MotivoDesligamento.match(/Data Prevista:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+                    if (match) {
+
+                        dataEfetivaISO = `${match[3]}-${match[2]}-${match[1]}`;
+                    }
                 }
+
+                if (dataEfetivaISO) {
+
+
+                    if (dateISO >= dataEfetivaISO) {
+                        deveEsconder = true;
+                    }
+                } else {
+
+
+                    deveEsconder = false;
+                }
+
+                if (deveEsconder) return;
             }
             colabMap.set(c.Nome, c);
         });
@@ -194,7 +221,8 @@ async function getColaboradoresElegiveis(turno, dateISO) {
         if (nomesColabs.length > 0) {
             const promises = [];
             for (let i = 0; i < nomesColabs.length; i += chunkSize) {
-                const chunk = nomesColabs.slice(i, i + chunkSize);                promises.push(
+                const chunk = nomesColabs.slice(i, i + chunkSize);
+                promises.push(
                     supabase
                         .from('LogDSR')
                         .select('Name, DsrAnterior, DsrAtual, DataAlteracao')
@@ -230,7 +258,8 @@ async function getColaboradoresElegiveis(turno, dateISO) {
                     applicableDSR = history[i].DsrAtual;
                     break;
                 }
-            }            if (applicableDSR === null) {
+            }
+            if (applicableDSR === null) {
                 applicableDSR = (history[0] ? history[0].DsrAnterior : colaborador.DSR);
             }
             return applicableDSR;
@@ -390,7 +419,8 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         if (colabErr) throw colabErr;
         colabInfo = data;
     }
-    const turnoToUse = turno || colabInfo.Escala || null;    const {data: existing, error: findErr} = await supabase
+    const turnoToUse = turno || colabInfo.Escala || null;
+    const {data: existing, error: findErr} = await supabase
         .from('ControleDiario')
         .select('Numero')
         .eq('Nome', nome)
@@ -431,7 +461,8 @@ async function upsertMarcacao({nome, turno, dateISO, tipo}) {
         };
         const {error: insErr} = await supabase.from('ControleDiario').insert(row);
         if (insErr) throw insErr;
-    }    invalidateColaboradoresCache();
+    }
+    invalidateColaboradoresCache();
 
     try {
         if (window.absSyncForRow) {
@@ -458,7 +489,8 @@ async function deleteMarcacao({nome, dateISO}) {
         .delete()
         .eq('Nome', nome)
         .eq('Data', dateISO);
-    if (error) throw error;    invalidateColaboradoresCache();
+    if (error) throw error;
+    invalidateColaboradoresCache();
 
     try {
         if (window.absSyncForRow) {
@@ -893,10 +925,12 @@ async function marcarTodosPresentes() {
             };
             nextNumero++;
             return newRow;
-        });        const {error} = await supabase
+        });
+        const {error} = await supabase
             .from('ControleDiario')
             .upsert(rowsToUpsert, {onConflict: 'Nome, Data'});
-        if (error) throw error;        invalidateColaboradoresCache();
+        if (error) throw error;
+        invalidateColaboradoresCache();
 
         pendTrs.forEach(tr => {
             const nome = tr.dataset.nome;

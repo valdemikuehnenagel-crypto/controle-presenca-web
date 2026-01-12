@@ -173,22 +173,22 @@ function renderSpamTableRows(lista) {
 }
 
 async function loadDesligadosFuturos() {
-    // Busca apenas desligamentos que são HOJE ou no FUTURO
+
     const hoje = new Date().toISOString().slice(0, 10);
 
-    // Cache curto para não pesar, já que isso muda pouco durante o uso
+
     return fetchOnce('desligadosFuturos', async () => {
-        const { data, error } = await supabase
+        const {data, error} = await supabase
             .from('Desligados')
             .select('Nome, "Data de Desligamento"')
-            .gte('Data de Desligamento', hoje); // Pega só quem sai hoje ou depois
+            .gte('Data de Desligamento', hoje);
 
         if (error) {
             console.error("Erro ao buscar desligados futuros:", error);
             return new Map();
         }
 
-        // Cria um Mapa: Nome -> Data de Desligamento
+
         const map = new Map();
         (data || []).forEach(d => {
             if (d.Nome && d['Data de Desligamento']) {
@@ -1000,13 +1000,13 @@ async function refresh() {
     try {
         await ensureChartLib();
 
-        // --- ALTERAÇÃO: Agora carregamos também os Desligados Futuros ---
+
         const [allRows, matrizesMap, desligadosMap] = await Promise.all([
             loadColabsCached(),
             loadMatrizesData(),
             loadDesligadosFuturos()
         ]);
-        // ----------------------------------------------------------------
+
 
         populateFilters(allRows, matrizesMap);
         let svcsDoGerente = null;
@@ -1026,40 +1026,37 @@ async function refresh() {
             const ativoNorm = norm(c?.Ativo || 'SIM');
 
             if (!isDesligamentoView) {
-                // VISÃO DE HC (GRÁFICOS)
+
 
                 if (ativoNorm === 'SIM') {
-                    // É ativo no cadastro, mantém.
+
                 } else {
-                    // Se NÃO é ativo (ex: "NÃO" ou "PEN"), verificamos se ele tem um desligamento futuro na tabela Desligados
+
                     let manterNoHc = false;
 
-                    // 1. Verifica se tem registro na tabela Desligados com data futura
+
                     if (desligadosMap.has(c.Nome)) {
                         const dataRealSaida = desligadosMap.get(c.Nome);
-                        // Se a data real de saída for maior que hoje, ele ainda conta no HC
+
                         if (dataRealSaida > hojeISO) {
                             manterNoHc = true;
                         }
-                    }
-                    // 2. Fallback: Se não achou na tabela Desligados (talvez ainda não tenha migrado),
-                    // tenta olhar a DataDesligamentoSolicitada se for PENDENTE
-                    else if (c.StatusDesligamento === 'PENDENTE') {
-                         const dataSolicitada = c.DataDesligamentoSolicitada ? c.DataDesligamentoSolicitada.slice(0, 10) : '';
-                         if (dataSolicitada && dataSolicitada > hojeISO) {
-                             manterNoHc = true;
-                         }
+                    } else if (c.StatusDesligamento === 'PENDENTE') {
+                        const dataSolicitada = c.DataDesligamentoSolicitada ? c.DataDesligamentoSolicitada.slice(0, 10) : '';
+                        if (dataSolicitada && dataSolicitada > hojeISO) {
+                            manterNoHc = true;
+                        }
                     }
 
                     if (!manterNoHc) return false;
                 }
             }
 
-            // Filtros da tela de Desligamento (Painel RH)
+
             const isAtivoOuPen = (ativoNorm === 'SIM' || ativoNorm === 'PEN');
             if (isDesligamentoView) {
                 if (c.StatusDesligamento === 'CONCLUIDO') {
-                    // Mostra concluídos
+
                 } else if (c.StatusDesligamento === 'RECUSADO' && !isAtivoOuPen) {
                     return false;
                 } else if (c.StatusDesligamento === 'PENDENTE' && !isAtivoOuPen) {
@@ -1067,7 +1064,7 @@ async function refresh() {
                 }
             }
 
-            // Filtros de Matriz, Gerência e Região
+
             if (state.matriz && c?.MATRIZ !== state.matriz) return false;
             if (svcsDoGerente) {
                 const colabSvcNorm = norm(c.SVC).replace(/\s+/g, '');
@@ -1080,7 +1077,7 @@ async function refresh() {
             return true;
         });
 
-        // Atualização das abas
+
         const visaoServiceAtiva = document.querySelector('#efet-visao-service.active');
         const visaoRegionalAtiva = document.querySelector('#efet-visao-regional.active');
         const visaoEmEfetivacaoAtiva = document.querySelector('#efet-em-efetivacao.active');
@@ -2269,7 +2266,7 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
 
     const mesesOrdenadosObj = [...mesesUnicosSet].map(str => {
         const [mes, ano, order] = str.split('#');
-        return { MÊS: mes, ANO: parseInt(ano), mesOrder: parseInt(order) };
+        return {MÊS: mes, ANO: parseInt(ano), mesOrder: parseInt(order)};
     }).sort(sortMesAno);
 
     if (mesesOrdenadosObj.length === 0) {
@@ -2283,8 +2280,6 @@ async function updateSpamCharts(matrizesMap, svcsDoGerente) {
         });
         return;
     }
-
-
 
 
     const mesesJanela = mesesOrdenadosObj.slice(-2);
@@ -2858,17 +2853,20 @@ function desligamento_handleTableClick(event) {
 async function desligamento_handleDeleteRequest() {
     const mod = state.desligamentoModule;
     if (!mod.colaboradorAtual) return;
+
     const ok = await window.customConfirm(
         `Tem certeza que deseja <b>EXCLUIR</b> a solicitação de desligamento de <b>${mod.colaboradorAtual.Nome}</b>?<br><br>` +
-        `Isso irá limpar todos os dados do desligamento (Data, Motivo, Smartoff, etc) e o colaborador voltará ao status normal (ATIVO).`,
+        `Isso irá limpar todos os dados do desligamento e o colaborador voltará ao status normal (ATIVO).`,
         'Excluir Solicitação',
         'danger'
     );
     if (!ok) return;
+
     const {error} = await supabase
         .from('Colaboradores')
         .update({
             StatusDesligamento: 'ATIVO',
+            Ativo: 'SIM',
             DataDesligamentoSolicitada: null,
             MotivoDesligamento: null,
             SolicitanteDesligamento: null,
@@ -2876,12 +2874,13 @@ async function desligamento_handleDeleteRequest() {
             DataRetorno: null
         })
         .eq('Nome', mod.colaboradorAtual.Nome);
+
     if (error) {
         console.error('Erro ao excluir solicitação:', error);
         await window.customAlert('Erro ao excluir solicitação: ' + error.message, 'Erro');
         return;
     }
-    await window.customAlert('Solicitação excluída e dados limpos com sucesso!', 'Sucesso');
+    await window.customAlert('Solicitação excluída e status restaurado com sucesso!', 'Sucesso');
     logAction(`Excluiu/Limpou solicitação de desligamento de: ${mod.colaboradorAtual.Nome}`);
     invalidateCache();
     desligamento_fetchPendentes();
@@ -3133,25 +3132,30 @@ async function desligamento_handleReject() {
     if (!mod.colaboradorAtual) return;
     const motivoRecusa = prompt('Qual o motivo da recusa? (Isso será registrado no log)');
     if (motivoRecusa === null) return;
+
     const ok = await window.customConfirm(
         `Tem certeza que deseja <b>RECUSAR</b> o desligamento de <b>${mod.colaboradorAtual.Nome}</b>?`,
         'Confirmar Recusa',
         'warning'
     );
     if (!ok) return;
+
     const dataHoraDecisao = getLocalISOString(new Date());
+
     const {error} = await supabase
         .from('Colaboradores')
         .update({
             StatusDesligamento: 'RECUSADO',
+            Ativo: 'SIM',
             DataRetorno: dataHoraDecisao
         })
         .eq('Nome', mod.colaboradorAtual.Nome);
+
     if (error) {
         await window.customAlert('Erro ao recusar solicitação: ' + error.message, 'Erro');
         return;
     }
-    await window.customAlert('Solicitação recusada com sucesso.', 'Sucesso');
+    await window.customAlert('Solicitação recusada com sucesso. Colaborador voltou para Ativo.', 'Sucesso');
     logAction(`Recusou o desligamento de: ${mod.colaboradorAtual.Nome}. Motivo: ${motivoRecusa || 'N/A'}`);
     invalidateCache();
     desligamento_fetchPendentes();
