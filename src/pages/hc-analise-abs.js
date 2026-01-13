@@ -1,5 +1,7 @@
 import {getMatrizesPermitidas} from '../session.js';
-import {supabase} from '../supabaseClient.js';(function () {
+import {supabase} from '../supabaseClient.js';
+
+(function () {
     const HOST_SEL = '#hc-analise-abs';
     const state = {
         mounted: false,
@@ -29,7 +31,9 @@ import {supabase} from '../supabaseClient.js';(function () {
     const AGE_BUCKETS = ['<20', '20-29', '30-39', '40-49', '50-59', '60+', 'N/D'];
     const DOW_LABELS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
     const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    let _colabCache = null;    async function loadMatrizesMapping() {
+    let _colabCache = null;
+
+    async function loadMatrizesMapping() {
         const matrizesPermitidas = getMatrizesPermitidas();
         let query = supabase.from('Matrizes').select('MATRIZ, GERENCIA, REGIAO');
         if (matrizesPermitidas !== null && matrizesPermitidas.length > 0) {
@@ -51,7 +55,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             }
         });
         return map;
-    }    function parseDateMaybe(s) {
+    }
+
+    function parseDateMaybe(s) {
         if (!s) return null;
         const str = String(s).trim().substring(0, 10);
         const m = /^(\d{4})[-/](\d{2})[-/](\d{2})$/.exec(str);
@@ -59,14 +65,18 @@ import {supabase} from '../supabaseClient.js';(function () {
             return new Date(+m[1], +m[2] - 1, +m[3], 12, 0, 0);
         }
         return null;
-    }    function calcAgeFromStr(s) {
+    }
+
+    function calcAgeFromStr(s) {
         const d = parseDateMaybe(s);
         if (!d) return null;
         let a = new Date().getFullYear() - d.getFullYear();
         const m = new Date().getMonth() - d.getMonth();
         if (m < 0 || (m === 0 && new Date().getDate() < d.getDate())) a--;
         return a;
-    }    function ageBucket(a) {
+    }
+
+    function ageBucket(a) {
         if (a == null) return 'N/D';
         if (a < 20) return '<20';
         if (a < 30) return '20-29';
@@ -74,28 +84,40 @@ import {supabase} from '../supabaseClient.js';(function () {
         if (a < 50) return '40-49';
         if (a < 60) return '50-59';
         return '60+';
-    }    function getNascimento(c) {
+    }
+
+    function getNascimento(c) {
         return c?.['Data de Nascimento'] || c?.['Data de nascimento'] || c?.Nascimento || '';
-    }    function mapGeneroLabel(raw) {
+    }
+
+    function mapGeneroLabel(raw) {
         const n = norm(raw);
         if (n.startsWith('MASC')) return 'Masculino';
         if (n.startsWith('FEM')) return 'Feminino';
         return n ? 'Outros' : 'N/D';
-    }    function mapContratoAgg(raw) {
+    }
+
+    function mapContratoAgg(raw) {
         return norm(raw).includes('KN') ? 'Efetivo' : 'Temporário';
-    }    function mapTurnoLabel(raw) {
+    }
+
+    function mapTurnoLabel(raw) {
         const n = norm(raw);
         if (n === 'T1') return 'T1';
         if (n === 'T2') return 'T2';
         if (n === 'T3') return 'T3';
         return 'Outros';
-    }    function getWeekOfYear(d) {
+    }
+
+    function getWeekOfYear(d) {
         d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
         const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
         const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
         return `W${String(weekNo).padStart(2, '0')}`;
-    }    async function getColaboradoresCache() {
+    }
+
+    async function getColaboradoresCache() {
         if (_colabCache) return _colabCache;
         const matrizesMap = await loadMatrizesMapping();
         const matrizesPermitidas = getMatrizesPermitidas();
@@ -124,19 +146,27 @@ import {supabase} from '../supabaseClient.js';(function () {
         colabsFiltered.forEach(c => map.set(norm(c.Nome), c));
         _colabCache = {list: colabsFiltered, map};
         return _colabCache;
-    }    function palette() {
+    }
+
+    function palette() {
         return ['#02B1EE', '#003369', '#69D4FF', '#2677C7', '#A9E7FF', '#225B9E', '#7FB8EB', '#99CCFF'];
-    }    function scheduleRefresh(invalidateCache = false) {
+    }
+
+    function scheduleRefresh(invalidateCache = false) {
         if (invalidateCache) _colabCache = null;
         if (state.mounted) refresh();
-    }    function handleChartClick(chart, clickedIndex, filterType) {
+    }
+
+    function handleChartClick(chart, clickedIndex, filterType) {
         const clickedLabel = chart.data.labels[clickedIndex];
         let filterValue = clickedLabel;
         if (filterType === 'dow') filterValue = DOW_LABELS.indexOf(clickedLabel);
         state.interactiveFilters[filterType] =
             state.interactiveFilters[filterType] === filterValue ? null : filterValue;
         applyFiltersAndUpdate();
-    }    function applyFiltersAndUpdate() {
+    }
+
+    function applyFiltersAndUpdate() {
         const filteredData = state.absenteeismData.filter(d => {
             const date = parseDateMaybe(d.Data);
             if (!date) return false;
@@ -149,13 +179,17 @@ import {supabase} from '../supabaseClient.js';(function () {
             return true;
         });
         updateChartsNow(filteredData);
-    }    function clampEndToToday(startISO, endISO) {
+    }
+
+    function clampEndToToday(startISO, endISO) {
         if (!startISO || !endISO) return [startISO, endISO];
         const today = new Date();
         const pad2 = (n) => String(n).padStart(2, '0');
         const todayISO = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
         return [startISO, endISO > todayISO ? todayISO : endISO];
-    }    function setupPeriodFilter(host) {
+    }
+
+    function setupPeriodFilter(host) {
         const toolbar = host.querySelector('.abs-toolbar');
         if (!toolbar || toolbar.querySelector('#abs-period-btn')) return;
         const btn = document.createElement('button');
@@ -246,7 +280,9 @@ import {supabase} from '../supabaseClient.js';(function () {
                 refresh();
             };
         };
-    }    async function fetchRawAbsences(start, end) {
+    }
+
+    async function fetchRawAbsences(start, end) {
         let q = supabase
             .from('ControleDiario')
             .select('Nome, Data, Falta, Atestado, Suspensao, "Folga Especial"')
@@ -254,7 +290,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             .lte('Data', end)
             .or('Falta.eq.1,Atestado.eq.1');
         return fetchAllWithPagination(q);
-    }    function ensureMounted() {
+    }
+
+    function ensureMounted() {
         if (state.mounted) return;
         const host = document.querySelector(HOST_SEL);
         if (!host.querySelector('.hcabs-root')) {
@@ -283,7 +321,9 @@ import {supabase} from '../supabaseClient.js';(function () {
         ensureCanvasWrappers();
         setupPeriodFilter(host);
         state.mounted = true;
-    }    function ensureCanvasWrappers() {
+    }
+
+    function ensureCanvasWrappers() {
         const nodes = document.querySelectorAll('#hc-analise-abs .hcabs-card, #hc-analise-abs .hcabs-doughnut-item, #hc-analise-abs .hcabs-bar-item');
         nodes.forEach(el => {
             const canvas = el.querySelector('canvas');
@@ -293,7 +333,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             canvas.parentNode.insertBefore(wrap, canvas);
             wrap.appendChild(canvas);
         });
-    }    async function ensureChartLib() {
+    }
+
+    async function ensureChartLib() {
         if (!window.Chart) await loadJs('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
         if (!window.ChartDataLabels) await loadJs('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js');
         try {
@@ -303,7 +345,9 @@ import {supabase} from '../supabaseClient.js';(function () {
         Chart.defaults.responsive = true;
         Chart.defaults.maintainAspectRatio = false;
         Chart.defaults.devicePixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 1.6);
-    }    function loadJs(src) {
+    }
+
+    function loadJs(src) {
         return new Promise((res, rej) => {
             const s = document.createElement('script');
             s.src = src;
@@ -311,7 +355,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             s.onerror = rej;
             document.head.appendChild(s);
         });
-    }    window.addEventListener('hc-filters-changed', (ev) => {
+    }
+
+    window.addEventListener('hc-filters-changed', (ev) => {
         const f = ev?.detail || {};
         const mudouMatriz = (typeof f.matriz === 'string' && state.matriz !== f.matriz);
         const mudouSvc = (typeof f.svc === 'string' && state.svc !== f.svc);
@@ -330,10 +376,14 @@ import {supabase} from '../supabaseClient.js';(function () {
     );
     ['colaborador-added'].forEach(evt =>
         window.addEventListener(evt, () => scheduleRefresh(true))
-    );    function showBusy(f) {
+    );
+
+    function showBusy(f) {
         const el = document.getElementById('hcabs-busy');
         if (el) el.style.display = f ? 'flex' : 'none';
-    }    async function fetchAllWithPagination(queryBuilder) {
+    }
+
+    async function fetchAllWithPagination(queryBuilder) {
         let all = [], page = 0;
         const pageSize = 1000;
         while (true) {
@@ -344,7 +394,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             page++;
         }
         return all;
-    }    async function refresh() {
+    }
+
+    async function refresh() {
         if (state.loading) return;
         state.loading = true;
         showBusy(true);
@@ -402,7 +454,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             state.loading = false;
             showBusy(false);
         }
-    }    const animationConfig = {duration: 800, easing: 'easeOutQuart', delay: (ctx) => ctx.dataIndex * 25};
+    }
+
+    const animationConfig = {duration: 800, easing: 'easeOutQuart', delay: (ctx) => ctx.dataIndex * 25};
     const baseChartOpts = (onClick) => ({
         animation: animationConfig,
         onClick: (evt, elements, chart) => {
@@ -503,11 +557,15 @@ import {supabase} from '../supabaseClient.js';(function () {
             y: {grid: {display: false}}
         };
         return opts;
-    };    function monthKeyFromDate(dt) {
+    };
+
+    function monthKeyFromDate(dt) {
         const y = dt.getFullYear();
         const m = String(dt.getMonth() + 1).padStart(2, '0');
         return `${y}-${m}`;
-    }    function ensureChartsCreated() {
+    }
+
+    function ensureChartsCreated() {
         if (state.charts.totalPorMes) return;
         state.charts.totalPorMes = new Chart(document.getElementById('abs-mes-line').getContext('2d'), {
             type: 'line',
@@ -544,7 +602,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             type: 'bar',
             options: top5BarOpts()
         });
-    }    function updateChartsNow(dataToRender) {
+    }
+
+    function updateChartsNow(dataToRender) {
         const pal = palette();
         const totalAbs = dataToRender.length || 1;
         const createOpacity = (color, opacity) => color + Math.round(opacity * 255).toString(16).padStart(2, '0');
@@ -715,7 +775,9 @@ import {supabase} from '../supabaseClient.js';(function () {
             ch.options.scales.y.max = getSafeMax(dataValues);
             ch.update();
         }
-    }    function resetState() {
+    }
+
+    function resetState() {
         state.mounted = false;
         Object.keys(state.charts).forEach(k => {
             if (state.charts[k]) {
@@ -723,7 +785,9 @@ import {supabase} from '../supabaseClient.js';(function () {
                 state.charts[k] = null;
             }
         });
-    }    window.buildHCAnaliseABS = function () {
+    }
+
+    window.buildHCAnaliseABS = function () {
         const host = document.querySelector(HOST_SEL);
         if (!host) return;
         if (!state.mounted) ensureMounted();

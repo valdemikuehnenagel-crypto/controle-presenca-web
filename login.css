@@ -1,5 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;500;700&display=swap');
 
+/* ==========================================================================
+   PALETA DE CORES (A MESMA DO SISTEMA)
+   ========================================================================== */
+:root {
+
+    --brand-dark-blue: #003369;
+    --brand-white: #ffffff;
+
+
+    --func-light-blue: #0099da;
+    --func-light-green: #08c792;
+    --func-coral-red: #ed2939;
+
+
+    --neutral-1: #f6f5f0;
+    --neutral-2: #c5c6bf;
+    --neutral-3: #929288;
+    --neutral-4: #62635b;
+    --neutral-5: #373832;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -8,7 +29,7 @@
 }
 
 body {
-    background-color: #f0f2f5;
+    background-color: var(--neutral-1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -16,15 +37,34 @@ body {
     height: 100vh;
 }
 
+
+.deliver-decoration {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    max-width: 350px;
+    max-height: 400px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+@media (max-width: 768px) {
+    .deliver-decoration {
+        display: none;
+    }
+}
+
 .container {
-    background-color: #fff;
+    background-color: var(--brand-white);
+
     border-radius: 30px;
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25), 0 10px 15px rgba(0, 0, 0, 0.2);
     position: relative;
     overflow: hidden;
     width: 768px;
     max-width: 100%;
-    min-height: 540px; /* Aumentei levemente para caber os inputs maiores */
+    min-height: 540px;
+    border: 1px solid var(--neutral-2);
 }
 
 .container p {
@@ -32,16 +72,17 @@ body {
     line-height: 20px;
     letter-spacing: 0.3px;
     margin: 20px 0;
+    color: var(--neutral-4);
 }
 
 .container span {
     font-size: 12px;
     margin-bottom: 10px;
-    color: #555;
+    color: var(--neutral-4);
 }
 
 .container button {
-    background: linear-gradient(to right, #003369, #004a99);
+    background: var(--brand-dark-blue);
     color: #fff;
     font-size: 12px;
     padding: 10px 45px;
@@ -52,7 +93,13 @@ body {
     text-transform: uppercase;
     margin-top: 10px;
     cursor: pointer;
-    transition: transform 80ms ease-in;
+    transition: all 0.2s ease-in;
+    box-shadow: 0 4px 10px rgba(0, 51, 105, 0.3);
+}
+
+.container button:hover {
+    background: var(--func-light-blue);
+    transform: translateY(-1px);
 }
 
 .container button:active {
@@ -62,10 +109,15 @@ body {
 .container button.hidden {
     background-color: transparent;
     border-color: #fff;
+    box-shadow: none;
+}
+
+.container button.hidden:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .container form {
-    background-color: #fff;
+    background-color: var(--brand-white);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -77,31 +129,31 @@ body {
 
 form#registerForm {
     padding-top: 20px;
-    gap: 12px; /* Aumentei o gap para ficar mais espaçado */
+    gap: 12px;
 }
 
-/* --- ESTILOS DOS INPUTS (ATUALIZADO PARA FICAR MAIOR) --- */
+
 .container input,
 .container select {
-    background-color: #eee;
-    border: 1px solid #e0e0e0;
+    background-color: var(--neutral-1);
+    border: 1px solid var(--neutral-2);
     margin: 0;
-
-    /* AQUI ESTÁ O AJUSTE DE TAMANHO QUE VOCÊ PEDIU */
     padding: 14px 15px;
     font-size: 15px;
-
     border-radius: 8px;
     width: 100%;
     outline: none;
     transition: all 0.3s ease-in-out;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+    color: var(--neutral-5);
+    font-weight: 500;
 }
 
 .container input:focus,
 .container select:focus {
-    border-color: #004a99;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06), 0 0 10px rgba(0, 74, 153, 0.5);
+    border-color: var(--func-light-blue);
+    box-shadow: 0 0 0 3px rgba(0, 153, 218, 0.15);
+    background-color: #fff;
 }
 
 .container select {
@@ -110,27 +162,23 @@ form#registerForm {
     cursor: pointer;
 }
 
-/* --- ESTILOS DO CAMPO DE SENHA & OLHO --- */
 
-/* Wrapper para posicionar o olho dentro do input */
 .input-wrapper {
     position: relative;
     width: 100%;
 }
 
-/* Padding extra na direita para o texto não ficar embaixo do ícone */
 .password-field {
     padding-right: 45px !important;
 }
 
-/* O ícone do olho */
 .toggle-password {
     position: absolute;
     right: 15px;
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
-    color: #666;
+    color: var(--neutral-3);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -139,7 +187,7 @@ form#registerForm {
 }
 
 .toggle-password:hover {
-    color: #003369;
+    color: var(--brand-dark-blue);
 }
 
 .eye-icon-svg {
@@ -147,7 +195,6 @@ form#registerForm {
     height: 22px;
 }
 
-/* --- ESTILOS DO MEDIDOR DE FORÇA (ATUALIZADO PARA FICAR MAIOR) --- */
 
 .password-container {
     width: 100%;
@@ -158,8 +205,8 @@ form#registerForm {
 
 .password-strength-bar {
     width: 100%;
-    height: 10px; /* Barra mais grossa */
-    background-color: #e0e0e0;
+    height: 10px;
+    background-color: var(--neutral-2);
     border-radius: 5px;
     overflow: hidden;
     margin-top: 4px;
@@ -168,7 +215,7 @@ form#registerForm {
 .strength-indicator {
     height: 100%;
     width: 0;
-    background-color: #e70b0b;
+    background-color: var(--func-coral-red);
     transition: width 0.4s ease, background-color 0.4s ease;
 }
 
@@ -178,23 +225,24 @@ form#registerForm {
 }
 
 #password-strength-text, #migration-strength-text {
-    font-size: 13px; /* Texto maior */
+    font-size: 13px;
     font-weight: 700;
-    color: #555;
+    color: var(--neutral-4);
 }
 
-/* --- ESTILOS ESPECÍFICOS DE LOGIN --- */
 
 .pin-input {
-    text-align: center; /* Mantém centralizado se for pin */
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--brand-dark-blue) !important;
 }
 
 .text-login {
-    text-align: left; /* Garante que a senha fique alinhada a esquerda */
+    text-align: left;
     letter-spacing: normal;
 }
 
-/* --- ANIMAÇÕES E LAYOUT DO CONTAINER (MANTIDO IGUAL) --- */
 
 .form-container {
     position: absolute;
@@ -204,32 +252,30 @@ form#registerForm {
 }
 
 .form-container h1 {
-    text-shadow: 0px 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.form-container span {
-    text-shadow: 0px 1px 2px rgba(0, 0, 0, 0.05);
+    color: var(--brand-dark-blue);
+    margin-bottom: 10px;
 }
 
 .message {
     font-size: 12px;
     height: auto;
     min-height: 16px;
-    word-break: break-word; /* Ajustado para quebrar texto longo */
+    word-break: break-word;
     text-align: center;
     margin-top: 8px;
+    font-weight: 600;
 }
 
 #loginMsg {
-    color: #e53e3e;
+    color: var(--func-coral-red);
 }
 
 #registerMsg {
-    color: #48bb78;
+    color: var(--func-light-green);
 }
 
 #registerMsg.error {
-    color: #e53e3e;
+    color: var(--func-coral-red);
 }
 
 #migrationMsg {
@@ -237,7 +283,7 @@ form#registerForm {
 }
 
 .message.info {
-    color: #333;
+    color: var(--neutral-5);
 }
 
 .sign-in {
@@ -275,6 +321,7 @@ form#registerForm {
     }
 }
 
+
 .toggle-container {
     position: absolute;
     top: 0;
@@ -283,18 +330,20 @@ form#registerForm {
     height: 100%;
     overflow: hidden;
     transition: all 0.6s ease-in-out;
-    border-radius: 150px 0 0 100px;
+
+    border-radius: 0;
     z-index: 1000;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
 }
 
 .container.active .toggle-container {
     transform: translateX(-100%);
-    border-radius: 0 150px 100px 0;
+
+    border-radius: 0;
 }
 
 .toggle {
-    background: linear-gradient(rgba(0, 51, 105, 0.6), rgba(0, 51, 105, 0.6)),
+    background: linear-gradient(rgba(0, 51, 105, 0.75), rgba(0, 51, 105, 0.85)),
     url('/imagens/login.png');
     background-size: cover;
     background-position: center;
@@ -325,7 +374,11 @@ form#registerForm {
     transform: translateX(0);
     transition: all 0.6s ease-in-out;
     color: #fff;
-    text-shadow: 0px 2px 8px rgba(0, 25, 51, 0.8);
+    text-shadow: 0px 2px 8px rgba(0, 51, 105, 0.8);
+}
+
+.toggle-panel p {
+    color: #e0e9f5;
 }
 
 .toggle-left {
@@ -348,7 +401,7 @@ form#registerForm {
 .forgot-pin-btn {
     background: none;
     border: none;
-    color: #555;
+    color: var(--neutral-4);
     font-size: 12px;
     padding: 0;
     margin-top: 15px;
@@ -359,13 +412,13 @@ form#registerForm {
 }
 
 .forgot-pin-btn:hover {
-    color: #003369;
+    color: var(--brand-dark-blue);
     text-decoration: underline;
 }
 
 body.login-page {
     background-image: none;
-    background-color: #eef3fb;
+    background-color: var(--neutral-1);
 }
 
 body.login-page::before {
@@ -398,20 +451,20 @@ body.login-page::before {
     height: 50px;
     border-radius: 50%;
     object-fit: cover;
-    border: 3px solid #e0e0e0;
+    border: 3px solid var(--neutral-2);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     transition: all 0.2s ease;
 }
 
 .avatar-upload-label:hover img {
-    border-color: #004a99;
+    border-color: var(--func-light-blue);
     transform: scale(1.05);
 }
 
 .avatar-upload-label span {
     font-weight: 600;
     font-size: 12px;
-    color: #003369;
+    color: var(--brand-dark-blue);
 }
 
 form#registerForm > span:first-of-type {
@@ -470,7 +523,7 @@ form#registerForm > span:first-of-type {
 .welcome-back p {
     font-size: 1.5rem;
     font-weight: 700;
-    color: #003369;
+    color: var(--brand-dark-blue);
     margin: 0;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
@@ -485,16 +538,16 @@ form#registerForm > span:first-of-type {
 #open-matriz-modal-btn,
 #registerFuncao {
     flex: 1;
-    background: #eee;
-    border: 1px solid #e0e0e0;
-    padding: 10px 15px; /* Ajuste no select pra ficar igual ao input */
+    background: var(--neutral-1);
+    border: 1px solid var(--neutral-2);
+    padding: 10px 15px;
     margin: 0;
     font-size: 13px;
     border-radius: 8px;
     width: 100%;
     outline: none;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
-    color: #6d6d6d;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+    color: var(--neutral-4);
     font-weight: normal;
     text-transform: none;
     letter-spacing: normal;
@@ -514,12 +567,14 @@ form#registerForm > span:first-of-type {
 #open-matriz-modal-btn::after {
     content: '▼';
     font-size: 10px;
+    color: var(--neutral-4);
 }
 
 #open-matriz-modal-btn span,
 #registerFuncao option {
-    color: #333;
+    color: var(--neutral-5);
 }
+
 
 .modal-overlay {
     display: none;
@@ -528,8 +583,9 @@ form#registerForm > span:first-of-type {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(55, 56, 50, 0.6);
     z-index: 1000;
+    backdrop-filter: blur(2px);
 }
 
 .modal {
@@ -538,12 +594,13 @@ form#registerForm > span:first-of-type {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: #fff;
+    background-color: var(--brand-white);
     border-radius: 12px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
     z-index: 1001;
     width: 90%;
     max-width: 400px;
+    border: 1px solid var(--neutral-2);
 }
 
 .modal.show, .modal-overlay.show {
@@ -552,7 +609,7 @@ form#registerForm > span:first-of-type {
 
 .modal-header {
     padding: 15px 20px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--neutral-2);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -561,6 +618,8 @@ form#registerForm > span:first-of-type {
 .modal-header h2 {
     margin: 0;
     font-size: 18px;
+    color: var(--brand-dark-blue);
+    font-weight: 700;
 }
 
 .close-btn {
@@ -568,6 +627,12 @@ form#registerForm > span:first-of-type {
     border: none;
     font-size: 24px;
     cursor: pointer;
+    color: var(--neutral-4);
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: var(--func-coral-red);
 }
 
 .modal-body {
@@ -580,25 +645,30 @@ form#registerForm > span:first-of-type {
     display: flex;
     align-items: center;
     padding: 8px 0;
+    border-bottom: 1px solid var(--neutral-1);
 }
 
 .modal-body .custom-option input[type="checkbox"] {
     margin-right: 12px;
+    width: auto;
+    box-shadow: none;
 }
 
 .modal-body .custom-option label {
     cursor: pointer;
     flex: 1;
+    color: var(--neutral-5);
+    font-size: 14px;
 }
 
 .modal-footer {
     padding: 15px 20px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--neutral-2);
     text-align: right;
 }
 
 .btn-primary {
-    background-color: #003369;
+    background-color: var(--brand-dark-blue);
     color: white;
     border: none;
     padding: 10px 25px;
@@ -606,6 +676,11 @@ form#registerForm > span:first-of-type {
     cursor: pointer;
     font-weight: bold;
     text-transform: uppercase;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background-color: var(--func-light-blue);
 }
 
 .form-button-container {
@@ -632,10 +707,11 @@ form#registerForm > span:first-of-type {
 #generatedPinDisplay {
     font-size: 20px;
     font-weight: 700;
-    color: #003369;
+    color: var(--brand-dark-blue);
     letter-spacing: 2px;
     padding: 5px 10px;
-    background-color: #eee;
+    background-color: var(--neutral-1);
+    border: 1px solid var(--neutral-2);
     border-radius: 8px;
     display: inline-block;
     min-height: 36px;
@@ -643,7 +719,7 @@ form#registerForm > span:first-of-type {
 }
 
 .message.pin-message {
-    color: #333;
+    color: var(--neutral-5);
     font-weight: 500;
     text-align: center;
     margin: 2px 0 0 0;

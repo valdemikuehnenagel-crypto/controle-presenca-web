@@ -100,20 +100,25 @@
     <div class="toggle-container">
         <div class="toggle">
             <div class="toggle-panel toggle-left">
-                <img src="/imagens/kn.gif" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
-                <h1>Bem-vindo de volta!</h1>
-                <p>Já possui uma conta? Faça o login para acessar o sistema.</p>
+                <img src="/imagens/simbolobranco.png" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
+                <h1>Olá, seja bem-vindo!</h1>
+                <p>Já possui uma conta criada?</p>
+                <p>Faça o login para acessar o sistema.</p>
                 <button class="hidden" id="showLoginBtn">Entrar</button>
             </div>
+
             <div class="toggle-panel toggle-right">
-                <img src="/imagens/kn.gif" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
-                <h1>Olá, seja bem vindo ao KNConecta!</h1>
-                <p>Ainda não tem uma conta? Registre-se para solicitar seu acesso.</p>
+                <img src="/imagens/simbolobranco.png" alt="Logo KN Conecta" style="height: 80px; margin-bottom: 15px;">
+                <h1>Bem-vindo de volta!</h1>
+                <p>Ainda não tem uma conta?</p>
+                <p>Registre-se para solicitar seu acesso.</p>
                 <button class="hidden" id="showRegisterBtn">Criar Conta</button>
             </div>
         </div>
     </div>
 </div>
+
+<img src="/imagens/deliver.png" alt="Deliver" class="deliver-decoration">
 
 <div id="matriz-modal-overlay" class="modal-overlay"></div>
 <div id="matriz-modal" class="modal">
@@ -177,12 +182,16 @@
         </p>
 
         <div class="input-wrapper" style="width: 100%; margin-bottom: 15px;">
-            <input id="updateEmailInput" type="email" placeholder="seu.nome@kuehne-nagel.com" class="form-field text-login" style="background-color: #f0f2f5;"/>
+            <input id="updateEmailInput" type="email" placeholder="seu.nome@kuehne-nagel.com"
+                   class="form-field text-login" style="background-color: #f0f2f5;"/>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <button id="confirm-email-update-btn" class="btn-primary" style="width: 100%;">Salvar Novo E-mail</button>
-            <button id="no-corporate-email-btn" class="btn-secondary" style="width: 100%; background-color: #eee; color: #555; border: 1px solid #ccc; cursor:pointer; padding: 10px; border-radius: 8px; font-weight: 600; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Não tenho e-mail KN</button>
+            <button id="no-corporate-email-btn" class="btn-secondary"
+                    style="width: 100%; background-color: #eee; color: #555; border: 1px solid #ccc; cursor:pointer; padding: 10px; border-radius: 8px; font-weight: 600; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">
+                Não tenho e-mail KN
+            </button>
         </div>
 
         <p id="emailUpdateMsg" class="message"></p>
