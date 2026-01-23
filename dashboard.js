@@ -92,57 +92,93 @@ window.customConfirm = function (message, title = 'Confirmação', type = 'warni
     });
 };
 
-function showZoomRecommendation(userName) {
-    if (sessionStorage.getItem('knc:zoomAlertShown')) return;
+// --- MODAL UNIFICADO (MATERIAL + ZOOM) ---
+
+function showWelcomeModal(userName) {
+    // Atualizei para 'knc:welcome_v4' para garantir que você veja a alteração das polegadas
+    if (sessionStorage.getItem('knc:welcome_v4')) return;
+
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4';
-    const imgSrc = '/imagens/ctrl.png';
+
+    const imgCtrl = '/imagens/ctrl.png';
+    const materialLink = "https://kuehnenagel-my.sharepoint.com/:p:/r/personal/ana_salgado_kuehne-nagel_com/Documents/KNCONECTA.pptx?d=w4dc4a1432a504f8ca540227a8e304de7&csf=1&web=1&e=rU9SgW&nav=eyJzSWQiOjIxNDc0ODE4MzIsImNJZCI6MjI0NDEwNjIwN30";
+
     overlay.innerHTML = `
-        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-scaleIn transform transition-all">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-scaleIn transform transition-all relative">
+            
             <div class="bg-[#003369] p-4 text-center">
-                <h3 class="text-white font-bold text-lg">💡 Dica de Visualização</h3>
+                <h3 class="text-white font-bold text-lg">Olá, ${userName.toUpperCase()}! 👋</h3>
             </div>
-            <div class="p-6 text-center">
-                <h2 class="text-xl font-bold text-[#003369] mb-4">Olá, ${userName.toUpperCase()}! 👋</h2>
-                <p class="text-gray-600 mb-4 text-sm leading-relaxed">
-                    Para mais conforto visual e para visualizar todas as tabelas corretamente, recomendo os seguintes ajustes de zoom:
-                </p>
-                <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
-                    <div class="bg-gray-50 p-3 rounded border border-gray-200">
-                        <span class="block text-gray-500 text-xs">Telas Pequenas (14")</span>
-                        <span class="block font-bold text-[#003369] text-xl">70%</span>
+
+            <div class="p-6">
+                
+                <div class="mb-6 text-center">
+                    <div class="inline-flex items-center justify-center p-2 bg-blue-50 rounded-full mb-3 text-[#02B1EE]">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                         </svg>
                     </div>
-                    <div class="bg-gray-50 p-3 rounded border border-gray-200">
-                        <span class="block text-gray-500 text-xs">Telas Médias (15.6")</span>
-                        <span class="block font-bold text-[#003369] text-xl">80%</span>
-                    </div>
-                </div>
-                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-6">
-                    <p class="text-xs text-blue-800 font-semibold mb-2 uppercase tracking-wide">Como ajustar:</p>
-                    <p class="text-sm text-gray-700 mb-3">
-                        Pressione <kbd class="bg-white border border-gray-300 px-2 py-0.5 rounded shadow-sm font-sans font-semibold">Ctrl</kbd> 
-                        e a tecla <kbd class="bg-white border border-gray-300 px-2 py-0.5 rounded shadow-sm font-sans font-semibold">-</kbd> 
-                        ao mesmo tempo.
+                    <h2 class="text-lg font-bold text-[#003369] mb-2">Temos uma novidade!</h2>
+                    <p class="text-sm text-gray-600 mb-4">
+                        Preparamos um material completo com o passo a passo de cada funcionalidade do sistema.
                     </p>
-                    <div class="flex justify-center">
-                        <img src="${imgSrc}" alt="Pressione Ctrl e Menos" class="h-16 object-contain opacity-90 hover:opacity-100 transition-opacity">
+                    
+                    <a href="${materialLink}" target="_blank" 
+                       style="background-color: #02B1EE; color: #003369;"
+                       class="block w-full py-3 font-bold rounded-lg shadow hover:shadow-lg transition-all transform hover:-translate-y-0.5 text-center flex items-center justify-center gap-2 group">
+                        <span>📖 ACESSAR MANUAL AGORA</span>
+                    </a>
+                </div>
+
+                <div class="relative flex py-2 items-center mb-6">
+                    <div class="flex-grow border-t border-gray-200"></div>
+                    <span class="flex-shrink-0 mx-4 text-gray-400 text-xs font-semibold uppercase tracking-wider">Dica de Visualização</span>
+                    <div class="flex-grow border-t border-gray-200"></div>
+                </div>
+
+                <div class="text-center bg-gray-50 rounded-lg p-4 border border-gray-100">
+                    <p class="text-sm text-gray-600 mb-3">
+                        Para visualizar todas as tabelas corretamente, ajuste o zoom:
+                    </p>
+                    <div class="flex justify-center gap-4 text-sm mb-3">
+                        <div>
+                            <span class="block text-gray-400 text-[10px] uppercase">Tela Pequena (14")</span>
+                            <span class="font-bold text-[#003369] text-lg">70%</span>
+                        </div>
+                        <div class="w-px bg-gray-300"></div>
+                        <div>
+                            <span class="block text-gray-400 text-[10px] uppercase">Tela Média (15.6")</span>
+                            <span class="font-bold text-[#003369] text-lg">80%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-center gap-2 text-xs text-gray-500 bg-white p-2 rounded border border-gray-200 shadow-sm inline-block w-full">
+                        <span>Pressione</span>
+                        <kbd class="font-sans font-bold border rounded px-1 text-gray-700">Ctrl</kbd>
+                        <span>+</span>
+                        <kbd class="font-sans font-bold border rounded px-1 text-gray-700">-</kbd>
                     </div>
                 </div>
-                <button id="btnZoomOk" style="background-color: #003369; color: white;" class="w-full py-3 font-bold rounded-lg shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 hover:brightness-110">
-                    OK, ENTENDI
+
+                <button id="btnWelcomeClose" class="mt-6 w-full py-3 text-sm font-bold text-[#003369] bg-white border border-[#003369] rounded-lg hover:bg-[#003369] hover:text-white transition-colors uppercase">
+                    Entendi, ir para o sistema
                 </button>
             </div>
         </div>
     `;
+
     document.body.appendChild(overlay);
-    const btn = overlay.querySelector('#btnZoomOk');
+
+    const btn = overlay.querySelector('#btnWelcomeClose');
     btn.onclick = () => {
         overlay.style.opacity = '0';
         overlay.style.transition = 'opacity 0.2s';
         setTimeout(() => overlay.remove(), 200);
-        sessionStorage.setItem('knc:zoomAlertShown', 'true');
+        sessionStorage.setItem('knc:welcome_v4', 'true');
     };
 }
+
 
 function setActiveTab(pageName) {
     const p = normalizePage(pageName);
@@ -363,7 +399,9 @@ function checkSession() {
             const fullName = user?.Nome || 'Usuário';
             const firstName = fullName.split(' ')[0];
             userInfoEl.textContent = `${greeting}, ${firstName}!`;
-            showZoomRecommendation(firstName);
+
+            // CHAMADA DO MODAL UNIFICADO (v4)
+            showWelcomeModal(firstName);
         }
         try {
             if (userAvatarEl) {
@@ -524,7 +562,8 @@ tabButtons.forEach((button) => {
 
 if (logoutBtn) {
     logoutBtn.addEventListener('click', () => {
-        sessionStorage.removeItem('knc:zoomAlertShown');
+        // Limpa a chave da versão v4 para garantir que apareça se relogar
+        sessionStorage.removeItem('knc:welcome_v4');
         localStorage.removeItem('userSession');
         window.location.href = '/index.html';
     });
